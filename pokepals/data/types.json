@@ -1,0 +1,11 @@
+{
+	"_comment": "Affinity/type system. A clean rock-paper-scissors cycle: each type is super-effective (2.0) against exactly one type and not-very-effective (0.5) against exactly one. Anything not listed defaults to 1.0. Retune freely.",
+	"_cycle": "aqua > ember > flora > spark > aqua (X > Y means X is super effective against Y)",
+	"types": ["ember", "flora", "aqua", "spark"],
+	"chart": {
+		"aqua":  { "ember": 2.0, "spark": 0.5 },
+		"ember": { "flora": 2.0, "aqua": 0.5 },
+		"flora": { "spark": 2.0, "ember": 0.5 },
+		"spark": { "aqua": 2.0, "flora": 0.5 }
+	}
+}

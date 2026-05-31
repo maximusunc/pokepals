@@ -1,0 +1,9 @@
+{
+	"_comment": "Creature definitions keyed by id. Each has base stats and a list of move ids (see moves.json). One starter per type, each carrying two on-type moves plus one off-type 'coverage' move. Retune freely.",
+	"creatures": {
+		"emberpup":  { "name": "Emberpup",  "type": "ember", "max_hp": 32, "atk": 13, "def": 9,  "spd": 12, "moves": ["ember_claw", "flame_burst", "water_jet"] },
+		"florafawn": { "name": "Florafawn", "type": "flora", "max_hp": 36, "atk": 11, "def": 11, "spd": 9,  "moves": ["vine_whip", "leaf_storm", "spore_cloud"] },
+		"aquafin":   { "name": "Aquafin",   "type": "aqua",  "max_hp": 34, "atk": 12, "def": 10, "spd": 11, "moves": ["water_jet", "tidal_crash", "spark_zap"] },
+		"sparkit":   { "name": "Sparkit",   "type": "spark", "max_hp": 30, "atk": 14, "def": 8,  "spd": 14, "moves": ["spark_zap", "thunder_jolt", "vine_whip"] }
+	}
+}

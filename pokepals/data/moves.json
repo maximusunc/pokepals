@@ -1,0 +1,14 @@
+{
+	"_comment": "Move definitions keyed by id. power scales damage; accuracy is a 0..1 hit chance; optional status applies a damage-over-time condition with a per-hit chance, a duration in turns, and per-turn dot damage. Retune freely.",
+	"moves": {
+		"ember_claw":   { "name": "Ember Claw",   "type": "ember", "power": 10, "accuracy": 0.95 },
+		"flame_burst":  { "name": "Flame Burst",  "type": "ember", "power": 14, "accuracy": 0.85, "status": { "kind": "burn",   "chance": 0.30, "turns": 3, "dot": 3 } },
+		"vine_whip":    { "name": "Vine Whip",     "type": "flora", "power": 10, "accuracy": 0.95 },
+		"leaf_storm":   { "name": "Leaf Storm",    "type": "flora", "power": 14, "accuracy": 0.85 },
+		"spore_cloud":  { "name": "Spore Cloud",   "type": "flora", "power": 6,  "accuracy": 0.90, "status": { "kind": "poison", "chance": 0.60, "turns": 4, "dot": 2 } },
+		"water_jet":    { "name": "Water Jet",     "type": "aqua",  "power": 10, "accuracy": 0.95 },
+		"tidal_crash":  { "name": "Tidal Crash",   "type": "aqua",  "power": 14, "accuracy": 0.85 },
+		"spark_zap":    { "name": "Spark Zap",     "type": "spark", "power": 10, "accuracy": 0.95 },
+		"thunder_jolt": { "name": "Thunder Jolt",  "type": "spark", "power": 14, "accuracy": 0.85 }
+	}
+}
