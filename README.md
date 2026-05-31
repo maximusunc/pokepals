@@ -42,11 +42,18 @@ The pure battle core is covered by fast, dependency-free headless tests
 (determinism, purity, type wiring, and that battles conclude):
 
 ```sh
+# One-time per fresh checkout: import the project so class_name globals register.
+godot --headless --path pokepals --import
+
+# Run the pure-logic tests (PASS/FAIL per check; exits non-zero on failure):
 godot --headless --path pokepals --script res://tests/run_tests.gd
+
+# Optional: drive the real Battle scene through a full turn loop headlessly:
+godot --headless --path pokepals --script res://tests/smoke_ui.gd
 ```
 
-It prints `PASS`/`FAIL` per check and exits non-zero on failure (CI-friendly).
-The first run imports the project, which registers the script classes.
+Opening the project in the Godot editor once does the same import as the first
+command. (CI-friendly: the test runner's exit code is the number of failures.)
 
 ## Retune the balance
 
