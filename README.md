@@ -1,63 +1,76 @@
-# Pokepals
+# Kithbound
 
-A 2D, turn-based creature-collector built in **Godot 4.6** with **GDScript**.
+A cozy, 2D, companion-centered world game built in **Godot 4.6** with **GDScript**,
+mobile-friendly from the start.
 
-> **Status — Rung 1:** a single-player, offline turn-based battle prototype. The
-> goal of this phase is to find out whether the core battle is *fun* before any
-> networking, overworld, or persistence. See [`CLAUDE.md`](CLAUDE.md) for the full
-> vision and the staged roadmap.
+> **Status — Rung 1:** a single-player, offline *companion + world* vertical slice.
+> The goal of this phase is to find out whether wandering a small world *beside a
+> living-feeling companion* feels like something — a test of FEEL, not features.
+> See [`CLAUDE.md`](CLAUDE.md) for the full vision and the staged roadmap.
 
-The Godot project lives in the [`pokepals/`](pokepals/) subdirectory.
+The Godot project lives in the [`pokepals/`](pokepals/) subdirectory. (An earlier
+turn-based battle prototype still lives under `scripts/battle/` + `scripts/ui/` +
+`scenes/battle.tscn`; it predates the pivot to Kithbound and is kept for reference.)
 
 ## Architecture
 
-The one rule that matters: **battle resolution is pure logic with zero UI/engine
-dependencies.** It lives in [`pokepals/scripts/battle/`](pokepals/scripts/battle)
-as static functions that take battle state in and return new state out —
-deterministic, JSON-serializable, no node or scene-tree references. The UI reads
-that state and renders it; it never computes outcomes itself. This module is meant
-to move onto an authoritative server unchanged at a later rung.
+Two disciplines held from day one:
+
+1. **Separate logic from presentation.** The companion's *mind* —
+   [`scripts/world/companion_brain.gd`](pokepals/scripts/world/companion_brain.gd) —
+   is pure behavior logic: a `RefCounted` that takes positions and world events in
+   and returns *intent* out (where it wants to go, what it's looking at, how it
+   feels). It references no nodes, UI, or rendering.
+2. **Keep the world layer presentation-agnostic.** The brain works in abstract
+   geometry (`Vector2`), so it isn't welded to 2D and could later run under a
+   different presentation or on a server. The presentation layer
+   ([`scripts/presentation/`](pokepals/scripts/presentation)) reads that intent and
+   makes it look alive — easing, eyes that turn toward what it's attending to, bobs
+   and hops.
 
 ```
 pokepals/
-  scripts/battle/   PURE battle logic (rng, type_chart, data_loader, battle_state, battle_logic)
-  scripts/ui/       UI controllers that read state and render it
-  scenes/           battle.tscn (main scene) + creature_panel.tscn
-  data/             creatures.json, moves.json, types.json — data-driven, retune by editing
-  tests/            headless GDScript tests for the pure core
+  scripts/world/         PURE world/companion logic (companion_brain, world_data) — no UI refs
+  scripts/presentation/  player, companion view, world art, camera, joystick, world controller
+  scenes/                world.tscn (main scene) + player.tscn + companion.tscn
+  data/                  companion.json (feel tunables), world.json (hand-placed clearing)
+  tests/                 headless tests for the pure logic + scene smoke tests
 ```
 
 ## Play it
 
 1. Install [Godot 4.6](https://godotengine.org/download) (standard build, no C#).
 2. Open the project: `godot --path pokepals` (or open `pokepals/project.godot` in
-   the Godot editor) and press **Play**. The main scene is `scenes/battle.tscn`.
-3. A random matchup is drawn each battle. Pick a move each turn; watch the HP bars
-   and the battle log. Type matchups follow a cycle: **aqua → ember → flora →
-   spark → aqua** (each is super-effective against the next).
+   the editor) and press **Play**. The main scene is `scenes/world.tscn`.
+3. Wander with **arrow keys / WASD** (or the on-screen thumbstick on touch). Your
+   companion trails behind, idles and glances back when you stop, and perks up to
+   investigate when you press **Space** to examine a prop (the humming stone, the
+   lantern, the wildflowers).
 
 ## Run the tests
 
-The pure battle core is covered by fast, dependency-free headless tests
-(determinism, purity, type wiring, and that battles conclude):
+Fast, dependency-free headless tests cover the pure logic; smoke tests drive the
+real scenes end to end.
 
 ```sh
 # One-time per fresh checkout: import the project so class_name globals register.
 godot --headless --path pokepals --import
 
-# Run the pure-logic tests (PASS/FAIL per check; exits non-zero on failure):
+# Pure-logic tests (companion brain + the legacy battle core):
 godot --headless --path pokepals --script res://tests/run_tests.gd
 
-# Optional: drive the real Battle scene through a full turn loop headlessly:
+# Scene smoke tests (drive the real scenes; verify wiring runs without errors):
+godot --headless --path pokepals --script res://tests/smoke_world.gd
 godot --headless --path pokepals --script res://tests/smoke_ui.gd
 ```
 
 Opening the project in the Godot editor once does the same import as the first
 command. (CI-friendly: the test runner's exit code is the number of failures.)
 
-## Retune the balance
+## Tune the feel
 
-All creatures, moves, and type relationships are data. Edit
-[`pokepals/data/`](pokepals/data) — no code changes — and re-run to feel the
-difference. This data-driven separation is deliberate: rebalance by editing data,
-not logic.
+The companion's whole personality is data. Edit
+[`pokepals/data/companion.json`](pokepals/data/companion.json) — follow distances,
+walk/run speed, idle rhythm, curiosity, clinginess — and replay to feel the
+difference, no code changes. Reshape the clearing in
+[`pokepals/data/world.json`](pokepals/data/world.json).
