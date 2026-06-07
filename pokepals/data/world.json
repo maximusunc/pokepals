@@ -1,0 +1,25 @@
+{
+	"_comment": "A small, hand-placed cozy clearing. Coordinates are world-space pixels. Colors are [r,g,b] 0..1. This is the authored content; world_art draws it and world_controller uses 'interactables' for proximity. Edit freely to reshape the place.",
+	"bounds": { "min": [-360, -260], "max": [1000, 700] },
+	"ground_color": [0.43, 0.58, 0.36],
+	"player_spawn": [320, 220],
+	"companion_spawn": [260, 250],
+	"pond": { "center": [640, 470], "radius": 120, "color": [0.34, 0.52, 0.62] },
+	"paths": [
+		{ "from": [320, 220], "to": [640, 360], "color": [0.62, 0.56, 0.42] },
+		{ "from": [640, 360], "to": [180, 480], "color": [0.62, 0.56, 0.42] }
+	],
+	"trees": [
+		[40, 60], [560, 90], [900, 180], [120, 520], [840, 540], [760, 20], [-60, 300]
+	],
+	"flowers": [
+		[280, 300, 0.92, 0.62, 0.30], [360, 180, 0.86, 0.40, 0.55], [500, 420, 0.95, 0.85, 0.40],
+		[210, 410, 0.70, 0.55, 0.85], [700, 300, 0.92, 0.62, 0.30], [430, 520, 0.86, 0.40, 0.55],
+		[150, 180, 0.95, 0.85, 0.40], [600, 200, 0.70, 0.55, 0.85]
+	],
+	"interactables": [
+		{ "type": "chime_stone", "position": [470, 300], "color": [0.66, 0.70, 0.78], "label": "a humming stone" },
+		{ "type": "lantern", "position": [780, 380], "color": [0.95, 0.78, 0.42], "label": "an old lantern" },
+		{ "type": "wildflowers", "position": [220, 470], "color": [0.88, 0.46, 0.58], "label": "a patch of wildflowers" }
+	]
+}
