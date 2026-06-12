@@ -1,0 +1,123 @@
+class_name CompanionView
+extends Node2D
+## The companion's BODY — the presentation side of the logic/presentation split.
+## Each frame it builds a context, asks CompanionBrain what it wants, and then
+## brings that intent to life: eases toward the desired point, turns its eyes
+## toward whatever it's attending to (the cheap-but-huge "it's looking at me/that"
+## effect), bobs and hops, and pops when it notices something.
+##
+## It never decides behavior itself — that's the brain's job. It only renders the
+## brain's intent.
+
+@export var config_path := "res://data/companion.json"
+
+var velocity := Vector2.ZERO
+
+var _brain: CompanionBrain
+var _cfg: Dictionary
+var _player: PlayerView
+var _events: Array = []
+var _time := 0.0
+
+var _look_dir := Vector2.DOWN
+var _eye_offset := Vector2.ZERO
+var _bob := 0.0
+var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
+var _perk := 0.0         # 0..1, decays; pops the body on "perk"
+var _body_color := Color(0.56, 0.62, 0.86)
+
+
+## Called by the world to hand the companion its player to follow.
+func setup(player: PlayerView) -> void:
+	_player = player
+
+
+## Called by the world when the player interacts with something — the brain may
+## decide to grow curious about it.
+func notify_interaction(world_position: Vector2) -> void:
+	_events.append({ "type": "interaction", "position": world_position })
+
+
+func _ready() -> void:
+	_cfg = WorldData.load_json(config_path)
+	_brain = CompanionBrain.new(_cfg)
+
+
+func _process(delta: float) -> void:
+	_time += delta
+	if _player == null:
+		return
+
+	var context := {
+		"companion_pos": position,
+		"player_pos": _player.position,
+		"player_velocity": _player.velocity,
+		"delta": delta,
+		"events": _events,
+		"time": _time,
+	}
+	_events = []
+
+	var intent := _brain.update(context)
+	_apply_movement(intent, delta)
+	_apply_attention(intent, delta)
+	_apply_reactions(intent["reactions"])
+	_decay_animation(delta)
+	queue_redraw()
+
+
+func _apply_movement(intent: Dictionary, delta: float) -> void:
+	var target: Vector2 = intent["move_target"]
+	var speed: float = intent["desired_speed"]
+	var to_target := target - position
+	var desired_velocity := Vector2.ZERO
+	if to_target.length() > 2.0 and speed > 0.0:
+		desired_velocity = to_target.normalized() * speed
+	velocity = velocity.lerp(desired_velocity, 1.0 - exp(-float(_cfg["accel"]) * delta))
+	position += velocity * delta
+
+
+func _apply_attention(intent: Dictionary, delta: float) -> void:
+	var to_look := (intent["look_at"] as Vector2) - position
+	if to_look.length() > 1.0:
+		_look_dir = _look_dir.lerp(to_look.normalized(), 1.0 - exp(-6.0 * delta))
+	_eye_offset = _look_dir.normalized() * 2.4
+
+
+func _apply_reactions(reactions: Array) -> void:
+	for r in reactions:
+		match r:
+			"hop":
+				_hop_squash = 1.0
+			"perk":
+				_perk = 1.0
+
+
+func _decay_animation(delta: float) -> void:
+	_bob = sin(_time * 3.0)
+	_hop_squash = maxf(0.0, _hop_squash - delta * 2.5)
+	_perk = maxf(0.0, _perk - delta * 2.0)
+
+
+func _draw() -> void:
+	var moving := velocity.length() > 6.0
+	var body_y: float
+	if moving:
+		body_y = -absf(sin(_time * 12.0)) * 3.0  # little running hop
+	else:
+		body_y = _bob * 1.4                       # gentle breathing bob
+	var scale := 1.0 + 0.16 * _perk - 0.12 * _hop_squash
+	var body_pos := Vector2(0, body_y - 2.0)
+	var radius := 9.0 * scale
+
+	# soft shadow (stays put on the ground)
+	draw_circle(Vector2(0, 7), 7.5, Color(0, 0, 0, 0.18))
+	# body
+	draw_circle(body_pos, radius, _body_color)
+	# two little ears
+	draw_circle(body_pos + Vector2(-5, -7), 3.0, _body_color)
+	draw_circle(body_pos + Vector2(5, -7), 3.0, _body_color)
+	# eyes, shifted toward whatever it's attending to
+	var eye_color := Color(0.12, 0.12, 0.16)
+	draw_circle(body_pos + Vector2(-3, -1) + _eye_offset, 1.9, eye_color)
+	draw_circle(body_pos + Vector2(3, -1) + _eye_offset, 1.9, eye_color)

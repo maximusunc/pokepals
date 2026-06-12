@@ -1,0 +1,18 @@
+{
+	"_comment": "Tunables for how the companion FEELS. Distances are in pixels, speeds in px/sec, intervals in seconds. Personality is 0..1 and biases idle behavior. Tune these to change the vibe without touching code.",
+	"follow_near": 46.0,
+	"follow_far": 104.0,
+	"walk_speed": 64.0,
+	"run_speed": 132.0,
+	"accel": 7.5,
+	"idle_look_interval": [1.8, 4.5],
+	"curiosity_radius": 260.0,
+	"curiosity_cooldown": 3.5,
+	"curiosity_linger": 3.2,
+	"curiosity_stop_distance": 30.0,
+	"personality": {
+		"curiosity": 0.85,
+		"energy": 0.7,
+		"clinginess": 0.6
+	}
+}

@@ -1,0 +1,25 @@
+[gd_scene load_steps=2 format=3 uid="uid://b1pokepalscpanel"]
+
+[ext_resource type="Script" path="res://scripts/ui/creature_panel.gd" id="1"]
+
+[node name="CreaturePanel" type="VBoxContainer"]
+custom_minimum_size = Vector2(180, 0)
+script = ExtResource("1")
+
+[node name="NameLabel" type="Label" parent="."]
+text = "Name [type]"
+
+[node name="Sprite" type="ColorRect" parent="."]
+custom_minimum_size = Vector2(140, 140)
+color = Color(0.5, 0.5, 0.5, 1)
+
+[node name="HPBar" type="ProgressBar" parent="."]
+custom_minimum_size = Vector2(160, 18)
+max_value = 100.0
+value = 100.0
+
+[node name="HPLabel" type="Label" parent="."]
+text = "HP 0 / 0"
+
+[node name="StatusLabel" type="Label" parent="."]
+text = ""
