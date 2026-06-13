@@ -11,6 +11,9 @@ extends Node2D
 
 @export var config_path := "res://data/companion.json"
 
+const SELF_SAVE_PATH := "user://companion_self.json"
+const AUTOSAVE_INTERVAL := 15.0
+
 var velocity := Vector2.ZERO
 
 var _brain: CompanionBrain
@@ -18,6 +21,7 @@ var _cfg: Dictionary
 var _player: PlayerView
 var _events: Array = []
 var _time := 0.0
+var _autosave_accum := 0.0
 
 var _look_dir := Vector2.DOWN
 var _eye_offset := Vector2.ZERO
@@ -40,7 +44,13 @@ func notify_interaction(world_position: Vector2) -> void:
 
 func _ready() -> void:
 	_cfg = WorldData.load_json(config_path)
-	_brain = CompanionBrain.new(_cfg)
+	# Carry the companion across sessions: load its saved self if there is one, so
+	# it returns as the same partner the player has been shaping.
+	var saved: Dictionary = SaveStore.load_json(SELF_SAVE_PATH)
+	var existing_self: CompanionSelf = null
+	if not saved.is_empty():
+		existing_self = CompanionSelf.from_dict(saved, _cfg)
+	_brain = CompanionBrain.new(_cfg, 0, existing_self)
 
 
 func _process(delta: float) -> void:
@@ -64,6 +74,27 @@ func _process(delta: float) -> void:
 	_apply_reactions(intent["reactions"])
 	_decay_animation(delta)
 	queue_redraw()
+
+	# Periodic autosave so a long session (or a mobile app being backgrounded)
+	# never loses much of who the companion is becoming.
+	_autosave_accum += delta
+	if _autosave_accum >= AUTOSAVE_INTERVAL:
+		_autosave_accum = 0.0
+		_save_self()
+
+
+## Persist who the companion has become. Cheap and idempotent.
+func _save_self() -> void:
+	if _brain == null:
+		return
+	SaveStore.save_json(SELF_SAVE_PATH, _brain.get_self().to_dict())
+
+
+## Save on the ways a session can end: window close, app backgrounded on mobile,
+## or this node leaving the tree (scene change / quit).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
+		_save_self()
 
 
 func _apply_movement(intent: Dictionary, delta: float) -> void:
