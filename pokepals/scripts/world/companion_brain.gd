@@ -60,7 +60,7 @@ func update(context: Dictionary) -> Dictionary:
 	var winner = null
 	var best_score := -1.0
 	for drive in _drives:
-		var score: float = drive.evaluate(perception, _self, _cfg)
+		var score: float = drive.evaluate(perception, _self, _cfg, _rng)
 		if score > best_score:
 			best_score = score
 			winner = drive

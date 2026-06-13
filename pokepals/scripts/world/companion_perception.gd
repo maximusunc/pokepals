@@ -19,15 +19,31 @@ static func perceive(context: Dictionary, _s: CompanionSelf, cfg: Dictionary) ->
 			interaction_point = e["position"]
 			break
 
+	# The nearest standing point of interest in the world (a prop it could wander to
+	# on its own), within wander range. Defaults to curiosity_radius if unset.
+	var wander_radius := float(cfg.get("wander_radius", cfg["curiosity_radius"]))
+	var has_poi := false
+	var nearest_poi := Vector2.ZERO
+	var best := INF
+	for p in context.get("points_of_interest", []):
+		var d := companion_pos.distance_to(p)
+		if d <= wander_radius and d < best:
+			best = d
+			nearest_poi = p
+			has_poi = true
+
 	return {
 		"companion_pos": companion_pos,
 		"player_pos": player_pos,
 		"player_velocity": player_velocity,
+		"delta": float(context.get("delta", 0.0)),
 		"dist_to_player": companion_pos.distance_to(player_pos),
 		"player_moving": player_velocity.length() >= 1.0,
 		"follow_point": _follow_point(companion_pos, player_pos, player_velocity, float(cfg["follow_near"])),
 		"has_interaction": has_interaction,
 		"interaction_point": interaction_point,
+		"has_poi": has_poi,
+		"nearest_poi": nearest_poi,
 	}
 
 

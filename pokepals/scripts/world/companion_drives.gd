@@ -6,9 +6,10 @@ class_name CompanionDrives
 ## wants: a drive can win without the player doing anything.
 ##
 ## Each drive is a tiny stateful object:
-##   tick(delta)                              advance always-running timers
-##   evaluate(perception, self, cfg) -> float how much it wants to act (0 = not)
-##   act(perception, self, cfg, rng, delta)   only the winner is asked; returns
+##   tick(delta)                                advance always-running timers
+##   evaluate(perception, self, cfg, rng) -> float  how much it wants to act now
+##       (0 = not); may latch internal state when it decides to start
+##   act(perception, self, cfg, rng, delta)     only the winner is asked; returns
 ##       -> { behavior, move_target, desired_speed, look_at, reactions }
 ##
 ## Priority is encoded in the base scores (investigate > follow > idle), which
@@ -25,35 +26,60 @@ class Drive extends RefCounted:
 	func tick(_delta: float) -> void:
 		pass
 
-	func evaluate(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary) -> float:
+	func evaluate(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		return 0.0
 
 	func act(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary, _rng: RandomNumberGenerator, _delta: float) -> Dictionary:
 		return {}
 
 
-## Something nearby caught its attention — the core "it noticed what I did" beat.
-## It waddles over, lingers, then loses interest (with a cooldown before it can be
-## drawn again).
+## Curiosity — two flavors:
+##   "player": something the player did nearby caught its attention. The core
+##             "it noticed what I did" beat; strongest pull, can interrupt a wander.
+##   "self":   when settled near the player, it sometimes wanders off on its own to
+##             a nearby point of interest. The seed of acting like its own player —
+##             and it scores below following, so it abandons the detour if the
+##             player walks away.
+## Either way it waddles over, lingers, then loses interest, on a per-source
+## cooldown.
 class InvestigateDrive extends Drive:
-	const SCORE := 10.0
+	const PLAYER_SCORE := 10.0
+	const SELF_SCORE := 3.0
 	var _active := false
+	var _source := "player"  # "player" | "self"
 	var _target := Vector2.ZERO
 	var _linger := 0.0
-	var _cooldown := 0.0
+	var _player_cooldown := 0.0
+	var _wander_cooldown := 0.0
 	var _just_triggered := false
 
 	func tick(delta: float) -> void:
-		_cooldown = maxf(0.0, _cooldown - delta)
+		_player_cooldown = maxf(0.0, _player_cooldown - delta)
+		_wander_cooldown = maxf(0.0, _wander_cooldown - delta)
 
-	func evaluate(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary) -> float:
-		if not _active and _cooldown <= 0.0 and perception["has_interaction"]:
-			_active = true
-			_target = perception["interaction_point"]
-			_linger = float(cfg["curiosity_linger"])
-			_cooldown = float(cfg["curiosity_cooldown"])
-			_just_triggered = true
-		return SCORE if _active else 0.0
+	func evaluate(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
+		# Player did something nearby: strongest pull; can take over a self-wander.
+		if perception["has_interaction"] and _player_cooldown <= 0.0 and (not _active or _source == "self"):
+			_start("player", perception["interaction_point"], float(cfg["curiosity_linger"]))
+			_player_cooldown = float(cfg["curiosity_cooldown"])
+		# Otherwise, when settled near the player, it may wander off on its own.
+		elif not _active and _wander_cooldown <= 0.0 and perception["has_poi"] and perception["dist_to_player"] <= float(cfg["follow_near"]):
+			var curiosity := s.trait_value("curiosity", _personality(cfg, "curiosity"))
+			var chance := float(cfg.get("wander_chance_per_sec", 0.0)) * curiosity * float(perception["delta"])
+			if rng.randf() < chance:
+				_start("self", perception["nearest_poi"], float(cfg.get("wander_linger", cfg["curiosity_linger"])))
+				_wander_cooldown = float(cfg.get("wander_cooldown", cfg["curiosity_cooldown"]))
+
+		if not _active:
+			return 0.0
+		return PLAYER_SCORE if _source == "player" else SELF_SCORE
+
+	func _start(source: String, target: Vector2, linger: float) -> void:
+		_active = true
+		_source = source
+		_target = target
+		_linger = linger
+		_just_triggered = true
 
 	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
 		var reactions: Array = []
@@ -77,13 +103,16 @@ class InvestigateDrive extends Drive:
 			"reactions": reactions,
 		}
 
+	func _personality(cfg: Dictionary, key: String) -> float:
+		return float(cfg["personality"].get(key, 0.5)) if cfg.has("personality") else 0.5
+
 
 ## Stay with the player: trail behind them, strolling when just behind, hustling
 ## when far.
 class FollowDrive extends Drive:
 	const SCORE := 5.0
 
-	func evaluate(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary) -> float:
+	func evaluate(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		return SCORE if perception["dist_to_player"] > float(cfg["follow_near"]) else 0.0
 
 	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, _delta: float) -> Dictionary:
@@ -113,7 +142,7 @@ class IdleDrive extends Drive:
 		var interval: Array = cfg["idle_look_interval"]
 		return rng.randf_range(float(interval[0]), float(interval[1]))
 
-	func evaluate(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary) -> float:
+	func evaluate(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		return SCORE
 
 	func act(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator, delta: float) -> Dictionary:

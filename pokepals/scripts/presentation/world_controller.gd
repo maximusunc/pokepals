@@ -34,6 +34,12 @@ func _ready() -> void:
 	for it in data.get("interactables", []):
 		_interactables.append({ "pos": WorldData.to_vec2(it["position"]), "label": String(it.get("label", "something")) })
 
+	# Let the companion know where the props are, so it can wander to them on its own.
+	var poi: Array = []
+	for entry in _interactables:
+		poi.append(entry["pos"])
+	_companion.set_points_of_interest(poi)
+
 	_hint.text = "Wander with arrows / WASD.  Space to examine."
 
 

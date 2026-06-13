@@ -10,6 +10,11 @@
 	"curiosity_cooldown": 3.5,
 	"curiosity_linger": 3.2,
 	"curiosity_stop_distance": 30.0,
+	"_wander_comment": "Self-directed wandering: when settled near the player, it may stroll to a nearby prop on its own. chance is per second, scaled by the curiosity trait; cooldown keeps it occasional. It scores below following, so it gives up the detour if you walk off.",
+	"wander_radius": 200.0,
+	"wander_chance_per_sec": 0.12,
+	"wander_cooldown": 9.0,
+	"wander_linger": 2.5,
 	"personality": {
 		"curiosity": 0.85,
 		"energy": 0.7,

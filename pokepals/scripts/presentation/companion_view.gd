@@ -20,6 +20,7 @@ var _brain: CompanionBrain
 var _cfg: Dictionary
 var _player: PlayerView
 var _events: Array = []
+var _points_of_interest: Array = []
 var _time := 0.0
 var _autosave_accum := 0.0
 
@@ -34,6 +35,12 @@ var _body_color := Color(0.56, 0.62, 0.86)
 ## Called by the world to hand the companion its player to follow.
 func setup(player: PlayerView) -> void:
 	_player = player
+
+
+## Called by the world to tell the companion where the standing props are, so it
+## can choose to wander over and investigate them on its own.
+func set_points_of_interest(points: Array) -> void:
+	_points_of_interest = points
 
 
 ## Called by the world when the player interacts with something — the brain may
@@ -65,6 +72,7 @@ func _process(delta: float) -> void:
 		"delta": delta,
 		"events": _events,
 		"time": _time,
+		"points_of_interest": _points_of_interest,
 	}
 	_events = []
 
