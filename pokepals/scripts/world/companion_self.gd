@@ -40,6 +40,9 @@ static func _default_traits(cfg: Dictionary) -> Dictionary:
 	var out := {}
 	if cfg.has("traits"):
 		for key in cfg["traits"]:
+			# Skip doc-only entries like "_comment"; real traits are objects.
+			if not (cfg["traits"][key] is Dictionary):
+				continue
 			var spec: Dictionary = cfg["traits"][key]
 			out[key] = clampf(float(spec.get("init", 0.5)), 0.0, 1.0)
 	elif cfg.has("personality"):
@@ -61,6 +64,74 @@ static func _default_observations() -> Dictionary:
 ## Read a trait, tolerating ones that don't exist yet.
 func trait_value(key: String, fallback: float = 0.5) -> float:
 	return float(traits.get(key, fallback))
+
+
+## REMEMBER (fast part): fold this frame's perception into the running tallies of
+## how the player plays. Cheap and side-effect-light — just accumulators.
+func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
+	observations["play_seconds"] += delta
+	var velocity: Vector2 = perception["player_velocity"]
+	observations["explored_distance"] += velocity.length() * delta
+	if perception["dist_to_player"] <= float(cfg["follow_near"]):
+		observations["time_near"] += delta
+	else:
+		observations["time_far"] += delta
+	if perception["has_interaction"]:
+		observations["interactions"] += 1.0
+
+
+## Normalized 0..1 read-outs of how the player plays, derived from observations:
+##   explore   — how much they roam (distance over time vs. a reference pace)
+##   together  — how much they stay close to the companion
+##   engage    — how often they examine things nearby
+func play_signals(cfg: Dictionary) -> Dictionary:
+	var drift_cfg: Dictionary = cfg.get("drift", {})
+	var seconds: float = maxf(float(observations["play_seconds"]), 0.0001)
+	var ref_speed := float(drift_cfg.get("reference_speed", 90.0))
+	var ref_rate := float(drift_cfg.get("reference_interactions_per_min", 6.0))
+
+	var explore := clampf((float(observations["explored_distance"]) / seconds) / ref_speed, 0.0, 1.0)
+	var near := float(observations["time_near"])
+	var far := float(observations["time_far"])
+	var together := 0.5 if (near + far) <= 0.0 else clampf(near / (near + far), 0.0, 1.0)
+	var per_min := float(observations["interactions"]) / (seconds / 60.0)
+	var engage := clampf(per_min / ref_rate, 0.0, 1.0)
+	return { "explore": explore, "together": together, "engage": engage }
+
+
+## REMEMBER (slow part): nudge each trait toward what the player's signals imply,
+## bounded by the trait's min/max and rate-limited by its drift_rate. The point is
+## subtlety — over a session the companion gently becomes a reflection of how you
+## play, never snapping. Requires "traits" + "drift" config; a no-op otherwise.
+func apply_drift(cfg: Dictionary, delta: float) -> void:
+	if not (cfg.has("traits") and cfg.has("drift")):
+		return
+	var drift_cfg: Dictionary = cfg["drift"]
+	# Hold still until we've watched long enough for the signals to mean something.
+	if float(observations["play_seconds"]) < float(drift_cfg.get("warmup_seconds", 0.0)):
+		return
+	var signals := play_signals(cfg)
+	var targets: Dictionary = drift_cfg.get("targets", {})
+	for key in cfg["traits"]:
+		if not targets.has(key):
+			continue
+		var spec: Dictionary = cfg["traits"][key]
+		var target := _blend_target(targets[key], signals)
+		var rate := float(spec.get("drift_rate", 0.0)) * delta
+		var current := trait_value(key)
+		var moved := current + (target - current) * rate
+		traits[key] = clampf(moved, float(spec.get("min", 0.0)), float(spec.get("max", 1.0)))
+
+
+# Weighted blend of named signals into a single 0..1 target for a trait.
+static func _blend_target(weights: Dictionary, signals: Dictionary) -> float:
+	var total := 0.0
+	var acc := 0.0
+	for sig in weights:
+		var w := float(weights[sig])
+		total += w
+		acc += w * float(signals.get(sig, 0.5))
+	return 0.5 if total <= 0.0 else acc / total
 
 
 ## Plain, JSON-serializable snapshot. Dictionaries are deep-copied so callers

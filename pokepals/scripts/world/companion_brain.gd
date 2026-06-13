@@ -48,6 +48,11 @@ func update(context: Dictionary) -> Dictionary:
 	var delta: float = context["delta"]
 	var perception := CompanionPerception.perceive(context, _self, _cfg)
 
+	# REMEMBER: fold this frame into the persistent self, then let traits drift
+	# slowly toward how the player actually plays.
+	_self.observe(perception, _cfg, delta)
+	_self.apply_drift(_cfg, delta)
+
 	# DECIDE: tick every drive first (so always-running timers like cooldowns
 	# advance even when the drive doesn't win), then score and pick the winner.
 	for drive in _drives:

@@ -10,6 +10,10 @@ static func run_all() -> int:
 	fails += _test_round_trips(cfg)
 	fails += _test_from_dict_fills_missing(cfg)
 	fails += _test_clamps_traits(cfg)
+	fails += _test_drift_reflects_an_exploring_player(cfg)
+	fails += _test_drift_reflects_a_homebody_player(cfg)
+	fails += _test_drift_respects_bounds(cfg)
+	fails += _test_no_drift_before_warmup(cfg)
 	return fails
 
 
@@ -61,3 +65,61 @@ static func _test_from_dict_fills_missing(cfg: Dictionary) -> int:
 static func _test_clamps_traits(cfg: Dictionary) -> int:
 	var restored := CompanionSelf.from_dict({ "traits": { "curiosity": 5.0 } }, cfg)
 	return _ok(restored.trait_value("curiosity") <= 1.0, "clamps out-of-range trait values to 0..1")
+
+
+# A player who roams far and examines lots of things should grow a more curious,
+# energetic, and less clingy companion.
+static func _test_drift_reflects_an_exploring_player(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observations["play_seconds"] = 600.0
+	s.observations["explored_distance"] = 600.0 * 120.0  # ~120 px/s average pace
+	s.observations["time_far"] = 590.0
+	s.observations["time_near"] = 10.0
+	s.observations["interactions"] = 100.0
+	var cling_before := s.trait_value("clinginess")
+	for i in 600:
+		s.apply_drift(cfg, 0.1)  # ~60s of drift
+	var fails := 0
+	fails += _ok(s.trait_value("energy") > 0.7, "energy drifts up for a roaming player")
+	fails += _ok(s.trait_value("clinginess") < cling_before, "clinginess drifts down when the player ranges far")
+	return fails
+
+
+# A player who stays close and rarely wanders should grow a clingier, calmer one.
+static func _test_drift_reflects_a_homebody_player(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observations["play_seconds"] = 600.0
+	s.observations["explored_distance"] = 600.0 * 5.0  # barely moves
+	s.observations["time_near"] = 595.0
+	s.observations["time_far"] = 5.0
+	s.observations["interactions"] = 1.0
+	var energy_before := s.trait_value("energy")
+	var cling_before := s.trait_value("clinginess")
+	for i in 600:
+		s.apply_drift(cfg, 0.1)
+	var fails := 0
+	fails += _ok(s.trait_value("energy") < energy_before, "energy drifts down for a stay-still player")
+	fails += _ok(s.trait_value("clinginess") > cling_before, "clinginess drifts up when the player stays close")
+	return fails
+
+
+static func _test_drift_respects_bounds(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	# Extreme "never moves, never engages" profile pushes curiosity toward 0...
+	s.observations["play_seconds"] = 10000.0
+	s.observations["explored_distance"] = 0.0
+	s.observations["time_near"] = 10000.0
+	s.observations["interactions"] = 0.0
+	for i in 5000:
+		s.apply_drift(cfg, 0.5)
+	var min_floor: float = float(cfg["traits"]["curiosity"]["min"])
+	return _ok(s.trait_value("curiosity") >= min_floor - 0.0001, "a trait never drifts below its configured min")
+
+
+static func _test_no_drift_before_warmup(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observations["play_seconds"] = 5.0  # below warmup_seconds
+	s.observations["explored_distance"] = 5.0 * 200.0
+	var before := s.trait_value("energy")
+	s.apply_drift(cfg, 0.1)
+	return _ok(is_equal_approx(s.trait_value("energy"), before), "no drift before the warmup period")
