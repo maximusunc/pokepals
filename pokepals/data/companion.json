@@ -1,5 +1,5 @@
 {
-	"_comment": "Tunables for how the companion FEELS. Distances are in pixels, speeds in px/sec, intervals in seconds. Personality is 0..1 and biases idle behavior. Tune these to change the vibe without touching code.",
+	"_comment": "Tunables for how the companion FEELS. Distances are in pixels, speeds in px/sec, intervals in seconds. 'personality' is the legacy 0..1 fallback; 'traits' are the live, drifting versions seeded from it. 'drift' controls how slowly the companion comes to reflect how you play. Tune all of this to change the vibe without touching code.",
 	"follow_near": 46.0,
 	"follow_far": 104.0,
 	"walk_speed": 64.0,
@@ -10,9 +10,31 @@
 	"curiosity_cooldown": 3.5,
 	"curiosity_linger": 3.2,
 	"curiosity_stop_distance": 30.0,
+	"_wander_comment": "Self-directed wandering: when settled near the player, it may stroll to a nearby prop on its own. chance is per second, scaled by the curiosity trait; cooldown keeps it occasional. It scores below following, so it gives up the detour if you walk off.",
+	"wander_radius": 200.0,
+	"wander_chance_per_sec": 0.12,
+	"wander_cooldown": 9.0,
+	"wander_linger": 2.5,
 	"personality": {
 		"curiosity": 0.85,
 		"energy": 0.7,
 		"clinginess": 0.6
+	},
+	"traits": {
+		"_comment": "init must match personality above so first-run feel is unchanged. min/max bound how far a trait can drift; drift_rate is how fast (per second toward target) — keep it small so change is felt, not seen.",
+		"curiosity": { "init": 0.85, "min": 0.3, "max": 1.0, "drift_rate": 0.02 },
+		"energy": { "init": 0.7, "min": 0.25, "max": 1.0, "drift_rate": 0.02 },
+		"clinginess": { "init": 0.6, "min": 0.1, "max": 0.95, "drift_rate": 0.02 }
+	},
+	"drift": {
+		"_comment": "warmup_seconds: watch this long before drifting at all. reference_* set what counts as 'a lot' of roaming / examining. targets: weighted blend of play signals (explore, together, engage) each trait drifts toward.",
+		"warmup_seconds": 20.0,
+		"reference_speed": 90.0,
+		"reference_interactions_per_min": 6.0,
+		"targets": {
+			"curiosity": { "explore": 0.5, "engage": 0.5 },
+			"energy": { "explore": 1.0 },
+			"clinginess": { "together": 1.0 }
+		}
 	}
 }
