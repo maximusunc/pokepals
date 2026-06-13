@@ -12,6 +12,7 @@ func _init() -> void:
 	var failures := 0
 	failures += TestBattleLogic.run_all()
 	failures += TestCompanionBrain.run_all()
+	failures += TestCompanionSelf.run_all()
 
 	print("")
 	if failures == 0:
