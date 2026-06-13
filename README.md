@@ -47,6 +47,11 @@ pokepals/
    investigate when you press **Space** to examine a prop (the humming stone, the
    lantern, the wildflowers).
 
+To play it on a phone (where the touch feel actually lives), see
+[`docs/mobile-testing.md`](docs/mobile-testing.md) — iOS (needs a Mac) and
+Android (no Mac, fastest) walkthroughs. Export presets for both ship in
+[`pokepals/export_presets.cfg`](pokepals/export_presets.cfg).
+
 ## Run the tests
 
 Fast, dependency-free headless tests cover the pure logic; smoke tests drive the
