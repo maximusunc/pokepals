@@ -7,6 +7,13 @@ extends RefCounted
 ##
 ##   traits:       0..1 personality dimensions that DRIFT over time (curiosity,
 ##                 energy, clinginess, ...). They bias how the companion behaves.
+##   bond:         0..1 the RELATIONSHIP itself, separate from personality. It
+##                 starts near 0 — a fresh companion is its own creature, happier
+##                 to wander and investigate than to follow — and grows, mostly
+##                 monotonically, the more time you spend together. As it grows the
+##                 companion chooses to follow you more and stray less. This is the
+##                 "bond deepens over time" arc, kept apart from the trait drift so
+##                 the two effects stay legible.
 ##   observations: running tallies of how the player actually plays. The raw
 ##                 material that drift reads to nudge traits.
 ##   mood:         a light, fast-moving feeling (-1 subdued .. 1 excited) that
@@ -19,6 +26,7 @@ extends RefCounted
 const SCHEMA_VERSION := 1
 
 var traits: Dictionary = {}
+var bond: float = 0.0
 var observations: Dictionary = {}
 var mood: float = 0.0
 var short_term: Dictionary = {}
@@ -30,6 +38,7 @@ var short_term: Dictionary = {}
 static func make_default(cfg: Dictionary) -> CompanionSelf:
 	var s := CompanionSelf.new()
 	s.traits = _default_traits(cfg)
+	s.bond = clampf(float(cfg.get("bond", {}).get("init", 0.0)), 0.0, 1.0)
 	s.observations = _default_observations()
 	s.mood = 0.0
 	s.short_term = {}
@@ -72,12 +81,31 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 	observations["play_seconds"] += delta
 	var velocity: Vector2 = perception["player_velocity"]
 	observations["explored_distance"] += velocity.length() * delta
-	if perception["dist_to_player"] <= float(cfg["follow_near"]):
+	var near := perception["dist_to_player"] <= float(cfg["follow_near"])
+	if near:
 		observations["time_near"] += delta
 	else:
 		observations["time_far"] += delta
 	if perception["has_interaction"]:
 		observations["interactions"] += 1.0
+	_grow_bond(perception, cfg, delta, near)
+
+
+## The bond DEEPENS with time spent together. It always grows a little just from
+## the companion being present with you, faster while you stay close, and gets a
+## small bump whenever you examine something near it (a shared moment). Kept gentle
+## and bounded so the shift from independent-wanderer to devoted-follower is felt
+## across a session, not flipped in seconds. A no-op without "bond" config.
+func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: bool) -> void:
+	if not cfg.has("bond"):
+		return
+	var bond_cfg: Dictionary = cfg["bond"]
+	var amount := float(bond_cfg.get("grow_per_sec", 0.0)) * delta
+	if near:
+		amount += float(bond_cfg.get("grow_per_sec_near", 0.0)) * delta
+	if perception["has_interaction"]:
+		amount += float(bond_cfg.get("grow_per_interaction", 0.0))
+	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
 
 
 ## Normalized 0..1 read-outs of how the player plays, derived from observations:
@@ -140,6 +168,7 @@ func to_dict() -> Dictionary:
 	return {
 		"version": SCHEMA_VERSION,
 		"traits": traits.duplicate(true),
+		"bond": bond,
 		"observations": observations.duplicate(true),
 		"mood": mood,
 		"short_term": short_term.duplicate(true),
@@ -152,6 +181,8 @@ static func from_dict(data: Dictionary, cfg: Dictionary) -> CompanionSelf:
 	if data.get("traits") is Dictionary:
 		for key in data["traits"]:
 			s.traits[key] = clampf(float(data["traits"][key]), 0.0, 1.0)
+	if data.has("bond"):
+		s.bond = clampf(float(data["bond"]), 0.0, 1.0)
 	if data.get("observations") is Dictionary:
 		for key in data["observations"]:
 			s.observations[key] = float(data["observations"][key])
