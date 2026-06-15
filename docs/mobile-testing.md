@@ -36,16 +36,33 @@ $99/yr account. Tradeoff: the app expires after 7 days and you re-deploy it.
 ### Finish the iOS preset
 Open the project (`godot --path pokepals`) → **Project → Export → iOS**. The
 preset is already there.
-- **App Store Team ID** — you can leave this **blank** for free personal-team
-  local testing and let Xcode handle signing in the next step (Godot shows it as
-  a warning but still exports the Xcode project). If you'd rather fill it in,
-  see "Finding your Team ID" below.
+- **App Store Team ID** — Godot 4.6 **requires** this (it won't export with it
+  blank). It's the 10-char ID of your signing team — see "Getting a Team ID"
+  below, especially if you don't see a **Personal Team** in Xcode.
 - **Signing identity / provisioning** — leave blank; resolve in Xcode.
 - Adjust **Bundle Identifier** if you don't want `com.maxwang.kithbound`.
 
-#### Finding your Team ID (only if you want to fill it in)
-It's a 10-character string like `A1B2C3D4E5`. Apple doesn't show it next to
-"Personal Team" in Xcode's accounts pane, so grab it one of these ways:
+#### Getting a Team ID
+You sign with a **free Personal Team**. Apple auto-creates one for any Apple ID
+that is **not** enrolled in the Apple Developer Program.
+
+**Gotcha — no Personal Team showing up?** If your Apple ID is attached to a
+company's **organization team** (a paid Developer Program membership), Apple
+does *not* also give you a Personal Team, and you usually can't self-sign
+against the org team (signing/device registration is admin-controlled). The fix
+is a *separate* Apple ID enrolled in nothing:
+1. Create a new free Apple ID at [appleid.apple.com](https://appleid.apple.com)
+   (a Gmail `+` alias like `you+ios@gmail.com` is fine). Do **not** enroll it in
+   the Developer Program.
+2. **Xcode → Settings (⌘,) → Accounts → "+" → Apple ID** → sign in with it.
+3. In **Signing & Capabilities**, the Team dropdown now offers
+   **"(Personal Team) Your Name"** — select it. Xcode mints the cert + profile.
+
+Free Personal Team limits (all fine for Rung 1): apps expire after **7 days**,
+max **3** installed at once, **10** app IDs per 7 days, no push. Your iPhone does
+*not* need to be signed into this Apple ID.
+
+Then read the 10-char Team ID one of these ways:
 - **Keychain Access** (definitive): **My Certificates** → double-click your
   **"Apple Development: …"** cert → **Details** → **Organizational Unit (OU)** is
   the Team ID. (The cert exists once you've selected your Personal Team on a
