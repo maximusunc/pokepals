@@ -15,14 +15,26 @@ var _touch_index := -1
 var _center := Vector2.ZERO
 var _knob := Vector2.ZERO
 
+# Controls (e.g. an on-screen button) whose touches should NOT spin up the stick.
+# The stick listens in _input, which runs before GUI picking, so without this a
+# tap on a button would also pop the thumbstick up under it.
+var _exclusions: Array[Control] = []
+
 
 func _ready() -> void:
 	visible = false
 
 
+## Register a control whose area swallows touches instead of moving the player.
+func add_exclusion(control: Control) -> void:
+	_exclusions.append(control)
+
+
 func _input(event: InputEvent) -> void:
 	if event is InputEventScreenTouch:
 		if event.pressed and not _active:
+			if _is_excluded(event.position):
+				return
 			_active = true
 			_touch_index = event.index
 			_center = event.position
@@ -38,6 +50,13 @@ func _input(event: InputEvent) -> void:
 		_knob = _center + offset
 		direction = offset / max_radius
 		queue_redraw()
+
+
+func _is_excluded(point: Vector2) -> bool:
+	for control in _exclusions:
+		if control.visible and control.get_global_rect().has_point(point):
+			return true
+	return false
 
 
 func _reset() -> void:

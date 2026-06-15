@@ -74,8 +74,10 @@ already-installed app over Wi-Fi without a full Xcode rebuild.
    (the little phone icon). Click it — Godot builds the APK, installs, and
    launches it on the device in one step.
 
-The on-screen thumbstick and `Space`-to-examine touch interactions all work, so
-this is enough to actually judge presence and mood in the hand.
+The on-screen thumbstick moves the player, and a contextual **Examine** button
+fades in at the bottom-right whenever you stand near a prop — tap it to look
+closer (the desktop `Space` shortcut still works too). That's enough to actually
+judge presence and mood in the hand.
 
 ---
 
