@@ -14,8 +14,11 @@ const INTERACT_RANGE := 60.0
 @onready var _companion: CompanionView = $Companion
 @onready var _camera: CameraRig = $Camera2D
 @onready var _hint: Label = $UI/HintLabel
+@onready var _joystick: VirtualJoystick = $UI/Joystick
+@onready var _examine_button: Button = $UI/ExamineButton
 
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
+var _examine_shown := false  # whether the touch Examine button is currently faded in
 
 
 func _ready() -> void:
@@ -40,16 +43,39 @@ func _ready() -> void:
 		poi.append(entry["pos"])
 	_companion.set_points_of_interest(poi)
 
-	_hint.text = "Wander with arrows / WASD.  Space to examine."
+	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
+	# from also spinning up the movement thumbstick underneath it.
+	_examine_button.pressed.connect(_try_interact)
+	_joystick.add_exclusion(_examine_button)
+
+	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
 
 
 func _process(_delta: float) -> void:
-	# Surface a gentle prompt when standing near something to examine.
+	# Surface a gentle prompt — and the touch Examine button — when standing near
+	# something to examine.
 	var nearest := _nearest_interactable()
 	if nearest >= 0:
-		_hint.text = "Space: examine %s" % _interactables[nearest]["label"]
-	elif _hint.text.begins_with("Space: examine"):
-		_hint.text = ""
+		_hint.text = "Examine %s" % _interactables[nearest]["label"]
+		_set_examine_visible(true)
+	else:
+		_set_examine_visible(false)
+		if _hint.text.begins_with("Examine "):
+			_hint.text = ""
+
+
+## Gently fade the touch Examine button in or out as the player nears a prop, so
+## it signals "something's here" without cluttering the screen while wandering.
+func _set_examine_visible(show_button: bool) -> void:
+	if show_button == _examine_shown:
+		return
+	_examine_shown = show_button
+	if show_button:
+		_examine_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_examine_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _examine_button.visible = false)
 
 
 func _unhandled_input(event: InputEvent) -> void:
