@@ -115,10 +115,10 @@ static func _test_wanders_to_poi_on_its_own(cfg: Dictionary) -> int:
 			"time": i * 0.05,
 			"points_of_interest": [poi],
 		}
-		if brain.update(ctx)["behavior"] == "curious":
+		if brain.update(ctx)["behavior"] == "wander":
 			wandered = true
 			break
-	return _ok(wandered, "wanders to a nearby point of interest on its own")
+	return _ok(wandered, "wanders off on its own to potter about")
 
 
 # The distance "leash": even a barely-bonded, independent companion won't let the
@@ -127,7 +127,7 @@ static func _test_wanders_to_poi_on_its_own(cfg: Dictionary) -> int:
 static func _test_follow_overrides_self_wander(cfg: Dictionary) -> int:
 	var brain := CompanionBrain.new(cfg, 7)
 	var poi := Vector2(110, 100)
-	var ever_curious := false
+	var ever_wandered := false
 	for i in 2000:
 		var ctx := {
 			"companion_pos": Vector2(100, 100),
@@ -138,10 +138,10 @@ static func _test_follow_overrides_self_wander(cfg: Dictionary) -> int:
 			"time": i * 0.05,
 			"points_of_interest": [poi],
 		}
-		if brain.update(ctx)["behavior"] == "curious":
-			ever_curious = true
+		if brain.update(ctx)["behavior"] == "wander":
+			ever_wandered = true
 			break
-	return _ok(not ever_curious, "follows the player instead of self-wandering when they're far")
+	return _ok(not ever_wandered, "follows the player instead of self-wandering when they're far")
 
 
 # The heart of it: a fresh, barely-bonded companion is its own creature. Once it's
@@ -153,15 +153,15 @@ static func _test_low_bond_lingers_when_player_drifts(cfg: Dictionary) -> int:
 	# Settled right beside the player, let a self-directed wander get going.
 	var started := false
 	for i in 8000:
-		if brain.update(_ctx_poi(Vector2(100, 100), Vector2(100, 100), poi, i * 0.05))["behavior"] == "curious":
+		if brain.update(_ctx_poi(Vector2(100, 100), Vector2(100, 100), poi, i * 0.05))["behavior"] == "wander":
 			started = true
 			break
 	# The player now drifts to a gentle walking distance (past follow_near, well
 	# short of follow_far). A barely-bonded companion keeps its own agenda.
 	var behavior: String = brain.update(_ctx_poi(Vector2(100, 100), Vector2(160, 100), poi, 9999.0))["behavior"]
 	var fails := 0
-	fails += _ok(started, "low-bond companion sets off to investigate on its own")
-	fails += _ok(behavior == "curious", "low-bond companion keeps wandering when the player only drifts a little")
+	fails += _ok(started, "low-bond companion sets off to potter about on its own")
+	fails += _ok(behavior == "wander", "low-bond companion keeps wandering when the player only drifts a little")
 	return fails
 
 

@@ -13,7 +13,7 @@ extends RefCounted
 ##
 ## intent (Dictionary):
 ##   { "move_target": Vector2, "desired_speed": float, "look_at": Vector2,
-##     "behavior": "idle"|"follow"|"curious", "reactions": Array[String] }
+##     "behavior": "idle"|"follow"|"wander"|"curious", "reactions": Array[String] }
 ##   reactions are one-shot cues for presentation: "perk", "hop", "look".
 
 var _cfg: Dictionary
