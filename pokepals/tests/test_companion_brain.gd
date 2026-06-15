@@ -63,14 +63,16 @@ static func _test_idle_when_close(cfg: Dictionary) -> int:
 
 static func _test_follows_when_far(cfg: Dictionary) -> int:
 	var brain := CompanionBrain.new(cfg, 1)
-	# Just beyond follow_near but within follow_far -> walk.
-	var intent: Dictionary = brain.update(_ctx(Vector2(0, 0), Vector2(70, 0)))
+	# A fresh companion keeps a wide berth, so it only trails once the player is well
+	# out toward the edge of its comfort (past follow_near_low, within follow_far): the
+	# leash reels it in and it walks after you.
+	var intent: Dictionary = brain.update(_ctx(Vector2(0, 0), Vector2(175, 0)))
 	var fails := 0
-	fails += _ok(intent["behavior"] == "follow", "follows when beyond follow_near")
+	fails += _ok(intent["behavior"] == "follow", "follows once the player nears the edge of its range")
 	fails += _ok(intent["desired_speed"] == float(cfg["walk_speed"]), "walks while trailing")
 	# Target should sit between companion and player (trailing behind player).
 	var target: Vector2 = intent["move_target"]
-	fails += _ok(target.x < 70.0 and target.x > 0.0, "follow target trails behind the player")
+	fails += _ok(target.x < 175.0 and target.x > 0.0, "follow target trails behind the player")
 	return fails
 
 
@@ -156,8 +158,8 @@ static func _test_low_bond_lingers_when_player_drifts(cfg: Dictionary) -> int:
 		if brain.update(_ctx_poi(Vector2(100, 100), Vector2(100, 100), poi, i * 0.05))["behavior"] == "wander":
 			started = true
 			break
-	# The player now drifts to a gentle walking distance (past follow_near, well
-	# short of follow_far). A barely-bonded companion keeps its own agenda.
+	# The player now drifts a little — but a fresh companion's comfort range is wide, so
+	# this is still well within it. It keeps its own agenda and potters on.
 	var behavior: String = brain.update(_ctx_poi(Vector2(100, 100), Vector2(160, 100), poi, 9999.0))["behavior"]
 	var fails := 0
 	fails += _ok(started, "low-bond companion sets off to potter about on its own")
@@ -171,7 +173,8 @@ static func _test_high_bond_follows_instead_of_wandering(cfg: Dictionary) -> int
 	var s := CompanionSelf.make_default(cfg)
 	s.bond = 1.0
 	var brain := CompanionBrain.new(cfg, 1, s)
-	# Same modest drift as the low-bond case, with a prop right there to tempt it.
+	# The SAME modest step away that a fresh companion ignored: bonded, its comfort
+	# range has tightened, so this step now pulls it to your side despite the prop.
 	var behavior: String = brain.update(_ctx_poi(Vector2(100, 100), Vector2(160, 100), Vector2(120, 100), 0.0))["behavior"]
 	return _ok(behavior == "follow", "high-bond companion stays with the player instead of wandering off")
 

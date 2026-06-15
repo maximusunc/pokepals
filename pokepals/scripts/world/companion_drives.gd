@@ -109,7 +109,9 @@ class InvestigateDrive extends Drive:
 class FollowDrive extends Drive:
 	func evaluate(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		var dist: float = perception["dist_to_player"]
-		var near := float(cfg["follow_near"])
+		# The comfort distance is bond-scaled (wide when fresh, snug when bonded) and
+		# computed once in perception, so the deadzone widens on its own at low bond.
+		var near := float(perception["follow_near"])
 		if dist <= near:
 			return 0.0
 		var eager := lerpf(float(cfg.get("follow_eager_low", 5.0)), float(cfg.get("follow_eager_high", 5.0)), s.bond)
@@ -243,7 +245,10 @@ class WanderDrive extends Drive:
 	# reel it back — the distance where FollowDrive's score crosses this roam's. We
 	# stay just inside it (and never beyond roam_radius) so every outing completes.
 	func _territory_radius(s: CompanionSelf, cfg: Dictionary) -> float:
-		var near := float(cfg["follow_near"])
+		# Use the SAME bond-scaled comfort distance the leash does, so the crossover we
+		# stay inside is the real one: a fresh companion's wide berth lets it range far,
+		# a bonded one's snug berth keeps it close.
+		var near := CompanionPerception.effective_follow_near(cfg, s.bond)
 		var far := float(cfg["follow_far"])
 		var leash := float(cfg.get("follow_leash", 0.0))
 		var cap := float(cfg.get("roam_radius", 90.0))

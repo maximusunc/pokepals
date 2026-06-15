@@ -81,7 +81,10 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 	observations["play_seconds"] += delta
 	var velocity: Vector2 = perception["player_velocity"]
 	observations["explored_distance"] += velocity.length() * delta
-	var near: bool = perception["dist_to_player"] <= float(cfg["follow_near"])
+	# "Near" uses the bond-scaled comfort distance from perception: wide when fresh, so
+	# simply sharing the screen counts as togetherness and bonding starts easily, then
+	# tightening as the bond deepens so the last of it asks for genuine closeness.
+	var near: bool = perception["dist_to_player"] <= float(perception["follow_near"])
 	if near:
 		observations["time_near"] += delta
 	else:
