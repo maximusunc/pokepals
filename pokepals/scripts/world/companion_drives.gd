@@ -101,11 +101,12 @@ class InvestigateDrive extends Drive:
 ## Stay with the player: trail behind them, strolling when just behind, hustling
 ## when far.
 ##
-## How much it WANTS to follow has two parts. Eagerness rises with the bond — a
-## new companion barely cares to trail you, a deeply bonded one wants to be at your
-## side. A distance "leash" adds urgency the farther you get, so that even an
-## independent companion won't let you wander clean off the screen: get far enough
-## and following wins regardless of how new the bond is.
+## How much it WANTS to follow has two parts. Eagerness rises with the bond — a new
+## companion has no urge to trail you at all, a deeply bonded one wants to be at your
+## side. A distance "leash" adds urgency past the (bond-scaled) comfort distance. When
+## fresh that comfort distance is the whole map, so the leash never engages on-screen
+## and the companion is free to be anywhere; only as the bond deepens, and the comfort
+## distance tightens in, does the leash start to reel you together.
 class FollowDrive extends Drive:
 	func evaluate(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		var dist: float = perception["dist_to_player"]
@@ -122,7 +123,11 @@ class FollowDrive extends Drive:
 
 	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, _delta: float) -> Dictionary:
 		var dist: float = perception["dist_to_player"]
-		var speed := float(cfg["run_speed"]) if dist > float(cfg["follow_far"]) else float(cfg["walk_speed"])
+		# Hustle once we've fallen more than run_distance behind, so a bonded companion
+		# can still catch a moving player. This is its own small threshold, separate from
+		# the now map-scale follow_far (which governs the leash, not the gait).
+		var run_at := float(cfg.get("run_distance", cfg.get("follow_far", 200.0)))
+		var speed := float(cfg["run_speed"]) if dist > run_at else float(cfg["walk_speed"])
 		return {
 			"behavior": "follow",
 			"move_target": perception["follow_point"],
@@ -237,8 +242,11 @@ class WanderDrive extends Drive:
 		var radius := _territory_radius(s, cfg)
 		if perception["has_poi"] and perception["nearest_poi"].distance_to(player_pos) <= radius:
 			return perception["nearest_poi"]
+		# Spread outings across the whole territory — some a few steps away, some a long
+		# ramble to the far edge — so a wide-ranging fresh companion still potters nearby
+		# sometimes rather than always striking out for the horizon.
 		var angle := rng.randf_range(0.0, TAU)
-		var dist := rng.randf_range(radius * 0.35, radius)
+		var dist := rng.randf_range(radius * 0.1, radius)
 		return player_pos + Vector2(cos(angle), sin(angle)) * dist
 
 	# How far the companion can roam from the player before following would win and

@@ -13,7 +13,7 @@ static func run_all() -> int:
 	fails += _test_curious_about_nearby_interaction(cfg)
 	fails += _test_ignores_distant_interaction(cfg)
 	fails += _test_wanders_to_poi_on_its_own(cfg)
-	fails += _test_follow_overrides_self_wander(cfg)
+	fails += _test_fresh_roams_free_when_player_is_far(cfg)
 	fails += _test_low_bond_lingers_when_player_drifts(cfg)
 	fails += _test_high_bond_follows_instead_of_wandering(cfg)
 	fails += _test_bond_grows_with_time_together(cfg)
@@ -26,6 +26,13 @@ static func _ok(cond: bool, label: String) -> int:
 		return 0
 	print("  FAIL  ", label)
 	return 1
+
+
+# A brain whose companion is already fully bonded — for the at-your-side beats.
+static func _bonded_brain(cfg: Dictionary) -> CompanionBrain:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 1.0
+	return CompanionBrain.new(cfg, 1, s)
 
 
 static func _ctx(companion_pos: Vector2, player_pos: Vector2, events: Array = []) -> Dictionary:
@@ -61,25 +68,25 @@ static func _test_idle_when_close(cfg: Dictionary) -> int:
 	return fails
 
 
+# A fresh companion's comfort distance is map-wide, so following is a BONDED beat:
+# once bonded it trails a short step behind a player who has moved away.
 static func _test_follows_when_far(cfg: Dictionary) -> int:
-	var brain := CompanionBrain.new(cfg, 1)
-	# A fresh companion keeps a wide berth, so it only trails once the player is well
-	# out toward the edge of its comfort (past follow_near_low, within follow_far): the
-	# leash reels it in and it walks after you.
-	var intent: Dictionary = brain.update(_ctx(Vector2(0, 0), Vector2(175, 0)))
+	var brain := _bonded_brain(cfg)
+	# Just past the snug comfort distance but within run_distance -> walk.
+	var intent: Dictionary = brain.update(_ctx(Vector2(0, 0), Vector2(70, 0)))
 	var fails := 0
-	fails += _ok(intent["behavior"] == "follow", "follows once the player nears the edge of its range")
+	fails += _ok(intent["behavior"] == "follow", "a bonded companion follows when the player steps away")
 	fails += _ok(intent["desired_speed"] == float(cfg["walk_speed"]), "walks while trailing")
 	# Target should sit between companion and player (trailing behind player).
 	var target: Vector2 = intent["move_target"]
-	fails += _ok(target.x < 175.0 and target.x > 0.0, "follow target trails behind the player")
+	fails += _ok(target.x < 70.0 and target.x > 0.0, "follow target trails behind the player")
 	return fails
 
 
 static func _test_runs_when_very_far(cfg: Dictionary) -> int:
-	var brain := CompanionBrain.new(cfg, 1)
+	var brain := _bonded_brain(cfg)
 	var intent: Dictionary = brain.update(_ctx(Vector2(0, 0), Vector2(400, 0)))
-	return _ok(intent["desired_speed"] == float(cfg["run_speed"]), "runs to catch up when beyond follow_far")
+	return _ok(intent["desired_speed"] == float(cfg["run_speed"]), "a bonded companion runs to catch up when it falls far behind")
 
 
 static func _test_curious_about_nearby_interaction(cfg: Dictionary) -> int:
@@ -123,17 +130,18 @@ static func _test_wanders_to_poi_on_its_own(cfg: Dictionary) -> int:
 	return _ok(wandered, "wanders off on its own to potter about")
 
 
-# The distance "leash": even a barely-bonded, independent companion won't let the
-# player get truly far. With the player well beyond follow_far, following must win
-# over any self-directed wander.
-static func _test_follow_overrides_self_wander(cfg: Dictionary) -> int:
+# The heart of the new range: a fresh companion's territory is the whole map, so even
+# with the player far across it the companion keeps living its own life rather than
+# being yanked to heel. (The leash backstop returns only as the bond deepens — see the
+# high-bond follow test.)
+static func _test_fresh_roams_free_when_player_is_far(cfg: Dictionary) -> int:
 	var brain := CompanionBrain.new(cfg, 7)
 	var poi := Vector2(110, 100)
 	var ever_wandered := false
 	for i in 2000:
 		var ctx := {
 			"companion_pos": Vector2(100, 100),
-			"player_pos": Vector2(400, 100),  # well beyond follow_far
+			"player_pos": Vector2(900, 100),  # far across the map, still within its range
 			"player_velocity": Vector2.ZERO,
 			"delta": 0.05,
 			"events": [],
@@ -143,7 +151,7 @@ static func _test_follow_overrides_self_wander(cfg: Dictionary) -> int:
 		if brain.update(ctx)["behavior"] == "wander":
 			ever_wandered = true
 			break
-	return _ok(not ever_wandered, "follows the player instead of self-wandering when they're far")
+	return _ok(ever_wandered, "a fresh companion roams free even when the player is far across the map")
 
 
 # The heart of it: a fresh, barely-bonded companion is its own creature. Once it's
