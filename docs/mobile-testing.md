@@ -25,26 +25,61 @@ $99/yr account. Tradeoff: the app expires after 7 days and you re-deploy it.
 
 ### One-time setup on the Mac
 1. Install **Godot 4.6** (standard build — this project is GDScript-only, no .NET).
-2. In Godot: **Editor → Manage Export Templates → Download and Install**
-   (the version must match 4.6 exactly).
+2. In Godot: **Editor → Manage Export Templates**. If the dialog shows no
+   mirrors and no **Download and Install** button, first click **"go online"**
+   (Godot starts offline) — the mirror list and the download button appear after
+   that. The template version must match 4.6 exactly.
 3. Install **Xcode** from the App Store, then `xcode-select --install` for the
    command-line tools. Open Xcode once and sign in with your Apple ID under
    **Settings → Accounts**.
 
 ### Finish the iOS preset
 Open the project (`godot --path pokepals`) → **Project → Export → iOS**. The
-preset is already there; fill the fields Godot flags in red:
-- **App Store Team ID** — the team tied to your Apple ID.
-- **Signing identity / provisioning** — let Xcode auto-manage it (next step), so
-  you can usually leave these and resolve signing in Xcode instead.
+preset is already there.
+- **App Store Team ID** — Godot 4.6 **requires** this (it won't export with it
+  blank). It's the 10-char ID of your signing team — see "Getting a Team ID"
+  below, especially if you don't see a **Personal Team** in Xcode.
+- **Signing identity / provisioning** — leave blank; resolve in Xcode.
 - Adjust **Bundle Identifier** if you don't want `com.maxwang.kithbound`.
+
+#### Getting a Team ID
+You sign with a **free Personal Team**. Apple auto-creates one for any Apple ID
+that is **not** enrolled in the Apple Developer Program.
+
+**Gotcha — no Personal Team showing up?** If your Apple ID is attached to a
+company's **organization team** (a paid Developer Program membership), Apple
+does *not* also give you a Personal Team, and you usually can't self-sign
+against the org team (signing/device registration is admin-controlled). The fix
+is a *separate* Apple ID enrolled in nothing:
+1. Create a new free Apple ID at [appleid.apple.com](https://appleid.apple.com)
+   (a Gmail `+` alias like `you+ios@gmail.com` is fine). Do **not** enroll it in
+   the Developer Program.
+2. **Xcode → Settings (⌘,) → Accounts → "+" → Apple ID** → sign in with it.
+3. In **Signing & Capabilities**, the Team dropdown now offers
+   **"(Personal Team) Your Name"** — select it. Xcode mints the cert + profile.
+
+Free Personal Team limits (all fine for Rung 1): apps expire after **7 days**,
+max **3** installed at once, **10** app IDs per 7 days, no push. Your iPhone does
+*not* need to be signed into this Apple ID.
+
+Then read the 10-char Team ID one of these ways:
+- **Keychain Access** (definitive): **My Certificates** → double-click your
+  **"Apple Development: …"** cert → **Details** → **Organizational Unit (OU)** is
+  the Team ID. (The cert exists once you've selected your Personal Team on a
+  project in Xcode at least once.)
+- **Terminal:** `security find-identity -v -p codesigning` → the `(XXXXXXXXXX)`
+  in the `Apple Development:` line.
+- **Portal:** [developer.apple.com/account](https://developer.apple.com/account)
+  → **Membership details** (visible on free accounts).
 
 ### Export, then build & deploy
 1. In the Export dialog, **Export Project** to a folder → you get a `.xcodeproj`.
 2. Plug the iPhone in via USB. On the phone, enable **Developer Mode**
    (Settings → Privacy & Security → Developer Mode) — required on iOS 16+.
-3. Open the generated `.xcodeproj`. Under **Signing & Capabilities**, pick your
-   Apple ID team and enable **Automatically manage signing**.
+3. Open the generated `.xcodeproj`. Under **Signing & Capabilities**, enable
+   **Automatically manage signing** and pick your **Personal Team** from the
+   dropdown — Xcode generates the cert + provisioning profile and fills in the
+   Team ID for you.
 4. Select your iPhone as the run target and press **Run (▶)**. Xcode compiles,
    installs, and launches it.
 5. First launch only: the phone refuses to open it until you trust the cert —
