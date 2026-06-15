@@ -81,7 +81,7 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 	observations["play_seconds"] += delta
 	var velocity: Vector2 = perception["player_velocity"]
 	observations["explored_distance"] += velocity.length() * delta
-	var near := perception["dist_to_player"] <= float(cfg["follow_near"])
+	var near: bool = perception["dist_to_player"] <= float(cfg["follow_near"])
 	if near:
 		observations["time_near"] += delta
 	else:
