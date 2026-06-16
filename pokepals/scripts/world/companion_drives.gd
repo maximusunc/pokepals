@@ -283,10 +283,16 @@ class WanderDrive extends Drive:
 
 	func evaluate(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 		if _state == ROAM:
-			# If the player has walked off and dragged our destination out of reach,
-			# give up on it: pause, and FollowDrive (now scoring higher) takes over.
-			# We'll pick a fresh, in-reach spot next time we set off.
-			if _target.distance_to(perception["player_pos"]) > float(cfg["follow_far"]):
+			# Give up on a latched destination once the player has dragged it out of
+			# the companion's reachable territory: the roam pick disk around the player
+			# (_territory_radius) PLUS the comfort bubble (follow_deadzone) just past it,
+			# inside which Follow only pulls gently so a target there is still reachable
+			# without a tug-of-war. Beyond that, Follow's full pull beats this roam and we
+			# would only jitter at the bubble edge chasing a now-stale spot — so pause and
+			# let FollowDrive (now scoring higher) take over, picking a fresh, in-reach
+			# spot next time we set off. The deadzone margin means a small player drift
+			# never trips this, while genuinely walking away does.
+			if _target.distance_to(perception["player_pos"]) > _territory_radius(s, cfg) + float(cfg.get("follow_deadzone", 0.0)):
 				_state = PAUSE
 				_pause_timer = _roll_pause(cfg, rng, s.bond, _trait(s, cfg, "energy"))
 				return 0.0
