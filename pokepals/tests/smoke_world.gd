@@ -26,12 +26,15 @@ func _process(_delta: float) -> bool:
 	if _frames < 4:
 		return false
 
-	# Setup: grab nodes, stop the player driving itself, and place it far away so
-	# the companion must chase.
+	# Setup: grab nodes, stop the player driving itself, and place it far away. A FRESH
+	# companion's comfort range is map-wide, so it would (by design) ignore this and
+	# keep to its own life — following is a bonded beat now, so we bond it first, then
+	# expect it to chase.
 	if _player == null:
 		_player = _world.get_node("Player")
 		_companion = _world.get_node("Companion")
 		_player.set_process(false)
+		_companion._brain.get_self().bond = 1.0
 		_player.position = _companion.position + Vector2(380, 0)
 		_player.velocity = Vector2.ZERO
 		_start_dist = _companion.position.distance_to(_player.position)

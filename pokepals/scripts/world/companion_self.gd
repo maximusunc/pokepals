@@ -81,7 +81,10 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 	observations["play_seconds"] += delta
 	var velocity: Vector2 = perception["player_velocity"]
 	observations["explored_distance"] += velocity.length() * delta
-	var near: bool = perception["dist_to_player"] <= float(cfg["follow_near"])
+	# "Near" uses the bond-scaled comfort distance from perception: wide when fresh, so
+	# simply sharing the screen counts as togetherness and bonding starts easily, then
+	# tightening as the bond deepens so the last of it asks for genuine closeness.
+	var near: bool = perception["dist_to_player"] <= float(perception["follow_near"])
 	if near:
 		observations["time_near"] += delta
 	else:
@@ -105,6 +108,9 @@ func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: boo
 		amount += float(bond_cfg.get("grow_per_sec_near", 0.0)) * delta
 	if perception["has_interaction"]:
 		amount += float(bond_cfg.get("grow_per_interaction", 0.0))
+	# time_scale lets the real ~10-hour bond curve be experienced quickly while tuning
+	# feel: the base rates are the real game, this multiplies them (set to 1.0 to ship).
+	amount *= float(bond_cfg.get("time_scale", 1.0))
 	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
 
 
