@@ -57,6 +57,11 @@ func _ready() -> void:
 	var existing_self: CompanionSelf = null
 	if not saved.is_empty():
 		existing_self = CompanionSelf.from_dict(saved, _cfg)
+	else:
+		# A brand-new companion: gently randomize its traits so this playthrough's
+		# partner has its own slight leanings (a touch more wander-, prop-, or
+		# follow-inclined) rather than always the exact same temperament.
+		existing_self = CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
 	_brain = CompanionBrain.new(_cfg, 0, existing_self)
 
 
@@ -89,6 +94,25 @@ func _process(delta: float) -> void:
 	if _autosave_accum >= AUTOSAVE_INTERVAL:
 		_autosave_accum = 0.0
 		_save_self()
+
+
+## Whether the bond has reached its maximum — used by the world to reveal the
+## "start over" affordance only once there's a fully bonded companion to reset.
+func is_fully_bonded() -> bool:
+	if _brain == null:
+		return false
+	var max_bond := float(_cfg.get("bond", {}).get("max", 1.0))
+	return _brain.get_self().bond >= max_bond
+
+
+## Start a whole new companion: wipe the save and spawn a freshly randomized partner
+## so the bond arc can be played again from zero without reinstalling. Replacing the
+## brain outright also clears every drive's internal timers, so it truly begins anew.
+func reset() -> void:
+	SaveStore.delete_save(SELF_SAVE_PATH)
+	var fresh := CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
+	_brain = CompanionBrain.new(_cfg, 0, fresh)
+	_autosave_accum = 0.0
 
 
 ## Persist who the companion has become. Cheap and idempotent.

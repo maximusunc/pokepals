@@ -14,6 +14,9 @@ static func run_all() -> int:
 	fails += _test_drift_reflects_a_homebody_player(cfg)
 	fails += _test_drift_respects_bounds(cfg)
 	fails += _test_no_drift_before_warmup(cfg)
+	fails += _test_make_default_unchanged(cfg)
+	fails += _test_make_random_stays_near_init(cfg)
+	fails += _test_make_random_varies(cfg)
 	return fails
 
 
@@ -123,3 +126,55 @@ static func _test_no_drift_before_warmup(cfg: Dictionary) -> int:
 	var before := s.trait_value("energy")
 	s.apply_drift(cfg, 0.1)
 	return _ok(is_equal_approx(s.trait_value("energy"), before), "no drift before the warmup period")
+
+
+# make_default must stay exactly the configured init values — the deterministic path
+# the rest of the suite (and the brain tests) relies on.
+static func _test_make_default_unchanged(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var fails := 0
+	for key in ["curiosity", "energy", "clinginess"]:
+		var init := float(cfg["traits"][key]["init"])
+		fails += _ok(is_equal_approx(s.trait_value(key), init), "make_default keeps %s at its init" % key)
+	return fails
+
+
+# A randomized companion's traits sit within the configured spread of their init
+# (gentle variation, not archetypes) and never escape the trait's min/max.
+static func _test_make_random_stays_near_init(cfg: Dictionary) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 99
+	var default_spread := float(cfg.get("trait_spread", 0.12))
+	var fails := 0
+	# Sample several so we exercise the random range, not a single lucky draw.
+	for _i in 50:
+		var s := CompanionSelf.make_random(cfg, rng)
+		for key in ["curiosity", "energy", "clinginess"]:
+			var spec: Dictionary = cfg["traits"][key]
+			var init := float(spec["init"])
+			var spread := float(spec.get("spread", default_spread))
+			var lo := maxf(init - spread, float(spec["min"]))
+			var hi := minf(init + spread, float(spec["max"]))
+			var v := s.trait_value(key)
+			if v < lo - 0.0001 or v > hi + 0.0001:
+				fails += _ok(false, "make_random keeps %s within its spread (got %f)" % [key, v])
+				return fails
+	return _ok(true, "make_random keeps every trait within its configured spread of init")
+
+
+# Different seeds produce genuinely different companions (variability exists).
+static func _test_make_random_varies(cfg: Dictionary) -> int:
+	var a := CompanionSelf.make_random(cfg, _seeded(1))
+	var b := CompanionSelf.make_random(cfg, _seeded(2))
+	var differs := (
+		not is_equal_approx(a.trait_value("curiosity"), b.trait_value("curiosity"))
+		or not is_equal_approx(a.trait_value("energy"), b.trait_value("energy"))
+		or not is_equal_approx(a.trait_value("clinginess"), b.trait_value("clinginess"))
+	)
+	return _ok(differs, "different seeds yield differently-tempered companions")
+
+
+static func _seeded(seed_value: int) -> RandomNumberGenerator:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = seed_value
+	return rng

@@ -15,9 +15,14 @@ class_name CompanionDrives
 ## The drives, strongest first:
 ##   Investigate — the player did something nearby. The sacred "it noticed me" beat;
 ##                 fixed high score, briefly interrupts anything.
-##   Follow      — stay with the player. Eagerness RISES with the bond, plus a
-##                 distance leash so even an independent companion is reeled in
-##                 before you get off-screen.
+##   CheckIn     — its OWN idea to come say hi. While off living its life it now and
+##                 then wanders over, looks at you, lingers a moment, then heads back.
+##                 Fires when it isn't already close; eager when fresh-and-far, fading
+##                 to nothing once bonded (by then it's already at your side).
+##   Follow      — stay with the player. Eagerness RISES with the bond (and with the
+##                 clinginess trait), plus a distance leash so even an independent
+##                 companion is reeled in before you get off-screen. A comfort-bubble
+##                 deadzone keeps it from rigidly snapping to one trailing point.
 ##   Wander      — its own life. A fresh companion potters about on its own —
 ##                 investigating props, moseying to little spots, pausing to look
 ##                 around — and this OUTSCORES following at low bond, so it would
@@ -33,7 +38,9 @@ class_name CompanionDrives
 static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 	# Order matters only for ties: earlier drives win an exact score tie, which is
 	# why Follow sits ahead of Wander (the leash backstop should never lose a tie).
-	return [InvestigateDrive.new(), FollowDrive.new(), WanderDrive.new(cfg, rng), IdleDrive.new(cfg, rng)]
+	# CheckIn sits just under Investigate so a started visit commits over Follow/Wander,
+	# while a player-triggered look still trumps everything.
+	return [InvestigateDrive.new(), CheckInDrive.new(cfg, rng), FollowDrive.new(), WanderDrive.new(cfg, rng), IdleDrive.new(cfg, rng)]
 
 
 ## Interface + safe defaults so a drive only overrides what it needs.
@@ -98,6 +105,99 @@ class InvestigateDrive extends Drive:
 		}
 
 
+## Its own idea to come say hi — the heart of feeling attended-to during the
+## independent, pre-bond phase. While off living its life the companion now and then
+## decides to wander over to the player, look at them, hang about a beat, then peel
+## away again. It only sets off when it ISN'T already close (so it's a real visit,
+## not a fidget) and the player is in reach. How eager it is fades with the bond:
+## strong when fresh-and-far, ~0 once bonded — by then Follow keeps it at your side,
+## so deliberate check-ins aren't needed. The clinginess trait nudges how often a
+## given companion bothers to check in.
+class CheckInDrive extends Drive:
+	var _cooldown := 0.0
+	var _active := false
+	var _target := Vector2.ZERO
+	var _linger := 0.0
+	var _just_triggered := false
+
+	func _init(cfg: Dictionary, rng: RandomNumberGenerator) -> void:
+		# Stagger the first possible visit so it isn't an instant lurch on spawn.
+		_cooldown = _roll_interval(cfg, rng)
+
+	func tick(delta: float) -> void:
+		_cooldown = maxf(0.0, _cooldown - delta)
+
+	func evaluate(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
+		var score := float(cfg.get("checkin_score", 9.0))
+		var far := float(cfg["follow_far"])
+		if _active:
+			# Player walked out of reach mid-visit: give up and let Follow's leash take
+			# over; line up a fresh window for next time.
+			if perception["dist_to_player"] > far:
+				_active = false
+				_cooldown = _roll_interval(cfg, rng)
+				return 0.0
+			return score
+		if _cooldown > 0.0:
+			return 0.0
+		# Window elapsed: queue the next one regardless, then maybe set off now.
+		_cooldown = _roll_interval(cfg, rng)
+		var dist: float = perception["dist_to_player"]
+		var near: float = perception["follow_near"]
+		# Only worth a visit when not already close, and only if the player is in reach.
+		if dist <= near or dist > far:
+			return 0.0
+		# Eager when fresh, fading to ~0 once bonded; keener the further away it is; and
+		# coloured by how clingy this particular companion is.
+		var pull := lerpf(float(cfg.get("checkin_pull_low", 1.0)), float(cfg.get("checkin_pull_high", 0.0)), s.bond)
+		var dist_factor := clampf((dist - near) / maxf(far - near, 1.0), 0.0, 1.0)
+		var chance := pull * dist_factor * _trait(s, cfg, "clinginess")
+		if rng.randf() >= chance:
+			return 0.0
+		_active = true
+		_target = perception["player_pos"]
+		_linger = float(cfg.get("checkin_linger", 2.5))
+		_just_triggered = true
+		return score
+
+	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var reactions: Array = []
+		if _just_triggered:
+			# The "oh — there it is!" beat: perk up and look over as it sets off.
+			reactions.append("perk")
+			reactions.append("look")
+			_just_triggered = false
+		# Head toward where the player IS now, not where they were when it set off.
+		_target = perception["player_pos"]
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		if companion_pos.distance_to(_target) > float(cfg.get("checkin_stop_distance", 80.0)):
+			move_target = _target
+			speed = float(cfg["walk_speed"])
+		else:
+			# Arrived: settle in to say hi for a moment, then the visit ends and Wander/
+			# Idle resume — it goes back to its own life.
+			_linger -= delta
+			if _linger <= 0.0:
+				_active = false
+		return {
+			"behavior": "checkin",
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": _target,
+			"reactions": reactions,
+		}
+
+	func _roll_interval(cfg: Dictionary, rng: RandomNumberGenerator) -> float:
+		var window: Array = cfg.get("checkin_interval", [14.0, 26.0])
+		return rng.randf_range(float(window[0]), float(window[1]))
+
+	# Prefer the (drifting) self trait; fall back to the static personality config.
+	func _trait(s: CompanionSelf, cfg: Dictionary, key: String) -> float:
+		return s.trait_value(key, _personality(cfg, key))
+
+
 ## Stay with the player: trail behind them, strolling when just behind, hustling
 ## when far.
 ##
@@ -115,7 +215,18 @@ class FollowDrive extends Drive:
 		var near := float(perception["follow_near"])
 		if dist <= near:
 			return 0.0
-		var eager := lerpf(float(cfg.get("follow_eager_low", 5.0)), float(cfg.get("follow_eager_high", 5.0)), s.bond)
+		var eager_high := float(cfg.get("follow_eager_high", 5.0))
+		# Inside the comfort BUBBLE just past the comfort distance, pull only gently so
+		# Wander/Idle can win and the companion mills about within a comfortable range
+		# rather than rigidly snapping to one trailing point — it never feels leashed.
+		# Past the bubble, the full eagerness + leash reels it back in.
+		var deadzone := float(cfg.get("follow_deadzone", 0.0))
+		if dist <= near + deadzone:
+			return lerpf(0.0, eager_high * 0.25, s.bond)
+		# Eagerness rises with the bond and is coloured by the clinginess trait (the
+		# "follower" dimension): a clingier companion trails you a touch more keenly.
+		var eager := lerpf(float(cfg.get("follow_eager_low", 5.0)), eager_high, s.bond)
+		eager *= lerpf(0.8, 1.2, s.trait_value("clinginess", _personality(cfg, "clinginess")))
 		var far := float(cfg["follow_far"])
 		var over := clampf((dist - near) / maxf(far - near, 1.0), 0.0, 1.0)
 		var leash := over * float(cfg.get("follow_leash", 0.0))
@@ -240,8 +351,12 @@ class WanderDrive extends Drive:
 	func _pick_target(perception: Dictionary, s: CompanionSelf, rng: RandomNumberGenerator, cfg: Dictionary) -> Vector2:
 		var player_pos: Vector2 = perception["player_pos"]
 		var radius := _territory_radius(s, cfg)
+		# A standing prop in reach is a deliberate thing to investigate — but only a
+		# curious companion (the "interactable-inclined" dimension) usually heads for it;
+		# an incurious one more often just ambles to an interesting patch of ground.
 		if perception["has_poi"] and perception["nearest_poi"].distance_to(player_pos) <= radius:
-			return perception["nearest_poi"]
+			if rng.randf() < _trait(s, cfg, "curiosity"):
+				return perception["nearest_poi"]
 		# Spread outings across the whole territory — some a few steps away, some a long
 		# ramble to the far edge — so a wide-ranging fresh companion still potters nearby
 		# sometimes rather than always striking out for the horizon.
@@ -260,11 +375,23 @@ class WanderDrive extends Drive:
 		var far := float(cfg["follow_far"])
 		var leash := float(cfg.get("follow_leash", 0.0))
 		var cap := float(cfg.get("roam_radius", 90.0))
+		var deadzone := float(cfg.get("follow_deadzone", 0.0))
 		if leash <= 0.0:
 			return minf(cap, far)
+		# Where following (full eager + leash) would out-bid this roam and reel us back —
+		# the crossover we must stay inside so every outing completes instead of jittering.
 		var eager := lerpf(float(cfg.get("follow_eager_low", 5.0)), float(cfg.get("follow_eager_high", 5.0)), s.bond)
+		eager *= lerpf(0.8, 1.2, _trait(s, cfg, "clinginess"))
 		var over := clampf((_roam_score(s, cfg) - eager) / leash, 0.0, 1.0)
-		return minf(cap, (near + over * (far - near)) * 0.92)
+		var crossover := (near + over * (far - near)) * 0.92
+		# Inside the comfort bubble Follow only pulls gently, so that whole bubble is
+		# reachable too — this is what keeps a fully bonded companion taking visible
+		# little excursions around you instead of gluing to your side.
+		var range_radius := maxf(crossover, near + deadzone)
+		# Energetic companions use more of that range (lower-energy ones potter nearer);
+		# clamped so they never overshoot the crossover and start a follow/wander tug.
+		range_radius = clampf(range_radius * lerpf(0.8, 1.25, _trait(s, cfg, "energy")), near, range_radius)
+		return minf(cap, range_radius)
 
 	# Seconds to stand about before the next roam: a base window, stretched as the
 	# bond grows (bonded -> ranges less) and shortened for an energetic companion.

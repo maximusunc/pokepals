@@ -16,6 +16,10 @@ static func run_all() -> int:
 	fails += _test_fresh_roams_free_when_player_is_far(cfg)
 	fails += _test_low_bond_lingers_when_player_drifts(cfg)
 	fails += _test_high_bond_follows_instead_of_wandering(cfg)
+	fails += _test_bonded_still_takes_excursions(cfg)
+	fails += _test_low_bond_checks_in_when_player_far(cfg)
+	fails += _test_high_bond_does_not_check_in(cfg)
+	fails += _test_curiosity_biases_poi_choice(cfg)
 	fails += _test_bond_grows_with_time_together(cfg)
 	return fails
 
@@ -175,16 +179,116 @@ static func _test_low_bond_lingers_when_player_drifts(cfg: Dictionary) -> int:
 	return fails
 
 
-# The other end of the arc: a deeply bonded companion wants to be at your side. The
-# moment the player steps away, following beats any lingering urge to investigate.
+# The other end of the arc: when the player genuinely leaves (beyond the bonded
+# companion's comfort bubble), following dominates over any urge to wander or
+# investigate — it commits to staying with you. (Stepping past the bubble, not the
+# old tiny step, since the bubble is exactly what lets a bonded companion still
+# potter near you — see _test_bonded_still_takes_excursions.)
 static func _test_high_bond_follows_instead_of_wandering(cfg: Dictionary) -> int:
 	var s := CompanionSelf.make_default(cfg)
 	s.bond = 1.0
 	var brain := CompanionBrain.new(cfg, 1, s)
-	# The SAME modest step away that a fresh companion ignored: bonded, its comfort
-	# range has tightened, so this step now pulls it to your side despite the prop.
-	var behavior: String = brain.update(_ctx_poi(Vector2(100, 100), Vector2(160, 100), Vector2(120, 100), 0.0))["behavior"]
-	return _ok(behavior == "follow", "high-bond companion stays with the player instead of wandering off")
+	var poi := Vector2(120, 100)
+	var followed_throughout := true
+	# Player a clear stride beyond the comfort bubble; over a stretch of time the
+	# companion should keep following and never peel off to wander/investigate.
+	for i in 400:
+		var behavior: String = brain.update(_ctx_poi(Vector2(100, 100), Vector2(450, 100), poi, i * 0.05))["behavior"]
+		if behavior == "wander" or behavior == "checkin":
+			followed_throughout = false
+			break
+	return _ok(followed_throughout, "high-bond companion stays with the player when they genuinely leave")
+
+
+# The heart of "never leashed": even fully bonded, the companion still takes its own
+# little excursions rather than gluing to your side. With the player right there, it
+# should still set off to potter about on its own at least sometimes.
+static func _test_bonded_still_takes_excursions(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 1.0
+	var brain := CompanionBrain.new(cfg, 1, s)
+	var poi := Vector2(180, 100)
+	var wandered := false
+	for i in 8000:
+		if brain.update(_ctx_poi(Vector2(100, 100), Vector2(100, 100), poi, i * 0.05))["behavior"] == "wander":
+			wandered = true
+			break
+	return _ok(wandered, "a fully bonded companion still takes little excursions on its own")
+
+
+# During the independent phase, a companion that's off on its own should come over to
+# check in on the player by itself now and then.
+static func _test_low_bond_checks_in_when_player_far(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.1
+	s.traits["clinginess"] = 1.0  # a sociable companion, to keep the test snappy
+	var brain := CompanionBrain.new(cfg, 1, s)
+	var checked_in := false
+	# Player well beyond the comfort distance but within reach (follow_far).
+	for i in 12000:
+		var ctx := {
+			"companion_pos": Vector2(100, 100),
+			"player_pos": Vector2(2600, 100),
+			"player_velocity": Vector2.ZERO,
+			"delta": 0.05,
+			"events": [],
+			"time": i * 0.05,
+			"points_of_interest": [],
+		}
+		if brain.update(ctx)["behavior"] == "checkin":
+			checked_in = true
+			break
+	return _ok(checked_in, "a low-bond companion comes over to check in on its own")
+
+
+# Once fully bonded it's already at your side, so deliberate check-ins fade away: it
+# just follows when you're far, never trekking back for a separate "visit".
+static func _test_high_bond_does_not_check_in(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 1.0
+	s.traits["clinginess"] = 1.0
+	var brain := CompanionBrain.new(cfg, 1, s)
+	var ever_checked_in := false
+	for i in 4000:
+		var ctx := {
+			"companion_pos": Vector2(100, 100),
+			"player_pos": Vector2(2600, 100),
+			"player_velocity": Vector2.ZERO,
+			"delta": 0.05,
+			"events": [],
+			"time": i * 0.05,
+			"points_of_interest": [],
+		}
+		if brain.update(ctx)["behavior"] == "checkin":
+			ever_checked_in = true
+			break
+	return _ok(not ever_checked_in, "a fully bonded companion does not do separate check-ins")
+
+
+# The "interactable-inclined" dimension: a curious companion heads for a nearby prop
+# when it wanders; an incurious one ambles to open ground instead.
+static func _test_curiosity_biases_poi_choice(cfg: Dictionary) -> int:
+	var poi := Vector2(180, 100)
+	var curious := _count_poi_targets(cfg, 1.0, poi)
+	var incurious := _count_poi_targets(cfg, 0.0, poi)
+	var fails := 0
+	fails += _ok(curious > 0, "a curious companion heads for the prop when wandering")
+	fails += _ok(curious > incurious, "a curious companion targets props more than an incurious one")
+	return fails
+
+
+# Count frames where a wandering companion (with the given curiosity) is heading for
+# the prop, over a fixed seeded run.
+static func _count_poi_targets(cfg: Dictionary, curiosity: float, poi: Vector2) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.traits["curiosity"] = curiosity
+	var brain := CompanionBrain.new(cfg, 4242, s)
+	var count := 0
+	for i in 4000:
+		var intent := brain.update(_ctx_poi(Vector2(100, 100), Vector2(100, 100), poi, i * 0.05))
+		if intent["behavior"] == "wander" and (intent["look_at"] as Vector2).is_equal_approx(poi):
+			count += 1
+	return count
 
 
 # Bond deepens with time spent close together.

@@ -45,6 +45,28 @@ static func make_default(cfg: Dictionary) -> CompanionSelf:
 	return s
 
 
+## A fresh self with GENTLY randomized traits, for a newly created or reset
+## companion. Identical to make_default except each trait is jittered within a small
+## spread around its init, so playthroughs differ a little (one a touch more
+## wander-inclined, another more drawn to props, another more of a follower) without
+## becoming pronounced archetypes. The deterministic make_default path is left alone
+## so tests and first-run feel stay exact.
+static func make_random(cfg: Dictionary, rng: RandomNumberGenerator) -> CompanionSelf:
+	var s := make_default(cfg)
+	if cfg.has("traits"):
+		var default_spread := float(cfg.get("trait_spread", 0.12))
+		for key in cfg["traits"]:
+			# Skip doc-only entries like "_comment"; real traits are objects.
+			if not (cfg["traits"][key] is Dictionary):
+				continue
+			var spec: Dictionary = cfg["traits"][key]
+			var init := float(spec.get("init", 0.5))
+			var spread := float(spec.get("spread", default_spread))
+			var jittered := init + rng.randf_range(-spread, spread)
+			s.traits[key] = clampf(jittered, float(spec.get("min", 0.0)), float(spec.get("max", 1.0)))
+	return s
+
+
 static func _default_traits(cfg: Dictionary) -> Dictionary:
 	var out := {}
 	if cfg.has("traits"):

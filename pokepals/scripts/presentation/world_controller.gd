@@ -16,9 +16,11 @@ const INTERACT_RANGE := 60.0
 @onready var _hint: Label = $UI/HintLabel
 @onready var _joystick: VirtualJoystick = $UI/Joystick
 @onready var _examine_button: Button = $UI/ExamineButton
+@onready var _reset_button: Button = $UI/ResetButton
 
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
+var _reset_shown := false  # whether the "new companion" button is currently faded in
 
 
 func _ready() -> void:
@@ -48,6 +50,10 @@ func _ready() -> void:
 	_examine_button.pressed.connect(_try_interact)
 	_joystick.add_exclusion(_examine_button)
 
+	# Top-right "start over" button: only revealed once fully bonded (see _process).
+	_reset_button.pressed.connect(_on_reset_pressed)
+	_joystick.add_exclusion(_reset_button)
+
 	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
 
 
@@ -63,6 +69,9 @@ func _process(_delta: float) -> void:
 		if _hint.text.begins_with("Examine "):
 			_hint.text = ""
 
+	# Reveal the "new companion" button only once the bond is full.
+	_set_reset_visible(_companion.is_fully_bonded())
+
 
 ## Gently fade the touch Examine button in or out as the player nears a prop, so
 ## it signals "something's here" without cluttering the screen while wandering.
@@ -76,6 +85,29 @@ func _set_examine_visible(show_button: bool) -> void:
 	tween.tween_property(_examine_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
 	if not show_button:
 		tween.tween_callback(func() -> void: _examine_button.visible = false)
+
+
+## Gently fade the "new companion" button in once fully bonded, out otherwise —
+## mirrors the Examine button's fade so the screen stays uncluttered until it matters.
+func _set_reset_visible(show_button: bool) -> void:
+	if show_button == _reset_shown:
+		return
+	_reset_shown = show_button
+	if show_button:
+		_reset_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_reset_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _reset_button.visible = false)
+
+
+## Start a fresh companion (immediate, no confirm — the button only appears once you
+## have a fully bonded companion to start over from). It hides itself again until the
+## new companion bonds.
+func _on_reset_pressed() -> void:
+	_companion.reset()
+	_set_reset_visible(false)
+	_hint.text = "A new companion blinks into the world beside you."
 
 
 func _unhandled_input(event: InputEvent) -> void:
