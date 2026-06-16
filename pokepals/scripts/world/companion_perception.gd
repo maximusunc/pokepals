@@ -16,11 +16,16 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 	var bond := s.bond if s != null else 0.0
 	var follow_near := effective_follow_near(cfg, bond)
 
+	# How far it notices the player's pokes, widened a little for a curious companion
+	# and narrowed for an incurious one — so the "interactable-inclined" trait is felt.
+	var curiosity := s.trait_value("curiosity", 0.5) if s != null else 0.5
+	var curiosity_radius := float(cfg["curiosity_radius"]) * lerpf(0.7, 1.3, curiosity)
+
 	# The first interaction event that happened close enough to be worth noticing.
 	var has_interaction := false
 	var interaction_point := Vector2.ZERO
 	for e in context["events"]:
-		if e["type"] == "interaction" and companion_pos.distance_to(e["position"]) <= float(cfg["curiosity_radius"]):
+		if e["type"] == "interaction" and companion_pos.distance_to(e["position"]) <= curiosity_radius:
 			has_interaction = true
 			interaction_point = e["position"]
 			break
@@ -63,7 +68,12 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 static func effective_follow_near(cfg: Dictionary, bond: float) -> float:
 	var snug := float(cfg["follow_near"])
 	var loose := float(cfg.get("follow_near_low", snug))
-	return lerpf(loose, snug, clampf(bond, 0.0, 1.0))
+	# Shape the shrink with a curve exponent: k < 1 tightens early and steadily so the
+	# closing-in is FELT across the whole bond arc, rather than staying wide and then
+	# snapping in only at the very end. k = 1 is the old linear behavior.
+	var k := float(cfg.get("follow_near_curve", 1.0))
+	var t := pow(clampf(bond, 0.0, 1.0), k)
+	return lerpf(loose, snug, t)
 
 
 ## A resting point a comfortable follow_near from the player, on the side the
