@@ -30,7 +30,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ designed |
 | **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ⬜ open |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
-| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ⚠️ next thread |
+| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ designed |
 
 ---
 
@@ -94,21 +94,75 @@ bonded won't, bonded will). Same shape — door stays open.
 
 ---
 
+## ✅ Mechanism #4 — Variety-based ("un-farmable") bond
+
+Bond growth should track genuine play — variety + meaningful events — not repetition
+or idle time. Replaces the grindable model in current code.
+
+### Source changes (rewrite `CompanionSelf._grow_bond`)
+- **Raw presence — dropped.** No more passive growth just from the game running.
+- **Proximity time — kept, but only as a slow trickle.** The gentle long-tail
+  finisher; deliberately slow so parking next to the companion isn't the optimal play.
+- **Interactions — novelty-weighted** (see habituation), not flat-per-poke.
+
+### Meaningful-event sources (all novelty-gated unless noted)
+- **New-prop interaction** — first real encounter with a prop.
+- **New-area discovery** — reaching a new region (needs stable *area* ids).
+- **Shared-attention moment** (from #1) — you and it attended to the same thing;
+  novelty-gated per object (sharing the same rock twice doesn't keep paying).
+- **Proximity trickle** — the only non-novelty, time-based source; small.
+
+**Rough priority (tuning, not code):** shared-attention ≈ new-area > new-prop >
+proximity-trickle. Doing/discovering *together* matters most; passive proximity least.
+
+### Habituation (the un-grindable mechanism + a memory seed)
+- **Granularity:** per-**individual-object id** (start). A weak per-type component is a
+  possible later refinement.
+- **Discount:** each meaningful encounter bumps `familiarity[id]`; bond gain *and*
+  reaction strength scale by a novelty factor that decays from ~1 to a **hard floor of
+  0**.
+- **No fade:** familiarity never decays — a familiar prop goes (and stays) quiet.
+- This is the cozy seed of the spec's memory system: kills the grind *and* makes the
+  companion stop reacting to repeated stimuli (reads as presence; the next novel thing
+  pops harder).
+
+### No decay
+Bond is **monotonic** in the cozy stage. Trust-damage / regression is a danger-era
+mechanic, deferred.
+
+### Consequences (accepted)
+- **Mood (#2) is now load-bearing for freshness.** With object-novelty at a zero floor
+  and no fade, day-to-day variety must come from the mood layer + stochastic
+  expression, not from the (small, fixed) world.
+- **Bond curve front-loads on discovery, then tapers to the proximity trickle**, and how
+  far novelty can carry bond is gated by world content. Fine for the current slice
+  (proving the early fresh→bonding arc). The real game will need enough novel content +
+  non-object shared experiences for bond to *complete* without a stand-around grind.
+  Later tuning dependency.
+
+### Code touchpoints
+- Rewrite `CompanionSelf._grow_bond`; add a persistent `familiarity` map to
+  `CompanionSelf` (part of the saved mind), keyed by stable prop/area ids.
+- **World must hand props/areas stable ids** (POIs are currently bare `Vector2`s).
+- New `companion.json` tunables for per-source weights + the novelty curve; retire
+  `grow_per_sec` (raw presence).
+
+---
+
 ## ⬜ Open threads (walkthrough queue)
 
 In rough priority order for the cozy stage:
 
-1. **Variety-based / un-farmable bond** (next) — fix grindable bond; tie growth to
-   novelty + meaningful events (incl. shared-attention moments from #1) + habituation.
-2. **Personality tiers + mood** — identity (fixed) / disposition (bounded drift,
-   regresses) / mood (transient, the primary variety engine). Gives the unused `mood`
-   field a job; decides whether to add regression + a fixed identity floor.
-3. **In-character gating / refusal** — errand-readiness expressed as a creature that
+1. **Personality tiers + mood** (next) — identity (fixed) / disposition (bounded drift,
+   regresses) / mood (transient). **Now load-bearing:** mood is the primary variety
+   engine, since object-novelty no longer refreshes (bond thread). Gives the unused
+   `mood` field a job; decides whether to add regression + a fixed identity floor.
+2. **In-character gating / refusal** — errand-readiness expressed as a creature that
    doesn't trust you *yet*, not a grayed-out button. Rides on the bond axis. (Uses the
    reserved `command`/`task` bands.)
-4. **Appraisal model + tag vocabulary** — neutral world facts the companion
+3. **Appraisal model + tag vocabulary** — neutral world facts the companion
    interprets; scope depends on staying cozy. Lock the schema early but small.
-5. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
+4. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
    context only until feel is proven.
 
 ---
@@ -117,8 +171,10 @@ In rough priority order for the cozy stage:
 
 - **Bond is grindable.** `CompanionSelf._grow_bond` grows bond from raw presence
   (`grow_per_sec`), proximity time (`grow_per_sec_near`), and interaction count
-  (`grow_per_interaction`) — all farmable by standing still or poking one prop. The
-  spec wants variety + meaningful events + habituation. (Thread #1 of the open queue.)
+  (`grow_per_interaction`) — all farmable by standing still or poking one prop.
+  → **Resolved in design** (see Mechanism #4): drop raw presence, novelty-weight
+  interactions, habituation to a zero floor, shared-attention/new-area sources. Pending
+  implementation.
 
 ---
 
