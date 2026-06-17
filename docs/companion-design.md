@@ -28,7 +28,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 | Mechanism | Danger version (later) | Cozy version (now) | Status |
 |---|---|---|---|
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ designed |
-| **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ⬜ open |
+| **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | 🔶 principle + mechanism locked; causes/seam next |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
 | **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ designed |
 
@@ -222,14 +222,60 @@ disposition as the layer so such states slot in later without restructuring.
 
 ---
 
+## 🔶 Mechanism #2 — In-character gating / refusal
+
+The *capability* this gates (errands / commands) is a **future** feature — we have nothing
+to command yet. This beat locks the **principle** and the **shape of how it will use the
+reserved `command`/`task` band**, and confirms our affect stack can already render it.
+Two of the spec's four refusal causes are expressible with current state (bond, mood); two
+need the danger/upset layer.
+
+### The principle (locked)
+- Capabilities are gated on **hidden state** (bond), **never a meter or a grayed-out
+  button** — consistent with our implicit-state ethos.
+- An unmet gate is shown **in character**: hesitation, looking between you and the task,
+  reluctant body language. The player **infers** the cause — that inference *is* the
+  storytelling.
+- **Partial states are the teacher.** Just-below-threshold = goes a short way and hurries
+  back, or does it nervously. The gradient teaches the mechanic with no UI.
+- **Every "no" points to its remedy**, and always includes an **acknowledgment beat**
+  ("I heard you, and… no") — a refusal *without* acknowledgment reads as a bug, not a
+  feeling.
+
+### The mechanism (reuses the affect stack)
+A refusal is **not** a dedicated "refuse" animation. It is: *don't execute the task, and
+let current affect show, so the emotional **temperature** communicates why.* Sequence:
+1. **Acknowledge** — perk / look at you ("heard you").
+2. **Hesitate** — the beat of delay (same believability lever as social referencing).
+3. **Decline + express** — doesn't go; body language colored by the **dominant blocking
+   emotion**, read straight off mood / disposition / bond.
+
+Same base beat, different temperature → different cause. Plus **stochastic surface
+variation** so it's never the identical shuffle twice.
+
+### The seam
+Rides the reserved **`command`/`task` band**: a commanded task whose gate is unmet
+**routes to this decline beat at command-band priority** instead of running the task; the
+decline reads the affect stack for its temperature; near-threshold → partial compliance.
+No new arbitration — it's the seam we already left open.
+
+### Causes (next beat)
+- **Cozy-now (expressible with current state):** *not-bonded-enough* (bond below gate) and
+  *wrong-mood* (low arousal/valence). Design *not-bonded* as unmistakably **warm /
+  hopeful** now, so the later **cool / guarded** *damaged-trust* cause can never be
+  confused with it.
+- **Deferred (need danger/upset):** *afraid-of-target* (directional fear at the world) and
+  *damaged-trust* (withdrawal with edge — a disposition-layer effect, see Personality).
+
+---
+
 ## ⬜ Open threads (walkthrough queue)
 
 In rough priority order for the cozy stage:
 
-1. **In-character gating / refusal** — errand-readiness expressed as a creature that
-   doesn't trust you *yet*, not a grayed-out button. Rides on the bond axis. (Uses the
-   reserved `command`/`task` bands. Future capability, but the *principle* is cheap to
-   lock now and shapes the seam.)
+1. **In-character gating / refusal — causes** — finish Mechanism #2: design the two
+   cozy-now refusal causes (*not-bonded* vs *wrong-mood*) and their distinct expressions,
+   with *not-bonded* built warm so later *damaged-trust* stays distinct.
 2. **Salience interruption** — refine the fixed-band preemption toward a continuous
    salience *score* (spec's ask); small, improves feel now.
 3. **Appraisal model + tag vocabulary** — neutral world facts the companion
