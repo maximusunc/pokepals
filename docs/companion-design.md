@@ -149,14 +149,60 @@ mechanic, deferred.
 
 ---
 
+## ✅ Personality model — identity / disposition / mood (structure)
+
+Three layers of the **same** personality dimensions (curiosity, energy, clinginess, …),
+distinguished by **job**, not just timescale. Behavior reads **disposition**; mood
+modulates the *how*; identity is the slow anchor disposition orbits.
+
+### Identity (slow core / anchor)
+- Starts **somewhat randomized** (birth seed).
+- **Learns toward the player's long-run play style, paced by bond**, and **crystallizes**
+  (drift rate tapers) as bond → 1, so a deeply bonded companion's core is stable.
+- Converges to **within a threshold** of play style but **retains a slight variance toward
+  its birth inclination** — never an exact match, so two identically-playing players still
+  get faintly distinct companions. (Fixes "stuck timid by bad luck" without erasing
+  individuality.)
+- Preserves the spec's "never feels lost": movement is slow, directed toward you, and
+  locks in when bond is deepest. Deliberately shifts the fantasy toward "**raise a creature
+  that grows into a reflection of you**" — consistent with the "companion as self" pillar.
+
+### Disposition (live personality / medium-term, reversible)
+- The value behavior actually reads. **Orbits identity**, nudged by recent events/play,
+  **regresses toward identity** over time, **bounded to identity ± band**.
+- Home for **lingering states like "upset"** — too meaningful for mood, not deep enough to
+  rewrite identity. Reversible.
+- **Separate from bond** (key architectural point): bond (attachment) is monotonic;
+  disposition holds the *current* relational state incl. wariness. Separation is what
+  produces **"wounded but loyal"** — deeply bonded *and* currently wary. The spec's later
+  "damaged-trust → mild, recoverable regression" is a disposition-layer effect.
+- Our existing drifting `traits` become this layer (now regressing toward identity +
+  bounded near it, rather than toward play-style directly / the wide global min-max).
+
+### Mood (fast affective overlay) — 🔶 internals being designed next
+- Global, transient; modulates *expression*; decays toward a baseline. The **primary
+  day-to-day variety engine** (load-bearing since object-novelty no longer refreshes).
+- Mechanics (representation, drivers, decay, expression) = current beat.
+
+### Scope note
+No "upset-the-companion" interactions are built in the cozy slice yet — we only establish
+disposition as the layer so such states slot in later without restructuring.
+
+### Code touchpoints
+- `CompanionSelf`: split current `traits` into `identity` (slow) + `disposition` (the live,
+  drifting/regressing value); give `mood` real dynamics. Persist all.
+- Drift rewrite: identity learns slowly + bond-crystallizes + keeps a birth residual;
+  disposition regresses toward identity, bounded to identity ± band, bumped by events.
+
+---
+
 ## ⬜ Open threads (walkthrough queue)
 
 In rough priority order for the cozy stage:
 
-1. **Personality tiers + mood** (next) — identity (fixed) / disposition (bounded drift,
-   regresses) / mood (transient). **Now load-bearing:** mood is the primary variety
-   engine, since object-novelty no longer refreshes (bond thread). Gives the unused
-   `mood` field a job; decides whether to add regression + a fixed identity floor.
+1. **Mood internals** (in progress) — representation (scalar vs. small affect vector),
+   drivers, decay-to-baseline, and how it changes what you see. The personality
+   *structure* (identity / disposition / mood + bond separation) is resolved above.
 2. **In-character gating / refusal** — errand-readiness expressed as a creature that
    doesn't trust you *yet*, not a grayed-out button. Rides on the bond axis. (Uses the
    reserved `command`/`task` bands.)
