@@ -179,10 +179,36 @@ modulates the *how*; identity is the slow anchor disposition orbits.
 - Our existing drifting `traits` become this layer (now regressing toward identity +
   bounded near it, rather than toward play-style directly / the wide global min-max).
 
-### Mood (fast affective overlay) — 🔶 internals being designed next
-- Global, transient; modulates *expression*; decays toward a baseline. The **primary
-  day-to-day variety engine** (load-bearing since object-novelty no longer refreshes).
-- Mechanics (representation, drivers, decay, expression) = current beat.
+### Mood (fast affective overlay) — ✅
+- **Representation:** 2D — **valence** (withdrawn ↔ warm) + **arousal** (calm ↔ energized).
+  Dominance (confidence) reserved for the danger era.
+- **Baseline:** decays toward a **disposition-derived** resting point (energetic disposition
+  → higher resting arousal; warm → higher resting valence), not flat neutral — so each
+  companion's moods orbit a different center (different emotional "weather").
+- **Drivers** (all reuse existing signals; no new perception):
+  - *Event spikes:* novel discovery (valence + arousal ↑; habituated props barely move it),
+    shared-attention (valence ↑), being-noticed by the player (valence ↑), separation
+    (valence ↓, **bond-scaled** — a fresh companion likes its independence).
+  - *Continuous couplings:* **arousal contagion** (your movement energy nudges its arousal;
+    light, slightly bond-scaled), **boredom** (a stretch without novelty drifts arousal
+    down — mild, so the next novel thing pops).
+  - *Autonomous random walk:* small per-tick nudges relaxing toward the disposition
+    baseline. **The primary variety source** — makes "today" differ from "yesterday" even
+    with no events (essential since object-novelty no longer refreshes). Events are spikes
+    on top.
+  - *Cozy asymmetry:* mood leans positive (calm-content ↔ excited-delight, only mild
+    listless/lonely dips). Strong negatives (fear, hurt) arrive with danger/upset later.
+- **Expression / integration:** each mood axis is the transient overlay of a disposition
+  trait — **arousal ↔ energy**, **valence ↔ warmth (clinginess)**; curiosity has no mood
+  axis. Integrate as a **bounded additive overlay in `CompanionTraits`**:
+  `effective_energy = clamp(disposition.energy + arousal_overlay)`, likewise warmth. Every
+  action already reading those traits (Wander pauses, Idle hop/look, CheckIn eagerness,
+  Follow keenness) then responds **for free**; `companion_view` reads mood for animation
+  polish. Mood thus biases the **decision**, not just the look. Variety stays stochastic
+  (mood shifts probabilities; existing RNG picks the beat) and smooth (continuous/decaying
+  → behavior reads as weather, not switches).
+- **Full chain:** identity → disposition → (+ mood overlay) → effective trait → arbiter +
+  animation.
 
 ### Scope note
 No "upset-the-companion" interactions are built in the cozy slice yet — we only establish
@@ -200,12 +226,12 @@ disposition as the layer so such states slot in later without restructuring.
 
 In rough priority order for the cozy stage:
 
-1. **Mood internals** (in progress) — representation (scalar vs. small affect vector),
-   drivers, decay-to-baseline, and how it changes what you see. The personality
-   *structure* (identity / disposition / mood + bond separation) is resolved above.
-2. **In-character gating / refusal** — errand-readiness expressed as a creature that
+1. **In-character gating / refusal** — errand-readiness expressed as a creature that
    doesn't trust you *yet*, not a grayed-out button. Rides on the bond axis. (Uses the
-   reserved `command`/`task` bands.)
+   reserved `command`/`task` bands. Future capability, but the *principle* is cheap to
+   lock now and shapes the seam.)
+2. **Salience interruption** — refine the fixed-band preemption toward a continuous
+   salience *score* (spec's ask); small, improves feel now.
 3. **Appraisal model + tag vocabulary** — neutral world facts the companion
    interprets; scope depends on staying cozy. Lock the schema early but small.
 4. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
