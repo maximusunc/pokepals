@@ -63,6 +63,7 @@ class Drive extends RefCounted:
 ## wander. It waddles over, lingers, then loses interest, on a cooldown so a flurry
 ## of pokes doesn't spam it.
 class InvestigateDrive extends Drive:
+	const ID := "investigate"
 	const SCORE := 20.0
 	var _active := false
 	var _target := Vector2.ZERO
@@ -114,6 +115,7 @@ class InvestigateDrive extends Drive:
 ## so deliberate check-ins aren't needed. The clinginess trait nudges how often a
 ## given companion bothers to check in.
 class CheckInDrive extends Drive:
+	const ID := "checkin"
 	var _cooldown := 0.0
 	var _active := false
 	var _target := Vector2.ZERO
@@ -208,6 +210,8 @@ class CheckInDrive extends Drive:
 ## and the companion is free to be anywhere; only as the bond deepens, and the comfort
 ## distance tightens in, does the leash start to reel you together.
 class FollowDrive extends Drive:
+	const ID := "follow"
+
 	func evaluate(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		var dist: float = perception["dist_to_player"]
 		# The comfort distance is bond-scaled (wide when fresh, snug when bonded) and
@@ -264,6 +268,7 @@ class FollowDrive extends Drive:
 ## follow_far; past that the leash has already handed control to FollowDrive, so it
 ## won't strand itself chasing a prop while you walk away.
 class WanderDrive extends Drive:
+	const ID := "wander"
 	enum { PAUSE, ROAM }
 	var _state := PAUSE
 	var _pause_timer := 0.0
@@ -418,6 +423,7 @@ class WanderDrive extends Drive:
 ## energetic. This is what fills the quiet moments between roams and when settled at
 ## a bonded player's side.
 class IdleDrive extends Drive:
+	const ID := "idle"
 	const SCORE := 1.0
 	var _look_timer := 0.0
 	var _look_at := Vector2.ZERO

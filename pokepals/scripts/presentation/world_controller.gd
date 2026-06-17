@@ -17,6 +17,8 @@ const INTERACT_RANGE := 60.0
 @onready var _joystick: VirtualJoystick = $UI/Joystick
 @onready var _examine_button: Button = $UI/ExamineButton
 @onready var _reset_button: Button = $UI/ResetButton
+@onready var _debug: DebugOverlay = $DebugOverlay
+@onready var _debug_button: Button = $UI/DebugButton
 
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
@@ -53,6 +55,12 @@ func _ready() -> void:
 	# Top-right "start over" button: only revealed once fully bonded (see _process).
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_joystick.add_exclusion(_reset_button)
+
+	# Dev-only companion/bond readout. On by default; the DBG button (and F3 on
+	# desktop) toggles it. Exclude its taps from the movement thumbstick underneath.
+	_debug.setup(_companion, _player)
+	_debug_button.pressed.connect(_debug.toggle)
+	_joystick.add_exclusion(_debug_button)
 
 	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
 

@@ -190,6 +190,19 @@ static func _blend_target(weights: Dictionary, signals: Dictionary) -> float:
 	return 0.5 if total <= 0.0 else acc / total
 
 
+## A read-only snapshot of the identity for diagnostics: the bond, the drifting
+## traits, the derived play signals, and the headline observation tallies. Reuses
+## play_signals() so the overlay shows exactly the numbers drift reads.
+func debug_state(cfg: Dictionary) -> Dictionary:
+	return {
+		"bond": bond,
+		"traits": traits.duplicate(),
+		"signals": play_signals(cfg),
+		"play_seconds": float(observations.get("play_seconds", 0.0)),
+		"interactions": float(observations.get("interactions", 0.0)),
+	}
+
+
 ## Plain, JSON-serializable snapshot. Dictionaries are deep-copied so callers
 ## can't mutate our state by holding the returned dict.
 func to_dict() -> Dictionary:
