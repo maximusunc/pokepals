@@ -1,0 +1,104 @@
+class_name DebugOverlay
+extends CanvasLayer
+## A dev-only on-screen readout of the companion's inner life, so a playtester can
+## correlate what they SEE (it's trailing me / wandering off / came to say hi) with
+## what the companion is actually thinking (bond, traits, which drive is winning and
+## by how much). Pure presentation: it only READS state the logic exposes via
+## debug_state() and renders it — it never decides or mutates anything.
+##
+## On by default (this is a dev build). Toggle by tapping the on-screen DBG button
+## (wired by the world controller) or pressing F3 on desktop.
+
+@onready var _label: Label = $Readout
+
+var _companion: CompanionView
+var _player: PlayerView
+
+
+## Handed its subjects by the world controller after the scene is wired.
+func setup(companion: CompanionView, player: PlayerView) -> void:
+	_companion = companion
+	_player = player
+
+
+func toggle() -> void:
+	visible = not visible
+
+
+func _unhandled_key_input(event: InputEvent) -> void:
+	if event is InputEventKey and event.pressed and not event.echo and event.keycode == KEY_F3:
+		toggle()
+
+
+func _process(_delta: float) -> void:
+	if not visible or _companion == null:
+		return
+	var d := _companion.debug_state()
+	if d.is_empty():
+		_label.text = "companion: waking up..."
+		return
+	_label.text = _format(d)
+
+
+func _format(d: Dictionary) -> String:
+	var lines: Array = []
+
+	var bond := float(d.get("bond", 0.0))
+	lines.append("BOND %4.2f %s" % [bond, _bar(bond)])
+	lines.append("behavior: %s" % str(d.get("behavior", "?")))
+	lines.append("dist %d   comfort %d   speed %d" % [
+		int(round(float(d.get("dist_to_player", 0.0)))),
+		int(round(float(d.get("follow_near", 0.0)))),
+		int(round(float(d.get("speed", 0.0)))),
+	])
+
+	var t: Dictionary = d.get("traits", {})
+	lines.append("traits  cur %.2f  ene %.2f  cli %.2f" % [
+		float(t.get("curiosity", 0.0)),
+		float(t.get("energy", 0.0)),
+		float(t.get("clinginess", 0.0)),
+	])
+
+	# Each drive's bid this frame, strongest-first, winner starred — the "why".
+	var scores: Dictionary = d.get("scores", {})
+	var winner := str(d.get("winner", ""))
+	var order := ["investigate", "checkin", "follow", "wander", "idle"]
+	var parts: Array = []
+	for id in order:
+		if scores.has(id):
+			var mark := "*" if id == winner else ""
+			parts.append("%s %.1f%s" % [_label_for(id), float(scores[id]), mark])
+	lines.append("drives  " + "  ".join(parts))
+
+	var s: Dictionary = d.get("signals", {})
+	lines.append("you  explore %.2f  together %.2f  engage %.2f" % [
+		float(s.get("explore", 0.0)),
+		float(s.get("together", 0.0)),
+		float(s.get("engage", 0.0)),
+	])
+	lines.append("play %s   interactions %d" % [
+		_clock(float(d.get("play_seconds", 0.0))),
+		int(d.get("interactions", 0)),
+	])
+
+	return "\n".join(lines)
+
+
+func _bar(value: float, cells: int = 10) -> String:
+	var filled := int(round(clampf(value, 0.0, 1.0) * cells))
+	return "[" + "#".repeat(filled) + "-".repeat(cells - filled) + "]"
+
+
+func _clock(seconds: float) -> String:
+	var total := int(seconds)
+	return "%02d:%02d" % [total / 60, total % 60]
+
+
+func _label_for(id: String) -> String:
+	match id:
+		"investigate":
+			return "invstg"
+		"checkin":
+			return "checkin"
+		_:
+			return id

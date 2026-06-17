@@ -21,6 +21,9 @@ var _rng := RandomNumberGenerator.new()
 var _self: CompanionSelf
 var _drives: Array
 var _behavior := "idle"
+# A read-only snapshot of the last decision, for the debug overlay. Plain numbers
+# and strings only — nothing here couples the brain to a presentation.
+var _last_debug: Dictionary = {}
 
 
 func _init(cfg: Dictionary, seed_value: int = 0, existing_self: CompanionSelf = null) -> void:
@@ -43,6 +46,13 @@ func get_self() -> CompanionSelf:
 	return _self
 
 
+## A snapshot of the last frame's decision for diagnostics: the winning behavior,
+## the spatial facts that drove it, and every drive's score this frame. Read-only;
+## the brain never reads this back, so it can't affect behavior.
+func debug_state() -> Dictionary:
+	return _last_debug
+
+
 ## Decide what the companion wants this frame.
 func update(context: Dictionary) -> Dictionary:
 	var delta: float = context["delta"]
@@ -59,8 +69,10 @@ func update(context: Dictionary) -> Dictionary:
 		drive.tick(delta)
 	var winner = null
 	var best_score := -1.0
+	var scores := {}
 	for drive in _drives:
 		var score: float = drive.evaluate(perception, _self, _cfg, _rng)
+		scores[drive.ID] = score
 		if score > best_score:
 			best_score = score
 			winner = drive
@@ -68,6 +80,13 @@ func update(context: Dictionary) -> Dictionary:
 	# ACT: only the winner produces the intent.
 	var proposal: Dictionary = winner.act(perception, _self, _cfg, _rng, delta)
 	_behavior = proposal["behavior"]
+	_last_debug = {
+		"behavior": _behavior,
+		"dist_to_player": perception["dist_to_player"],
+		"follow_near": perception["follow_near"],
+		"scores": scores,
+		"winner": winner.ID,
+	}
 	return {
 		"move_target": proposal["move_target"],
 		"desired_speed": proposal["desired_speed"],

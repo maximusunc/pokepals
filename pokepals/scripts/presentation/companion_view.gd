@@ -105,6 +105,21 @@ func is_fully_bonded() -> bool:
 	return _brain.get_self().bond >= max_bond
 
 
+## A single read surface for the debug overlay: the brain's last decision merged
+## with the persistent self's state and a couple of presentation facts. Read-only —
+## the overlay only displays this; it never writes back. Empty before the brain exists.
+func debug_state() -> Dictionary:
+	if _brain == null:
+		return {}
+	var d := _brain.debug_state().duplicate(true)
+	var self_state := _brain.get_self().debug_state(_cfg)
+	for key in self_state:
+		d[key] = self_state[key]
+	d["companion_pos"] = position
+	d["speed"] = velocity.length()
+	return d
+
+
 ## Start a whole new companion: wipe the save and spawn a freshly randomized partner
 ## so the bond arc can be played again from zero without reinstalling. Replacing the
 ## brain outright also clears every drive's internal timers, so it truly begins anew.
