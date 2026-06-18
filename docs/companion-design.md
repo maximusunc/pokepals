@@ -28,7 +28,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 | Mechanism | Danger version (later) | Cozy version (now) | Status |
 |---|---|---|---|
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ designed |
-| **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | 🔶 principle + mechanism locked; causes/seam next |
+| **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ✅ designed (cozy) |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
 | **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ designed |
 
@@ -222,7 +222,7 @@ disposition as the layer so such states slot in later without restructuring.
 
 ---
 
-## 🔶 Mechanism #2 — In-character gating / refusal
+## ✅ Mechanism #2 — In-character gating / refusal
 
 The *capability* this gates (errands / commands) is a **future** feature — we have nothing
 to command yet. This beat locks the **principle** and the **shape of how it will use the
@@ -259,13 +259,33 @@ Rides the reserved **`command`/`task` band**: a commanded task whose gate is unm
 decline reads the affect stack for its temperature; near-threshold → partial compliance.
 No new arbitration — it's the seam we already left open.
 
-### Causes (next beat)
-- **Cozy-now (expressible with current state):** *not-bonded-enough* (bond below gate) and
-  *wrong-mood* (low arousal/valence). Design *not-bonded* as unmistakably **warm /
-  hopeful** now, so the later **cool / guarded** *damaged-trust* cause can never be
-  confused with it.
-- **Deferred (need danger/upset):** *afraid-of-target* (directional fear at the world) and
-  *damaged-trust* (withdrawal with edge — a disposition-layer effect, see Personality).
+### Causes (resolved for cozy)
+
+**Bond gates; mood only modulates manner.** Bond decides *whether* it goes; mood decides
+*how willingly*. This keeps cozy cozy — a bad-mood day never hard-blocks the player.
+
+- **Not-bonded-enough** — the one true cozy refusal cause. Bond below the gate → a genuine
+  decline, temperature **warm / hopeful / bashful**: attention keeps **returning to you**
+  (looks between you and the task, half-step toward it then back, leans *in* not away —
+  approaching, never retreating). Near-threshold → **partial compliance** (goes a short way
+  and hurries back). Points to its remedy (*more time together*), which arrives on its own
+  as bond grows over a normal playthrough.
+- **Wrong-mood** — **not a gate**; a **manner modifier**. Low arousal/valence → it still
+  goes, just **reluctantly**: longer hesitation beat, slower, less zest. Reads off the mood
+  overlay → effective energy/warmth, which **already** biases eagerness across every action,
+  so this is nearly free. Never a flat "no" in the cozy stage.
+
+**Priority when both apply:** bond-reluctance is **dominant** (it's the real gate); mood
+colors the *manner* of that decline. Express the dominant cause purely.
+
+**Forward-compat:** build *not-bonded* unmistakably **warm/approaching** now, so the
+deferred **cool/guarded/withdrawing** *damaged-trust* cause can never be confused with it —
+both are "wary of you," opposite temperatures by construction.
+
+**Deferred (need danger/upset):** *afraid-of-target* (directional fear at the world) and
+*damaged-trust* (withdrawal with edge — a disposition-layer effect). **Mood escalating to a
+true refusal** (fear, hurt overriding willingness) also belongs to this strong-negative
+layer; cozy mood dips only dampen.
 
 ---
 
@@ -273,14 +293,11 @@ No new arbitration — it's the seam we already left open.
 
 In rough priority order for the cozy stage:
 
-1. **In-character gating / refusal — causes** — finish Mechanism #2: design the two
-   cozy-now refusal causes (*not-bonded* vs *wrong-mood*) and their distinct expressions,
-   with *not-bonded* built warm so later *damaged-trust* stays distinct.
-2. **Salience interruption** — refine the fixed-band preemption toward a continuous
+1. **Salience interruption** — refine the fixed-band preemption toward a continuous
    salience *score* (spec's ask); small, improves feel now.
-3. **Appraisal model + tag vocabulary** — neutral world facts the companion
+2. **Appraisal model + tag vocabulary** — neutral world facts the companion
    interprets; scope depends on staying cozy. Lock the schema early but small.
-4. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
+3. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
    context only until feel is proven.
 
 ---
