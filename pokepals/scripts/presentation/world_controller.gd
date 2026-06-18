@@ -19,6 +19,9 @@ const INTERACT_RANGE := 60.0
 @onready var _reset_button: Button = $UI/ResetButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
+@onready var _day_tint: CanvasModulate = $DayTint
+@onready var _vignette: ColorRect = $Vignette/Rect
+@onready var _pollen: CPUParticles2D = $Camera2D/Pollen
 
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
@@ -33,6 +36,7 @@ func _ready() -> void:
 	_companion.setup(_player)
 
 	_world_art.render_world(data)
+	_apply_atmosphere(data.get("atmosphere", {}))
 
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
@@ -79,6 +83,27 @@ func _ready() -> void:
 	_joystick.add_exclusion(_debug_button)
 
 	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
+
+
+## Push the world's presentation-only mood knobs into the scene nodes that render
+## them: the global warm color-wash (CanvasModulate), the screen-edge vignette, and
+## the drifting pollen. All data-driven from world.json's "atmosphere" block, with
+## defaults so a world without the block still looks right.
+func _apply_atmosphere(atmo: Dictionary) -> void:
+	if atmo.has("day_tint"):
+		_day_tint.color = WorldData.to_color(atmo["day_tint"])
+
+	var vig: Dictionary = atmo.get("vignette", {})
+	var mat := _vignette.material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("strength", float(vig.get("strength", 0.34)))
+		mat.set_shader_parameter("tint", WorldData.to_color(vig.get("color", [0.06, 0.05, 0.10])))
+
+	var pol: Dictionary = atmo.get("pollen", {})
+	_pollen.amount = maxi(1, int(pol.get("amount", 34)))
+	var pc := WorldData.to_color(pol.get("color", [1.0, 0.96, 0.74]))
+	pc.a = 0.45
+	_pollen.color = pc
 
 
 func _process(_delta: float) -> void:

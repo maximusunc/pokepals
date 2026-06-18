@@ -11,6 +11,15 @@
 	],
 	"bounds": { "min": [-700, -560], "max": [1520, 1120] },
 	"ground_color": [0.43, 0.58, 0.36],
+	"_atmosphere_comment": "Presentation-only mood knobs — none of this touches game logic. Tune freely and 'go play it'. day_tint is a global warm color-wash (CanvasModulate); vignette darkens the screen edges; wind drives the gentle sway of flowers/canopies/grass; ground_noise mottles the flat ground; pollen is the count of drifting motes that follow the camera; glow.pulse_speed breathes the lantern/crystal light.",
+	"atmosphere": {
+		"day_tint": [1.04, 0.99, 0.90],
+		"vignette": { "strength": 0.34, "color": [0.06, 0.05, 0.10] },
+		"wind": { "strength": 2.6, "speed": 1.15 },
+		"ground_noise": { "contrast": 0.12, "tint": [0.30, 0.42, 0.26] },
+		"pollen": { "amount": 34, "color": [1.0, 0.96, 0.74] },
+		"glow": { "pulse_speed": 1.4 }
+	},
 	"player_spawn": [320, 220],
 	"companion_spawn": [260, 250],
 	"pond": { "center": [640, 470], "radius": 120, "color": [0.34, 0.52, 0.62] },
