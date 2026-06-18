@@ -32,6 +32,7 @@ var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
 var _style: ArtStyle
+var _sprite_tex: Texture2D = null  # set if the user dropped in their own companion art
 
 
 ## Called by the world to hand the companion its player to follow.
@@ -42,6 +43,7 @@ func setup(player: PlayerView) -> void:
 ## Hand the avatar its shared art direction (palette + light). Called by the world.
 func set_style(style: ArtStyle) -> void:
 	_style = style
+	_sprite_tex = SpriteSlot.resolve(style.character("companion"))
 
 
 ## Called by the world to tell the companion where the standing props are, so it
@@ -200,6 +202,9 @@ func _decay_animation(delta: float) -> void:
 
 
 func _draw() -> void:
+	if _sprite_tex != null:
+		SpriteSlot.draw(self, _sprite_tex)
+		return
 	# It faces where it walks when moving, and where it's looking (attending) when
 	# still; the brain-driven hop/perk become the actor's squash/stretch, and the
 	# eased eye_offset keeps the eyes tracking whatever it's attending to.

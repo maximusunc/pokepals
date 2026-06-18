@@ -16,6 +16,7 @@ var _joystick: Node = null
 var _time := 0.0
 var _facing := Vector2.DOWN  # eased toward the movement direction, held when still
 var _style: ArtStyle
+var _sprite_tex: Texture2D = null  # set if the user dropped in their own player art
 
 
 func _ready() -> void:
@@ -28,6 +29,7 @@ func _ready() -> void:
 ## Hand the avatar its shared art direction (palette + light). Called by the world.
 func set_style(style: ArtStyle) -> void:
 	_style = style
+	_sprite_tex = SpriteSlot.resolve(style.character("player"))
 
 
 func _process(delta: float) -> void:
@@ -62,6 +64,9 @@ func _input_direction() -> Vector2:
 
 
 func _draw() -> void:
+	if _sprite_tex != null:
+		SpriteSlot.draw(self, _sprite_tex)
+		return
 	var cfg := _style.character("player")
 	VectorActor.draw(self, _style, {
 		"facing": _facing,

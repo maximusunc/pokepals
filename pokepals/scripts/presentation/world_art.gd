@@ -27,6 +27,8 @@ var _region_tint_alpha := 0.12
 var _ground_noise: ImageTexture = null
 var _style: ArtStyle
 var _ground_grad: GradientTexture2D = null
+var _tree_tex: Texture2D = null        # set if the user dropped in their own tree art
+var _great_tree_tex: Texture2D = null  # set if the user dropped in their own great-tree art
 
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
@@ -37,6 +39,9 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_bounds = Rect2(bmin, bmax - bmin)
 	# A soft top→bottom ground gradient (palette), baked once, drawn under the dapple.
 	_ground_grad = _style.make_vertical_gradient_texture(_style.color("ground_top"), _style.color("ground_bottom"))
+	# Optional user-supplied art for trees (absent → procedural).
+	_tree_tex = SpriteSlot.resolve(_style.entity("tree"))
+	_great_tree_tex = SpriteSlot.resolve(_style.entity("great_tree"))
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -273,6 +278,10 @@ func _draw() -> void:
 		var tp: Vector2 = t["pos"]
 		var cs := _sway(t["phase"], 1.0)  # canopy catches the most wind
 		_draw_shadow(tp + Vector2(0, 4), 18.0, 0.20)
+		if _tree_tex != null:
+			var sz := _tree_tex.get_size()
+			draw_texture(_tree_tex, tp + Vector2(cs - sz.x * 0.5, 6.0 - sz.y))
+			continue
 		# trunk with a lit left edge (light comes from up-left by default)
 		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(8, 22)), bark)
 		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(2.5, 22)), bark.lightened(0.12))
@@ -292,6 +301,11 @@ func _draw() -> void:
 ## the eye is drawn toward, inviting you to walk over and see what's there.
 func _draw_landmark(lm: Dictionary) -> void:
 	var p: Vector2 = lm["pos"]
+	if _great_tree_tex != null:
+		var gsz := _great_tree_tex.get_size()
+		_draw_shadow(p + Vector2(0, 8), 36.0, 0.22)
+		draw_texture(_great_tree_tex, p + Vector2(_sway(lm["phase"], 1.4) - gsz.x * 0.5, 8.0 - gsz.y))
+		return
 	match String(lm["type"]):
 		_:  # "great_tree" (and the default)
 			var sway := _sway(lm["phase"], 1.4)
