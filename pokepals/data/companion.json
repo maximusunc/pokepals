@@ -93,21 +93,28 @@
 	"_trait_spread_comment": "trait_spread is how far a freshly CREATED or RESET companion's traits are randomly jittered around their init, so playthroughs differ gently (a touch more wander-inclined, interactable-inclined, or follower-y) without becoming pronounced archetypes. A per-trait 'spread' inside an entry below overrides this default for that trait. Does not affect the deterministic make_default path the tests use.",
 	"trait_spread": 0.12,
 	"traits": {
-		"_comment": "init must match personality above so first-run feel is unchanged. min/max bound how far a trait can drift; drift_rate is how fast (per second toward target) — keep it small so change is felt, not seen.",
+		"_comment": "init must match personality above so first-run feel is unchanged. min/max bound how far a trait can ever go; drift_rate is how fast IDENTITY learns toward play style (per second toward target) — keep it small so change is felt, not seen.",
 		"curiosity": { "init": 0.85, "min": 0.3, "max": 1.0, "drift_rate": 0.02 },
 		"energy": { "init": 0.7, "min": 0.25, "max": 1.0, "drift_rate": 0.02 },
 		"clinginess": { "init": 0.6, "min": 0.1, "max": 0.95, "drift_rate": 0.02 }
 	},
 	"drift": {
-		"_comment": "warmup_seconds: watch this long before drifting at all. reference_* set what counts as 'a lot' of roaming / examining. targets: weighted blend of play signals (explore, together, engage) each trait drifts toward.",
+		"_comment": "Controls how the slow IDENTITY anchor learns toward how you play. warmup_seconds: watch this long before learning at all (so it doesn't lock onto noisy opening seconds). reference_* set what counts as 'a lot' of roaming / examining. targets: weighted blend of play signals (explore, together, engage) each trait's identity learns toward. birth_residual: how far the learning target is pulled back toward the BIRTH inclination (0 = becomes a pure mirror of play style; higher = keeps more individuality) — also what stops a companion getting stuck by an unlucky birth. crystallize_exp: identity's learning rate is multiplied by (1-bond)^crystallize_exp, so it's malleable when fresh and LOCKS as the bond deepens (higher = locks sooner). The disposition layer (below) is what behavior reads.",
 		"warmup_seconds": 20.0,
 		"reference_speed": 90.0,
 		"reference_interactions_per_min": 6.0,
+		"birth_residual": 0.15,
+		"crystallize_exp": 1.5,
 		"targets": {
 			"curiosity": { "explore": 0.5, "engage": 0.5 },
 			"energy": { "explore": 1.0 },
 			"clinginess": { "together": 1.0 }
 		}
+	},
+	"_disposition_comment": "The live DISPOSITION layer — the value behavior actually reads — orbits the identity anchor. regress_rate: per-second pull back toward identity (so any lingering push, like a future 'upset', relaxes away on its own). band: how far disposition may sit from identity (identity +/- band), the room a mood/event has to bend the current personality without rewriting who it is. With no events in the cozy slice, disposition simply tracks identity.",
+	"disposition": {
+		"regress_rate": 0.05,
+		"band": 0.25
 	},
 	"arbiter": {
 		"_comment": "How competing actions are ranked. Each action sits in a priority BAND; a higher band always wins over a lower one (so structure, not a hand-tuned big number, makes Investigate interrupt). Desire only decides things WITHIN a band — that's where Follow vs Wander vs Idle is settled, on the magnitudes tuned above. commit_bonus is a small hysteresis nudge given to whatever won last frame so a marginally-keener rival can't cause flip-flop jitter at a crossover; raise it to make the companion more stubborn about finishing a beat, lower it to make it more reactive.",

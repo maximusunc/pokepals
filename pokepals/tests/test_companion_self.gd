@@ -28,6 +28,11 @@ static func run_all() -> int:
 	fails += _test_shared_attention_grows_bond(cfg)
 	fails += _test_shared_attention_lifts_valence(cfg)
 	fails += _test_being_noticed_lifts_valence(cfg)
+	fails += _test_identity_crystallizes_with_bond(cfg)
+	fails += _test_identity_keeps_birth_individuality(cfg)
+	fails += _test_disposition_relaxes_toward_identity(cfg)
+	fails += _test_identity_and_birth_round_trip(cfg)
+	fails += _test_old_save_seeds_identity_from_traits(cfg)
 	return fails
 
 
@@ -415,3 +420,85 @@ static func _test_being_noticed_lifts_valence(cfg: Dictionary) -> int:
 	for _i in 20:
 		s.update_mood(p, c, 0.1, _rng())
 	return _ok(s.mood_valence > rest_v + 0.05, "being noticed by the player lifts valence")
+
+
+# Give a self the observation profile of a roaming, rarely-close player, so identity learns
+# toward higher energy / lower clinginess.
+static func _seed_exploring(s: CompanionSelf) -> void:
+	s.observations["play_seconds"] = 600.0
+	s.observations["explored_distance"] = 600.0 * 120.0
+	s.observations["time_far"] = 590.0
+	s.observations["time_near"] = 10.0
+	s.observations["interactions"] = 100.0
+
+
+# Identity is malleable when fresh and LOCKS as the bond deepens: given identical play, a
+# fresh companion's identity moves far more than a deeply bonded one's.
+static func _test_identity_crystallizes_with_bond(cfg: Dictionary) -> int:
+	var fresh := CompanionSelf.make_default(cfg)
+	fresh.bond = 0.0
+	_seed_exploring(fresh)
+	var bonded := CompanionSelf.make_default(cfg)
+	bonded.bond = 1.0
+	_seed_exploring(bonded)
+	var start := fresh.identity["energy"]  # both start equal (make_default)
+	for _i in 600:
+		fresh.apply_drift(cfg, 0.1)
+		bonded.apply_drift(cfg, 0.1)
+	var fresh_moved: float = absf(float(fresh.identity["energy"]) - start)
+	var bonded_moved: float = absf(float(bonded.identity["energy"]) - start)
+	var fails := 0
+	fails += _ok(fresh_moved > 0.1, "a fresh companion's identity learns toward how you play")
+	fails += _ok(bonded_moved < fresh_moved * 0.2, "a deeply bonded companion's identity has crystallized (barely moves)")
+	return fails
+
+
+# Two companions played identically still end up faintly distinct, because identity is
+# always pulled slightly back toward each one's own birth inclination.
+static func _test_identity_keeps_birth_individuality(cfg: Dictionary) -> int:
+	var timid := CompanionSelf.make_default(cfg)
+	timid.birth["energy"] = 0.3
+	timid.identity["energy"] = 0.3
+	var lively := CompanionSelf.make_default(cfg)
+	lively.birth["energy"] = 0.9
+	lively.identity["energy"] = 0.9
+	_seed_exploring(timid)
+	_seed_exploring(lively)
+	for _i in 2000:  # let both converge toward the (shared) exploring play style
+		timid.apply_drift(cfg, 0.1)
+		lively.apply_drift(cfg, 0.1)
+	var fails := 0
+	# Both learned toward high energy...
+	fails += _ok(float(timid.identity["energy"]) > 0.6, "the timid-born companion still grows toward an exploring player")
+	# ...but they never fully converge — the born-lively one settles a touch higher.
+	fails += _ok(float(lively.identity["energy"]) > float(timid.identity["energy"]) + 0.02, "identical play still yields faintly distinct companions (birth residual)")
+	return fails
+
+
+# The live disposition relaxes back toward its identity anchor on its own — the machinery
+# that will let a future "upset" push fade with time. Here we push it off and watch it return.
+static func _test_disposition_relaxes_toward_identity(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var anchor := float(s.identity["clinginess"])
+	s.traits["clinginess"] = anchor - 0.2  # a lingering push away from identity
+	for _i in 600:  # no play change (under warmup), so identity holds; disposition relaxes
+		s.apply_drift(cfg, 0.1)
+	return _ok(absf(float(s.traits["clinginess"]) - anchor) < 0.05, "disposition relaxes back toward its identity anchor")
+
+
+static func _test_identity_and_birth_round_trip(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.identity["energy"] = 0.42
+	s.birth["energy"] = 0.88
+	var r := CompanionSelf.from_dict(s.to_dict(), cfg)
+	var fails := 0
+	fails += _ok(is_equal_approx(float(r.identity["energy"]), 0.42), "identity survives a round-trip")
+	fails += _ok(is_equal_approx(float(r.birth["energy"]), 0.88), "birth inclination survives a round-trip")
+	return fails
+
+
+# A pre-split save (disposition only) loads with identity seeded FROM that disposition, so
+# the loaded companion is its own anchor and doesn't snap back toward defaults.
+static func _test_old_save_seeds_identity_from_traits(cfg: Dictionary) -> int:
+	var r := CompanionSelf.from_dict({ "version": 1, "traits": { "energy": 0.33 } }, cfg)
+	return _ok(is_equal_approx(float(r.identity["energy"]), float(r.traits["energy"])), "an old save seeds identity from its saved disposition")

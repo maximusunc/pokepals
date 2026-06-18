@@ -34,6 +34,23 @@ extends RefCounted
 
 const SCHEMA_VERSION := 1
 
+# The personality is THREE layers of the same 0..1 dimensions (curiosity, energy,
+# clinginess, ...), distinguished by job, not just timescale:
+#   birth:       the fixed birth inclination, set once at creation, never changes. The
+#                companion is always pulled slightly back toward it, so two identically-
+#                played companions stay faintly distinct and none gets stuck by bad luck.
+#   identity:    the slow ANCHOR. Learns toward the player's long-run play style, paced by
+#                bond and CRYSTALLIZING (drift tapers) as bond -> 1, so a deeply bonded
+#                companion's core stabilizes. Pulled gently back toward birth (residual).
+#   traits:      the live DISPOSITION — the value behavior actually reads. Orbits identity,
+#                regresses toward it, bounded to identity +/- a band. The home for lingering
+#                states like "upset" (a reversible push away from identity) — none built in
+#                the cozy slice yet, so for now it simply tracks identity. Kept SEPARATE
+#                from bond, which is what later allows "wounded but loyal" (deeply bonded yet
+#                currently wary). Mood overlays this to make the effective trait.
+# Full chain: birth -> identity -> disposition (traits) -> (+ mood overlay) -> effective.
+var birth: Dictionary = {}
+var identity: Dictionary = {}
 var traits: Dictionary = {}
 var bond: float = 0.0
 var observations: Dictionary = {}
@@ -57,6 +74,10 @@ var _seconds_since_novelty: float = 999.0
 static func make_default(cfg: Dictionary) -> CompanionSelf:
 	var s := CompanionSelf.new()
 	s.traits = _default_traits(cfg)
+	# Birth and identity start equal to the disposition: a fresh companion is exactly its
+	# (default) self, with nothing learned and nothing pushing disposition off its anchor.
+	s.birth = s.traits.duplicate()
+	s.identity = s.traits.duplicate()
 	s.bond = clampf(float(cfg.get("bond", {}).get("init", 0.0)), 0.0, 1.0)
 	s.observations = _default_observations()
 	s.mood_valence = 0.0
@@ -70,8 +91,9 @@ static func make_default(cfg: Dictionary) -> CompanionSelf:
 ## companion. Identical to make_default except each trait is jittered within a small
 ## spread around its init, so playthroughs differ a little (one a touch more
 ## wander-inclined, another more drawn to props, another more of a follower) without
-## becoming pronounced archetypes. The deterministic make_default path is left alone
-## so tests and first-run feel stay exact.
+## becoming pronounced archetypes. The jitter is the BIRTH inclination — identity and the
+## live disposition start equal to it. The deterministic make_default path is left alone so
+## tests and first-run feel stay exact.
 static func make_random(cfg: Dictionary, rng: RandomNumberGenerator) -> CompanionSelf:
 	var s := make_default(cfg)
 	if cfg.has("traits"):
@@ -83,8 +105,10 @@ static func make_random(cfg: Dictionary, rng: RandomNumberGenerator) -> Companio
 			var spec: Dictionary = cfg["traits"][key]
 			var init := float(spec.get("init", 0.5))
 			var spread := float(spec.get("spread", default_spread))
-			var jittered := init + rng.randf_range(-spread, spread)
-			s.traits[key] = clampf(jittered, float(spec.get("min", 0.0)), float(spec.get("max", 1.0)))
+			var jittered := clampf(init + rng.randf_range(-spread, spread), float(spec.get("min", 0.0)), float(spec.get("max", 1.0)))
+			s.birth[key] = jittered
+			s.identity[key] = jittered
+			s.traits[key] = jittered
 	return s
 
 
@@ -318,27 +342,61 @@ func play_signals(cfg: Dictionary) -> Dictionary:
 	return { "explore": explore, "together": together, "engage": engage }
 
 
-## REMEMBER (slow part): nudge each trait toward what the player's signals imply,
-## bounded by the trait's min/max and rate-limited by its drift_rate. The point is
-## subtlety — over a session the companion gently becomes a reflection of how you
-## play, never snapping. Requires "traits" + "drift" config; a no-op otherwise.
+## REMEMBER (slow part): advance the two slow personality layers. The point is subtlety —
+## over a session the companion gently becomes a reflection of how you play, never snapping,
+## and once deeply bonded its core settles. Requires "traits" + "drift" config; a no-op
+## otherwise.
+##   1. IDENTITY learns toward the player's play style, but: the target is pulled slightly
+##      back toward birth (so it never exactly matches and keeps individuality), and the
+##      learning rate CRYSTALLIZES — it tapers with bond, so a fresh companion is malleable
+##      and a deeply bonded one is locked. Held still until we've watched long enough.
+##   2. DISPOSITION (the live read value) regresses toward identity, bounded to identity +/-
+##      a band. With no events pushing it (cozy slice), it simply tracks identity; the
+##      machinery is here so a later "upset" push relaxes back on its own.
 func apply_drift(cfg: Dictionary, delta: float) -> void:
 	if not (cfg.has("traits") and cfg.has("drift")):
 		return
 	var drift_cfg: Dictionary = cfg["drift"]
-	# Hold still until we've watched long enough for the signals to mean something.
+	_learn_identity(cfg, drift_cfg, delta)
+	_relax_disposition(cfg, delta)
+
+
+# Identity learns toward play style (blended back toward birth), at a rate that tapers to ~0
+# as bond -> 1. Held still before warmup so it doesn't learn from a few noisy opening seconds.
+func _learn_identity(cfg: Dictionary, drift_cfg: Dictionary, delta: float) -> void:
 	if float(observations["play_seconds"]) < float(drift_cfg.get("warmup_seconds", 0.0)):
 		return
 	var signals := play_signals(cfg)
 	var targets: Dictionary = drift_cfg.get("targets", {})
+	var residual := float(drift_cfg.get("birth_residual", 0.15))
+	# Crystallization: malleable when fresh, locking as the bond deepens.
+	var crystallize := pow(clampf(1.0 - bond, 0.0, 1.0), float(drift_cfg.get("crystallize_exp", 1.5)))
 	for key in cfg["traits"]:
-		if not targets.has(key):
+		if not (cfg["traits"][key] is Dictionary) or not targets.has(key):
 			continue
 		var spec: Dictionary = cfg["traits"][key]
-		var target := _blend_target(targets[key], signals)
-		var rate := float(spec.get("drift_rate", 0.0)) * delta
-		var current := trait_value(key)
+		var playstyle := _blend_target(targets[key], signals)
+		# Never fully abandon the birth inclination — keep a slight pull back toward it.
+		var target := lerpf(playstyle, float(birth.get(key, playstyle)), residual)
+		var rate := float(spec.get("drift_rate", 0.0)) * crystallize * delta
+		var current := float(identity.get(key, spec.get("init", 0.5)))
 		var moved := current + (target - current) * rate
+		identity[key] = clampf(moved, float(spec.get("min", 0.0)), float(spec.get("max", 1.0)))
+
+
+# Disposition relaxes toward its identity anchor, bounded to identity +/- a band (and the
+# trait's own min/max). No-op when it already sits at identity, which is the cozy norm.
+func _relax_disposition(cfg: Dictionary, delta: float) -> void:
+	var disp_cfg: Dictionary = cfg.get("disposition", {})
+	var band := float(disp_cfg.get("band", 0.25))
+	var regress := float(disp_cfg.get("regress_rate", 0.05)) * delta
+	for key in cfg["traits"]:
+		if not (cfg["traits"][key] is Dictionary) or not identity.has(key):
+			continue
+		var spec: Dictionary = cfg["traits"][key]
+		var anchor := float(identity[key])
+		var moved := trait_value(key) + (anchor - trait_value(key)) * regress
+		moved = clampf(moved, anchor - band, anchor + band)
 		traits[key] = clampf(moved, float(spec.get("min", 0.0)), float(spec.get("max", 1.0)))
 
 
@@ -361,6 +419,7 @@ func debug_state(cfg: Dictionary) -> Dictionary:
 	return {
 		"bond": bond,
 		"traits": traits.duplicate(),
+		"identity": identity.duplicate(),
 		"signals": play_signals(cfg),
 		"play_seconds": float(observations.get("play_seconds", 0.0)),
 		"interactions": float(observations.get("interactions", 0.0)),
@@ -378,6 +437,8 @@ func to_dict() -> Dictionary:
 	return {
 		"version": SCHEMA_VERSION,
 		"traits": traits.duplicate(true),
+		"identity": identity.duplicate(true),
+		"birth": birth.duplicate(true),
 		"bond": bond,
 		"observations": observations.duplicate(true),
 		"mood_valence": mood_valence,
@@ -393,6 +454,18 @@ static func from_dict(data: Dictionary, cfg: Dictionary) -> CompanionSelf:
 	if data.get("traits") is Dictionary:
 		for key in data["traits"]:
 			s.traits[key] = clampf(float(data["traits"][key]), 0.0, 1.0)
+	# Load the slow layers if present; for OLD saves (pre-split) seed them from the saved
+	# disposition so the loaded companion is its own anchor — no snap back toward defaults.
+	if data.get("identity") is Dictionary:
+		for key in data["identity"]:
+			s.identity[key] = clampf(float(data["identity"][key]), 0.0, 1.0)
+	else:
+		s.identity = s.traits.duplicate()
+	if data.get("birth") is Dictionary:
+		for key in data["birth"]:
+			s.birth[key] = clampf(float(data["birth"][key]), 0.0, 1.0)
+	else:
+		s.birth = s.identity.duplicate()
 	if data.has("bond"):
 		s.bond = clampf(float(data["bond"]), 0.0, 1.0)
 	if data.get("observations") is Dictionary:

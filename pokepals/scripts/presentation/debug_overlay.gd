@@ -53,11 +53,20 @@ func _format(d: Dictionary) -> String:
 	])
 
 	var t: Dictionary = d.get("traits", {})
-	lines.append("traits  cur %.2f  ene %.2f  cli %.2f" % [
+	lines.append("dispos  cur %.2f  ene %.2f  cli %.2f" % [
 		float(t.get("curiosity", 0.0)),
 		float(t.get("energy", 0.0)),
 		float(t.get("clinginess", 0.0)),
 	])
+	# The slow identity anchor beneath the live disposition — watch it learn toward how you
+	# play and then lock as the bond deepens.
+	var idn: Dictionary = d.get("identity", {})
+	if not idn.is_empty():
+		lines.append("identy  cur %.2f  ene %.2f  cli %.2f" % [
+			float(idn.get("curiosity", 0.0)),
+			float(idn.get("energy", 0.0)),
+			float(idn.get("clinginess", 0.0)),
+		])
 
 	# Mood (2D): the fast feeling overlaying the traits. Signed bars (centered at the
 	# resting point's sign), with the trait values mood is actually bending shown beneath.

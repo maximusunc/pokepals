@@ -248,9 +248,17 @@ disposition as the layer so such states slot in later without restructuring.
   so every action that reads those traits responds for free. Mood is on the debug overlay
   (signed valence/arousal bars + effective-vs-raw traits). Tests cover resting derivation,
   discovery spike, habituation dampening, and the effective-trait overlay.
-- ⬜ **Identity/disposition split NOT yet built.** Mood currently overlays the existing
-  single drifting `traits` layer (which stands in for "disposition" for now). The slow
-  `identity` anchor + regression-toward-identity is a later increment.
+- ✅ **Identity/disposition split built.** `CompanionSelf` now carries three layers:
+  `birth` (fixed inclination, set at creation), `identity` (slow anchor — learns toward
+  play style, target pulled slightly back toward birth via `birth_residual`, learning rate
+  crystallizes as `(1-bond)^crystallize_exp` so a bonded core locks), and `traits` (the
+  live **disposition** behavior reads, which regresses toward identity bounded to
+  `identity ± band`). Mood overlays the disposition. In the cozy slice disposition simply
+  tracks identity (no events push it yet) — the machinery is in place so a later "upset"
+  push relaxes back on its own, and bond stays separate so "wounded but loyal" is possible.
+  Old saves seed identity/birth from their saved disposition (no snap). Both layers shown
+  on the debug overlay; tested in `TestCompanionSelf` (crystallization, birth individuality,
+  disposition relaxation, round-trip, migration).
 - ⬜ **Deferred mood drivers:** the "being-noticed by the player" valence bump and the
   shared-attention valence lift both wait on Mechanism #1 (social referencing); only the
   discovery spike is wired now (it doubles as the shared-examine moment).
