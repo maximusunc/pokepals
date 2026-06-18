@@ -15,6 +15,7 @@ func _init() -> void:
 	failures += TestArbiter.run_all()
 	failures += TestCompanionBrain.run_all()
 	failures += TestCompanionSelf.run_all()
+	failures += TestCompanionAttention.run_all()
 
 	print("")
 	if failures == 0:

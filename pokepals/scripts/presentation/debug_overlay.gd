@@ -84,6 +84,12 @@ func _format(d: Dictionary) -> String:
 			parts.append("%s %.1f%s" % [_label_for(id), float(scores[id]), mark])
 	lines.append("drives  " + "  ".join(parts))
 
+	# Social referencing: when the player seems focused on something, show how strong that
+	# read is — the cue that drives the companion's glances and (once bonded) its approach.
+	if bool(d.get("has_attended", false)):
+		var att := float(d.get("attention_strength", 0.0))
+		lines.append("attending to you  %4.2f %s" % [att, _bar(att)])
+
 	var s: Dictionary = d.get("signals", {})
 	lines.append("you  explore %.2f  together %.2f  engage %.2f" % [
 		float(s.get("explore", 0.0)),

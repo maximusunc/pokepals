@@ -50,6 +50,21 @@
 		"neg_floor": -0.5,
 		"axis_map": { "arousal": "energy", "valence": "clinginess" }
 	},
+	"_attention_comment": "SOCIAL REFERENCING: how the companion reads what the PLAYER is focused on, and how strongly it takes that as a cue. It infers 'you're attending to X' from the player being near + slow + (approaching X or having lingered near it). radius: how near the player must be to a prop for it to be a candidate. slow_speed: player speed (px/s) at/above which 'slowness' reads as 0 (so attention only forms when you ease off). slow_gate: minimum slowness before dwell starts accumulating. dwell_full: seconds of lingering to reach full dwell — this is the believable BEAT OF LATENCY (it catches on a moment after you settle). dwell_decay: how fast dwell drains once you move on. approach_floor: engagement when you're near+slow but neither approaching nor dwelling (keep low). min_strength: below this the signal is ignored. hold/switch_margin: hysteresis so the gaze doesn't flicker between two nearby props. RESPONSE: glance_floor is the LOW BOND FLOOR for glancing at what you peer at — even a fresh companion does it sometimes (chance = strength * lerp(glance_floor,1,bond) * curiosity * glance_gain). cue_weight scales the BOND-GATED chance it actually wanders over to investigate alongside you (chance = bond * strength * cue_weight) — 0 when fresh, growing as you bond.",
+	"attention": {
+		"radius": 180.0,
+		"slow_speed": 60.0,
+		"slow_gate": 0.25,
+		"dwell_full": 1.1,
+		"dwell_decay": 1.8,
+		"approach_floor": 0.0,
+		"min_strength": 0.06,
+		"hold": 0.6,
+		"switch_margin": 0.15,
+		"glance_floor": 0.35,
+		"glance_gain": 1.0,
+		"cue_weight": 0.8
+	},
 	"_checkin_comment": "Self-initiated visits: while off living its own life, the companion now and then wanders over to say hi — the 'oh, what's this?' / 'there it is again!' beat — then heads back to what it was doing. It only fires when it isn't already close (dist past the comfort distance) and the player is within follow_far. checkin_score is what an active visit bids: above wander and low-bond follow, below a player-triggered look. checkin_interval [min,max] seconds is the wall-clock spacing between visits (NOT scaled by bond time_scale, so a handful land in a short dev session). checkin_pull_low..high is how eager it is to visit by bond — high when fresh and far, fading to ~0 once bonded (by then it's already close, so visits aren't needed). checkin_linger: seconds it hangs out once it arrives. checkin_stop_distance: how close it comes before settling in to say hi.",
 	"checkin_score": 9.0,
 	"checkin_interval": [14.0, 26.0],

@@ -24,6 +24,11 @@ var _rng := RandomNumberGenerator.new()
 # Mood's random walk runs on its OWN stream so it never perturbs the action RNG — the
 # companion's decisions stay reproducible from the seed; only the affective overlay moves.
 var _mood_rng := RandomNumberGenerator.new()
+# Social referencing keeps its own stream too: the brain pre-rolls the glance/approach
+# dice here and hands them to the actions via perception, so adding this feature leaves the
+# action RNG sequence (and every seeded test that depends on it) byte-for-byte unchanged.
+var _ref_rng := RandomNumberGenerator.new()
+var _attention := CompanionAttention.new()
 var _self: CompanionSelf
 var _actions: Array
 var _arbiter: CompanionArbiter
@@ -38,9 +43,11 @@ func _init(cfg: Dictionary, seed_value: int = 0, existing_self: CompanionSelf = 
 	if seed_value != 0:
 		_rng.seed = seed_value
 		_mood_rng.seed = seed_value + 1  # distinct, still deterministic
+		_ref_rng.seed = seed_value + 2
 	else:
 		_rng.randomize()
 		_mood_rng.randomize()
+		_ref_rng.randomize()
 	# A loaded self carries the companion across sessions; otherwise start fresh.
 	_self = existing_self if existing_self != null else CompanionSelf.make_default(cfg)
 	_actions = CompanionActions.make_all(cfg, _rng)
@@ -68,6 +75,16 @@ func update(context: Dictionary) -> Dictionary:
 	var delta: float = context["delta"]
 	var perception := CompanionPerception.perceive(context, _self, _cfg)
 
+	# SOCIAL REFERENCING: read what the player seems focused on and pre-roll the glance /
+	# approach dice on the dedicated stream, merging both into perception. Actions consume
+	# these rolls instead of drawing from the action RNG, so the decision stream is intact.
+	var attention := _attention.update(context, _cfg, delta)
+	perception["has_attended"] = attention["has_attended"]
+	perception["attended_object"] = attention["attended_object"]
+	perception["attention_strength"] = attention["attention_strength"]
+	perception["glance_roll"] = _ref_rng.randf()
+	perception["cue_roll"] = _ref_rng.randf()
+
 	# REMEMBER: fold this frame into the persistent self, advance the fast mood (reads the
 	# discovery novelty observe just recorded), then let traits drift slowly toward how the
 	# player actually plays.
@@ -92,6 +109,8 @@ func update(context: Dictionary) -> Dictionary:
 		"follow_near": perception["follow_near"],
 		"scores": decision["scores"],
 		"winner": winner.id,
+		"has_attended": perception["has_attended"],
+		"attention_strength": perception["attention_strength"],
 	}
 	return {
 		"move_target": proposal["move_target"],

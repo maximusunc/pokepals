@@ -367,6 +367,16 @@ class WanderAction extends CompanionAction:
 	func _pick_target(perception: Dictionary, s: CompanionSelf, rng: RandomNumberGenerator, cfg: Dictionary) -> Vector2:
 		var player_pos: Vector2 = perception["player_pos"]
 		var radius := _wander_range(s, cfg)
+		# Social referencing — the player-cue bias: when bonded, often go potter over to
+		# whatever the player is attending to, so your focus gradually steers where it
+		# explores (the cozy version of "leading it through content", no command needed).
+		# Strictly BOND-GATED — a fresh companion ignores the cue — and scaled by signal
+		# strength. Pre-rolled die, so no action-RNG draw. This stays layered ON TOP of the
+		# independent target logic below, which never switches off (anti-mirroring).
+		if bool(perception.get("has_attended", false)) and s.bond > 0.0:
+			var cue_chance := s.bond * float(perception.get("attention_strength", 0.0)) * float(cfg.get("attention", {}).get("cue_weight", 0.8))
+			if float(perception.get("cue_roll", 1.0)) < cue_chance:
+				return perception["attended_object"]
 		if perception["has_poi"] and perception["nearest_poi"].distance_to(player_pos) <= radius:
 			if rng.randf() < CompanionTraits.value(s, cfg, "curiosity"):
 				return perception["nearest_poi"]
@@ -417,6 +427,16 @@ class IdleAction extends CompanionAction:
 				_look_at = player_pos
 			else:
 				_look_at = companion_pos + Vector2(rng.randf_range(-1.0, 1.0), rng.randf_range(-1.0, 1.0)) * 48.0
+			# Social referencing: the glance sometimes lands on whatever the PLAYER is
+			# attending to instead. A low BOND FLOOR means even a fresh companion flicks its
+			# eyes there now and then (curiosity-driven), looking more as you bond. Uses the
+			# pre-rolled referencing die, so the action RNG stream above is untouched.
+			if bool(perception.get("has_attended", false)):
+				var ac: Dictionary = cfg.get("attention", {})
+				var strength := float(perception.get("attention_strength", 0.0))
+				var glance_chance := strength * lerpf(float(ac.get("glance_floor", 0.35)), 1.0, s.bond) * CompanionTraits.value(s, cfg, "curiosity") * float(ac.get("glance_gain", 1.0))
+				if float(perception.get("glance_roll", 1.0)) < glance_chance:
+					_look_at = perception["attended_object"]
 			_has_look = true
 			reactions.append("look")
 			if rng.randf() < CompanionTraits.value(s, cfg, "energy") * 0.5:

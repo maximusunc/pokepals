@@ -27,7 +27,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 
 | Mechanism | Danger version (later) | Cozy version (now) | Status |
 |---|---|---|---|
-| **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ designed |
+| **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ built |
 | **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ✅ designed (cozy) |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
 | **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + trickle; area/shared-attention deferred) |
@@ -91,6 +91,20 @@ ignored. The moments it *doesn't* follow your lead are what prove it has a self.
 ### Danger pressure-test
 Same `trust × signal` product later gates whether it borrows your courage (barely
 bonded won't, bonded will). Same shape — door stays open.
+
+### Implementation status
+- ✅ **Built.** New stateful `CompanionAttention` (owned by the brain, since the dwell
+  timer needs cross-frame memory; perception stays pure) infers `attended_object` +
+  `attention_strength` from near + slow + (approaching ∨ dwelling), with hysteresis and a
+  dwell-driven latency beat. The **glance** lives in `IdleAction` (low bond floor,
+  curiosity-tinted); the bond-gated **approach cue** lives in `WanderAction._pick_target`,
+  layered on top of the independent target logic (anti-mirroring preserved). Glance/approach
+  dice are pre-rolled in the brain on a **dedicated `_ref_rng`** and passed via perception,
+  so the action RNG stream — and every seeded test — is byte-for-byte unchanged. On the
+  debug overlay as "attending to you". Unit-tested in `TestCompanionAttention`.
+- ⬜ **Now unlocked, queued next:** the deferred **shared-attention bond source**
+  (Mechanism #4) and the **shared-attention / being-noticed mood drivers** (Mechanism #2)
+  both depended on this read and can now be wired (novelty-gated, per the #4 rules).
 
 ---
 
