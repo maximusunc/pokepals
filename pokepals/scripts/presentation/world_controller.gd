@@ -26,6 +26,7 @@ const INTERACT_RANGE := 60.0
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
+var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 
 
 func _ready() -> void:
@@ -82,7 +83,22 @@ func _ready() -> void:
 	_debug_button.pressed.connect(_debug.toggle)
 	_joystick.add_exclusion(_debug_button)
 
+	# Opening instruction, then let it quietly fade so the world isn't framed by UI
+	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
 	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
+	_hint.modulate.a = 1.0
+	_intro_tween = create_tween()
+	_intro_tween.tween_interval(5.0)
+	_intro_tween.tween_property(_hint, "modulate:a", 0.0, 1.4)
+
+
+## Show a hint at full opacity, cancelling the opening fade if it's still running, so
+## prompts (and the reset message) are always readable even after the intro faded out.
+func _show_hint(text: String) -> void:
+	if _intro_tween != null and _intro_tween.is_valid():
+		_intro_tween.kill()
+	_hint.text = text
+	_hint.modulate.a = 1.0
 
 
 ## Push the world's presentation-only mood knobs into the scene nodes that render
@@ -111,7 +127,7 @@ func _process(_delta: float) -> void:
 	# something to examine.
 	var nearest := _nearest_interactable()
 	if nearest >= 0:
-		_hint.text = "Examine %s" % _interactables[nearest]["label"]
+		_show_hint("Examine %s" % _interactables[nearest]["label"])
 		_set_examine_visible(true)
 	else:
 		_set_examine_visible(false)
@@ -156,7 +172,7 @@ func _set_reset_visible(show_button: bool) -> void:
 func _on_reset_pressed() -> void:
 	_companion.reset()
 	_set_reset_visible(false)
-	_hint.text = "A new companion blinks into the world beside you."
+	_show_hint("A new companion blinks into the world beside you.")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -171,7 +187,7 @@ func _try_interact() -> void:
 	var spot: Vector2 = _interactables[index]["pos"]
 	_world_art.pulse_interactable(index)
 	_companion.notify_interaction(spot, _interactables[index]["id"], _interactables[index]["tags"])
-	_hint.text = "You examine %s. Your companion perks up." % _interactables[index]["label"]
+	_show_hint("You examine %s. Your companion perks up." % _interactables[index]["label"])
 
 
 ## Index of the closest interactable within range, or -1 if none.
