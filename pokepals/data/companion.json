@@ -19,17 +19,83 @@
 	"wander_radius": 200.0,
 	"roam_radius": 2400.0,
 	"wander_min_radius": 300.0,
+	"roam_slack": 220.0,
 	"roam_pause": [1.5, 4.0],
 	"roam_pause_bond_scale": 2.5,
 	"wander_linger": 2.5,
-	"_bond_comment": "The relationship itself (0..1), persistent across sessions. It starts at 'init' (a fresh companion is its own creature) and grows: grow_per_sec always while present, grow_per_sec_near extra while you stay within the (bond-scaled) comfort distance, grow_per_interaction on each shared examine. The base rates are calibrated for the REAL game: continuous play reaches a fairly close bond in roughly 10 hours. 'time_scale' multiplies all growth so you can experience the full fresh->bonded transformation quickly while tuning feel — at 145 a full bond takes about 5 minutes. Set time_scale back to 1.0 for the real game. Bond is saved, so a returning companion already knows you.",
+	"_bond_comment": "The relationship itself (0..1), persistent across sessions. It starts at 'init' (a fresh companion is its own creature) and grows ONLY through genuine play — it is deliberately un-grindable. Two sources: (1) grow_per_interaction on each shared examine, NOVELTY-weighted — the first encounter with a given prop pays full, each repeat is multiplied by novelty_decay^(times_seen) so it fades to ~0 (you can't farm bond by poking one thing; familiarity is permanent and never fades). (2) grow_per_shared_attention on a SHARED-ATTENTION moment — the companion is right beside whatever you're focused on (from social referencing) — also novelty-weighted in the same familiarity map. (3) grow_per_area the first time it reaches a named region of the world (or a new world) — BINARY, not decayed: a place you've been earns nothing on return. (4) grow_per_sec_near, a slow proximity TRICKLE while you stay within the (bond-scaled) comfort distance — the gentle long-tail finisher, kept weak so parking next to the companion is never the optimal play. Raw presence growth (just from the game running) was removed as farmable. novelty_decay in (0,1): lower = props go quiet faster. The base rates are calibrated for the REAL game: genuine play reaches a fairly close bond in roughly 10 hours, front-loaded on discovery then tapering to the trickle. 'time_scale' multiplies all growth so you can experience the full fresh->bonded transformation quickly while tuning feel — at 145 a full bond takes a few minutes. Set time_scale back to 1.0 for the real game. Bond is saved, so a returning companion already knows you.",
 	"bond": {
 		"init": 0.0,
 		"max": 1.0,
-		"grow_per_sec": 0.000005,
 		"grow_per_sec_near": 0.000018,
-		"grow_per_interaction": 0.0001,
+		"grow_per_interaction": 0.0004,
+		"grow_per_shared_attention": 0.0003,
+		"grow_per_area": 0.0006,
+		"novelty_decay": 0.4,
 		"time_scale": 145.0
+	},
+	"_mood_comment": "The fast affective layer — a 2D feeling that overlays the slower traits and gives each day its own weather. valence (withdrawn..warm) rides on clinginess; arousal (calm..energized) rides on energy; curiosity has no mood axis. overlay_scale: how strongly mood bends the effective trait (every action reads traits through CompanionTraits, so this biases the whole decision, not just the look). relax_rate: per-second ease back toward the resting point, so event spikes fade over a few seconds. rest_valence/rest_arousal: the resting point is derived from a trait via lerp(lo,hi,trait) — an energetic companion rests at higher arousal, a warm one at higher valence — so different companions feel different even at rest. discovery_*: a novel examine spikes valence+arousal, multiplied by the prop's novelty (a habituated prop barely moves it). separation_valence_rate: valence eases down per second while the player is far, times bond (a fresh companion likes its independence; a bonded one misses you). contagion_*: a moving player pulls arousal up (gain * player_speed/ref_speed, lightly bond-scaled). boredom_*: after boredom_onset seconds with nothing novel, arousal drifts down so the next novel thing pops. shared_attention_valence: a warming valence lift on a shared-attention moment (you and it focused on the same thing), novelty-weighted. noticed_valence_gain: a gentle continuous valence lift while the player seems to be noticing the companion (noticed_strength * this * delta). walk_amp: amplitude of the per-frame random walk — the PRIMARY source of day-to-day variety. neg_floor: cozy asymmetry — mood can't drop below this mild floor (real lows arrive with danger later). axis_map: which trait each mood axis overlays.",
+	"mood": {
+		"overlay_scale": 0.25,
+		"relax_rate": 0.35,
+		"rest_valence": { "trait": "clinginess", "lo": -0.05, "hi": 0.20 },
+		"rest_arousal": { "trait": "energy", "lo": -0.15, "hi": 0.20 },
+		"discovery_valence": 0.45,
+		"discovery_arousal": 0.60,
+		"separation_valence_rate": 0.06,
+		"contagion_ref_speed": 120.0,
+		"contagion_arousal_gain": 0.5,
+		"contagion_bond_scale": 1.4,
+		"boredom_onset": 14.0,
+		"boredom_arousal_rate": 0.04,
+		"shared_attention_valence": 0.35,
+		"noticed_valence_gain": 0.4,
+		"walk_amp": 0.25,
+		"neg_floor": -0.5,
+		"axis_map": { "arousal": "energy", "valence": "clinginess" }
+	},
+	"_attention_comment": "SOCIAL REFERENCING: how the companion reads what the PLAYER is focused on, and how strongly it takes that as a cue. It infers 'you're attending to X' from the player being near + slow + (approaching X or having lingered near it). radius: how near the player must be to a prop for it to be a candidate. slow_speed: player speed (px/s) at/above which 'slowness' reads as 0 (so attention only forms when you ease off). slow_gate: minimum slowness before dwell starts accumulating. dwell_full: seconds of lingering to reach full dwell — this is the believable BEAT OF LATENCY (it catches on a moment after you settle). dwell_decay: how fast dwell drains once you move on. approach_floor: engagement when you're near+slow but neither approaching nor dwelling (keep low). min_strength: below this the signal is ignored. hold/switch_margin: hysteresis so the gaze doesn't flicker between two nearby props. RESPONSE: glance_floor is the LOW BOND FLOOR for glancing at what you peer at — even a fresh companion does it sometimes (chance = strength * lerp(glance_floor,1,bond) * curiosity * glance_gain). cue_weight scales the BOND-GATED chance it actually wanders over to investigate alongside you (chance = bond * strength * cue_weight) — 0 when fresh, growing as you bond. SHARED-ATTENTION (feeds bond + mood): a shared moment is counted when attention_strength >= share_min_strength AND the companion is within share_distance of what you're attending to. BEING-NOTICED (feeds mood): notice_radius is how near the player must be to the companion to possibly be 'noticing' it; notice_floor is the engagement when near+slow but not approaching the companion (keep 0 so only turning-toward-and-coming-over reads as noticing).",
+	"attention": {
+		"radius": 180.0,
+		"slow_speed": 60.0,
+		"slow_gate": 0.25,
+		"dwell_full": 1.1,
+		"dwell_decay": 1.8,
+		"approach_floor": 0.0,
+		"min_strength": 0.06,
+		"hold": 0.6,
+		"switch_margin": 0.15,
+		"glance_floor": 0.35,
+		"glance_gain": 1.0,
+		"cue_weight": 0.8,
+		"share_distance": 90.0,
+		"share_min_strength": 0.25,
+		"notice_radius": 120.0,
+		"notice_floor": 0.0
+	},
+	"_appraisal_comment": "APPRAISAL turns a thing's neutral 'tags' (authored in world.json) into how drawn THIS companion is to it (0..1 'appeal'). affinities are the creature's tastes per tag (0.5 neutral, >0.5 likes, <0.5 indifferent); an unknown tag and an untagged thing read 'neutral'. appeal = mean(tag affinities) * lerp(curiosity_lo, curiosity_hi, curiosity), so a curious companion finds a little more to like in everything. Effects wired so far: a high-appeal prop gives a bigger mood delight spike on examine, and the companion lingers longer admiring it (linger_appeal scales curiosity_linger by appeal). Tastes are species-shared for now (per-companion favourites are a later refinement).",
+	"appraisal": {
+		"neutral": 0.5,
+		"curiosity_lo": 0.85,
+		"curiosity_hi": 1.15,
+		"linger_appeal": [0.6, 1.5],
+		"affinities": {
+			"shiny": 0.92,
+			"light": 0.72,
+			"flower": 0.70,
+			"fragrant": 0.66,
+			"food": 0.68,
+			"water": 0.62,
+			"sound": 0.60,
+			"odd": 0.58,
+			"plant": 0.52,
+			"still": 0.50,
+			"fungus": 0.50,
+			"wood": 0.48,
+			"rest": 0.46,
+			"stone": 0.45,
+			"made": 0.38
+		}
 	},
 	"_checkin_comment": "Self-initiated visits: while off living its own life, the companion now and then wanders over to say hi — the 'oh, what's this?' / 'there it is again!' beat — then heads back to what it was doing. It only fires when it isn't already close (dist past the comfort distance) and the player is within follow_far. checkin_score is what an active visit bids: above wander and low-bond follow, below a player-triggered look. checkin_interval [min,max] seconds is the wall-clock spacing between visits (NOT scaled by bond time_scale, so a handful land in a short dev session). checkin_pull_low..high is how eager it is to visit by bond — high when fresh and far, fading to ~0 once bonded (by then it's already close, so visits aren't needed). checkin_linger: seconds it hangs out once it arrives. checkin_stop_distance: how close it comes before settling in to say hi.",
 	"checkin_score": 9.0,
@@ -52,20 +118,52 @@
 	"_trait_spread_comment": "trait_spread is how far a freshly CREATED or RESET companion's traits are randomly jittered around their init, so playthroughs differ gently (a touch more wander-inclined, interactable-inclined, or follower-y) without becoming pronounced archetypes. A per-trait 'spread' inside an entry below overrides this default for that trait. Does not affect the deterministic make_default path the tests use.",
 	"trait_spread": 0.12,
 	"traits": {
-		"_comment": "init must match personality above so first-run feel is unchanged. min/max bound how far a trait can drift; drift_rate is how fast (per second toward target) — keep it small so change is felt, not seen.",
+		"_comment": "init must match personality above so first-run feel is unchanged. min/max bound how far a trait can ever go; drift_rate is how fast IDENTITY learns toward play style (per second toward target) — keep it small so change is felt, not seen.",
 		"curiosity": { "init": 0.85, "min": 0.3, "max": 1.0, "drift_rate": 0.02 },
 		"energy": { "init": 0.7, "min": 0.25, "max": 1.0, "drift_rate": 0.02 },
 		"clinginess": { "init": 0.6, "min": 0.1, "max": 0.95, "drift_rate": 0.02 }
 	},
 	"drift": {
-		"_comment": "warmup_seconds: watch this long before drifting at all. reference_* set what counts as 'a lot' of roaming / examining. targets: weighted blend of play signals (explore, together, engage) each trait drifts toward.",
+		"_comment": "Controls how the slow IDENTITY anchor learns toward how you play. warmup_seconds: watch this long before learning at all (so it doesn't lock onto noisy opening seconds). reference_* set what counts as 'a lot' of roaming / examining. targets: weighted blend of play signals (explore, together, engage) each trait's identity learns toward. birth_residual: how far the learning target is pulled back toward the BIRTH inclination (0 = becomes a pure mirror of play style; higher = keeps more individuality) — also what stops a companion getting stuck by an unlucky birth. crystallize_exp: identity's learning rate is multiplied by (1-bond)^crystallize_exp, so it's malleable when fresh and LOCKS as the bond deepens (higher = locks sooner). The disposition layer (below) is what behavior reads.",
 		"warmup_seconds": 20.0,
 		"reference_speed": 90.0,
 		"reference_interactions_per_min": 6.0,
+		"birth_residual": 0.15,
+		"crystallize_exp": 1.5,
 		"targets": {
 			"curiosity": { "explore": 0.5, "engage": 0.5 },
 			"energy": { "explore": 1.0 },
 			"clinginess": { "together": 1.0 }
+		}
+	},
+	"_disposition_comment": "The live DISPOSITION layer — the value behavior actually reads — orbits the identity anchor. regress_rate: per-second pull back toward identity (so any lingering push, like a future 'upset', relaxes away on its own). band: how far disposition may sit from identity (identity +/- band), the room a mood/event has to bend the current personality without rewriting who it is. With no events in the cozy slice, disposition simply tracks identity.",
+	"disposition": {
+		"regress_rate": 0.05,
+		"band": 0.25
+	},
+	"arbiter": {
+		"_comment": "How competing actions are ranked. Each action sits in a priority BAND; a higher band always wins over a lower one (so structure, not a hand-tuned big number, makes Investigate interrupt). Desire only decides things WITHIN a band — that's where Follow vs Wander vs Idle is settled, on the magnitudes tuned above. COMMITMENT is the continuous within-band resistance the running action adds to its own desire (it never crosses bands): commit_bonus is the small nudge every running action carries so a marginally-keener rival can't cause flip-flop jitter at a crossover (raise = more stubborn, lower = more reactive); committed_inertia is the extra a COMMITTED beat (a roam underway, a visit, a look) adds on top so it finishes rather than being yanked — it's deliberately larger than any same-band rival's plausible desire, so a committed beat is released only by its own state (e.g. a roam giving up its target), never by a desire crossover (which would just re-form the jitter at a higher threshold). Grading preemption ACROSS bands is a danger-era concern, not used in the cozy slice.",
+		"commit_bonus": 0.5,
+		"committed_inertia": 1000.0,
+		"bands": {
+			"_comment": "autonomous = Follow/Wander/Idle (its own life). social = CheckIn (a chosen visit beats its own life). interrupt = Investigate (a player-triggered look beats everything autonomous). task and command are RESERVED SEAMS, not used yet: 'task' is for future multi-step chores (cook/farm/errand) that should outrank idle living but yield to a look or an order; 'command' is for future player-issued orders that preempt all. Leaving the integers spaced lets new bands slot between without renumbering.",
+			"autonomous": 1,
+			"social": 2,
+			"task": 3,
+			"interrupt": 4,
+			"command": 5
+		}
+	},
+	"actions": {
+		"_comment": "Per-action declarative desire. 'considerations' are IAUS axes — each reads a normalized 0..1 input and bends it through a response curve (linear/power/logistic/step, optional invert). Author an action's appeal here instead of in code. idle.weight is its flat baseline desire.",
+		"idle": { "weight": 1.0 },
+		"checkin": {
+			"_comment": "Chance it bothers to visit = product of these axes (pull fades with bond, keener when farther, scaled by how sociable it is). Reshape any axis here — e.g. make distance a power curve so it only visits when quite far — without touching code.",
+			"considerations": [
+				{ "input": "checkin_pull", "curve": { "type": "linear" } },
+				{ "input": "dist_factor", "curve": { "type": "linear" } },
+				{ "input": "clinginess", "curve": { "type": "linear" } }
+			]
 		}
 	}
 }

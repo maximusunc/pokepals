@@ -11,8 +11,13 @@ extends SceneTree
 func _init() -> void:
 	var failures := 0
 	failures += TestBattleLogic.run_all()
+	failures += TestConsiderations.run_all()
+	failures += TestArbiter.run_all()
 	failures += TestCompanionBrain.run_all()
 	failures += TestCompanionSelf.run_all()
+	failures += TestCompanionAttention.run_all()
+	failures += TestWorldAreas.run_all()
+	failures += TestCompanionAppraisal.run_all()
 
 	print("")
 	if failures == 0:

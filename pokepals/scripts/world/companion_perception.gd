@@ -24,11 +24,19 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 	# The first interaction event that happened close enough to be worth noticing.
 	var has_interaction := false
 	var interaction_point := Vector2.ZERO
+	var interaction_id := ""
+	var interaction_tags: Array = []
 	for e in context["events"]:
 		if e["type"] == "interaction" and companion_pos.distance_to(e["position"]) <= curiosity_radius:
 			has_interaction = true
 			interaction_point = e["position"]
+			interaction_id = String(e.get("id", ""))
+			interaction_tags = e.get("tags", [])
 			break
+
+	# How drawn the companion is to that thing, from its neutral tags appraised through this
+	# companion's tastes + curiosity. Neutral when there's nothing to appraise.
+	var interaction_appeal := CompanionAppraisal.appeal(interaction_tags, cfg, curiosity) if has_interaction else 1.0
 
 	# The nearest standing point of interest in the world (a prop it could wander to
 	# on its own), within wander range. Defaults to curiosity_radius if unset.
@@ -54,6 +62,10 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 		"follow_point": _follow_point(companion_pos, player_pos, player_velocity, follow_near),
 		"has_interaction": has_interaction,
 		"interaction_point": interaction_point,
+		"interaction_id": interaction_id,
+		"interaction_tags": interaction_tags,
+		"interaction_appeal": interaction_appeal,
+		"current_area": String(context.get("current_area", "")),
 		"has_poi": has_poi,
 		"nearest_poi": nearest_poi,
 	}

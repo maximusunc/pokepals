@@ -53,11 +53,34 @@ func _format(d: Dictionary) -> String:
 	])
 
 	var t: Dictionary = d.get("traits", {})
-	lines.append("traits  cur %.2f  ene %.2f  cli %.2f" % [
+	lines.append("dispos  cur %.2f  ene %.2f  cli %.2f" % [
 		float(t.get("curiosity", 0.0)),
 		float(t.get("energy", 0.0)),
 		float(t.get("clinginess", 0.0)),
 	])
+	# The slow identity anchor beneath the live disposition — watch it learn toward how you
+	# play and then lock as the bond deepens.
+	var idn: Dictionary = d.get("identity", {})
+	if not idn.is_empty():
+		lines.append("identy  cur %.2f  ene %.2f  cli %.2f" % [
+			float(idn.get("curiosity", 0.0)),
+			float(idn.get("energy", 0.0)),
+			float(idn.get("clinginess", 0.0)),
+		])
+
+	# Mood (2D): the fast feeling overlaying the traits. Signed bars (centered at the
+	# resting point's sign), with the trait values mood is actually bending shown beneath.
+	var val := float(d.get("mood_valence", 0.0))
+	var aro := float(d.get("mood_arousal", 0.0))
+	lines.append("mood  val %+.2f %s  aro %+.2f %s" % [
+		val, _signed_bar(val), aro, _signed_bar(aro),
+	])
+	var eff: Dictionary = d.get("effective", {})
+	if not eff.is_empty():
+		lines.append("  -> eff ene %.2f (raw %.2f)   eff cli %.2f (raw %.2f)" % [
+			float(eff.get("energy", 0.0)), float(t.get("energy", 0.0)),
+			float(eff.get("clinginess", 0.0)), float(t.get("clinginess", 0.0)),
+		])
 
 	# Each drive's bid this frame, strongest-first, winner starred — the "why".
 	var scores: Dictionary = d.get("scores", {})
@@ -70,6 +93,12 @@ func _format(d: Dictionary) -> String:
 			parts.append("%s %.1f%s" % [_label_for(id), float(scores[id]), mark])
 	lines.append("drives  " + "  ".join(parts))
 
+	# Social referencing: when the player seems focused on something, show how strong that
+	# read is — the cue that drives the companion's glances and (once bonded) its approach.
+	if bool(d.get("has_attended", false)):
+		var att := float(d.get("attention_strength", 0.0))
+		lines.append("attending to you  %4.2f %s" % [att, _bar(att)])
+
 	var s: Dictionary = d.get("signals", {})
 	lines.append("you  explore %.2f  together %.2f  engage %.2f" % [
 		float(s.get("explore", 0.0)),
@@ -80,6 +109,13 @@ func _format(d: Dictionary) -> String:
 		_clock(float(d.get("play_seconds", 0.0))),
 		int(d.get("interactions", 0)),
 	])
+	var area := str(d.get("current_area", ""))
+	if area != "":
+		lines.append("area %s   places known %d" % [area, int(d.get("areas_found", 0))])
+	# How much it liked the last thing you showed it (appraisal); -1 until it examines one.
+	var appeal := float(d.get("last_appeal", -1.0))
+	if appeal >= 0.0:
+		lines.append("last appeal %4.2f %s" % [appeal, _bar(appeal)])
 
 	return "\n".join(lines)
 
@@ -87,6 +123,16 @@ func _format(d: Dictionary) -> String:
 func _bar(value: float, cells: int = 10) -> String:
 	var filled := int(round(clampf(value, 0.0, 1.0) * cells))
 	return "[" + "#".repeat(filled) + "-".repeat(cells - filled) + "]"
+
+
+# A bar for a -1..1 value with the zero point in the middle: fills left of center for
+# negatives, right for positives, so you can read the sign and size of a mood at a glance.
+func _signed_bar(value: float, half: int = 6) -> String:
+	var v := clampf(value, -1.0, 1.0)
+	var mag := int(round(absf(v) * half))
+	if v >= 0.0:
+		return "[" + "-".repeat(half) + "|" + "#".repeat(mag) + "-".repeat(half - mag) + "]"
+	return "[" + "-".repeat(half - mag) + "#".repeat(mag) + "|" + "-".repeat(half) + "]"
 
 
 func _clock(seconds: float) -> String:

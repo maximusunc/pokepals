@@ -17,6 +17,25 @@ static func run_all() -> int:
 	fails += _test_make_default_unchanged(cfg)
 	fails += _test_make_random_stays_near_init(cfg)
 	fails += _test_make_random_varies(cfg)
+	fails += _test_bond_does_not_grow_from_idle_presence(cfg)
+	fails += _test_bond_habituates_on_repeat(cfg)
+	fails += _test_bond_full_novelty_for_a_new_prop(cfg)
+	fails += _test_familiarity_round_trips(cfg)
+	fails += _test_mood_rests_higher_arousal_for_energetic(cfg)
+	fails += _test_mood_spikes_on_novel_discovery(cfg)
+	fails += _test_mood_spike_dampens_with_habituation(cfg)
+	fails += _test_mood_overlays_effective_traits(cfg)
+	fails += _test_shared_attention_grows_bond(cfg)
+	fails += _test_shared_attention_lifts_valence(cfg)
+	fails += _test_being_noticed_lifts_valence(cfg)
+	fails += _test_identity_crystallizes_with_bond(cfg)
+	fails += _test_identity_keeps_birth_individuality(cfg)
+	fails += _test_disposition_relaxes_toward_identity(cfg)
+	fails += _test_identity_and_birth_round_trip(cfg)
+	fails += _test_old_save_seeds_identity_from_traits(cfg)
+	fails += _test_new_area_grows_bond_once(cfg)
+	fails += _test_new_world_is_all_new(cfg)
+	fails += _test_appeal_scales_discovery_delight(cfg)
 	return fails
 
 
@@ -42,13 +61,15 @@ static func _test_round_trips(cfg: Dictionary) -> int:
 	var s := CompanionSelf.make_default(cfg)
 	s.traits["curiosity"] = 0.42
 	s.observations["interactions"] = 7.0
-	s.mood = 0.5
+	s.mood_valence = 0.5
+	s.mood_arousal = -0.3
 	s.short_term["last_poi"] = [12.0, 34.0]
 	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
 	var fails := 0
 	fails += _ok(is_equal_approx(restored.trait_value("curiosity"), 0.42), "trait survives round-trip")
 	fails += _ok(is_equal_approx(float(restored.observations["interactions"]), 7.0), "observation survives round-trip")
-	fails += _ok(is_equal_approx(restored.mood, 0.5), "mood survives round-trip")
+	fails += _ok(is_equal_approx(restored.mood_valence, 0.5), "mood valence survives round-trip")
+	fails += _ok(is_equal_approx(restored.mood_arousal, -0.3), "mood arousal survives round-trip")
 	fails += _ok(restored.short_term.get("last_poi") == [12.0, 34.0], "short-term memory survives round-trip")
 	return fails
 
@@ -178,3 +199,369 @@ static func _seeded(seed_value: int) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	return rng
+
+
+# A minimal perception dict for exercising observe()/_grow_bond without the brain.
+static func _perception(near: bool, interaction_id: String = "") -> Dictionary:
+	return {
+		"player_velocity": Vector2.ZERO,
+		"dist_to_player": 10.0 if near else 5000.0,
+		"follow_near": 100.0,
+		"has_interaction": interaction_id != "",
+		"interaction_id": interaction_id,
+		"interaction_point": Vector2.ZERO,
+	}
+
+
+# Bond must NOT grow from idle presence (the old farmable raw-presence source is gone).
+# Standing far away with no interaction leaves it flat.
+static func _test_bond_does_not_grow_from_idle_presence(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	for _i in 600:
+		s.observe(_perception(false), cfg, 0.1)
+	return _ok(is_equal_approx(s.bond, 0.0), "bond stays flat from idle, far-away presence")
+
+
+# Examining the SAME prop pays less each time (habituation): the second poke grows bond
+# strictly less than the first, and a long run of repeats drives the gain toward ~0.
+static func _test_bond_habituates_on_repeat(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var before1 := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)  # delta 0 isolates the interaction
+	var first_gain := s.bond - before1
+
+	var before2 := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var second_gain := s.bond - before2
+
+	var fails := 0
+	fails += _ok(first_gain > 0.0, "first examine of a prop grows bond")
+	fails += _ok(second_gain < first_gain, "repeating the same prop grows bond less (habituation)")
+
+	for _i in 30:
+		s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var before_late := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	fails += _ok((s.bond - before_late) < first_gain * 0.05, "a thoroughly-familiar prop adds ~nothing")
+	return fails
+
+
+# A different prop is fresh again: its first examine pays full novelty, same as the first
+# prop's did — novelty is per-prop, not global.
+static func _test_bond_full_novelty_for_a_new_prop(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var b0 := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var gain_a := s.bond - b0
+	# Habituate the first prop hard, then meet a brand-new one.
+	for _i in 20:
+		s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var b1 := s.bond
+	s.observe(_perception(false, "crystal"), cfg, 0.0)
+	var gain_b := s.bond - b1
+	return _ok(is_equal_approx(gain_a, gain_b), "a new prop pays full novelty even after another is exhausted")
+
+
+static func _test_familiarity_round_trips(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observe(_perception(false, "lantern"), cfg, 0.0)
+	s.observe(_perception(false, "lantern"), cfg, 0.0)
+	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
+	return _ok(is_equal_approx(float(restored.familiarity.get("lantern", 0.0)), 2.0), "familiarity tallies survive a round-trip")
+
+
+# A copy of cfg with the mood random walk silenced, so the deterministic mood dynamics
+# (rest, spikes, decay) can be asserted without the noise of the random walk.
+static func _mood_cfg_no_walk(cfg: Dictionary) -> Dictionary:
+	var c := cfg.duplicate(true)
+	c["mood"]["walk_amp"] = 0.0
+	return c
+
+
+static func _rng() -> RandomNumberGenerator:
+	var r := RandomNumberGenerator.new()
+	r.seed = 7
+	return r
+
+
+# Settle a self's mood by ticking idle, near, with no events, until it relaxes to rest.
+static func _settle_mood(s: CompanionSelf, cfg: Dictionary) -> void:
+	var rng := _rng()
+	for _i in 400:
+		s.update_mood(_perception(true), cfg, 0.1, rng)
+
+
+# The resting point is trait-derived: an energetic companion settles at a higher arousal
+# than a low-energy one, so different companions have different emotional weather.
+static func _test_mood_rests_higher_arousal_for_energetic(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var lively := CompanionSelf.make_default(c)
+	lively.traits["energy"] = 1.0
+	var sleepy := CompanionSelf.make_default(c)
+	sleepy.traits["energy"] = 0.0
+	_settle_mood(lively, c)
+	_settle_mood(sleepy, c)
+	return _ok(lively.mood_arousal > sleepy.mood_arousal + 0.05, "an energetic companion rests at a higher arousal")
+
+
+# A novel shared discovery lifts the mood (both axes) above its resting point.
+static func _test_mood_spikes_on_novel_discovery(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var rest_arousal := s.mood_arousal
+	var rest_valence := s.mood_valence
+	# A frame in which a never-seen prop is examined (observe records the novelty).
+	var p := _perception(true, "crystal")
+	s.observe(p, c, 0.1)
+	s.update_mood(p, c, 0.1, _rng())
+	var fails := 0
+	fails += _ok(s.mood_arousal > rest_arousal + 0.1, "a novel discovery spikes arousal")
+	fails += _ok(s.mood_valence > rest_valence + 0.05, "a novel discovery lifts valence")
+	return fails
+
+
+# That spike is novelty-weighted: a thoroughly-familiar prop barely moves the mood, so a
+# small world of repeated props doesn't keep the companion permanently thrilled.
+static func _test_mood_spike_dampens_with_habituation(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var rng := _rng()
+
+	var fresh := CompanionSelf.make_default(c)
+	_settle_mood(fresh, c)
+	var a0 := fresh.mood_arousal
+	var p := _perception(true, "lantern")
+	fresh.observe(p, c, 0.1)
+	fresh.update_mood(p, c, 0.1, rng)
+	var novel_jump := fresh.mood_arousal - a0
+
+	var jaded := CompanionSelf.make_default(c)
+	for _i in 25:  # wear the prop's novelty down to ~0
+		jaded.observe(_perception(true, "lantern"), c, 0.0)
+	_settle_mood(jaded, c)
+	var b0 := jaded.mood_arousal
+	jaded.observe(p, c, 0.1)
+	jaded.update_mood(p, c, 0.1, rng)
+	var jaded_jump := jaded.mood_arousal - b0
+
+	return _ok(jaded_jump < novel_jump * 0.2, "a habituated prop barely stirs the mood")
+
+
+# The payoff: mood overlays the effective traits a happy/excited companion reads as more
+# energetic and affectionate than its resting self, via CompanionTraits.value.
+static func _test_mood_overlays_effective_traits(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var base_energy := s.trait_value("energy")
+	s.mood_arousal = 0.8  # strongly aroused
+	var eff_energy := CompanionTraits.value(s, cfg, "energy")
+	var fails := 0
+	fails += _ok(eff_energy > base_energy, "high arousal raises effective energy above the raw trait")
+	# Curiosity has no mood axis, so it should read its raw value regardless of mood.
+	s.mood_valence = 0.9
+	fails += _ok(is_equal_approx(CompanionTraits.value(s, cfg, "curiosity"), s.trait_value("curiosity")), "curiosity is unaffected by mood")
+	return fails
+
+
+# A perception of a shared-attention moment: the companion right beside something the
+# player is clearly attending to, with no explicit examine this frame.
+static func _perception_shared(companion_pos: Vector2, attended: Vector2, strength: float) -> Dictionary:
+	return {
+		"player_velocity": Vector2.ZERO,
+		"dist_to_player": 10.0,
+		"follow_near": 100.0,
+		"has_interaction": false,
+		"interaction_id": "",
+		"interaction_point": Vector2.ZERO,
+		"has_attended": true,
+		"attention_strength": strength,
+		"attended_object": attended,
+		"companion_pos": companion_pos,
+		"noticed_strength": 0.0,
+	}
+
+
+# Focusing on the same thing together grows the bond — and, like other sources, it's
+# novelty-gated, so co-attending the same spot pays less each time.
+static func _test_shared_attention_grows_bond(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var b0 := s.bond
+	s.observe(_perception_shared(Vector2.ZERO, Vector2(40, 0), 0.8), cfg, 0.0)
+	var first := s.bond - b0
+	var b1 := s.bond
+	s.observe(_perception_shared(Vector2.ZERO, Vector2(40, 0), 0.8), cfg, 0.0)
+	var second := s.bond - b1
+	var fails := 0
+	fails += _ok(first > 0.0, "a shared-attention moment grows bond")
+	fails += _ok(second < first, "repeating the same shared spot grows bond less (novelty)")
+	# A weak/far signal isn't a shared moment at all.
+	var t := CompanionSelf.make_default(cfg)
+	var t0 := t.bond
+	t.observe(_perception_shared(Vector2.ZERO, Vector2(400, 0), 0.8), cfg, 0.0)  # too far
+	fails += _ok(is_equal_approx(t.bond, t0), "a prop the companion isn't beside is not a shared moment")
+	return fails
+
+
+static func _test_shared_attention_lifts_valence(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var rest_v := s.mood_valence
+	var p := _perception_shared(Vector2.ZERO, Vector2(40, 0), 0.8)
+	s.observe(p, c, 0.1)
+	s.update_mood(p, c, 0.1, _rng())
+	return _ok(s.mood_valence > rest_v + 0.05, "a shared-attention moment lifts valence")
+
+
+static func _test_being_noticed_lifts_valence(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var rest_v := s.mood_valence
+	var p := _perception(true)
+	p["has_attended"] = false
+	p["noticed_strength"] = 0.8  # the player is turning toward and coming over
+	for _i in 20:
+		s.update_mood(p, c, 0.1, _rng())
+	return _ok(s.mood_valence > rest_v + 0.05, "being noticed by the player lifts valence")
+
+
+# Give a self the observation profile of a roaming, rarely-close player, so identity learns
+# toward higher energy / lower clinginess.
+static func _seed_exploring(s: CompanionSelf) -> void:
+	s.observations["play_seconds"] = 600.0
+	s.observations["explored_distance"] = 600.0 * 120.0
+	s.observations["time_far"] = 590.0
+	s.observations["time_near"] = 10.0
+	s.observations["interactions"] = 100.0
+
+
+# Identity is malleable when fresh and LOCKS as the bond deepens: given identical play, a
+# fresh companion's identity moves far more than a deeply bonded one's.
+static func _test_identity_crystallizes_with_bond(cfg: Dictionary) -> int:
+	var fresh := CompanionSelf.make_default(cfg)
+	fresh.bond = 0.0
+	_seed_exploring(fresh)
+	var bonded := CompanionSelf.make_default(cfg)
+	bonded.bond = 1.0
+	_seed_exploring(bonded)
+	var start := fresh.identity["energy"]  # both start equal (make_default)
+	for _i in 600:
+		fresh.apply_drift(cfg, 0.1)
+		bonded.apply_drift(cfg, 0.1)
+	var fresh_moved: float = absf(float(fresh.identity["energy"]) - start)
+	var bonded_moved: float = absf(float(bonded.identity["energy"]) - start)
+	var fails := 0
+	fails += _ok(fresh_moved > 0.1, "a fresh companion's identity learns toward how you play")
+	fails += _ok(bonded_moved < fresh_moved * 0.2, "a deeply bonded companion's identity has crystallized (barely moves)")
+	return fails
+
+
+# Two companions played identically still end up faintly distinct, because identity is
+# always pulled slightly back toward each one's own birth inclination.
+static func _test_identity_keeps_birth_individuality(cfg: Dictionary) -> int:
+	var timid := CompanionSelf.make_default(cfg)
+	timid.birth["energy"] = 0.3
+	timid.identity["energy"] = 0.3
+	var lively := CompanionSelf.make_default(cfg)
+	lively.birth["energy"] = 0.9
+	lively.identity["energy"] = 0.9
+	_seed_exploring(timid)
+	_seed_exploring(lively)
+	for _i in 2000:  # let both converge toward the (shared) exploring play style
+		timid.apply_drift(cfg, 0.1)
+		lively.apply_drift(cfg, 0.1)
+	var fails := 0
+	# Both learned toward high energy...
+	fails += _ok(float(timid.identity["energy"]) > 0.6, "the timid-born companion still grows toward an exploring player")
+	# ...but they never fully converge — the born-lively one settles a touch higher.
+	fails += _ok(float(lively.identity["energy"]) > float(timid.identity["energy"]) + 0.02, "identical play still yields faintly distinct companions (birth residual)")
+	return fails
+
+
+# The live disposition relaxes back toward its identity anchor on its own — the machinery
+# that will let a future "upset" push fade with time. Here we push it off and watch it return.
+static func _test_disposition_relaxes_toward_identity(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var anchor := float(s.identity["clinginess"])
+	s.traits["clinginess"] = anchor - 0.2  # a lingering push away from identity
+	for _i in 600:  # no play change (under warmup), so identity holds; disposition relaxes
+		s.apply_drift(cfg, 0.1)
+	return _ok(absf(float(s.traits["clinginess"]) - anchor) < 0.05, "disposition relaxes back toward its identity anchor")
+
+
+static func _test_identity_and_birth_round_trip(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.identity["energy"] = 0.42
+	s.birth["energy"] = 0.88
+	var r := CompanionSelf.from_dict(s.to_dict(), cfg)
+	var fails := 0
+	fails += _ok(is_equal_approx(float(r.identity["energy"]), 0.42), "identity survives a round-trip")
+	fails += _ok(is_equal_approx(float(r.birth["energy"]), 0.88), "birth inclination survives a round-trip")
+	return fails
+
+
+# A pre-split save (disposition only) loads with identity seeded FROM that disposition, so
+# the loaded companion is its own anchor and doesn't snap back toward defaults.
+static func _test_old_save_seeds_identity_from_traits(cfg: Dictionary) -> int:
+	var r := CompanionSelf.from_dict({ "version": 1, "traits": { "energy": 0.33 } }, cfg)
+	return _ok(is_equal_approx(float(r.identity["energy"]), float(r.traits["energy"])), "an old save seeds identity from its saved disposition")
+
+
+# A far-away, non-interacting perception that just reports which area we're in.
+static func _perception_area(area: String) -> Dictionary:
+	var p := _perception(false)
+	p["current_area"] = area
+	return p
+
+
+# Reaching a new area grows bond exactly once: spawn is home (no bump), a new region pays,
+# and returning to any known area (home or already-discovered) pays nothing.
+static func _test_new_area_grows_bond_once(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observe(_perception_area("vale:clearing"), cfg, 0.0)  # spawn -> home
+	var fails := 0
+	fails += _ok(is_equal_approx(s.bond, 0.0), "the spawn area is home, not a discovery (no bond)")
+	s.observe(_perception_area("vale:grove"), cfg, 0.0)  # cross into a new region
+	var after_grove := s.bond
+	fails += _ok(after_grove > 0.0, "reaching a new area grows bond")
+	s.observe(_perception_area("vale:clearing"), cfg, 0.0)  # back home
+	fails += _ok(is_equal_approx(s.bond, after_grove), "returning home earns no fresh bond")
+	s.observe(_perception_area("vale:grove"), cfg, 0.0)  # back to the discovered region
+	fails += _ok(is_equal_approx(s.bond, after_grove), "returning to a discovered area earns no fresh bond")
+	return fails
+
+
+# The world-of-worlds case: because area ids are world-namespaced and familiarity persists,
+# the first area of a DIFFERENT world is a fresh discovery, not mistaken for home.
+static func _test_new_world_is_all_new(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observe(_perception_area("vale:clearing"), cfg, 0.0)  # home in the first world
+	var before := s.bond
+	s.observe(_perception_area("thornfen:gate"), cfg, 0.0)  # step into a new world
+	return _ok(s.bond > before, "the first area of a new world is a discovery (world-namespaced)")
+
+
+# Examining a thing it LIKES delights it more than one it's indifferent to: the mood
+# discovery spike is scaled by the appraised appeal carried in perception.
+static func _test_appeal_scales_discovery_delight(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+
+	var loved := CompanionSelf.make_default(c)
+	_settle_mood(loved, c)
+	var lv0 := loved.mood_valence
+	var p_loved := _perception(false, "crystal")
+	p_loved["interaction_appeal"] = 0.9
+	loved.observe(p_loved, c, 0.1)
+	loved.update_mood(p_loved, c, 0.1, _rng())
+	var loved_jump := loved.mood_valence - lv0
+
+	var plain := CompanionSelf.make_default(c)
+	_settle_mood(plain, c)
+	var pv0 := plain.mood_valence
+	var p_plain := _perception(false, "signpost")
+	p_plain["interaction_appeal"] = 0.3
+	plain.observe(p_plain, c, 0.1)
+	plain.update_mood(p_plain, c, 0.1, _rng())
+	var plain_jump := plain.mood_valence - pv0
+
+	return _ok(loved_jump > plain_jump, "a loved find delights more than an indifferent one")

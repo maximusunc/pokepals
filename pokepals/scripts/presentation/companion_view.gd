@@ -21,6 +21,8 @@ var _cfg: Dictionary
 var _player: PlayerView
 var _events: Array = []
 var _points_of_interest: Array = []
+var _world_id := ""
+var _regions: Array = []
 var _time := 0.0
 var _autosave_accum := 0.0
 
@@ -43,10 +45,19 @@ func set_points_of_interest(points: Array) -> void:
 	_points_of_interest = points
 
 
+## Called by the world to hand over its id and named regions, so the companion can resolve
+## which area it's in (for the bond of reaching a new place). regions: [{ id, min, max }].
+func set_world_areas(world_id: String, regions: Array) -> void:
+	_world_id = world_id
+	_regions = regions
+
+
 ## Called by the world when the player interacts with something — the brain may
-## decide to grow curious about it.
-func notify_interaction(world_position: Vector2) -> void:
-	_events.append({ "type": "interaction", "position": world_position })
+## decide to grow curious about it. The stable prop `id` lets the companion tell one
+## thing from another (habituation/memory); the neutral `tags` let it appraise how it
+## feels about the thing (see CompanionAppraisal).
+func notify_interaction(world_position: Vector2, id: String = "", tags: Array = []) -> void:
+	_events.append({ "type": "interaction", "position": world_position, "id": id, "tags": tags })
 
 
 func _ready() -> void:
@@ -78,6 +89,7 @@ func _process(delta: float) -> void:
 		"events": _events,
 		"time": _time,
 		"points_of_interest": _points_of_interest,
+		"current_area": WorldAreas.resolve(position, _world_id, _regions),
 	}
 	_events = []
 
@@ -115,6 +127,9 @@ func debug_state() -> Dictionary:
 	var self_state := _brain.get_self().debug_state(_cfg)
 	for key in self_state:
 		d[key] = self_state[key]
+	# The mood-overlaid trait values, so the overlay can show how the current mood is
+	# bending behavior versus the underlying (raw) traits.
+	d["effective"] = CompanionTraits.effective_snapshot(_brain.get_self(), _cfg, ["energy", "clinginess"])
 	d["companion_pos"] = position
 	d["speed"] = velocity.length()
 	return d
