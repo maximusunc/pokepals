@@ -105,7 +105,11 @@ class InvestigateAction extends CompanionAction:
 		if perception["has_interaction"] and _cooldown <= 0.0 and not _active:
 			_active = true
 			_target = perception["interaction_point"]
-			_linger = float(cfg["curiosity_linger"])
+			# Linger longer admiring a thing it likes, briefer at one it's indifferent to
+			# (appraisal); appeal is neutral for untagged things, so this is a gentle no-op then.
+			var la: Array = cfg.get("appraisal", {}).get("linger_appeal", [1.0, 1.0])
+			var appeal := float(perception.get("interaction_appeal", 1.0))
+			_linger = float(cfg["curiosity_linger"]) * lerpf(float(la[0]), float(la[1]), appeal)
 			_just_triggered = true
 			_cooldown = float(cfg["curiosity_cooldown"])
 		return 1.0 if _active else 0.0

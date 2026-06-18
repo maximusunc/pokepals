@@ -112,6 +112,10 @@ func _format(d: Dictionary) -> String:
 	var area := str(d.get("current_area", ""))
 	if area != "":
 		lines.append("area %s   places known %d" % [area, int(d.get("areas_found", 0))])
+	# How much it liked the last thing you showed it (appraisal); -1 until it examines one.
+	var appeal := float(d.get("last_appeal", -1.0))
+	if appeal >= 0.0:
+		lines.append("last appeal %4.2f %s" % [appeal, _bar(appeal)])
 
 	return "\n".join(lines)
 

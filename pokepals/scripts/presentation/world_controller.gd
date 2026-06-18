@@ -47,6 +47,7 @@ func _ready() -> void:
 			"pos": WorldData.to_vec2(it["position"]),
 			"label": String(it.get("label", "something")),
 			"id": prop_id,
+			"tags": it.get("tags", []),
 		})
 
 	# Let the companion know where the props are, so it can wander to them on its own.
@@ -144,7 +145,7 @@ func _try_interact() -> void:
 		return
 	var spot: Vector2 = _interactables[index]["pos"]
 	_world_art.pulse_interactable(index)
-	_companion.notify_interaction(spot, _interactables[index]["id"])
+	_companion.notify_interaction(spot, _interactables[index]["id"], _interactables[index]["tags"])
 	_hint.text = "You examine %s. Your companion perks up." % _interactables[index]["label"]
 
 

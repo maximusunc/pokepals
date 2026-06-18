@@ -73,6 +73,30 @@
 		"notice_radius": 120.0,
 		"notice_floor": 0.0
 	},
+	"_appraisal_comment": "APPRAISAL turns a thing's neutral 'tags' (authored in world.json) into how drawn THIS companion is to it (0..1 'appeal'). affinities are the creature's tastes per tag (0.5 neutral, >0.5 likes, <0.5 indifferent); an unknown tag and an untagged thing read 'neutral'. appeal = mean(tag affinities) * lerp(curiosity_lo, curiosity_hi, curiosity), so a curious companion finds a little more to like in everything. Effects wired so far: a high-appeal prop gives a bigger mood delight spike on examine, and the companion lingers longer admiring it (linger_appeal scales curiosity_linger by appeal). Tastes are species-shared for now (per-companion favourites are a later refinement).",
+	"appraisal": {
+		"neutral": 0.5,
+		"curiosity_lo": 0.85,
+		"curiosity_hi": 1.15,
+		"linger_appeal": [0.6, 1.5],
+		"affinities": {
+			"shiny": 0.92,
+			"light": 0.72,
+			"flower": 0.70,
+			"fragrant": 0.66,
+			"food": 0.68,
+			"water": 0.62,
+			"sound": 0.60,
+			"odd": 0.58,
+			"plant": 0.52,
+			"still": 0.50,
+			"fungus": 0.50,
+			"wood": 0.48,
+			"rest": 0.46,
+			"stone": 0.45,
+			"made": 0.38
+		}
+	},
 	"_checkin_comment": "Self-initiated visits: while off living its own life, the companion now and then wanders over to say hi — the 'oh, what's this?' / 'there it is again!' beat — then heads back to what it was doing. It only fires when it isn't already close (dist past the comfort distance) and the player is within follow_far. checkin_score is what an active visit bids: above wander and low-bond follow, below a player-triggered look. checkin_interval [min,max] seconds is the wall-clock spacing between visits (NOT scaled by bond time_scale, so a handful land in a short dev session). checkin_pull_low..high is how eager it is to visit by bond — high when fresh and far, fading to ~0 once bonded (by then it's already close, so visits aren't needed). checkin_linger: seconds it hangs out once it arrives. checkin_stop_distance: how close it comes before settling in to say hi.",
 	"checkin_score": 9.0,
 	"checkin_interval": [14.0, 26.0],

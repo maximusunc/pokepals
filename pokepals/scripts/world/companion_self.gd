@@ -64,6 +64,7 @@ var familiarity: Dictionary = {}
 # mood update so a habituated prop barely moves the mood. And how long it's been since
 # anything novel happened, for the boredom drift.
 var _last_discovery_novelty: float = 0.0
+var _last_discovery_appeal: float = 1.0
 var _last_shared_novelty: float = 0.0
 var _seconds_since_novelty: float = 999.0
 
@@ -184,13 +185,18 @@ func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: boo
 	if near:
 		amount += float(bond_cfg.get("grow_per_sec_near", 0.0)) * delta
 	# Reset each frame; set below if a prop was examined, so the mood update can read how
-	# novel it was (a habituated prop barely stirs the mood).
+	# novel it was (a habituated prop barely stirs the mood) and how much it likes it (a
+	# loved thing delights it more). Appeal defaults to 1.0 so non-examine discoveries (a new
+	# area) aren't dampened.
 	_last_discovery_novelty = 0.0
+	_last_discovery_appeal = 1.0
 	if perception["has_interaction"]:
 		var key := _familiarity_key(perception)
 		var seen := float(familiarity.get(key, 0.0))
 		var novelty := _novelty_factor(seen, bond_cfg)
 		_last_discovery_novelty = novelty
+		_last_discovery_appeal = float(perception.get("interaction_appeal", 1.0))
+		short_term["last_appeal"] = _last_discovery_appeal  # for the debug overlay
 		amount += float(bond_cfg.get("grow_per_interaction", 0.0)) * novelty
 		familiarity[key] = seen + 1.0
 	# Shared-attention moment (from social referencing): you and it focused on the SAME
@@ -311,10 +317,13 @@ func update_mood(perception: Dictionary, cfg: Dictionary, delta: float, rng: Ran
 	mood_valence += (float(rest["valence"]) - mood_valence) * relax
 	mood_arousal += (float(rest["arousal"]) - mood_arousal) * relax
 
-	# Event spike: a novel shared discovery is exciting and warming.
+	# Event spike: a novel discovery is exciting and warming — scaled by how much the
+	# companion likes the thing (appraisal), so it lights up for a loved find and barely
+	# stirs for one it's indifferent to. (Appeal is 1.0 for non-appraised discoveries.)
 	if _last_discovery_novelty > 0.0:
-		mood_valence += float(m.get("discovery_valence", 0.0)) * _last_discovery_novelty
-		mood_arousal += float(m.get("discovery_arousal", 0.0)) * _last_discovery_novelty
+		var spike := _last_discovery_novelty * _last_discovery_appeal
+		mood_valence += float(m.get("discovery_valence", 0.0)) * spike
+		mood_arousal += float(m.get("discovery_arousal", 0.0)) * spike
 		_seconds_since_novelty = 0.0
 	else:
 		_seconds_since_novelty += delta
@@ -464,6 +473,7 @@ func debug_state(cfg: Dictionary) -> Dictionary:
 		"interactions": float(observations.get("interactions", 0.0)),
 		"familiar_props": familiarity.size(),
 		"areas_found": _count_areas_found(),
+		"last_appeal": float(short_term.get("last_appeal", -1.0)),
 		"mood_valence": mood_valence,
 		"mood_arousal": mood_arousal,
 		"mood_rest_valence": float(rest["valence"]),

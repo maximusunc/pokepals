@@ -343,10 +343,38 @@ layer; cozy mood dips only dampen.
 
 In rough priority order for the cozy stage:
 
-1. **Appraisal model + tag vocabulary** — neutral world facts the companion
-   interprets; scope depends on staying cozy. Lock the schema early but small.
-2. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
+1. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
    context only until feel is proven.
+
+---
+
+## ✅ Appraisal model + tag vocabulary (locked small)
+
+The architecture the spec wants: the **world** describes things with NEUTRAL tags; the
+**companion** decides how it feels. Authors tag a prop `shiny`/`water`/`made` without
+knowing any companion's psychology — the danger-era version (a `predator` tag + a timid
+companion → fear) is the same shape, just scarier inputs.
+
+**Built (small):**
+- **Schema:** `tags: [String]` on each interactable in `world.json` (neutral descriptors).
+- **Pure appraisal:** `CompanionAppraisal.appeal(tags, cfg, curiosity)` → 0..1, from
+  data-driven per-tag **affinities** (the creature's tastes, in `companion.json`
+  `"appraisal"`) modulated by curiosity. Unknown/absent tags read neutral. Computed once in
+  `perception` (as `interaction_appeal`) so consumers share it.
+- **Two felt wirings:** the **mood** discovery spike on examine scales by appeal (lights up
+  for a loved find, barely stirs for a plain one — composes as `novelty × appeal`); and
+  `InvestigateAction` **lingers longer** admiring liked things. On the debug overlay as
+  "last appeal".
+- Tested: `TestCompanionAppraisal` + a delight-scaling test in `TestCompanionSelf`.
+
+**Deferred (noted, not needed to lock the schema):**
+- **Per-companion taste individuality** — tastes are species-shared for now (only curiosity
+  varies appeal per companion). Born-jittered + persisted affinities (like birth traits) are
+  a small fast-follow for "my companion loves crystals, yours loves water."
+- **Appraisal-biased wandering** — being drawn to *roam toward* high-appeal props needs POI
+  tags threaded through perception (a bigger perception change); examine-time appraisal only
+  for now.
+- **Affinity drift** — coming to love what you engage with together.
 
 ---
 

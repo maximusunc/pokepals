@@ -54,9 +54,10 @@ func set_world_areas(world_id: String, regions: Array) -> void:
 
 ## Called by the world when the player interacts with something — the brain may
 ## decide to grow curious about it. The stable prop `id` lets the companion tell one
-## thing from another, so bond growth can habituate per-prop (see CompanionSelf).
-func notify_interaction(world_position: Vector2, id: String = "") -> void:
-	_events.append({ "type": "interaction", "position": world_position, "id": id })
+## thing from another (habituation/memory); the neutral `tags` let it appraise how it
+## feels about the thing (see CompanionAppraisal).
+func notify_interaction(world_position: Vector2, id: String = "", tags: Array = []) -> void:
+	_events.append({ "type": "interaction", "position": world_position, "id": id, "tags": tags })
 
 
 func _ready() -> void:

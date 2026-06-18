@@ -35,6 +35,7 @@ static func run_all() -> int:
 	fails += _test_old_save_seeds_identity_from_traits(cfg)
 	fails += _test_new_area_grows_bond_once(cfg)
 	fails += _test_new_world_is_all_new(cfg)
+	fails += _test_appeal_scales_discovery_delight(cfg)
 	return fails
 
 
@@ -538,3 +539,29 @@ static func _test_new_world_is_all_new(cfg: Dictionary) -> int:
 	var before := s.bond
 	s.observe(_perception_area("thornfen:gate"), cfg, 0.0)  # step into a new world
 	return _ok(s.bond > before, "the first area of a new world is a discovery (world-namespaced)")
+
+
+# Examining a thing it LIKES delights it more than one it's indifferent to: the mood
+# discovery spike is scaled by the appraised appeal carried in perception.
+static func _test_appeal_scales_discovery_delight(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+
+	var loved := CompanionSelf.make_default(c)
+	_settle_mood(loved, c)
+	var lv0 := loved.mood_valence
+	var p_loved := _perception(false, "crystal")
+	p_loved["interaction_appeal"] = 0.9
+	loved.observe(p_loved, c, 0.1)
+	loved.update_mood(p_loved, c, 0.1, _rng())
+	var loved_jump := loved.mood_valence - lv0
+
+	var plain := CompanionSelf.make_default(c)
+	_settle_mood(plain, c)
+	var pv0 := plain.mood_valence
+	var p_plain := _perception(false, "signpost")
+	p_plain["interaction_appeal"] = 0.3
+	plain.observe(p_plain, c, 0.1)
+	plain.update_mood(p_plain, c, 0.1, _rng())
+	var plain_jump := plain.mood_valence - pv0
+
+	return _ok(loved_jump > plain_jump, "a loved find delights more than an indifferent one")
