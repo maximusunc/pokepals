@@ -31,6 +31,7 @@ var _palette: Dictionary
 var _light: Dictionary
 var _characters: Dictionary
 var _entities: Dictionary
+var _daycycle: Dictionary
 
 
 ## Load the style from art.json, falling back entirely to DEFAULTS if it's missing.
@@ -53,6 +54,7 @@ static func from_data(data: Dictionary) -> ArtStyle:
 	for key in data.get("characters", {}):
 		s._characters[key] = _merge(s._characters.get(key, {}), data["characters"][key])
 	s._entities = (data.get("entities", {}) as Dictionary).duplicate(true)
+	s._daycycle = (data.get("daycycle", {}) as Dictionary).duplicate(true)
 	return s
 
 
@@ -89,6 +91,11 @@ func character(key: String) -> Dictionary:
 ## A world entity's art config (render/sprite), or an empty dict if unknown.
 func entity(key: String) -> Dictionary:
 	return _entities.get(key, {})
+
+
+## The optional day→dusk cycle config (enabled/period_sec/loop/stops), or empty.
+func daycycle() -> Dictionary:
+	return _daycycle
 
 
 ## Draw a "lit blob": a filled base, a lightened cap shifted toward the light, and a

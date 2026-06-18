@@ -28,22 +28,29 @@ var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
+var _style: ArtStyle
+var _day_enabled := false
+var _day_period := 480.0
+var _day_loop := true
+var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sorted by t
+var _day_time := 0.0
 
 
 func _ready() -> void:
 	var data := WorldData.load_json(WORLD_PATH)
 
 	# Shared art direction (palette + light): the one place the whole look is tuned.
-	var style := ArtStyle.load_style(ART_PATH)
-	_player.set_style(style)
-	_companion.set_style(style)
+	_style = ArtStyle.load_style(ART_PATH)
+	_player.set_style(_style)
+	_companion.set_style(_style)
 
 	_player.position = WorldData.to_vec2(data["player_spawn"])
 	_companion.position = WorldData.to_vec2(data["companion_spawn"])
 	_companion.setup(_player)
 
-	_world_art.render_world(data, style)
+	_world_art.render_world(data, _style)
 	_apply_atmosphere(data.get("atmosphere", {}))
+	_setup_daycycle(_style.daycycle())
 
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
@@ -128,7 +135,52 @@ func _apply_atmosphere(atmo: Dictionary) -> void:
 	_pollen.color = pc
 
 
-func _process(_delta: float) -> void:
+## Parse the day→dusk cycle config into sorted stops we can interpolate between.
+func _setup_daycycle(cfg: Dictionary) -> void:
+	_day_enabled = bool(cfg.get("enabled", false))
+	_day_period = maxf(1.0, float(cfg.get("period_sec", 480.0)))
+	_day_loop = bool(cfg.get("loop", true))
+	_day_stops.clear()
+	for s in cfg.get("stops", []):
+		_day_stops.append({
+			"t": float(s.get("t", 0.0)),
+			"tint": WorldData.to_color(s.get("tint", [1.0, 1.0, 1.0])),
+			"vig": WorldData.to_color(s.get("vignette", [0.06, 0.05, 0.10])),
+			"vstr": float(s.get("vstrength", 0.34)),
+		})
+	_day_stops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["t"] < b["t"])
+	if _day_enabled and _day_stops.size() >= 2:
+		_apply_daycycle(0.0)  # start at the first stop so a fresh load looks like "day"
+
+
+## Apply the cycle at normalized progress u in [0,1]: lerp the warm wash + vignette
+## between the two bracketing stops.
+func _apply_daycycle(u: float) -> void:
+	var a: Dictionary = _day_stops[0]
+	var b: Dictionary = _day_stops[_day_stops.size() - 1]
+	for i in range(_day_stops.size() - 1):
+		if u >= float(_day_stops[i]["t"]) and u <= float(_day_stops[i + 1]["t"]):
+			a = _day_stops[i]
+			b = _day_stops[i + 1]
+			break
+	var span := maxf(0.0001, float(b["t"]) - float(a["t"]))
+	var k := clampf((u - float(a["t"])) / span, 0.0, 1.0)
+	_day_tint.color = (a["tint"] as Color).lerp(b["tint"], k)
+	var mat := _vignette.material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("tint", (a["vig"] as Color).lerp(b["vig"], k))
+		mat.set_shader_parameter("strength", lerpf(float(a["vstr"]), float(b["vstr"]), k))
+
+
+func _process(delta: float) -> void:
+	# Slow ambient day→dusk drift, if enabled, driving the warm wash + vignette.
+	if _day_enabled and _day_stops.size() >= 2:
+		_day_time += delta
+		var u := fmod(_day_time, _day_period) / _day_period
+		if _day_loop:
+			u = 1.0 - absf(2.0 * u - 1.0)  # ping-pong: day → dusk → day
+		_apply_daycycle(u)
+
 	# Surface a gentle prompt — and the touch Examine button — when standing near
 	# something to examine.
 	var nearest := _nearest_interactable()

@@ -19,5 +19,15 @@
 	"entities": {
 		"tree": { "render": "procedural", "sprite": "" },
 		"great_tree": { "render": "procedural", "sprite": "" }
+	},
+	"_daycycle_comment": "A slow ambient drift from day to dusk and back, driving the warm wash (DayTint) and the vignette. enabled=false freezes it at the first stop (today's static look). period_sec is one full day->dusk->day round trip when loop=true. Set enabled=false to turn it off.",
+	"daycycle": {
+		"enabled": true,
+		"period_sec": 480,
+		"loop": true,
+		"stops": [
+			{ "t": 0.0, "tint": [1.04, 0.99, 0.90], "vignette": [0.06, 0.05, 0.10], "vstrength": 0.30 },
+			{ "t": 1.0, "tint": [0.80, 0.74, 0.90], "vignette": [0.10, 0.06, 0.18], "vstrength": 0.46 }
+		]
 	}
 }
