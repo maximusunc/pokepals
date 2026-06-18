@@ -116,6 +116,9 @@ func debug_state() -> Dictionary:
 	var self_state := _brain.get_self().debug_state(_cfg)
 	for key in self_state:
 		d[key] = self_state[key]
+	# The mood-overlaid trait values, so the overlay can show how the current mood is
+	# bending behavior versus the underlying (raw) traits.
+	d["effective"] = CompanionTraits.effective_snapshot(_brain.get_self(), _cfg, ["energy", "clinginess"])
 	d["companion_pos"] = position
 	d["speed"] = velocity.length()
 	return d

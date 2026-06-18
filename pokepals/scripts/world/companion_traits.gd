@@ -12,15 +12,50 @@ class_name CompanionTraits
 
 
 ## The live value of a trait in 0..1: the drifting self value if present, else the
-## static personality fallback, else a neutral 0.5. Tolerates traits that don't exist
-## yet, so adding a trait to companion.json never breaks an older saved companion.
+## static personality fallback, else a neutral 0.5, PLUS the transient mood overlay.
+## Tolerates traits that don't exist yet, so adding a trait to companion.json never
+## breaks an older saved companion.
+##
+## Mood is a fast affective OVERLAY on the slower trait: arousal rides on energy and
+## valence on warmth (clinginess), so an excited companion reads as more energetic and a
+## warm-feeling one as more affectionate — for THIS moment, without changing who it is.
+## Because every action reads its traits through here, that one addition makes mood bias
+## the whole decision (Wander pauses, Follow keenness, Idle hops, ...), not just the look.
+## curiosity has no mood axis. Scale/mapping are data-driven in cfg["mood"].
 static func value(s: CompanionSelf, cfg: Dictionary, key: String) -> float:
 	var fallback := 0.5
 	if cfg.has("personality") and cfg["personality"].has(key):
 		fallback = float(cfg["personality"][key])
 	if s == null:
 		return fallback
-	return s.trait_value(key, fallback)
+	var base := s.trait_value(key, fallback)
+	return clampf(base + _mood_overlay(s, cfg, key), 0.0, 1.0)
+
+
+## The mood contribution to a trait this frame: arousal -> energy, valence -> clinginess,
+## each scaled by overlay_scale. Zero for any trait without a mood axis (e.g. curiosity),
+## or when there's no "mood" config. The axis->trait mapping is data-driven so renaming a
+## trait doesn't strand the overlay.
+static func _mood_overlay(s: CompanionSelf, cfg: Dictionary, key: String) -> float:
+	var m: Dictionary = cfg.get("mood", {})
+	if m.is_empty():
+		return 0.0
+	var scale := float(m.get("overlay_scale", 0.0))
+	var axis_map: Dictionary = m.get("axis_map", { "arousal": "energy", "valence": "clinginess" })
+	if key == String(axis_map.get("arousal", "energy")):
+		return s.mood_arousal * scale
+	if key == String(axis_map.get("valence", "clinginess")):
+		return s.mood_valence * scale
+	return 0.0
+
+
+## The effective (mood-overlaid) values of the named traits, for the debug overlay so a
+## playtester can see how the current mood is bending behavior. Read-only.
+static func effective_snapshot(s: CompanionSelf, cfg: Dictionary, keys: Array) -> Dictionary:
+	var out := {}
+	for key in keys:
+		out[key] = value(s, cfg, String(key))
+	return out
 
 
 ## Apply a declared trait modifier to a base value:

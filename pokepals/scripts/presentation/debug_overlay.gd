@@ -59,6 +59,20 @@ func _format(d: Dictionary) -> String:
 		float(t.get("clinginess", 0.0)),
 	])
 
+	# Mood (2D): the fast feeling overlaying the traits. Signed bars (centered at the
+	# resting point's sign), with the trait values mood is actually bending shown beneath.
+	var val := float(d.get("mood_valence", 0.0))
+	var aro := float(d.get("mood_arousal", 0.0))
+	lines.append("mood  val %+.2f %s  aro %+.2f %s" % [
+		val, _signed_bar(val), aro, _signed_bar(aro),
+	])
+	var eff: Dictionary = d.get("effective", {})
+	if not eff.is_empty():
+		lines.append("  -> eff ene %.2f (raw %.2f)   eff cli %.2f (raw %.2f)" % [
+			float(eff.get("energy", 0.0)), float(t.get("energy", 0.0)),
+			float(eff.get("clinginess", 0.0)), float(t.get("clinginess", 0.0)),
+		])
+
 	# Each drive's bid this frame, strongest-first, winner starred — the "why".
 	var scores: Dictionary = d.get("scores", {})
 	var winner := str(d.get("winner", ""))
@@ -87,6 +101,16 @@ func _format(d: Dictionary) -> String:
 func _bar(value: float, cells: int = 10) -> String:
 	var filled := int(round(clampf(value, 0.0, 1.0) * cells))
 	return "[" + "#".repeat(filled) + "-".repeat(cells - filled) + "]"
+
+
+# A bar for a -1..1 value with the zero point in the middle: fills left of center for
+# negatives, right for positives, so you can read the sign and size of a mood at a glance.
+func _signed_bar(value: float, half: int = 6) -> String:
+	var v := clampf(value, -1.0, 1.0)
+	var mag := int(round(absf(v) * half))
+	if v >= 0.0:
+		return "[" + "-".repeat(half) + "|" + "#".repeat(mag) + "-".repeat(half - mag) + "]"
+	return "[" + "-".repeat(half - mag) + "#".repeat(mag) + "|" + "-".repeat(half) + "]"
 
 
 func _clock(seconds: float) -> String:

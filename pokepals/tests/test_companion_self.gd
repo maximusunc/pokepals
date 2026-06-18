@@ -21,6 +21,10 @@ static func run_all() -> int:
 	fails += _test_bond_habituates_on_repeat(cfg)
 	fails += _test_bond_full_novelty_for_a_new_prop(cfg)
 	fails += _test_familiarity_round_trips(cfg)
+	fails += _test_mood_rests_higher_arousal_for_energetic(cfg)
+	fails += _test_mood_spikes_on_novel_discovery(cfg)
+	fails += _test_mood_spike_dampens_with_habituation(cfg)
+	fails += _test_mood_overlays_effective_traits(cfg)
 	return fails
 
 
@@ -46,13 +50,15 @@ static func _test_round_trips(cfg: Dictionary) -> int:
 	var s := CompanionSelf.make_default(cfg)
 	s.traits["curiosity"] = 0.42
 	s.observations["interactions"] = 7.0
-	s.mood = 0.5
+	s.mood_valence = 0.5
+	s.mood_arousal = -0.3
 	s.short_term["last_poi"] = [12.0, 34.0]
 	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
 	var fails := 0
 	fails += _ok(is_equal_approx(restored.trait_value("curiosity"), 0.42), "trait survives round-trip")
 	fails += _ok(is_equal_approx(float(restored.observations["interactions"]), 7.0), "observation survives round-trip")
-	fails += _ok(is_equal_approx(restored.mood, 0.5), "mood survives round-trip")
+	fails += _ok(is_equal_approx(restored.mood_valence, 0.5), "mood valence survives round-trip")
+	fails += _ok(is_equal_approx(restored.mood_arousal, -0.3), "mood arousal survives round-trip")
 	fails += _ok(restored.short_term.get("last_poi") == [12.0, 34.0], "short-term memory survives round-trip")
 	return fails
 
@@ -251,3 +257,95 @@ static func _test_familiarity_round_trips(cfg: Dictionary) -> int:
 	s.observe(_perception(false, "lantern"), cfg, 0.0)
 	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
 	return _ok(is_equal_approx(float(restored.familiarity.get("lantern", 0.0)), 2.0), "familiarity tallies survive a round-trip")
+
+
+# A copy of cfg with the mood random walk silenced, so the deterministic mood dynamics
+# (rest, spikes, decay) can be asserted without the noise of the random walk.
+static func _mood_cfg_no_walk(cfg: Dictionary) -> Dictionary:
+	var c := cfg.duplicate(true)
+	c["mood"]["walk_amp"] = 0.0
+	return c
+
+
+static func _rng() -> RandomNumberGenerator:
+	var r := RandomNumberGenerator.new()
+	r.seed = 7
+	return r
+
+
+# Settle a self's mood by ticking idle, near, with no events, until it relaxes to rest.
+static func _settle_mood(s: CompanionSelf, cfg: Dictionary) -> void:
+	var rng := _rng()
+	for _i in 400:
+		s.update_mood(_perception(true), cfg, 0.1, rng)
+
+
+# The resting point is trait-derived: an energetic companion settles at a higher arousal
+# than a low-energy one, so different companions have different emotional weather.
+static func _test_mood_rests_higher_arousal_for_energetic(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var lively := CompanionSelf.make_default(c)
+	lively.traits["energy"] = 1.0
+	var sleepy := CompanionSelf.make_default(c)
+	sleepy.traits["energy"] = 0.0
+	_settle_mood(lively, c)
+	_settle_mood(sleepy, c)
+	return _ok(lively.mood_arousal > sleepy.mood_arousal + 0.05, "an energetic companion rests at a higher arousal")
+
+
+# A novel shared discovery lifts the mood (both axes) above its resting point.
+static func _test_mood_spikes_on_novel_discovery(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var rest_arousal := s.mood_arousal
+	var rest_valence := s.mood_valence
+	# A frame in which a never-seen prop is examined (observe records the novelty).
+	var p := _perception(true, "crystal")
+	s.observe(p, c, 0.1)
+	s.update_mood(p, c, 0.1, _rng())
+	var fails := 0
+	fails += _ok(s.mood_arousal > rest_arousal + 0.1, "a novel discovery spikes arousal")
+	fails += _ok(s.mood_valence > rest_valence + 0.05, "a novel discovery lifts valence")
+	return fails
+
+
+# That spike is novelty-weighted: a thoroughly-familiar prop barely moves the mood, so a
+# small world of repeated props doesn't keep the companion permanently thrilled.
+static func _test_mood_spike_dampens_with_habituation(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var rng := _rng()
+
+	var fresh := CompanionSelf.make_default(c)
+	_settle_mood(fresh, c)
+	var a0 := fresh.mood_arousal
+	var p := _perception(true, "lantern")
+	fresh.observe(p, c, 0.1)
+	fresh.update_mood(p, c, 0.1, rng)
+	var novel_jump := fresh.mood_arousal - a0
+
+	var jaded := CompanionSelf.make_default(c)
+	for _i in 25:  # wear the prop's novelty down to ~0
+		jaded.observe(_perception(true, "lantern"), c, 0.0)
+	_settle_mood(jaded, c)
+	var b0 := jaded.mood_arousal
+	jaded.observe(p, c, 0.1)
+	jaded.update_mood(p, c, 0.1, rng)
+	var jaded_jump := jaded.mood_arousal - b0
+
+	return _ok(jaded_jump < novel_jump * 0.2, "a habituated prop barely stirs the mood")
+
+
+# The payoff: mood overlays the effective traits a happy/excited companion reads as more
+# energetic and affectionate than its resting self, via CompanionTraits.value.
+static func _test_mood_overlays_effective_traits(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var base_energy := s.trait_value("energy")
+	s.mood_arousal = 0.8  # strongly aroused
+	var eff_energy := CompanionTraits.value(s, cfg, "energy")
+	var fails := 0
+	fails += _ok(eff_energy > base_energy, "high arousal raises effective energy above the raw trait")
+	# Curiosity has no mood axis, so it should read its raw value regardless of mood.
+	s.mood_valence = 0.9
+	fails += _ok(is_equal_approx(CompanionTraits.value(s, cfg, "curiosity"), s.trait_value("curiosity")), "curiosity is unaffected by mood")
+	return fails

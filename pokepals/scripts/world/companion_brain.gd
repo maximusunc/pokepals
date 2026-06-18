@@ -21,6 +21,9 @@ extends RefCounted
 
 var _cfg: Dictionary
 var _rng := RandomNumberGenerator.new()
+# Mood's random walk runs on its OWN stream so it never perturbs the action RNG — the
+# companion's decisions stay reproducible from the seed; only the affective overlay moves.
+var _mood_rng := RandomNumberGenerator.new()
 var _self: CompanionSelf
 var _actions: Array
 var _arbiter: CompanionArbiter
@@ -34,8 +37,10 @@ func _init(cfg: Dictionary, seed_value: int = 0, existing_self: CompanionSelf = 
 	_cfg = cfg
 	if seed_value != 0:
 		_rng.seed = seed_value
+		_mood_rng.seed = seed_value + 1  # distinct, still deterministic
 	else:
 		_rng.randomize()
+		_mood_rng.randomize()
 	# A loaded self carries the companion across sessions; otherwise start fresh.
 	_self = existing_self if existing_self != null else CompanionSelf.make_default(cfg)
 	_actions = CompanionActions.make_all(cfg, _rng)
@@ -63,9 +68,11 @@ func update(context: Dictionary) -> Dictionary:
 	var delta: float = context["delta"]
 	var perception := CompanionPerception.perceive(context, _self, _cfg)
 
-	# REMEMBER: fold this frame into the persistent self, then let traits drift
-	# slowly toward how the player actually plays.
+	# REMEMBER: fold this frame into the persistent self, advance the fast mood (reads the
+	# discovery novelty observe just recorded), then let traits drift slowly toward how the
+	# player actually plays.
 	_self.observe(perception, _cfg, delta)
+	_self.update_mood(perception, _cfg, delta, _mood_rng)
 	_self.apply_drift(_cfg, delta)
 
 	# DECIDE: tick every action first (so always-running timers like cooldowns advance

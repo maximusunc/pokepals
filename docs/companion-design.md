@@ -220,6 +220,23 @@ disposition as the layer so such states slot in later without restructuring.
 - Drift rewrite: identity learns slowly + bond-crystallizes + keeps a birth residual;
   disposition regresses toward identity, bounded to identity ± band, bumped by events.
 
+### Implementation status
+- ✅ **Mood dynamics built.** 2D `mood_valence`/`mood_arousal` on `CompanionSelf`
+  (`update_mood`, called from the brain on its own RNG so action decisions stay
+  reproducible): trait-derived resting point, novel-discovery spike (novelty-weighted via
+  the habituation map), bond-scaled separation dip, arousal contagion, boredom, random
+  walk, cozy negative floor — all data-tuned in `companion.json` `"mood"`. Integrated as a
+  bounded additive overlay in `CompanionTraits.value` (arousal→energy, valence→clinginess),
+  so every action that reads those traits responds for free. Mood is on the debug overlay
+  (signed valence/arousal bars + effective-vs-raw traits). Tests cover resting derivation,
+  discovery spike, habituation dampening, and the effective-trait overlay.
+- ⬜ **Identity/disposition split NOT yet built.** Mood currently overlays the existing
+  single drifting `traits` layer (which stands in for "disposition" for now). The slow
+  `identity` anchor + regression-toward-identity is a later increment.
+- ⬜ **Deferred mood drivers:** the "being-noticed by the player" valence bump and the
+  shared-attention valence lift both wait on Mechanism #1 (social referencing); only the
+  discovery spike is wired now (it doubles as the shared-examine moment).
+
 ---
 
 ## ✅ Mechanism #2 — In-character gating / refusal

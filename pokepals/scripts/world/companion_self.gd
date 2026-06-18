@@ -16,8 +16,12 @@ extends RefCounted
 ##                 the two effects stay legible.
 ##   observations: running tallies of how the player actually plays. The raw
 ##                 material that drift reads to nudge traits.
-##   mood:         a light, fast-moving feeling (-1 subdued .. 1 excited) that
-##                 eases back toward 0; reflects recent moments, not character.
+##   mood:         a light, fast-moving FEELING, modelled in 2D — valence (withdrawn
+##                 ↔ warm) and arousal (calm ↔ energized). It relaxes toward a resting
+##                 point derived from the companion's traits (so each one has its own
+##                 emotional "weather"), spikes on events, drifts with a small random
+##                 walk, and leans cozy-positive. It's a transient OVERLAY on the
+##                 traits, not character — see CompanionTraits.
 ##   short_term:   small working memory (e.g. the last point of interest).
 ##   familiarity:  per-prop encounter tallies (keyed by a stable prop id). Bond
 ##                 gain from examining a thing is NOVELTY-weighted against this, so
@@ -33,9 +37,17 @@ const SCHEMA_VERSION := 1
 var traits: Dictionary = {}
 var bond: float = 0.0
 var observations: Dictionary = {}
-var mood: float = 0.0
+var mood_valence: float = 0.0
+var mood_arousal: float = 0.0
 var short_term: Dictionary = {}
 var familiarity: Dictionary = {}
+
+# Transient scratch — NOT persisted (recomputed each frame / harmless to reset on load).
+# The novelty of the prop examined this frame (0 if none), handed from _grow_bond to the
+# mood update so a habituated prop barely moves the mood. And how long it's been since
+# anything novel happened, for the boredom drift.
+var _last_discovery_novelty: float = 0.0
+var _seconds_since_novelty: float = 999.0
 
 
 ## A fresh self seeded from the companion config. Traits come from an explicit
@@ -46,7 +58,8 @@ static func make_default(cfg: Dictionary) -> CompanionSelf:
 	s.traits = _default_traits(cfg)
 	s.bond = clampf(float(cfg.get("bond", {}).get("init", 0.0)), 0.0, 1.0)
 	s.observations = _default_observations()
-	s.mood = 0.0
+	s.mood_valence = 0.0
+	s.mood_arousal = 0.0
 	s.short_term = {}
 	s.familiarity = {}
 	return s
@@ -140,10 +153,15 @@ func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: boo
 	var amount := 0.0
 	if near:
 		amount += float(bond_cfg.get("grow_per_sec_near", 0.0)) * delta
+	# Reset each frame; set below if a prop was examined, so the mood update can read how
+	# novel it was (a habituated prop barely stirs the mood).
+	_last_discovery_novelty = 0.0
 	if perception["has_interaction"]:
 		var key := _familiarity_key(perception)
 		var seen := float(familiarity.get(key, 0.0))
-		amount += float(bond_cfg.get("grow_per_interaction", 0.0)) * _novelty_factor(seen, bond_cfg)
+		var novelty := _novelty_factor(seen, bond_cfg)
+		_last_discovery_novelty = novelty
+		amount += float(bond_cfg.get("grow_per_interaction", 0.0)) * novelty
 		familiarity[key] = seen + 1.0
 	# time_scale lets the real ~10-hour bond curve be experienced quickly while tuning
 	# feel: the base rates are the real game, this multiplies them (set to 1.0 to ship).
@@ -167,6 +185,77 @@ static func _familiarity_key(perception: Dictionary) -> String:
 		return id
 	var p: Vector2 = perception.get("interaction_point", Vector2.ZERO)
 	return "pos:%d,%d" % [roundi(p.x / 24.0), roundi(p.y / 24.0)]
+
+
+## Each companion's resting mood — the center its feeling relaxes back to — is derived
+## from its traits, so two companions have different emotional "weather": an energetic one
+## rests at a higher arousal, a warm/clingy one at a higher valence. Returns { valence,
+## arousal } in roughly -1..1, leaning cozy-positive. A neutral 0,0 without "mood" config.
+func _resting_mood(cfg: Dictionary) -> Dictionary:
+	var m: Dictionary = cfg.get("mood", {})
+	var rv: Dictionary = m.get("rest_valence", {})
+	var ra: Dictionary = m.get("rest_arousal", {})
+	var valence := lerpf(float(rv.get("lo", 0.0)), float(rv.get("hi", 0.0)), trait_value(String(rv.get("trait", "clinginess"))))
+	var arousal := lerpf(float(ra.get("lo", 0.0)), float(ra.get("hi", 0.0)), trait_value(String(ra.get("trait", "energy"))))
+	return { "valence": valence, "arousal": arousal }
+
+
+## Advance the fast MOOD one frame. Pure-ish (mutates only this self) and reuses signals
+## the companion already perceives — no new input channels. The pieces, all data-tuned in
+## cfg["mood"]:
+##   • relax toward the trait-derived resting point (the emotional center of gravity);
+##   • a novel discovery spikes valence + arousal (habituated props barely move it);
+##   • separation (player far) eases valence down, BOND-scaled — a fresh companion likes
+##     its independence, a bonded one misses you;
+##   • arousal contagion — a briskly-moving player pulls arousal up a little;
+##   • boredom — a stretch with nothing novel drifts arousal gently down (so the next
+##     novel thing pops harder);
+##   • a small random walk — the PRIMARY source of day-to-day variety;
+##   • cozy asymmetry — clamped to a mild negative floor; real lows arrive with danger.
+## A no-op without "mood" config.
+func update_mood(perception: Dictionary, cfg: Dictionary, delta: float, rng: RandomNumberGenerator) -> void:
+	if not cfg.has("mood") or delta <= 0.0:
+		return
+	var m: Dictionary = cfg["mood"]
+	var rest := _resting_mood(cfg)
+
+	# Relax toward the resting point (exponential ease, frame-rate independent).
+	var relax := 1.0 - exp(-float(m.get("relax_rate", 0.3)) * delta)
+	mood_valence += (float(rest["valence"]) - mood_valence) * relax
+	mood_arousal += (float(rest["arousal"]) - mood_arousal) * relax
+
+	# Event spike: a novel shared discovery is exciting and warming.
+	if _last_discovery_novelty > 0.0:
+		mood_valence += float(m.get("discovery_valence", 0.0)) * _last_discovery_novelty
+		mood_arousal += float(m.get("discovery_arousal", 0.0)) * _last_discovery_novelty
+		_seconds_since_novelty = 0.0
+	else:
+		_seconds_since_novelty += delta
+
+	# Separation: missing the player when far, scaled by how bonded we are.
+	var near := float(perception.get("dist_to_player", 0.0)) <= float(perception.get("follow_near", 0.0))
+	if not near:
+		mood_valence -= float(m.get("separation_valence_rate", 0.0)) * bond * delta
+
+	# Arousal contagion: a moving player is energizing (lightly, slightly bond-scaled).
+	var player_speed := float((perception.get("player_velocity", Vector2.ZERO) as Vector2).length())
+	var player_energy := clampf(player_speed / maxf(float(m.get("contagion_ref_speed", 120.0)), 0.001), 0.0, 1.0)
+	var contagion_scale := lerpf(1.0, float(m.get("contagion_bond_scale", 1.0)), bond)
+	mood_arousal += float(m.get("contagion_arousal_gain", 0.0)) * player_energy * contagion_scale * delta
+
+	# Boredom: a stretch without novelty quiets arousal a touch.
+	if _seconds_since_novelty > float(m.get("boredom_onset", 12.0)):
+		mood_arousal -= float(m.get("boredom_arousal_rate", 0.0)) * delta
+
+	# Random walk — the main variety source (Brownian, so it's frame-rate independent).
+	var walk := float(m.get("walk_amp", 0.0)) * sqrt(delta)
+	mood_valence += rng.randf_range(-1.0, 1.0) * walk
+	mood_arousal += rng.randf_range(-1.0, 1.0) * walk
+
+	# Cozy asymmetry: a mild negative floor (no real lows yet), full positive headroom.
+	var floor_v := float(m.get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence, floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal, floor_v, 1.0)
 
 
 ## Normalized 0..1 read-outs of how the player plays, derived from observations:
@@ -227,6 +316,7 @@ static func _blend_target(weights: Dictionary, signals: Dictionary) -> float:
 ## traits, the derived play signals, and the headline observation tallies. Reuses
 ## play_signals() so the overlay shows exactly the numbers drift reads.
 func debug_state(cfg: Dictionary) -> Dictionary:
+	var rest := _resting_mood(cfg)
 	return {
 		"bond": bond,
 		"traits": traits.duplicate(),
@@ -234,6 +324,10 @@ func debug_state(cfg: Dictionary) -> Dictionary:
 		"play_seconds": float(observations.get("play_seconds", 0.0)),
 		"interactions": float(observations.get("interactions", 0.0)),
 		"familiar_props": familiarity.size(),
+		"mood_valence": mood_valence,
+		"mood_arousal": mood_arousal,
+		"mood_rest_valence": float(rest["valence"]),
+		"mood_rest_arousal": float(rest["arousal"]),
 	}
 
 
@@ -245,7 +339,8 @@ func to_dict() -> Dictionary:
 		"traits": traits.duplicate(true),
 		"bond": bond,
 		"observations": observations.duplicate(true),
-		"mood": mood,
+		"mood_valence": mood_valence,
+		"mood_arousal": mood_arousal,
 		"short_term": short_term.duplicate(true),
 		"familiarity": familiarity.duplicate(true),
 	}
@@ -262,8 +357,13 @@ static func from_dict(data: Dictionary, cfg: Dictionary) -> CompanionSelf:
 	if data.get("observations") is Dictionary:
 		for key in data["observations"]:
 			s.observations[key] = float(data["observations"][key])
-	if data.has("mood"):
-		s.mood = clampf(float(data["mood"]), -1.0, 1.0)
+	# Mood is fast and transient, so we don't fret about migrating the old scalar "mood"
+	# field from very early saves — it just starts at its resting point. Newer saves carry
+	# the 2D valence/arousal.
+	if data.has("mood_valence"):
+		s.mood_valence = clampf(float(data["mood_valence"]), -1.0, 1.0)
+	if data.has("mood_arousal"):
+		s.mood_arousal = clampf(float(data["mood_arousal"]), -1.0, 1.0)
 	if data.get("short_term") is Dictionary:
 		s.short_term = (data["short_term"] as Dictionary).duplicate(true)
 	if data.get("familiarity") is Dictionary:
