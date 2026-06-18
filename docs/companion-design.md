@@ -329,7 +329,21 @@ layer; cozy mood dips only dampen.
 In rough priority order for the cozy stage:
 
 1. **Salience interruption** — refine the fixed-band preemption toward a continuous
-   salience *score* (spec's ask); small, improves feel now.
+   salience *score* (spec's ask); small, improves feel now. **Design note:** the
+   load-bearing idea must be **commitment inertia** (a graded resistance to abandoning the
+   beat in progress), not just "make priority continuous." A continuous score that's still
+   a function of the same signals would re-cross and dither. When built, generalize the
+   binary `interruptible()` flag into that graded resistance — the committed-roam fix below
+   is its crude binary form and should fold into it.
+
+   *(Resolved en route: the wander↔follow **limit cycle** — Follow yanked a roam off at the
+   score crossover; the companion's own motion re-crossed it, so it paced in a shell around
+   the player. `commit_bonus` (temporal id-hysteresis) couldn't damp a feedback loop where
+   the decision drives the deciding signal. Fixed by making a roam a **committed beat**:
+   `WanderAction.interruptible()` is false while `ROAM`, so only a higher band interrupts —
+   same pattern as CheckIn/Investigate. The give-up check still abandons a roam the player
+   leaves behind. Residual, by tuning not structure: how far a mid-bond roam strays before
+   completing.)*
 2. **Appraisal model + tag vocabulary** — neutral world facts the companion
    interprets; scope depends on staying cozy. Lock the schema early but small.
 3. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;

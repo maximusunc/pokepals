@@ -274,7 +274,10 @@ class FollowAction extends CompanionAction:
 ## nothing (Idle owns the beat), ROAM bids the bond-scaled roam score (high when fresh,
 ## fading as you bond). Crucially it roams only within its OWN range (wide when fresh, snug
 ## when bonded) and abandons a target the player has dragged out of that range — it never
-## consults Follow's scoring; it just yields its band to Follow when it stops bidding.
+## consults Follow's scoring; it just yields its band to Follow when it stops bidding. A
+## roam is a COMMITTED beat (see interruptible()): once set off it can't be unseated by the
+## same-band Follow, only by a higher band — so it finishes its excursion (or gives up
+## because you left) rather than getting yanked back and forth at the score crossover.
 class WanderAction extends CompanionAction:
 	enum { PAUSE, ROAM }
 	var _state := PAUSE
@@ -295,6 +298,19 @@ class WanderAction extends CompanionAction:
 		# advanced in act(), so it never elapses unseen while another action holds control.
 		if _state == PAUSE:
 			_pause_timer = maxf(0.0, _pause_timer - delta)
+
+	# A roam is a COMMITTED BEAT, like a check-in or an investigate: once it has set off, only
+	# a strictly HIGHER band (a check-in, a player-triggered look, a future command) may break
+	# in — never the same-band Follow. This is what kills the wander<->follow limit cycle.
+	# Without it, Follow could unseat a roam at the score crossover; the companion's own motion
+	# then re-crosses the threshold and it paces in a shell around the player instead of either
+	# finishing its excursion or following. (commit_bonus alone can't damp that — the deciding
+	# signal, distance, is itself driven by the choice.) The give-up check in score() still
+	# abandons a roam the player has left behind, returning 0 there makes us ineligible, and an
+	# ineligible action can't hold — so leaving the band is clean. While PAUSED we're idle and
+	# freely interruptible.
+	func interruptible() -> bool:
+		return _state != ROAM
 
 	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 		if _state == ROAM:

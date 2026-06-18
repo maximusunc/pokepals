@@ -21,6 +21,7 @@ static func run_all() -> int:
 	fails += _test_high_bond_does_not_check_in(cfg)
 	fails += _test_curiosity_biases_poi_choice(cfg)
 	fails += _test_bond_grows_with_time_together(cfg)
+	fails += _test_roam_is_a_committed_beat(cfg)
 	return fails
 
 
@@ -299,3 +300,28 @@ static func _test_bond_grows_with_time_together(cfg: Dictionary) -> int:
 	for i in 600:  # ~30s of staying close
 		brain.update(_ctx(Vector2(100, 100), Vector2(110, 100)))  # dist 10 -> "near"
 	return _ok(brain.get_self().bond > before, "bond grows the longer the player stays near")
+
+
+# The anti-jitter fix: a roam must be a COMMITTED beat. While paused the wander is freely
+# interruptible; once it sets off on a roam it declares itself non-interruptible, so the
+# arbiter won't let same-band Follow unseat it mid-excursion (which is what caused the
+# wander<->follow limit cycle). The arbiter honouring this is covered in TestArbiter; here
+# we pin the contract WanderAction itself exposes.
+static func _test_roam_is_a_committed_beat(cfg: Dictionary) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var wander := CompanionActions.WanderAction.new(cfg, rng, 1)
+	var s := CompanionSelf.make_default(cfg)
+	var fails := 0
+	fails += _ok(wander.interruptible(), "a paused wander is freely interruptible")
+	# Elapse the opening pause, then score with the player close enough to roam: it sets off.
+	wander.tick(10.0)
+	var perception := {
+		"dist_to_player": 50.0,
+		"player_pos": Vector2(100, 100),
+		"has_poi": true,
+		"nearest_poi": Vector2(160, 100),
+	}
+	wander.score(perception, s, cfg, rng)
+	fails += _ok(not wander.interruptible(), "once set off on a roam, a wander is a committed (non-interruptible) beat")
+	return fails
