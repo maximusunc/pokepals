@@ -15,12 +15,15 @@ var _trees: Array = []     # [ { pos: Vector2, phase: float } ]
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
 var _interactables: Array = []  # [ { pos: Vector2, color: Color, type: String, pulse: float } ]
+var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
+var _landmarks: Array = []      # [ { pos: Vector2, type: String, phase: float } ]
 
 # --- atmosphere (presentation-only mood, from world.json "atmosphere") ---
 var _time := 0.0
 var _wind_strength := 2.6
 var _wind_speed := 1.15
 var _glow_pulse_speed := 1.4
+var _region_tint_alpha := 0.12
 var _ground_noise: ImageTexture = null
 
 
@@ -35,7 +38,25 @@ func render_world(data: Dictionary) -> void:
 	_wind_strength = float(wind.get("strength", 2.6))
 	_wind_speed = float(wind.get("speed", 1.15))
 	_glow_pulse_speed = float(atmo.get("glow", {}).get("pulse_speed", 1.4))
+	_region_tint_alpha = float(atmo.get("region_tint_alpha", 0.12))
 	_build_ground_noise(atmo.get("ground_noise", {}))
+
+	# Per-region mood wash: a soft color over each named area that carries a "tint", so
+	# the grove, meadow, glade and hollow each feel like somewhere distinct underfoot.
+	# Reads the same region rects the companion logic uses for area discovery.
+	_region_tints.clear()
+	for r in data.get("regions", []):
+		if not r.has("tint"):
+			continue
+		var rmin := WorldData.to_vec2(r["min"])
+		var rmax := WorldData.to_vec2(r["max"])
+		_region_tints.append({ "rect": Rect2(rmin, rmax - rmin), "color": WorldData.to_color(r["tint"]) })
+
+	# Landmarks: a few oversized, beckoning features (a great tree) you can see from afar.
+	_landmarks.clear()
+	for lm in data.get("landmarks", []):
+		var lp := WorldData.to_vec2(lm["position"])
+		_landmarks.append({ "pos": lp, "type": String(lm.get("type", "great_tree")), "phase": _phase_for(lp) })
 
 	# Water: accept a single "pond" and/or a "ponds" array, so the world can hold
 	# more than one body of water without breaking older single-pond data.
@@ -55,6 +76,7 @@ func render_world(data: Dictionary) -> void:
 	for t in data.get("trees", []):
 		var tp := WorldData.to_vec2(t)
 		_trees.append({ "pos": tp, "phase": _phase_for(tp) })
+	_build_border(data.get("border", {}))
 
 	_flowers.clear()
 	for f in data.get("flowers", []):
@@ -126,6 +148,42 @@ func _scatter_grass() -> void:
 		})
 
 
+## Frame the world with an enclosing treeline so it feels like it *closes* at the
+## edges rather than abruptly stopping at the void. Procedural (a jittered ring of
+## trees just inside the bounds) so we don't hand-place dozens of coordinates; seeded
+## so the framing is identical every run. Data-driven via world.json "border".
+func _build_border(cfg: Dictionary) -> void:
+	if cfg.is_empty() or not bool(cfg.get("ring", true)):
+		return
+	var spacing := float(cfg.get("spacing", 130.0))
+	var inset := float(cfg.get("inset", 20.0))
+	var jitter := float(cfg.get("jitter", 34.0))
+	var rows := int(cfg.get("rows", 2))
+	var row_gap := float(cfg.get("row_gap", 64.0))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xBEEF
+	for row in rows:
+		var pad := inset + float(row) * row_gap
+		var rect := Rect2(_bounds.position + Vector2(pad, pad), _bounds.size - Vector2(pad * 2.0, pad * 2.0))
+		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
+			continue
+		var x := rect.position.x
+		while x <= rect.end.x:
+			_add_border_tree(Vector2(x, rect.position.y), jitter, rng)
+			_add_border_tree(Vector2(x, rect.end.y), jitter, rng)
+			x += spacing
+		var y := rect.position.y + spacing
+		while y < rect.end.y:
+			_add_border_tree(Vector2(rect.position.x, y), jitter, rng)
+			_add_border_tree(Vector2(rect.end.x, y), jitter, rng)
+			y += spacing
+
+
+func _add_border_tree(base: Vector2, jitter: float, rng: RandomNumberGenerator) -> void:
+	var p := base + Vector2(rng.randf_range(-jitter, jitter), rng.randf_range(-jitter, jitter))
+	_trees.append({ "pos": p, "phase": _phase_for(p) })
+
+
 ## Briefly glow the interactable at this index (called when it's touched).
 func pulse_interactable(index: int) -> void:
 	if index >= 0 and index < _interactables.size():
@@ -153,6 +211,12 @@ func _draw() -> void:
 	# dappled ground: a soft noise overlay stretched across the whole field
 	if _ground_noise != null:
 		draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
+
+	# per-region mood wash, so each named area feels distinct underfoot
+	for rt in _region_tints:
+		var c: Color = rt["color"]
+		c.a = _region_tint_alpha
+		draw_rect(rt["rect"], c)
 
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
@@ -202,6 +266,26 @@ func _draw() -> void:
 		draw_circle(tp + Vector2(cs, -22), 22.0, Color(0.27, 0.44, 0.28))
 		draw_circle(tp + Vector2(-12 + cs, -16), 15.0, Color(0.30, 0.48, 0.31))
 		draw_circle(tp + Vector2(12 + cs, -16), 15.0, Color(0.30, 0.48, 0.31))
+
+	# landmarks, drawn last and large so they read as beacons across the world
+	for lm in _landmarks:
+		_draw_landmark(lm)
+
+
+## A prominent, beckoning feature you can spot from across the world. For now a great
+## tree — a big, slow-swaying canopy on a heavy trunk — that gives a region an anchor
+## the eye is drawn toward, inviting you to walk over and see what's there.
+func _draw_landmark(lm: Dictionary) -> void:
+	var p: Vector2 = lm["pos"]
+	match String(lm["type"]):
+		_:  # "great_tree" (and the default)
+			var sway := _sway(lm["phase"], 1.4)
+			_draw_shadow(p + Vector2(0, 8), 36.0, 0.22)
+			draw_rect(Rect2(p + Vector2(-7, -10), Vector2(14, 40)), Color(0.40, 0.29, 0.20))
+			draw_circle(p + Vector2(sway, -52), 46.0, Color(0.23, 0.39, 0.25))
+			draw_circle(p + Vector2(-28 + sway, -40), 30.0, Color(0.27, 0.44, 0.28))
+			draw_circle(p + Vector2(28 + sway, -40), 30.0, Color(0.27, 0.44, 0.28))
+			draw_circle(p + Vector2(sway * 0.8, -66), 27.0, Color(0.31, 0.49, 0.32))
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as
