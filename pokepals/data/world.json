@@ -1,5 +1,14 @@
 {
 	"_comment": "A larger hand-placed cozy world: a central clearing that opens onto a berry grove to the north, a flowered meadow and stone basin to the southwest, a lantern-lit rest spot to the east, and a crystal hollow with a second pond to the northeast. Coordinates are world-space pixels. Colors are [r,g,b] 0..1. world_art draws it; world_controller uses 'interactables' for proximity. Each interactable's 'type' picks how it's drawn (see world_art). Edit freely to reshape the place.",
+	"world_id": "vale",
+	"_regions_comment": "Named AREAS for new-area discovery (a bond source). The companion's bond deepens the first time it reaches each region (novelty-gated, so re-entering pays nothing). An area's id is world_id:region_id; a position in no region is just the world_id (the open 'wilds'). Because ids are world-namespaced and the companion remembers across sessions/worlds, this scales from sub-regions of one big world to entirely separate worlds. Rectangles in world space; first match wins; gaps fall through to the world default area.",
+	"regions": [
+		{ "id": "clearing", "min": [0, 100], "max": [760, 640] },
+		{ "id": "berry_grove", "min": [-120, -560], "max": [760, 80] },
+		{ "id": "meadow", "min": [-700, 80], "max": [0, 800] },
+		{ "id": "east_glade", "min": [760, -120], "max": [1000, 400] },
+		{ "id": "crystal_hollow", "min": [1000, 160], "max": [1520, 640] }
+	],
 	"bounds": { "min": [-700, -560], "max": [1520, 1120] },
 	"ground_color": [0.43, 0.58, 0.36],
 	"player_spawn": [320, 220],

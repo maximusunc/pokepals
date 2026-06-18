@@ -21,6 +21,8 @@ var _cfg: Dictionary
 var _player: PlayerView
 var _events: Array = []
 var _points_of_interest: Array = []
+var _world_id := ""
+var _regions: Array = []
 var _time := 0.0
 var _autosave_accum := 0.0
 
@@ -41,6 +43,13 @@ func setup(player: PlayerView) -> void:
 ## can choose to wander over and investigate them on its own.
 func set_points_of_interest(points: Array) -> void:
 	_points_of_interest = points
+
+
+## Called by the world to hand over its id and named regions, so the companion can resolve
+## which area it's in (for the bond of reaching a new place). regions: [{ id, min, max }].
+func set_world_areas(world_id: String, regions: Array) -> void:
+	_world_id = world_id
+	_regions = regions
 
 
 ## Called by the world when the player interacts with something — the brain may
@@ -79,6 +88,7 @@ func _process(delta: float) -> void:
 		"events": _events,
 		"time": _time,
 		"points_of_interest": _points_of_interest,
+		"current_area": WorldAreas.resolve(position, _world_id, _regions),
 	}
 	_events = []
 

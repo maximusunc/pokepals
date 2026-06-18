@@ -55,6 +55,13 @@ func _ready() -> void:
 		poi.append(entry["pos"])
 	_companion.set_points_of_interest(poi)
 
+	# Hand the companion the world's id and named regions, so it can feel the bond of
+	# reaching a new area (resolved from its own position; see WorldAreas / CompanionSelf).
+	var regions: Array = []
+	for r in data.get("regions", []):
+		regions.append({ "id": String(r.get("id", "region")), "min": WorldData.to_vec2(r["min"]), "max": WorldData.to_vec2(r["max"]) })
+	_companion.set_world_areas(String(data.get("world_id", "")), regions)
+
 	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
 	# from also spinning up the movement thumbstick underneath it.
 	_examine_button.pressed.connect(_try_interact)

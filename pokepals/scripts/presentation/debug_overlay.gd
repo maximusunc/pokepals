@@ -109,6 +109,9 @@ func _format(d: Dictionary) -> String:
 		_clock(float(d.get("play_seconds", 0.0))),
 		int(d.get("interactions", 0)),
 	])
+	var area := str(d.get("current_area", ""))
+	if area != "":
+		lines.append("area %s   places known %d" % [area, int(d.get("areas_found", 0))])
 
 	return "\n".join(lines)
 

@@ -112,6 +112,7 @@ func update(context: Dictionary) -> Dictionary:
 		"winner": winner.id,
 		"has_attended": perception["has_attended"],
 		"attention_strength": perception["attention_strength"],
+		"current_area": perception["current_area"],
 	}
 	return {
 		"move_target": proposal["move_target"],

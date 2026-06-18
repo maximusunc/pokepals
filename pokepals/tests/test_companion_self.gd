@@ -33,6 +33,8 @@ static func run_all() -> int:
 	fails += _test_disposition_relaxes_toward_identity(cfg)
 	fails += _test_identity_and_birth_round_trip(cfg)
 	fails += _test_old_save_seeds_identity_from_traits(cfg)
+	fails += _test_new_area_grows_bond_once(cfg)
+	fails += _test_new_world_is_all_new(cfg)
 	return fails
 
 
@@ -502,3 +504,37 @@ static func _test_identity_and_birth_round_trip(cfg: Dictionary) -> int:
 static func _test_old_save_seeds_identity_from_traits(cfg: Dictionary) -> int:
 	var r := CompanionSelf.from_dict({ "version": 1, "traits": { "energy": 0.33 } }, cfg)
 	return _ok(is_equal_approx(float(r.identity["energy"]), float(r.traits["energy"])), "an old save seeds identity from its saved disposition")
+
+
+# A far-away, non-interacting perception that just reports which area we're in.
+static func _perception_area(area: String) -> Dictionary:
+	var p := _perception(false)
+	p["current_area"] = area
+	return p
+
+
+# Reaching a new area grows bond exactly once: spawn is home (no bump), a new region pays,
+# and returning to any known area (home or already-discovered) pays nothing.
+static func _test_new_area_grows_bond_once(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observe(_perception_area("vale:clearing"), cfg, 0.0)  # spawn -> home
+	var fails := 0
+	fails += _ok(is_equal_approx(s.bond, 0.0), "the spawn area is home, not a discovery (no bond)")
+	s.observe(_perception_area("vale:grove"), cfg, 0.0)  # cross into a new region
+	var after_grove := s.bond
+	fails += _ok(after_grove > 0.0, "reaching a new area grows bond")
+	s.observe(_perception_area("vale:clearing"), cfg, 0.0)  # back home
+	fails += _ok(is_equal_approx(s.bond, after_grove), "returning home earns no fresh bond")
+	s.observe(_perception_area("vale:grove"), cfg, 0.0)  # back to the discovered region
+	fails += _ok(is_equal_approx(s.bond, after_grove), "returning to a discovered area earns no fresh bond")
+	return fails
+
+
+# The world-of-worlds case: because area ids are world-namespaced and familiarity persists,
+# the first area of a DIFFERENT world is a fresh discovery, not mistaken for home.
+static func _test_new_world_is_all_new(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observe(_perception_area("vale:clearing"), cfg, 0.0)  # home in the first world
+	var before := s.bond
+	s.observe(_perception_area("thornfen:gate"), cfg, 0.0)  # step into a new world
+	return _ok(s.bond > before, "the first area of a new world is a discovery (world-namespaced)")

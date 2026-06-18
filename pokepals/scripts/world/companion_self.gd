@@ -162,13 +162,16 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 
 
 ## The bond DEEPENS through genuine play — discovery and shared moments — not idle
-## time. Three sources:
+## time. Four sources:
 ##   1. A NOVELTY-weighted bump on each shared examine: the first real encounter with a
 ##      prop pays full, every repeat pays less (decaying to ~0), so poking one thing over
 ##      and over stops growing bond. The discount is permanent (familiarity never fades).
 ##   2. A SHARED-ATTENTION bump when the companion is right beside whatever the player is
 ##      attending to (from social referencing) — novelty-weighted the same way.
-##   3. A slow proximity TRICKLE while you stay close — the gentle long-tail finisher,
+##   3. A NEW-AREA bump the first time it reaches a region of the world (novelty-weighted in
+##      the same map, so re-entering a known place pays nothing). Area ids are world-
+##      namespaced, so this also rewards venturing into a whole new world.
+##   4. A slow proximity TRICKLE while you stay close — the gentle long-tail finisher,
 ##      deliberately weak so parking next to the companion is never the optimal play.
 ## Raw presence (growing just from the game running) is gone — it was farmable. Kept
 ## bounded so the wanderer->companion shift is felt across a session, not flipped in
@@ -199,6 +202,9 @@ func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: boo
 		_last_shared_novelty = _shared_attention_novelty(perception, cfg)
 		if _last_shared_novelty > 0.0:
 			amount += float(bond_cfg.get("grow_per_shared_attention", 0.0)) * _last_shared_novelty
+	# New-area discovery: only on the frame we cross INTO a different area, and only if it's
+	# unfamiliar. The first area we're ever in (spawn) is "home", marked known without a bump.
+	amount += _discover_area(perception, bond_cfg)
 	# time_scale lets the real ~10-hour bond curve be experienced quickly while tuning
 	# feel: the base rates are the real game, this multiplies them (set to 1.0 to ship).
 	amount *= float(bond_cfg.get("time_scale", 1.0))
@@ -242,6 +248,30 @@ func _shared_attention_novelty(perception: Dictionary, cfg: Dictionary) -> float
 	var seen := float(familiarity.get(key, 0.0))
 	familiarity[key] = seen + 1.0
 	return _novelty_factor(seen, cfg.get("bond", {}))
+
+
+## New-area discovery. Returns the (pre-time_scale) bond earned by crossing into a NEW area
+## this frame, 0 otherwise. Unlike props, an area is BINARY — you've been somewhere or you
+## haven't — so a discovered area pays nothing on return (not even a faded amount). The first
+## area we ever occupy (spawn, or a fresh load with no recorded area) is "home": marked known
+## without a bump. A genuine discovery also feeds the mood's discovery spike (a new place is
+## exciting). Area ids are world-namespaced, so this rewards new worlds as well as new regions.
+func _discover_area(perception: Dictionary, bond_cfg: Dictionary) -> float:
+	var area := String(perception.get("current_area", ""))
+	if area == "" or String(short_term.get("last_area", "")) == area:
+		return 0.0  # no areas configured, or still in the same area — no crossing
+	var first_ever := not short_term.has("last_area")
+	short_term["last_area"] = area
+	var key := "area:" + area
+	var seen := float(familiarity.get(key, 0.0))
+	if first_ever and seen == 0.0:
+		familiarity[key] = 1.0  # where we begin is home, not a discovery
+		return 0.0
+	familiarity[key] = seen + 1.0
+	if seen > 0.0:
+		return 0.0  # already been here — a known place earns no fresh bond
+	_last_discovery_novelty = maxf(_last_discovery_novelty, 1.0)
+	return float(bond_cfg.get("grow_per_area", 0.0))
 
 
 ## Each companion's resting mood — the center its feeling relaxes back to — is derived
@@ -411,6 +441,15 @@ static func _blend_target(weights: Dictionary, signals: Dictionary) -> float:
 	return 0.5 if total <= 0.0 else acc / total
 
 
+# How many distinct areas the companion has been to (including home), from the memory map.
+func _count_areas_found() -> int:
+	var n := 0
+	for key in familiarity:
+		if String(key).begins_with("area:"):
+			n += 1
+	return n
+
+
 ## A read-only snapshot of the identity for diagnostics: the bond, the drifting
 ## traits, the derived play signals, and the headline observation tallies. Reuses
 ## play_signals() so the overlay shows exactly the numbers drift reads.
@@ -424,6 +463,7 @@ func debug_state(cfg: Dictionary) -> Dictionary:
 		"play_seconds": float(observations.get("play_seconds", 0.0)),
 		"interactions": float(observations.get("interactions", 0.0)),
 		"familiar_props": familiarity.size(),
+		"areas_found": _count_areas_found(),
 		"mood_valence": mood_valence,
 		"mood_arousal": mood_arousal,
 		"mood_rest_valence": float(rest["valence"]),

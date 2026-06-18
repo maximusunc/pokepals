@@ -30,7 +30,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ built |
 | **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ✅ designed (cozy) |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | ✅ graded commitment inertia (within-band continuous; cross-band gradation deferred to danger era) |
-| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + shared-attention + trickle; new-area deferred) |
+| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + shared-attention + new-area + trickle) |
 
 ---
 
@@ -125,7 +125,14 @@ or idle time. Replaces the grindable model in current code.
 
 ### Meaningful-event sources (all novelty-gated unless noted)
 - **New-prop interaction** — first real encounter with a prop.
-- **New-area discovery** — reaching a new region (needs stable *area* ids).
+- **New-area discovery** ✅ — reaching a new region. Area id = `world_id:region_id`
+  (`WorldAreas.resolve`), resolved from the companion's position against rectangles authored
+  in `world.json`; a position in no region is the world default ("wilds"). **Binary**, not
+  decayed: a place you've been earns nothing on return (also makes it immune to
+  boundary-jitter farming). The spawn area is recorded as "home" — known, no bump. Because
+  ids are **world-namespaced** and familiarity persists, this scales straight to the
+  world-of-worlds north star: a brand-new world is all-novel, a revisited one is silent. A
+  discovery also feeds the mood discovery spike.
 - **Shared-attention moment** (from #1) — you and it attended to the same thing;
   novelty-gated per object (sharing the same rock twice doesn't keep paying).
 - **Proximity trickle** — the only non-novelty, time-based source; small.
@@ -338,9 +345,7 @@ In rough priority order for the cozy stage:
 
 1. **Appraisal model + tag vocabulary** — neutral world facts the companion
    interprets; scope depends on staying cozy. Lock the schema early but small.
-2. **New-area discovery** — the last deferred variety-bond source: reaching a new region
-   deepens bond. Needs stable area ids in `world.json` + region detection.
-3. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
+2. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
    context only until feel is proven.
 
 ---

@@ -57,6 +57,7 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 		"has_interaction": has_interaction,
 		"interaction_point": interaction_point,
 		"interaction_id": interaction_id,
+		"current_area": String(context.get("current_area", "")),
 		"has_poi": has_poi,
 		"nearest_poi": nearest_poi,
 	}
