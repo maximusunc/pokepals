@@ -1,0 +1,23 @@
+{
+	"_comment": "Art direction for Kithbound — the one place to re-skin the whole game. 'palette' is the shared set of colors the world AND the characters draw from; edit these to change the entire look. 'light.dir' is a single direction everything is lit from (up-left by default), which is what makes the scene feel cohesive — highlights land on that side, shadows fall opposite. 'characters'/'entities' choose procedural drawing or your own art: set render to 'sprite' and point 'sprite' at a res:// image to drop in art you made yourself (a missing file silently falls back to procedural). Colors are [r,g,b] or [r,g,b,a] in 0..1. Presentation-only: none of this touches game logic.",
+	"palette": {
+		"ground_top": [0.49, 0.63, 0.40],
+		"ground_bottom": [0.37, 0.51, 0.31],
+		"foliage_dark": [0.20, 0.36, 0.24],
+		"foliage_mid": [0.28, 0.46, 0.30],
+		"foliage_light": [0.42, 0.60, 0.40],
+		"bark": [0.41, 0.30, 0.21],
+		"water": [0.34, 0.52, 0.62],
+		"rim": [1.00, 0.96, 0.82],
+		"shadow": [0.05, 0.07, 0.10]
+	},
+	"light": { "dir": [-0.45, -0.89], "rim_strength": 0.22, "shadow_alpha": 0.20 },
+	"characters": {
+		"player": { "render": "procedural", "sprite": "", "body": [0.86, 0.52, 0.40], "accent": [0.96, 0.81, 0.67] },
+		"companion": { "render": "procedural", "sprite": "", "body": [0.56, 0.62, 0.86], "accent": [0.34, 0.37, 0.54] }
+	},
+	"entities": {
+		"tree": { "render": "procedural", "sprite": "" },
+		"great_tree": { "render": "procedural", "sprite": "" }
+	}
+}
