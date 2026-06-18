@@ -14,11 +14,20 @@ extends Node2D
 var velocity := Vector2.ZERO
 var _joystick: Node = null
 var _time := 0.0
+var _facing := Vector2.DOWN  # eased toward the movement direction, held when still
+var _style: ArtStyle
 
 
 func _ready() -> void:
 	if joystick_path != NodePath(""):
 		_joystick = get_node_or_null(joystick_path)
+	if _style == null:
+		_style = ArtStyle.load_style()
+
+
+## Hand the avatar its shared art direction (palette + light). Called by the world.
+func set_style(style: ArtStyle) -> void:
+	_style = style
 
 
 func _process(delta: float) -> void:
@@ -29,6 +38,9 @@ func _process(delta: float) -> void:
 	# framerate-independent lerp weight.
 	velocity = velocity.lerp(desired, 1.0 - exp(-accel * delta))
 	position += velocity * delta
+	# Face where we're heading; hold the last facing when standing still.
+	if velocity.length() > 8.0:
+		_facing = _facing.lerp(velocity.normalized(), 1.0 - exp(-8.0 * delta))
 	queue_redraw()
 
 
@@ -50,11 +62,13 @@ func _input_direction() -> Vector2:
 
 
 func _draw() -> void:
-	var moving := velocity.length() > 8.0
-	var step := absf(sin(_time * 11.0)) * 2.0 if moving else 0.0
-	# soft shadow
-	draw_circle(Vector2(0, 8), 9.0, Color(0, 0, 0, 0.18))
-	# body
-	draw_circle(Vector2(0, -4 - step), 10.0, Color(0.82, 0.49, 0.38))
-	# head
-	draw_circle(Vector2(0, -18 - step), 7.0, Color(0.96, 0.81, 0.67))
+	var cfg := _style.character("player")
+	VectorActor.draw(self, _style, {
+		"facing": _facing,
+		"speed": velocity.length(),
+		"time": _time,
+		"body_color": WorldData.to_color(cfg.get("body", [0.86, 0.52, 0.40])),
+		"accent_color": WorldData.to_color(cfg.get("accent", [0.96, 0.81, 0.67])),
+		"radius": 10.0,
+		"head": true,
+	})

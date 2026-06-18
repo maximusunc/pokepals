@@ -31,12 +31,17 @@ var _eye_offset := Vector2.ZERO
 var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
-var _body_color := Color(0.56, 0.62, 0.86)
+var _style: ArtStyle
 
 
 ## Called by the world to hand the companion its player to follow.
 func setup(player: PlayerView) -> void:
 	_player = player
+
+
+## Hand the avatar its shared art direction (palette + light). Called by the world.
+func set_style(style: ArtStyle) -> void:
+	_style = style
 
 
 ## Called by the world to tell the companion where the standing props are, so it
@@ -74,6 +79,8 @@ func _ready() -> void:
 		# follow-inclined) rather than always the exact same temperament.
 		existing_self = CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
 	_brain = CompanionBrain.new(_cfg, 0, existing_self)
+	if _style == null:
+		_style = ArtStyle.load_style()
 
 
 func _process(delta: float) -> void:
@@ -193,24 +200,21 @@ func _decay_animation(delta: float) -> void:
 
 
 func _draw() -> void:
-	var moving := velocity.length() > 6.0
-	var body_y: float
-	if moving:
-		body_y = -absf(sin(_time * 12.0)) * 3.0  # little running hop
-	else:
-		body_y = _bob * 1.4                       # gentle breathing bob
-	var scale := 1.0 + 0.16 * _perk - 0.12 * _hop_squash
-	var body_pos := Vector2(0, body_y - 2.0)
-	var radius := 9.0 * scale
-
-	# soft shadow (stays put on the ground)
-	draw_circle(Vector2(0, 7), 7.5, Color(0, 0, 0, 0.18))
-	# body
-	draw_circle(body_pos, radius, _body_color)
-	# two little ears
-	draw_circle(body_pos + Vector2(-5, -7), 3.0, _body_color)
-	draw_circle(body_pos + Vector2(5, -7), 3.0, _body_color)
-	# eyes, shifted toward whatever it's attending to
-	var eye_color := Color(0.12, 0.12, 0.16)
-	draw_circle(body_pos + Vector2(-3, -1) + _eye_offset, 1.9, eye_color)
-	draw_circle(body_pos + Vector2(3, -1) + _eye_offset, 1.9, eye_color)
+	# It faces where it walks when moving, and where it's looking (attending) when
+	# still; the brain-driven hop/perk become the actor's squash/stretch, and the
+	# eased eye_offset keeps the eyes tracking whatever it's attending to.
+	var cfg := _style.character("companion")
+	var facing := _look_dir
+	if velocity.length() > 6.0:
+		facing = velocity.normalized()
+	VectorActor.draw(self, _style, {
+		"facing": facing,
+		"speed": velocity.length(),
+		"time": _time,
+		"squash": 0.16 * _perk - 0.12 * _hop_squash,
+		"body_color": WorldData.to_color(cfg.get("body", [0.56, 0.62, 0.86])),
+		"accent_color": WorldData.to_color(cfg.get("accent", [0.34, 0.37, 0.54])),
+		"radius": 9.0,
+		"ears": true,
+		"eye_offset": _eye_offset,
+	})

@@ -7,6 +7,7 @@ extends Node2D
 ## about it.
 
 const WORLD_PATH := "res://data/world.json"
+const ART_PATH := "res://data/art.json"
 const INTERACT_RANGE := 60.0
 
 @onready var _world_art: WorldArt = $WorldArt
@@ -32,11 +33,16 @@ var _intro_tween: Tween  # fades the opening "how to move" hint away after a few
 func _ready() -> void:
 	var data := WorldData.load_json(WORLD_PATH)
 
+	# Shared art direction (palette + light): the one place the whole look is tuned.
+	var style := ArtStyle.load_style(ART_PATH)
+	_player.set_style(style)
+	_companion.set_style(style)
+
 	_player.position = WorldData.to_vec2(data["player_spawn"])
 	_companion.position = WorldData.to_vec2(data["companion_spawn"])
 	_companion.setup(_player)
 
-	_world_art.render_world(data)
+	_world_art.render_world(data, style)
 	_apply_atmosphere(data.get("atmosphere", {}))
 
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])

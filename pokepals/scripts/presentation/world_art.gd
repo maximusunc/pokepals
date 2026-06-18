@@ -25,13 +25,18 @@ var _wind_speed := 1.15
 var _glow_pulse_speed := 1.4
 var _region_tint_alpha := 0.12
 var _ground_noise: ImageTexture = null
+var _style: ArtStyle
+var _ground_grad: GradientTexture2D = null
 
 
-func render_world(data: Dictionary) -> void:
+func render_world(data: Dictionary, style: ArtStyle = null) -> void:
+	_style = style if style != null else ArtStyle.load_style()
 	_ground_color = WorldData.to_color(data["ground_color"])
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
 	_bounds = Rect2(bmin, bmax - bmin)
+	# A soft top→bottom ground gradient (palette), baked once, drawn under the dapple.
+	_ground_grad = _style.make_vertical_gradient_texture(_style.color("ground_top"), _style.color("ground_bottom"))
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -206,9 +211,11 @@ func _sway(phase: float, gain: float) -> float:
 
 
 func _draw() -> void:
-	draw_rect(_bounds, _ground_color)
-
-	# dappled ground: a soft noise overlay stretched across the whole field
+	# ground: a soft vertical palette gradient, with the dapple noise laid over it
+	if _ground_grad != null:
+		draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
+	else:
+		draw_rect(_bounds, _ground_color)
 	if _ground_noise != null:
 		draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
 
@@ -258,14 +265,22 @@ func _draw() -> void:
 		_draw_prop(it["type"], it["pos"], it["color"])
 
 	# trees (shadow + trunk + layered, wind-swayed canopy), drawn last so they sit above
+	var bark := _style.color("bark")
+	var f_dark := _style.color("foliage_dark")
+	var f_mid := _style.color("foliage_mid")
+	var f_light := _style.color("foliage_light")
 	for t in _trees:
 		var tp: Vector2 = t["pos"]
 		var cs := _sway(t["phase"], 1.0)  # canopy catches the most wind
 		_draw_shadow(tp + Vector2(0, 4), 18.0, 0.20)
-		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(8, 22)), Color(0.42, 0.31, 0.22))
-		draw_circle(tp + Vector2(cs, -22), 22.0, Color(0.27, 0.44, 0.28))
-		draw_circle(tp + Vector2(-12 + cs, -16), 15.0, Color(0.30, 0.48, 0.31))
-		draw_circle(tp + Vector2(12 + cs, -16), 15.0, Color(0.30, 0.48, 0.31))
+		# trunk with a lit left edge (light comes from up-left by default)
+		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(8, 22)), bark)
+		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(2.5, 22)), bark.lightened(0.12))
+		# canopy: dark side-lobes first, a mid mass, then a lit blob on top for volume
+		draw_circle(tp + Vector2(-11 + cs, -15), 14.0, f_dark)
+		draw_circle(tp + Vector2(11 + cs, -15), 14.0, f_dark)
+		draw_circle(tp + Vector2(cs, -20), 21.0, f_mid)
+		_style.draw_blob(self, tp + Vector2(cs, -23), 15.0, f_light)
 
 	# landmarks, drawn last and large so they read as beacons across the world
 	for lm in _landmarks:
@@ -280,19 +295,26 @@ func _draw_landmark(lm: Dictionary) -> void:
 	match String(lm["type"]):
 		_:  # "great_tree" (and the default)
 			var sway := _sway(lm["phase"], 1.4)
+			var bark := _style.color("bark")
+			var f_dark := _style.color("foliage_dark")
+			var f_mid := _style.color("foliage_mid")
+			var f_light := _style.color("foliage_light")
 			_draw_shadow(p + Vector2(0, 8), 36.0, 0.22)
-			draw_rect(Rect2(p + Vector2(-7, -10), Vector2(14, 40)), Color(0.40, 0.29, 0.20))
-			draw_circle(p + Vector2(sway, -52), 46.0, Color(0.23, 0.39, 0.25))
-			draw_circle(p + Vector2(-28 + sway, -40), 30.0, Color(0.27, 0.44, 0.28))
-			draw_circle(p + Vector2(28 + sway, -40), 30.0, Color(0.27, 0.44, 0.28))
-			draw_circle(p + Vector2(sway * 0.8, -66), 27.0, Color(0.31, 0.49, 0.32))
+			draw_rect(Rect2(p + Vector2(-7, -10), Vector2(14, 40)), bark)
+			draw_rect(Rect2(p + Vector2(-7, -10), Vector2(4.0, 40)), bark.lightened(0.12))
+			draw_circle(p + Vector2(-28 + sway, -40), 30.0, f_dark)
+			draw_circle(p + Vector2(28 + sway, -40), 30.0, f_dark)
+			draw_circle(p + Vector2(sway, -50), 44.0, f_mid)
+			_style.draw_blob(self, p + Vector2(sway * 0.8, -60), 32.0, f_light)
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as
 ## a circle squashed vertically via the draw transform, then the transform is reset.
 func _draw_shadow(pos: Vector2, r: float, alpha: float) -> void:
-	draw_set_transform(pos, 0.0, Vector2(1.0, 0.42))
-	draw_circle(Vector2.ZERO, r, Color(0, 0, 0, alpha))
+	var c := _style.color("shadow")
+	var off := -_style.light_dir() * (r * 0.16)  # shadows fall away from the light
+	draw_set_transform(pos + off, 0.0, Vector2(1.0, 0.42))
+	draw_circle(Vector2.ZERO, r, Color(c.r, c.g, c.b, alpha))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
