@@ -30,7 +30,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ built |
 | **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ✅ designed (cozy) |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
-| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + trickle; area/shared-attention deferred) |
+| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + shared-attention + trickle; new-area deferred) |
 
 ---
 
@@ -102,9 +102,13 @@ bonded won't, bonded will). Same shape — door stays open.
   dice are pre-rolled in the brain on a **dedicated `_ref_rng`** and passed via perception,
   so the action RNG stream — and every seeded test — is byte-for-byte unchanged. On the
   debug overlay as "attending to you". Unit-tested in `TestCompanionAttention`.
-- ⬜ **Now unlocked, queued next:** the deferred **shared-attention bond source**
-  (Mechanism #4) and the **shared-attention / being-noticed mood drivers** (Mechanism #2)
-  both depended on this read and can now be wired (novelty-gated, per the #4 rules).
+- ✅ **Payoffs wired.** Shared-attention now feeds **bond** (`grow_per_shared_attention`,
+  novelty-gated in the familiarity map — co-attending the same spot fades) and **mood**
+  (a warming valence lift). Added a **being-noticed** read (`noticed_strength`: the player
+  turning toward and easing up to the companion) that also lifts valence. A shared moment
+  is counted when attention is strong enough *and* the companion is beside what you're
+  focused on; suppressed on a frame you actually examined something (that moment counts
+  once). Tested in `TestCompanionSelf` (+ being-noticed reads in `TestCompanionAttention`).
 
 ---
 

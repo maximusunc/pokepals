@@ -17,30 +17,52 @@ extends RefCounted
 ## its believable BEAT OF LATENCY: it catches on a moment after you settle on something.
 ##
 ## Output (merged into perception by the brain):
-##   { has_attended: bool, attended_object: Vector2, attention_strength: 0..1 }
-## Pure of RNG and the scene tree; deterministic given the same inputs and prior state.
+##   { has_attended: bool, attended_object: Vector2, attention_strength: 0..1,
+##     noticed_strength: 0..1 }
+## noticed_strength is the flip side: how much the player seems to be attending to the
+## COMPANION itself — turning toward and easing up to YOU — read with the same vocabulary
+## but no dwell (being noticed is a momentary thing). It feeds the mood (being noticed
+## feels good). Pure of RNG and the scene tree; deterministic given the same inputs.
 
 var _dwell: Dictionary = {}   # candidate index -> seconds lingered slow-and-near it
 var _locked := -1             # the candidate we're currently reporting (for hysteresis)
 var _hold := 0.0              # seconds left holding the lock before we'll freely switch
 
 
-func _none() -> Dictionary:
-	return { "has_attended": false, "attended_object": Vector2.ZERO, "attention_strength": 0.0 }
+func _result(has_attended: bool, attended: Vector2, strength: float, noticed: float) -> Dictionary:
+	return {
+		"has_attended": has_attended,
+		"attended_object": attended,
+		"attention_strength": strength,
+		"noticed_strength": noticed,
+	}
 
 
-## Advance one frame and report what the player seems focused on. A no-op (returns none)
-## without "attention" config, on a zero/negative delta, or when there are no POIs.
+# How much the player seems to be attending to the COMPANION itself: near + slow +
+# approaching it. No dwell — being noticed is a glance-up moment, not a lingering. Zero
+# without a companion position to read.
+func _noticed(context: Dictionary, ac: Dictionary, player_pos: Vector2, player_vel: Vector2, speed: float, slowness: float) -> float:
+	if not context.has("companion_pos"):
+		return 0.0
+	var cpos: Vector2 = context["companion_pos"]
+	var notice_radius := float(ac.get("notice_radius", 120.0))
+	var d := player_pos.distance_to(cpos)
+	if d > notice_radius:
+		return 0.0
+	var proximity := 1.0 - d / notice_radius
+	var toward := cpos - player_pos
+	var approaching := speed > 1.0 and toward.dot(player_vel) > 0.0
+	var engagement := 1.0 if approaching else float(ac.get("notice_floor", 0.0))
+	return clampf(proximity * slowness * engagement, 0.0, 1.0)
+
+
+## Advance one frame and report what the player seems focused on (and whether they seem to
+## be noticing the companion). A no-op without "attention" config or on a zero/negative
+## delta; being-noticed is still read even when there are no POIs.
 func update(context: Dictionary, cfg: Dictionary, delta: float) -> Dictionary:
 	var ac: Dictionary = cfg.get("attention", {})
 	if ac.is_empty() or delta <= 0.0:
-		return _none()
-	var pois: Array = context.get("points_of_interest", [])
-	if pois.is_empty():
-		_dwell.clear()
-		_locked = -1
-		_hold = 0.0
-		return _none()
+		return _result(false, Vector2.ZERO, 0.0, 0.0)
 
 	var player_pos: Vector2 = context["player_pos"]
 	var player_vel: Vector2 = context.get("player_velocity", Vector2.ZERO)
@@ -54,6 +76,14 @@ func update(context: Dictionary, cfg: Dictionary, delta: float) -> Dictionary:
 	var approach_floor := float(ac.get("approach_floor", 0.0))
 
 	var slowness := clampf(1.0 - speed / maxf(slow_speed, 0.001), 0.0, 1.0)
+	var noticed := _noticed(context, ac, player_pos, player_vel, speed, slowness)
+
+	var pois: Array = context.get("points_of_interest", [])
+	if pois.is_empty():
+		_dwell.clear()
+		_locked = -1
+		_hold = 0.0
+		return _result(false, Vector2.ZERO, 0.0, noticed)
 
 	# Score every candidate, advancing/draining its dwell, and remember the strongest.
 	var strengths: Dictionary = {}
@@ -90,7 +120,7 @@ func update(context: Dictionary, cfg: Dictionary, delta: float) -> Dictionary:
 	if best == -1 or best_strength < min_strength:
 		_locked = -1
 		_hold = 0.0
-		return _none()
+		return _result(false, Vector2.ZERO, 0.0, noticed)
 
 	# Hysteresis: once locked onto something, hold it briefly and require a clear margin to
 	# switch, so the gaze doesn't flicker between two nearby props frame to frame.
@@ -105,8 +135,4 @@ func update(context: Dictionary, cfg: Dictionary, delta: float) -> Dictionary:
 		_hold = maxf(0.0, _hold - delta)
 	_locked = chosen
 
-	return {
-		"has_attended": true,
-		"attended_object": pois[chosen] as Vector2,
-		"attention_strength": float(strengths[chosen]),
-	}
+	return _result(true, pois[chosen] as Vector2, float(strengths[chosen]), noticed)

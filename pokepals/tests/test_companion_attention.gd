@@ -12,6 +12,8 @@ static func run_all() -> int:
 	fails += _test_dwell_strengthens_over_time(cfg)
 	fails += _test_fast_player_does_not_attend(cfg)
 	fails += _test_approach_engages_immediately(cfg)
+	fails += _test_reads_being_noticed(cfg)
+	fails += _test_not_noticed_when_idle_beside(cfg)
 	return fails
 
 
@@ -85,3 +87,28 @@ static func _test_approach_engages_immediately(cfg: Dictionary) -> int:
 	fails += _ok(out["has_attended"], "approaching a prop engages attention at once")
 	fails += _ok(float(out["attention_strength"]) > 0.2, "approach gives a meaningful strength immediately")
 	return fails
+
+
+# Being noticed: the player turning toward and easing up to the companion itself.
+static func _test_reads_being_noticed(cfg: Dictionary) -> int:
+	var a := CompanionAttention.new()
+	var ctx := {
+		"player_pos": Vector2.ZERO,
+		"player_velocity": Vector2(30, 0),  # slow, toward the companion
+		"companion_pos": Vector2(50, 0),
+		"points_of_interest": [],
+	}
+	var out := a.update(ctx, cfg, 0.1)
+	return _ok(float(out["noticed_strength"]) > 0.2, "reads the player coming over as being noticed")
+
+
+static func _test_not_noticed_when_idle_beside(cfg: Dictionary) -> int:
+	var a := CompanionAttention.new()
+	var ctx := {
+		"player_pos": Vector2.ZERO,
+		"player_velocity": Vector2.ZERO,  # just standing there
+		"companion_pos": Vector2(50, 0),
+		"points_of_interest": [],
+	}
+	var out := a.update(ctx, cfg, 0.1)
+	return _ok(float(out["noticed_strength"]) == 0.0, "merely standing near isn't being noticed (needs turning toward)")

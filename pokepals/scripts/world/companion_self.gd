@@ -47,6 +47,7 @@ var familiarity: Dictionary = {}
 # mood update so a habituated prop barely moves the mood. And how long it's been since
 # anything novel happened, for the boredom drift.
 var _last_discovery_novelty: float = 0.0
+var _last_shared_novelty: float = 0.0
 var _seconds_since_novelty: float = 999.0
 
 
@@ -137,11 +138,13 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 
 
 ## The bond DEEPENS through genuine play — discovery and shared moments — not idle
-## time. Two sources remain:
+## time. Three sources:
 ##   1. A NOVELTY-weighted bump on each shared examine: the first real encounter with a
 ##      prop pays full, every repeat pays less (decaying to ~0), so poking one thing over
 ##      and over stops growing bond. The discount is permanent (familiarity never fades).
-##   2. A slow proximity TRICKLE while you stay close — the gentle long-tail finisher,
+##   2. A SHARED-ATTENTION bump when the companion is right beside whatever the player is
+##      attending to (from social referencing) — novelty-weighted the same way.
+##   3. A slow proximity TRICKLE while you stay close — the gentle long-tail finisher,
 ##      deliberately weak so parking next to the companion is never the optimal play.
 ## Raw presence (growing just from the game running) is gone — it was farmable. Kept
 ## bounded so the wanderer->companion shift is felt across a session, not flipped in
@@ -163,6 +166,15 @@ func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: boo
 		_last_discovery_novelty = novelty
 		amount += float(bond_cfg.get("grow_per_interaction", 0.0)) * novelty
 		familiarity[key] = seen + 1.0
+	# Shared-attention moment (from social referencing): you and it focused on the SAME
+	# thing — the companion is right beside whatever you're attending to. A real bond beat,
+	# novelty-gated in the same familiarity map (sharing the same spot twice stops paying).
+	# Suppressed on a frame you actually examined something, so that moment counts once.
+	_last_shared_novelty = 0.0
+	if not perception["has_interaction"]:
+		_last_shared_novelty = _shared_attention_novelty(perception, cfg)
+		if _last_shared_novelty > 0.0:
+			amount += float(bond_cfg.get("grow_per_shared_attention", 0.0)) * _last_shared_novelty
 	# time_scale lets the real ~10-hour bond curve be experienced quickly while tuning
 	# feel: the base rates are the real game, this multiplies them (set to 1.0 to ship).
 	amount *= float(bond_cfg.get("time_scale", 1.0))
@@ -185,6 +197,27 @@ static func _familiarity_key(perception: Dictionary) -> String:
 		return id
 	var p: Vector2 = perception.get("interaction_point", Vector2.ZERO)
 	return "pos:%d,%d" % [roundi(p.x / 24.0), roundi(p.y / 24.0)]
+
+
+## Detects a shared-attention moment and returns its novelty (0 if none), bumping the
+## familiarity tally for the shared spot as a side effect so repeats fade — mirroring the
+## discovery path. A shared moment = the player is clearly attending to something the
+## companion is right beside. Keyed by quantized position, since POIs reach perception as
+## bare points (no id); kept in its own "share:" namespace.
+func _shared_attention_novelty(perception: Dictionary, cfg: Dictionary) -> float:
+	if not bool(perception.get("has_attended", false)):
+		return 0.0
+	var ac: Dictionary = cfg.get("attention", {})
+	if float(perception.get("attention_strength", 0.0)) < float(ac.get("share_min_strength", 0.25)):
+		return 0.0
+	var attended: Vector2 = perception.get("attended_object", Vector2.ZERO)
+	var companion_pos: Vector2 = perception.get("companion_pos", Vector2.ZERO)
+	if companion_pos.distance_to(attended) > float(ac.get("share_distance", 90.0)):
+		return 0.0
+	var key := "share:%d,%d" % [roundi(attended.x / 24.0), roundi(attended.y / 24.0)]
+	var seen := float(familiarity.get(key, 0.0))
+	familiarity[key] = seen + 1.0
+	return _novelty_factor(seen, cfg.get("bond", {}))
 
 
 ## Each companion's resting mood — the center its feeling relaxes back to — is derived
@@ -246,6 +279,14 @@ func update_mood(perception: Dictionary, cfg: Dictionary, delta: float, rng: Ran
 	# Boredom: a stretch without novelty quiets arousal a touch.
 	if _seconds_since_novelty > float(m.get("boredom_onset", 12.0)):
 		mood_arousal -= float(m.get("boredom_arousal_rate", 0.0)) * delta
+
+	# Shared attention (from social referencing): focusing on the same thing together is
+	# warming — a valence lift, novelty-weighted so co-attending the same spot fades.
+	if _last_shared_novelty > 0.0:
+		mood_valence += float(m.get("shared_attention_valence", 0.0)) * _last_shared_novelty
+	# Being noticed — the player turning toward and easing up to us — feels good (a gentle
+	# continuous lift while it's happening).
+	mood_valence += float(m.get("noticed_valence_gain", 0.0)) * float(perception.get("noticed_strength", 0.0)) * delta
 
 	# Random walk — the main variety source (Brownian, so it's frame-rate independent).
 	var walk := float(m.get("walk_amp", 0.0)) * sqrt(delta)

@@ -25,6 +25,9 @@ static func run_all() -> int:
 	fails += _test_mood_spikes_on_novel_discovery(cfg)
 	fails += _test_mood_spike_dampens_with_habituation(cfg)
 	fails += _test_mood_overlays_effective_traits(cfg)
+	fails += _test_shared_attention_grows_bond(cfg)
+	fails += _test_shared_attention_lifts_valence(cfg)
+	fails += _test_being_noticed_lifts_valence(cfg)
 	return fails
 
 
@@ -349,3 +352,66 @@ static func _test_mood_overlays_effective_traits(cfg: Dictionary) -> int:
 	s.mood_valence = 0.9
 	fails += _ok(is_equal_approx(CompanionTraits.value(s, cfg, "curiosity"), s.trait_value("curiosity")), "curiosity is unaffected by mood")
 	return fails
+
+
+# A perception of a shared-attention moment: the companion right beside something the
+# player is clearly attending to, with no explicit examine this frame.
+static func _perception_shared(companion_pos: Vector2, attended: Vector2, strength: float) -> Dictionary:
+	return {
+		"player_velocity": Vector2.ZERO,
+		"dist_to_player": 10.0,
+		"follow_near": 100.0,
+		"has_interaction": false,
+		"interaction_id": "",
+		"interaction_point": Vector2.ZERO,
+		"has_attended": true,
+		"attention_strength": strength,
+		"attended_object": attended,
+		"companion_pos": companion_pos,
+		"noticed_strength": 0.0,
+	}
+
+
+# Focusing on the same thing together grows the bond — and, like other sources, it's
+# novelty-gated, so co-attending the same spot pays less each time.
+static func _test_shared_attention_grows_bond(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var b0 := s.bond
+	s.observe(_perception_shared(Vector2.ZERO, Vector2(40, 0), 0.8), cfg, 0.0)
+	var first := s.bond - b0
+	var b1 := s.bond
+	s.observe(_perception_shared(Vector2.ZERO, Vector2(40, 0), 0.8), cfg, 0.0)
+	var second := s.bond - b1
+	var fails := 0
+	fails += _ok(first > 0.0, "a shared-attention moment grows bond")
+	fails += _ok(second < first, "repeating the same shared spot grows bond less (novelty)")
+	# A weak/far signal isn't a shared moment at all.
+	var t := CompanionSelf.make_default(cfg)
+	var t0 := t.bond
+	t.observe(_perception_shared(Vector2.ZERO, Vector2(400, 0), 0.8), cfg, 0.0)  # too far
+	fails += _ok(is_equal_approx(t.bond, t0), "a prop the companion isn't beside is not a shared moment")
+	return fails
+
+
+static func _test_shared_attention_lifts_valence(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var rest_v := s.mood_valence
+	var p := _perception_shared(Vector2.ZERO, Vector2(40, 0), 0.8)
+	s.observe(p, c, 0.1)
+	s.update_mood(p, c, 0.1, _rng())
+	return _ok(s.mood_valence > rest_v + 0.05, "a shared-attention moment lifts valence")
+
+
+static func _test_being_noticed_lifts_valence(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var rest_v := s.mood_valence
+	var p := _perception(true)
+	p["has_attended"] = false
+	p["noticed_strength"] = 0.8  # the player is turning toward and coming over
+	for _i in 20:
+		s.update_mood(p, c, 0.1, _rng())
+	return _ok(s.mood_valence > rest_v + 0.05, "being noticed by the player lifts valence")

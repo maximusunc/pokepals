@@ -82,6 +82,7 @@ func update(context: Dictionary) -> Dictionary:
 	perception["has_attended"] = attention["has_attended"]
 	perception["attended_object"] = attention["attended_object"]
 	perception["attention_strength"] = attention["attention_strength"]
+	perception["noticed_strength"] = attention["noticed_strength"]
 	perception["glance_roll"] = _ref_rng.randf()
 	perception["cue_roll"] = _ref_rng.randf()
 
