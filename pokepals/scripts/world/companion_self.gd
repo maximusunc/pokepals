@@ -19,6 +19,11 @@ extends RefCounted
 ##   mood:         a light, fast-moving feeling (-1 subdued .. 1 excited) that
 ##                 eases back toward 0; reflects recent moments, not character.
 ##   short_term:   small working memory (e.g. the last point of interest).
+##   familiarity:  per-prop encounter tallies (keyed by a stable prop id). Bond
+##                 gain from examining a thing is NOVELTY-weighted against this, so
+##                 the first real encounter pays and repeats fade to ~0 — you can't
+##                 farm bond by poking one prop. Permanent (a familiar prop stays
+##                 quiet); this is also the seed of the companion's memory.
 ##
 ## from_dict() always starts from make_default() and layers saved values on top,
 ## so older save files keep loading as the schema grows.
@@ -30,6 +35,7 @@ var bond: float = 0.0
 var observations: Dictionary = {}
 var mood: float = 0.0
 var short_term: Dictionary = {}
+var familiarity: Dictionary = {}
 
 
 ## A fresh self seeded from the companion config. Traits come from an explicit
@@ -42,6 +48,7 @@ static func make_default(cfg: Dictionary) -> CompanionSelf:
 	s.observations = _default_observations()
 	s.mood = 0.0
 	s.short_term = {}
+	s.familiarity = {}
 	return s
 
 
@@ -116,24 +123,50 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 	_grow_bond(perception, cfg, delta, near)
 
 
-## The bond DEEPENS with time spent together. It always grows a little just from
-## the companion being present with you, faster while you stay close, and gets a
-## small bump whenever you examine something near it (a shared moment). Kept gentle
-## and bounded so the shift from independent-wanderer to devoted-follower is felt
-## across a session, not flipped in seconds. A no-op without "bond" config.
+## The bond DEEPENS through genuine play — discovery and shared moments — not idle
+## time. Two sources remain:
+##   1. A NOVELTY-weighted bump on each shared examine: the first real encounter with a
+##      prop pays full, every repeat pays less (decaying to ~0), so poking one thing over
+##      and over stops growing bond. The discount is permanent (familiarity never fades).
+##   2. A slow proximity TRICKLE while you stay close — the gentle long-tail finisher,
+##      deliberately weak so parking next to the companion is never the optimal play.
+## Raw presence (growing just from the game running) is gone — it was farmable. Kept
+## bounded so the wanderer->companion shift is felt across a session, not flipped in
+## seconds. A no-op without "bond" config.
 func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: bool) -> void:
 	if not cfg.has("bond"):
 		return
 	var bond_cfg: Dictionary = cfg["bond"]
-	var amount := float(bond_cfg.get("grow_per_sec", 0.0)) * delta
+	var amount := 0.0
 	if near:
 		amount += float(bond_cfg.get("grow_per_sec_near", 0.0)) * delta
 	if perception["has_interaction"]:
-		amount += float(bond_cfg.get("grow_per_interaction", 0.0))
+		var key := _familiarity_key(perception)
+		var seen := float(familiarity.get(key, 0.0))
+		amount += float(bond_cfg.get("grow_per_interaction", 0.0)) * _novelty_factor(seen, bond_cfg)
+		familiarity[key] = seen + 1.0
 	# time_scale lets the real ~10-hour bond curve be experienced quickly while tuning
 	# feel: the base rates are the real game, this multiplies them (set to 1.0 to ship).
 	amount *= float(bond_cfg.get("time_scale", 1.0))
 	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
+
+
+## How fresh the Nth encounter with a prop is, 1.0 (first, seen == 0) decaying geometrically
+## toward 0. novelty_decay in (0,1) sets the falloff: lower = goes quiet faster. This is the
+## un-grindable mechanism — and what later makes the companion stop reacting to stale stimuli.
+static func _novelty_factor(seen: float, bond_cfg: Dictionary) -> float:
+	return pow(clampf(float(bond_cfg.get("novelty_decay", 0.4)), 0.0, 0.999), maxf(seen, 0.0))
+
+
+## A stable key for habituation. Prefer the explicit prop id the world hands us; if none,
+## fall back to a quantized position so distinct spots still read as distinct things while
+## repeatedly poking one spot still habituates.
+static func _familiarity_key(perception: Dictionary) -> String:
+	var id := String(perception.get("interaction_id", ""))
+	if id != "":
+		return id
+	var p: Vector2 = perception.get("interaction_point", Vector2.ZERO)
+	return "pos:%d,%d" % [roundi(p.x / 24.0), roundi(p.y / 24.0)]
 
 
 ## Normalized 0..1 read-outs of how the player plays, derived from observations:
@@ -200,6 +233,7 @@ func debug_state(cfg: Dictionary) -> Dictionary:
 		"signals": play_signals(cfg),
 		"play_seconds": float(observations.get("play_seconds", 0.0)),
 		"interactions": float(observations.get("interactions", 0.0)),
+		"familiar_props": familiarity.size(),
 	}
 
 
@@ -213,6 +247,7 @@ func to_dict() -> Dictionary:
 		"observations": observations.duplicate(true),
 		"mood": mood,
 		"short_term": short_term.duplicate(true),
+		"familiarity": familiarity.duplicate(true),
 	}
 
 
@@ -231,4 +266,7 @@ static func from_dict(data: Dictionary, cfg: Dictionary) -> CompanionSelf:
 		s.mood = clampf(float(data["mood"]), -1.0, 1.0)
 	if data.get("short_term") is Dictionary:
 		s.short_term = (data["short_term"] as Dictionary).duplicate(true)
+	if data.get("familiarity") is Dictionary:
+		for key in data["familiarity"]:
+			s.familiarity[key] = maxf(float(data["familiarity"][key]), 0.0)
 	return s

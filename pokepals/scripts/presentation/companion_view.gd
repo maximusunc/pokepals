@@ -44,9 +44,10 @@ func set_points_of_interest(points: Array) -> void:
 
 
 ## Called by the world when the player interacts with something — the brain may
-## decide to grow curious about it.
-func notify_interaction(world_position: Vector2) -> void:
-	_events.append({ "type": "interaction", "position": world_position })
+## decide to grow curious about it. The stable prop `id` lets the companion tell one
+## thing from another, so bond growth can habituate per-prop (see CompanionSelf).
+func notify_interaction(world_position: Vector2, id: String = "") -> void:
+	_events.append({ "type": "interaction", "position": world_position, "id": id })
 
 
 func _ready() -> void:

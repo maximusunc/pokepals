@@ -17,6 +17,10 @@ static func run_all() -> int:
 	fails += _test_make_default_unchanged(cfg)
 	fails += _test_make_random_stays_near_init(cfg)
 	fails += _test_make_random_varies(cfg)
+	fails += _test_bond_does_not_grow_from_idle_presence(cfg)
+	fails += _test_bond_habituates_on_repeat(cfg)
+	fails += _test_bond_full_novelty_for_a_new_prop(cfg)
+	fails += _test_familiarity_round_trips(cfg)
 	return fails
 
 
@@ -178,3 +182,72 @@ static func _seeded(seed_value: int) -> RandomNumberGenerator:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = seed_value
 	return rng
+
+
+# A minimal perception dict for exercising observe()/_grow_bond without the brain.
+static func _perception(near: bool, interaction_id: String = "") -> Dictionary:
+	return {
+		"player_velocity": Vector2.ZERO,
+		"dist_to_player": 10.0 if near else 5000.0,
+		"follow_near": 100.0,
+		"has_interaction": interaction_id != "",
+		"interaction_id": interaction_id,
+		"interaction_point": Vector2.ZERO,
+	}
+
+
+# Bond must NOT grow from idle presence (the old farmable raw-presence source is gone).
+# Standing far away with no interaction leaves it flat.
+static func _test_bond_does_not_grow_from_idle_presence(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	for _i in 600:
+		s.observe(_perception(false), cfg, 0.1)
+	return _ok(is_equal_approx(s.bond, 0.0), "bond stays flat from idle, far-away presence")
+
+
+# Examining the SAME prop pays less each time (habituation): the second poke grows bond
+# strictly less than the first, and a long run of repeats drives the gain toward ~0.
+static func _test_bond_habituates_on_repeat(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var before1 := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)  # delta 0 isolates the interaction
+	var first_gain := s.bond - before1
+
+	var before2 := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var second_gain := s.bond - before2
+
+	var fails := 0
+	fails += _ok(first_gain > 0.0, "first examine of a prop grows bond")
+	fails += _ok(second_gain < first_gain, "repeating the same prop grows bond less (habituation)")
+
+	for _i in 30:
+		s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var before_late := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	fails += _ok((s.bond - before_late) < first_gain * 0.05, "a thoroughly-familiar prop adds ~nothing")
+	return fails
+
+
+# A different prop is fresh again: its first examine pays full novelty, same as the first
+# prop's did — novelty is per-prop, not global.
+static func _test_bond_full_novelty_for_a_new_prop(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var b0 := s.bond
+	s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var gain_a := s.bond - b0
+	# Habituate the first prop hard, then meet a brand-new one.
+	for _i in 20:
+		s.observe(_perception(false, "chime_stone"), cfg, 0.0)
+	var b1 := s.bond
+	s.observe(_perception(false, "crystal"), cfg, 0.0)
+	var gain_b := s.bond - b1
+	return _ok(is_equal_approx(gain_a, gain_b), "a new prop pays full novelty even after another is exhausted")
+
+
+static func _test_familiarity_round_trips(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observe(_perception(false, "lantern"), cfg, 0.0)
+	s.observe(_perception(false, "lantern"), cfg, 0.0)
+	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
+	return _ok(is_equal_approx(float(restored.familiarity.get("lantern", 0.0)), 2.0), "familiarity tallies survive a round-trip")

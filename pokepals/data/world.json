@@ -36,16 +36,17 @@
 		[1100, 380, 0.70, 0.55, 0.85], [880, 300, 0.92, 0.62, 0.30],
 		[120, 620, 0.86, 0.40, 0.55], [240, 660, 0.95, 0.85, 0.40], [360, 600, 0.70, 0.55, 0.85]
 	],
+	"_interactables_comment": "Each has a stable 'id' — the companion keys its habituation/memory off it, so editing a prop's position or label keeps its identity (and the bond it earned). Keep ids unique and stable across edits.",
 	"interactables": [
-		{ "type": "chime_stone", "position": [470, 300], "color": [0.66, 0.70, 0.78], "label": "a humming stone" },
-		{ "type": "lantern", "position": [780, 380], "color": [0.95, 0.78, 0.42], "label": "an old lantern" },
-		{ "type": "wildflowers", "position": [220, 470], "color": [0.88, 0.46, 0.58], "label": "a patch of wildflowers" },
-		{ "type": "mushrooms", "position": [-180, 120], "color": [0.86, 0.34, 0.32], "label": "a ring of red mushrooms" },
-		{ "type": "berry_bush", "position": [120, -120], "color": [0.30, 0.46, 0.30], "label": "a bush heavy with berries" },
-		{ "type": "bench", "position": [900, 120], "color": [0.55, 0.40, 0.28], "label": "a weathered bench" },
-		{ "type": "signpost", "position": [40, 360], "color": [0.58, 0.43, 0.30], "label": "a leaning signpost" },
-		{ "type": "crystal", "position": [1180, 420], "color": [0.62, 0.78, 0.86], "label": "a glimmering crystal" },
-		{ "type": "log", "position": [520, -120], "color": [0.46, 0.34, 0.26], "label": "a mossy fallen log" },
-		{ "type": "basin", "position": [-360, 480], "color": [0.70, 0.74, 0.80], "label": "a quiet stone basin" }
+		{ "id": "chime_stone", "type": "chime_stone", "position": [470, 300], "color": [0.66, 0.70, 0.78], "label": "a humming stone" },
+		{ "id": "lantern", "type": "lantern", "position": [780, 380], "color": [0.95, 0.78, 0.42], "label": "an old lantern" },
+		{ "id": "wildflowers", "type": "wildflowers", "position": [220, 470], "color": [0.88, 0.46, 0.58], "label": "a patch of wildflowers" },
+		{ "id": "mushrooms", "type": "mushrooms", "position": [-180, 120], "color": [0.86, 0.34, 0.32], "label": "a ring of red mushrooms" },
+		{ "id": "berry_bush", "type": "berry_bush", "position": [120, -120], "color": [0.30, 0.46, 0.30], "label": "a bush heavy with berries" },
+		{ "id": "bench", "type": "bench", "position": [900, 120], "color": [0.55, 0.40, 0.28], "label": "a weathered bench" },
+		{ "id": "signpost", "type": "signpost", "position": [40, 360], "color": [0.58, 0.43, 0.30], "label": "a leaning signpost" },
+		{ "id": "crystal", "type": "crystal", "position": [1180, 420], "color": [0.62, 0.78, 0.86], "label": "a glimmering crystal" },
+		{ "id": "log", "type": "log", "position": [520, -120], "color": [0.46, 0.34, 0.26], "label": "a mossy fallen log" },
+		{ "id": "basin", "type": "basin", "position": [-360, 480], "color": [0.70, 0.74, 0.80], "label": "a quiet stone basin" }
 	]
 }

@@ -30,7 +30,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ designed |
 | **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ✅ designed (cozy) |
 | **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
-| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ designed |
+| **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + trickle; area/shared-attention deferred) |
 
 ---
 
@@ -304,12 +304,16 @@ In rough priority order for the cozy stage:
 
 ## ⚠️ Flagged issues in current code
 
-- **Bond is grindable.** `CompanionSelf._grow_bond` grows bond from raw presence
-  (`grow_per_sec`), proximity time (`grow_per_sec_near`), and interaction count
-  (`grow_per_interaction`) — all farmable by standing still or poking one prop.
-  → **Resolved in design** (see Mechanism #4): drop raw presence, novelty-weight
-  interactions, habituation to a zero floor, shared-attention/new-area sources. Pending
-  implementation.
+- **Bond is grindable.** `CompanionSelf._grow_bond` grew bond from raw presence
+  (`grow_per_sec`), proximity time, and a flat per-interaction bump — all farmable by
+  standing still or poking one prop.
+  → **✅ Resolved in code.** Raw presence dropped; per-examine bump is now
+  **novelty-weighted** via a persistent per-prop `familiarity` map (geometric decay to
+  ~0, never fades); proximity kept only as a slow trickle. Stable prop ids now flow
+  world → view → perception → self. Tests cover idle-presence-flat, per-prop habituation,
+  and round-trip. **Still deferred** (need their prerequisites): new-area discovery
+  (needs area ids) and shared-attention (needs Mechanism #1). Reaction-strength scaling by
+  novelty also deferred to a later increment.
 
 ---
 

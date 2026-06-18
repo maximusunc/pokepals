@@ -38,8 +38,16 @@ func _ready() -> void:
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
 	_camera.set_bounds(Rect2(bmin, bmax - bmin))
 
-	for it in data.get("interactables", []):
-		_interactables.append({ "pos": WorldData.to_vec2(it["position"]), "label": String(it.get("label", "something")) })
+	for i in data.get("interactables", []).size():
+		var it: Dictionary = data["interactables"][i]
+		# A stable id for the companion's habituation/memory: prefer an explicit "id",
+		# else fall back to "type" or the index, so existing worlds still get stable keys.
+		var prop_id := String(it.get("id", it.get("type", "prop_%d" % i)))
+		_interactables.append({
+			"pos": WorldData.to_vec2(it["position"]),
+			"label": String(it.get("label", "something")),
+			"id": prop_id,
+		})
 
 	# Let the companion know where the props are, so it can wander to them on its own.
 	var poi: Array = []
@@ -129,7 +137,7 @@ func _try_interact() -> void:
 		return
 	var spot: Vector2 = _interactables[index]["pos"]
 	_world_art.pulse_interactable(index)
-	_companion.notify_interaction(spot)
+	_companion.notify_interaction(spot, _interactables[index]["id"])
 	_hint.text = "You examine %s. Your companion perks up." % _interactables[index]["label"]
 
 
