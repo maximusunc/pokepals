@@ -3,23 +3,24 @@ class_name TestArbiter
 ## hysteresis, and interruptibility — using stub actions with fixed desires so the
 ## arbiter's logic is checked in isolation from any real behavior.
 
-# A stub action with a fixed desire and interruptibility, for driving the arbiter.
+# A stub action with a fixed desire and (optionally) a fixed commitment, for driving the
+# arbiter. A commitment < 0 means "use the base default" (the cfg's commit_bonus).
 class StubAction extends CompanionActions.CompanionAction:
 	var _desire := 0.0
-	var _interruptible := true
+	var _commitment := -1.0
 
-	func _init(p_id: String, p_band: int, p_desire: float, p_interruptible := true) -> void:
+	func _init(p_id: String, p_band: int, p_desire: float, p_commitment := -1.0) -> void:
 		id = p_id
 		band = p_band
 		behavior = p_id
 		_desire = p_desire
-		_interruptible = p_interruptible
+		_commitment = p_commitment
 
 	func score(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		return _desire
 
-	func interruptible() -> bool:
-		return _interruptible
+	func commitment(cfg: Dictionary) -> float:
+		return _commitment if _commitment >= 0.0 else super.commitment(cfg)
 
 
 static func run_all() -> int:
@@ -30,8 +31,8 @@ static func run_all() -> int:
 	fails += _test_within_band_highest_desire_wins()
 	fails += _test_tie_breaks_by_order()
 	fails += _test_commitment_resists_marginal_rival()
-	fails += _test_non_interruptible_holds_same_band()
-	fails += _test_higher_band_breaks_non_interruptible()
+	fails += _test_committed_holds_same_band()
+	fails += _test_higher_band_breaks_committed()
 	return fails
 
 
@@ -96,25 +97,25 @@ static func _test_commitment_resists_marginal_rival() -> int:
 	return fails
 
 
-static func _test_non_interruptible_holds_same_band() -> int:
+static func _test_committed_holds_same_band() -> int:
 	var arb := CompanionArbiter.new()
 	var cfg := _cfg()
 	# Make A the running action first via a frame where only A bids.
-	var a := StubAction.new("a", 1, 5.0, false)  # non-interruptible
+	var a := StubAction.new("a", 1, 5.0, 100.0)  # large commitment = a committed beat
 	var b := StubAction.new("b", 1, 0.0)
 	arb.decide([a, b], {}, null, cfg, _rng())  # only a bids -> a runs
-	# Now B is far keener, but A is committed and same band -> A holds.
+	# Now B is far keener, but A's commitment (5 + 100) keeps it ahead within the band.
 	b._desire = 9.0
 	var d := arb.decide([a, b], {}, null, cfg, _rng())
-	return _ok(d["winner"].id == "a", "a committed (non-interruptible) action holds against a keener same-band rival")
+	return _ok(d["winner"].id == "a", "a committed action (high commitment) holds against a keener same-band rival")
 
 
-static func _test_higher_band_breaks_non_interruptible() -> int:
+static func _test_higher_band_breaks_committed() -> int:
 	var arb := CompanionArbiter.new()
 	var cfg := _cfg()
-	var a := StubAction.new("a", 1, 5.0, false)  # non-interruptible, low band
+	var a := StubAction.new("a", 1, 5.0, 100.0)  # committed, low band
 	var hi := StubAction.new("hi", 2, 0.0)
 	arb.decide([a, hi], {}, null, cfg, _rng())  # only a bids -> a runs
 	hi._desire = 0.1
 	var d := arb.decide([a, hi], {}, null, cfg, _rng())
-	return _ok(d["winner"].id == "hi", "a higher band breaks in even on a non-interruptible action")
+	return _ok(d["winner"].id == "hi", "a higher band breaks in even on a committed action (commitment is within-band only)")

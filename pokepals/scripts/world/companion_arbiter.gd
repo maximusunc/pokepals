@@ -15,22 +15,28 @@ extends RefCounted
 ##      INELIGIBLE and cannot win, whatever its band — this is essential, e.g. a fresh
 ##      companion's Follow bids 0, so a lower-band Wander rightly wins instead of an
 ##      empty high band stealing the frame.
-##   3. The running action (last frame's winner) gets a small commitment BONUS to its
-##      desire — a marginally-keener rival can't unseat a beat already in progress, which
-##      is what kills jitter at a score crossover. The bonus is desire-only; it never
-##      lifts an action into another band.
-##   4. Winner = highest band among eligible actions, then highest (bonus-adjusted)
+##   3. The running action (last frame's winner) carries its COMMITMENT — a continuous
+##      desire-units resistance to being abandoned right now — added to its own desire. A
+##      same-band rival must clear desire + commitment to take over. Commitment is graded:
+##      the default is a small universal anti-jitter nudge (commit_bonus), while a committed
+##      beat (a roam underway, a visit, a look) returns a large value so it FINISHES rather
+##      than being yanked at a score crossover. This single continuous quantity replaces both
+##      the old fixed commit_bonus AND the old binary "interruptible" flag — preemption WITHIN
+##      a band is now one smooth comparison, not a magic flag. (Commitment is desire-only; it
+##      never lifts an action into another band.)
+##   4. Winner = highest band among eligible actions, then highest (commitment-adjusted)
 ##      desire within that band, ties broken by array order (so e.g. Follow, listed
 ##      before Wander, wins an exact tie — the leash backstop never loses a coin flip).
-##   5. Interruptibility: if the running action declares itself non-interruptible (a
-##      committed beat — a check-in visit underway, a curiosity linger), only a STRICTLY
-##      HIGHER band may take over. Same- or lower-band rivals wait their turn.
 ##
 ## Band is compared BEFORE desire, so any eligible higher-band action outranks any
-## lower-band one no matter how keen the lower one is. So Investigate (and a future
-## player COMMAND band) interrupt instantly, by structure rather than by a hand-tuned
-## big number. Desire only decides things WITHIN a single band — which is exactly where
-## the old shared 1..20 number line did its real work (Follow vs Wander vs Idle).
+## lower-band one no matter how keen the lower one (or how committed the running one) is.
+## So Investigate (a player look) and a future player COMMAND band interrupt instantly, by
+## structure rather than by a hand-tuned big number — commitment is a WITHIN-band quantity.
+## Desire (+ commitment) only decides things within a single band — which is exactly where
+## the old shared 1..20 number line did its real work (Follow vs Wander vs Idle). Grading
+## preemption ACROSS bands (a mild vs a sudden threat) is a danger-era concern, deferred:
+## in the cozy slice the cross-band beats are the sacred "it noticed me" moments, which
+## SHOULD hard-preempt.
 
 const EPS := 0.0001
 
@@ -40,23 +46,15 @@ var _running_id: String = ""
 ## Decide the winner. Returns { winner, scores, running_id } where `scores` maps each
 ## action id to a readable comparable score for the debug overlay (0 for ineligible).
 func decide(actions: Array, facts: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> Dictionary:
-	var commit_bonus := float(cfg.get("arbiter", {}).get("commit_bonus", 0.0))
-
 	# Score everyone first (score() may latch internal state, so do it once up front).
 	var desires := {}
 	for a in actions:
 		desires[a.id] = a.score(facts, s, cfg, rng)
 
-	# Identify the still-running action and whether it's mid-commitment.
-	var running = null
-	for a in actions:
-		if a.id == _running_id:
-			running = a
-			break
-	var running_eligible: bool = running != null and float(desires[running.id]) > EPS
-
-	# Pick the best eligible candidate by (band, bonus-adjusted desire), array order
-	# breaking ties. The commitment bonus is applied here, desire-only.
+	# Pick the best eligible candidate by (band, commitment-adjusted desire), array order
+	# breaking ties. The running action carries its commitment as extra within-band desire,
+	# so a committed beat (large commitment) simply out-bids same-band rivals — no separate
+	# interruptibility pass, and an action bidding 0 is skipped, so a give-up releases cleanly.
 	var winner = null
 	var best_band := -1
 	var best_desire := -1.0
@@ -65,17 +63,11 @@ func decide(actions: Array, facts: Dictionary, s: CompanionSelf, cfg: Dictionary
 		if desire <= EPS:
 			continue
 		if a.id == _running_id:
-			desire += commit_bonus
+			desire += a.commitment(cfg)
 		if a.band > best_band or (a.band == best_band and desire > best_desire):
 			best_band = a.band
 			best_desire = desire
 			winner = a
-
-	# A committed (non-interruptible) running action holds the beat against anything
-	# that isn't a strictly higher band.
-	if running_eligible and not running.interruptible():
-		if winner == null or winner.band <= running.band:
-			winner = running
 
 	# Nothing bid at all (shouldn't happen — Idle always bids — but stay safe).
 	if winner == null:

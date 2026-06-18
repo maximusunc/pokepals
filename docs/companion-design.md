@@ -29,7 +29,7 @@ danger layer is later mostly new **content/tags**, not new **architecture**.
 |---|---|---|---|
 | **Social referencing** | Borrow courage from a calm, advancing player | Glance at / drift toward what *you're* attending to | ✅ built |
 | **In-character gating / refusal** | Balk at the scary place; every "no" points to its remedy | Errand-readiness: hesitate when not bonded, go readily once bonded | ✅ designed (cozy) |
-| **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | 🔶 mostly have (bands); spec wants a continuous salience *score* |
+| **Salience interruption** | A sudden threat overrides a committed plan | A player interaction overrides a wander | ✅ graded commitment inertia (within-band continuous; cross-band gradation deferred to danger era) |
 | **Variety-based bond** | Bond deepens by surviving danger together | Bond deepens via shared novelty / new places / time alongside — not grindable repetition | ✅ built (prop-novelty + shared-attention + trickle; new-area deferred) |
 
 ---
@@ -336,26 +336,39 @@ layer; cozy mood dips only dampen.
 
 In rough priority order for the cozy stage:
 
-1. **Salience interruption** — refine the fixed-band preemption toward a continuous
-   salience *score* (spec's ask); small, improves feel now. **Design note:** the
-   load-bearing idea must be **commitment inertia** (a graded resistance to abandoning the
-   beat in progress), not just "make priority continuous." A continuous score that's still
-   a function of the same signals would re-cross and dither. When built, generalize the
-   binary `interruptible()` flag into that graded resistance — the committed-roam fix below
-   is its crude binary form and should fold into it.
-
-   *(Resolved en route: the wander↔follow **limit cycle** — Follow yanked a roam off at the
-   score crossover; the companion's own motion re-crossed it, so it paced in a shell around
-   the player. `commit_bonus` (temporal id-hysteresis) couldn't damp a feedback loop where
-   the decision drives the deciding signal. Fixed by making a roam a **committed beat**:
-   `WanderAction.interruptible()` is false while `ROAM`, so only a higher band interrupts —
-   same pattern as CheckIn/Investigate. The give-up check still abandons a roam the player
-   leaves behind. Residual, by tuning not structure: how far a mid-bond roam strays before
-   completing.)*
-2. **Appraisal model + tag vocabulary** — neutral world facts the companion
+1. **Appraisal model + tag vocabulary** — neutral world facts the companion
    interprets; scope depends on staying cozy. Lock the schema early but small.
+2. **New-area discovery** — the last deferred variety-bond source: reaching a new region
+   deepens bond. Needs stable area ids in `world.json` + region detection.
 3. **Memory consolidation, networking split, UGC tooling** — deferred infrastructure;
    context only until feel is proven.
+
+---
+
+## ✅ Salience interruption — graded commitment inertia
+
+The spec asked to refine fixed-band preemption toward a continuous salience *score*. The
+load-bearing idea turned out to be **commitment inertia**, not "make priority continuous":
+a continuous score that's still a function of the same signals would just re-cross and
+dither (this is what the wander↔follow limit cycle was — `commit_bonus`, a temporal
+id-hysteresis, couldn't damp a feedback loop where the decision drives the deciding signal).
+
+**Resolution.** The arbiter's two ad-hoc within-band mechanisms — the fixed `commit_bonus`
+and the binary `interruptible()` flag — are unified into one continuous quantity,
+`CompanionAction.commitment(cfg)`: the desire-units resistance the running action adds to
+its own desire. A same-band rival must clear `desire + commitment` to take over. Default is
+the small universal nudge (`commit_bonus`); a committed beat (a roam underway, a visit, a
+look) returns `commit_bonus + committed_inertia`, a value deliberately larger than any
+same-band rival's plausible desire — so a committed beat is released only by its **own
+state** (e.g. a roam giving up its target → bids 0 → ineligible), never by a desire
+crossover, which is what stops the cycle from re-forming at a higher threshold. Preemption
+*within* a band is now one smooth comparison; the binary flag is gone.
+
+**Bands stay as structure.** Band is still compared before desire, so a higher band always
+preempts — commitment is within-band only. Grading preemption *across* bands (a mild vs a
+sudden threat) is a **danger-era** concern, deferred: in the cozy slice the cross-band beats
+are the sacred "it noticed me" moments (a look, a check-in), which *should* hard-preempt.
+`commitment()` is also the natural seam where a future graded danger salience generalizes.
 
 ---
 

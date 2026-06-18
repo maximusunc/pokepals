@@ -302,18 +302,18 @@ static func _test_bond_grows_with_time_together(cfg: Dictionary) -> int:
 	return _ok(brain.get_self().bond > before, "bond grows the longer the player stays near")
 
 
-# The anti-jitter fix: a roam must be a COMMITTED beat. While paused the wander is freely
-# interruptible; once it sets off on a roam it declares itself non-interruptible, so the
-# arbiter won't let same-band Follow unseat it mid-excursion (which is what caused the
-# wander<->follow limit cycle). The arbiter honouring this is covered in TestArbiter; here
-# we pin the contract WanderAction itself exposes.
+# The anti-jitter fix, now expressed as graded commitment: a paused wander carries only the
+# base nudge, but once it sets off on a roam its commitment jumps by committed_inertia, so the
+# arbiter won't let same-band Follow out-bid it mid-excursion (the wander<->follow limit
+# cycle). The arbiter honouring commitment is covered in TestArbiter; here we pin that
+# WanderAction's commitment actually rises when it commits to a roam.
 static func _test_roam_is_a_committed_beat(cfg: Dictionary) -> int:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 1
 	var wander := CompanionActions.WanderAction.new(cfg, rng, 1)
 	var s := CompanionSelf.make_default(cfg)
 	var fails := 0
-	fails += _ok(wander.interruptible(), "a paused wander is freely interruptible")
+	var paused_commitment := wander.commitment(cfg)
 	# Elapse the opening pause, then score with the player close enough to roam: it sets off.
 	wander.tick(10.0)
 	var perception := {
@@ -323,5 +323,7 @@ static func _test_roam_is_a_committed_beat(cfg: Dictionary) -> int:
 		"nearest_poi": Vector2(160, 100),
 	}
 	wander.score(perception, s, cfg, rng)
-	fails += _ok(not wander.interruptible(), "once set off on a roam, a wander is a committed (non-interruptible) beat")
+	var roaming_commitment := wander.commitment(cfg)
+	fails += _ok(is_equal_approx(paused_commitment, float(cfg["arbiter"]["commit_bonus"])), "a paused wander carries only the base commit nudge")
+	fails += _ok(roaming_commitment > paused_commitment + 1.0, "setting off on a roam raises commitment well above the base (a committed beat)")
 	return fails

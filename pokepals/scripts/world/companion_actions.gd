@@ -18,20 +18,22 @@ class_name CompanionActions
 ##                                     latch internal state when it decides to start
 ##   act(perception, self, cfg, rng, delta) only the winner is asked; returns the intent
 ##                                     { behavior, move_target, desired_speed, look_at, reactions }
-##   interruptible()                   false during a committed beat (a visit underway, a
-##                                     curiosity linger): only a higher band may break in
+##   commitment(cfg)                   how hard it resists being abandoned right now, in
+##                                     desire units (default = a small anti-jitter nudge; a
+##                                     committed beat returns a large value so it finishes)
 ##
 ## SEAM — player COMMANDS (not built): a future order ("go run an errand") slots in as one
 ## CompanionAction on the reserved `command` band (above interrupt), whose score() bids
-## only while a command is queued and whose interruptible() stays false until it's done.
-## Because the arbiter compares band first, it would preempt even Investigate with no
-## arbiter change. The intended entry point is CompanionBrain.issue_command(...).
+## only while a command is queued and whose commitment() is large until it's done. Because
+## the arbiter compares band first, it would preempt even Investigate with no arbiter change.
+## The intended entry point is CompanionBrain.issue_command(...).
 ##
 ## SEAM — multi-step / long-running TASKS (not built): the interface already suffices — an
 ## action owns its own tick()+state, so a RunErrandAction would hold its own sub-step
 ## machine exactly as WanderAction holds PAUSE/ROAM today. The convention is: take the
-## reserved `task` band, and set interruptible() false during a critical step and true at
-## safe checkpoints, so a command or Investigate can still break in but idle chatter can't.
+## reserved `task` band, and return a large commitment() during a critical step and the base
+## nudge at safe checkpoints, so a command or Investigate can still break in but idle chatter
+## can't. (Commitment is also where a future graded danger-era salience would generalize.)
 
 
 static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
@@ -65,9 +67,15 @@ class CompanionAction extends RefCounted:
 	func act(_perception: Dictionary, _s: CompanionSelf, _cfg: Dictionary, _rng: RandomNumberGenerator, _delta: float) -> Dictionary:
 		return {}
 
-	# A committed beat resists same/lower-band rivals; only a higher band breaks in.
-	func interruptible() -> bool:
-		return true
+	# How strongly this action resists being abandoned RIGHT NOW, in desire units, while it's
+	# the one running. The arbiter adds it to this action's own desire, so a SAME-band rival
+	# must clear desire + commitment to take over — graded "commitment inertia" that replaces
+	# the old fixed commit_bonus and the binary interruptible() flag both. The default is the
+	# small universal anti-jitter nudge; a committed beat overrides this to return much more
+	# (commit_bonus + committed_inertia) so it finishes rather than being yanked at a score
+	# crossover. Higher BANDS still preempt regardless — commitment is within-band only.
+	func commitment(cfg: Dictionary) -> float:
+		return float(cfg.get("arbiter", {}).get("commit_bonus", 0.0))
 
 	# This action's declared considerations from companion.json, or [] if none.
 	func _considerations(cfg: Dictionary) -> Array:
@@ -77,7 +85,7 @@ class CompanionAction extends RefCounted:
 ## Player-triggered curiosity: something the player did nearby caught its attention — the
 ## sacred "it noticed what I did" beat. It waddles over, lingers, then loses interest, on
 ## a cooldown so a flurry of pokes doesn't spam it. On the interrupt band, so it preempts
-## any autonomous beat; non-interruptible while it lasts so the look reads as deliberate.
+## any autonomous beat; carries a large commitment while it lasts so the look reads as deliberate.
 class InvestigateAction extends CompanionAction:
 	var _active := false
 	var _target := Vector2.ZERO
@@ -102,8 +110,11 @@ class InvestigateAction extends CompanionAction:
 			_cooldown = float(cfg["curiosity_cooldown"])
 		return 1.0 if _active else 0.0
 
-	func interruptible() -> bool:
-		return not _active
+	func commitment(cfg: Dictionary) -> float:
+		# A look in progress is a committed beat, so it reads as deliberate, not a twitch.
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
 
 	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
 		var reactions: Array = []
@@ -132,7 +143,7 @@ class InvestigateAction extends CompanionAction:
 ## pre-bond phase. It sets off only when it ISN'T already close and the player is in reach;
 ## how eager it is fades with the bond (by then Follow keeps it at your side). On the
 ## social band, above the autonomous beats, so a visit it decides to make wins over
-## following/wandering; non-interruptible while the visit is underway so it commits to it.
+## following/wandering; carries a large commitment while the visit is underway so it commits to it.
 class CheckInAction extends CompanionAction:
 	var _cooldown := 0.0
 	var _active := false
@@ -150,8 +161,11 @@ class CheckInAction extends CompanionAction:
 	func tick(delta: float) -> void:
 		_cooldown = maxf(0.0, _cooldown - delta)
 
-	func interruptible() -> bool:
-		return not _active
+	func commitment(cfg: Dictionary) -> float:
+		# A visit underway is committed, so it follows through instead of half-turning back.
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
 
 	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 		var far := float(cfg["follow_far"])
@@ -275,9 +289,9 @@ class FollowAction extends CompanionAction:
 ## fading as you bond). Crucially it roams only within its OWN range (wide when fresh, snug
 ## when bonded) and abandons a target the player has dragged out of that range — it never
 ## consults Follow's scoring; it just yields its band to Follow when it stops bidding. A
-## roam is a COMMITTED beat (see interruptible()): once set off it can't be unseated by the
-## same-band Follow, only by a higher band — so it finishes its excursion (or gives up
-## because you left) rather than getting yanked back and forth at the score crossover.
+## roam is a COMMITTED beat (see commitment()): once set off its large commitment keeps the
+## same-band Follow from out-bidding it, only a higher band breaks in — so it finishes its
+## excursion (or gives up because you left) rather than getting yanked at the score crossover.
 class WanderAction extends CompanionAction:
 	enum { PAUSE, ROAM }
 	var _state := PAUSE
@@ -299,18 +313,20 @@ class WanderAction extends CompanionAction:
 		if _state == PAUSE:
 			_pause_timer = maxf(0.0, _pause_timer - delta)
 
-	# A roam is a COMMITTED BEAT, like a check-in or an investigate: once it has set off, only
-	# a strictly HIGHER band (a check-in, a player-triggered look, a future command) may break
-	# in — never the same-band Follow. This is what kills the wander<->follow limit cycle.
-	# Without it, Follow could unseat a roam at the score crossover; the companion's own motion
-	# then re-crosses the threshold and it paces in a shell around the player instead of either
-	# finishing its excursion or following. (commit_bonus alone can't damp that — the deciding
-	# signal, distance, is itself driven by the choice.) The give-up check in score() still
-	# abandons a roam the player has left behind, returning 0 there makes us ineligible, and an
-	# ineligible action can't hold — so leaving the band is clean. While PAUSED we're idle and
-	# freely interruptible.
-	func interruptible() -> bool:
-		return _state != ROAM
+	# A roam is a COMMITTED BEAT: while ROAM it returns a large commitment, so the same-band
+	# Follow can't out-bid it and yank it off mid-excursion. This is what kills the
+	# wander<->follow limit cycle — without it, Follow unseats a roam at the score crossover,
+	# the companion's own motion re-crosses the threshold, and it paces in a shell around the
+	# player. The inertia must exceed any same-band rival's plausible desire, so the roam is
+	# released only by its own state (the give-up check in score() drops to PAUSE / bids 0
+	# when the player leaves the target behind), never by a desire crossover — that
+	# state-based release is what stops the cycle from simply re-forming at a higher threshold.
+	# A strictly higher band (a look, a visit, a future command) still preempts. While PAUSED
+	# we're idle and carry only the base nudge.
+	func commitment(cfg: Dictionary) -> float:
+		if _state == ROAM:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
 
 	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
 		if _state == ROAM:
