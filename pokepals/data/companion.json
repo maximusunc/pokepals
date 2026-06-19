@@ -135,7 +135,7 @@
 		"hear_radius": 900.0,
 		"ack_pause": 0.5,
 		"stop_distance": 48.0,
-		"stay": 3.0,
+		"stay": 2.0,
 		"chance_low": 0.1,
 		"chance_high": 1.0,
 		"valence_weight": 0.1,

@@ -1,3 +1,10 @@
 # Godot 4+ specific ignores
 .godot/
 /android/
+Kithbound*/
+MoltenVK*/
+
+.DS_Store
+*.pck
+*.xcprivacy
+*.gd.uid
