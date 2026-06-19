@@ -11,12 +11,11 @@ var _ground_color := Color(0.43, 0.58, 0.36)
 var _bounds := Rect2()
 var _ponds: Array = []     # [ { center: Vector2, radius: float, color: Color } ]
 var _paths: Array = []     # [ { from: Vector2, to: Vector2, color: Color } ]
-var _trees: Array = []     # [ { pos: Vector2, phase: float } ]
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
 var _interactables: Array = []  # [ { pos: Vector2, color: Color, type: String, pulse: float } ]
 var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
-var _landmarks: Array = []      # [ { pos: Vector2, type: String, phase: float } ]
+# Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
 # --- atmosphere (presentation-only mood, from world.json "atmosphere") ---
 var _time := 0.0
@@ -27,8 +26,6 @@ var _region_tint_alpha := 0.12
 var _ground_noise: ImageTexture = null
 var _style: ArtStyle
 var _ground_grad: GradientTexture2D = null
-var _tree_tex: Texture2D = null        # set if the user dropped in their own tree art
-var _great_tree_tex: Texture2D = null  # set if the user dropped in their own great-tree art
 
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
@@ -39,9 +36,6 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_bounds = Rect2(bmin, bmax - bmin)
 	# A soft top→bottom ground gradient (palette), baked once, drawn under the dapple.
 	_ground_grad = _style.make_vertical_gradient_texture(_style.color("ground_top"), _style.color("ground_bottom"))
-	# Optional user-supplied art for trees (absent → procedural).
-	_tree_tex = SpriteSlot.resolve(_style.entity("tree"))
-	_great_tree_tex = SpriteSlot.resolve(_style.entity("great_tree"))
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -62,12 +56,6 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		var rmax := WorldData.to_vec2(r["max"])
 		_region_tints.append({ "rect": Rect2(rmin, rmax - rmin), "color": WorldData.to_color(r["tint"]) })
 
-	# Landmarks: a few oversized, beckoning features (a great tree) you can see from afar.
-	_landmarks.clear()
-	for lm in data.get("landmarks", []):
-		var lp := WorldData.to_vec2(lm["position"])
-		_landmarks.append({ "pos": lp, "type": String(lm.get("type", "great_tree")), "phase": _phase_for(lp) })
-
 	# Water: accept a single "pond" and/or a "ponds" array, so the world can hold
 	# more than one body of water without breaking older single-pond data.
 	_ponds.clear()
@@ -80,14 +68,8 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	for p in data.get("paths", []):
 		_paths.append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]), "color": WorldData.to_color(p["color"]) })
 
-	# Trees and flowers each carry a per-element wind "phase" (seeded from position) so
-	# they don't all sway in lockstep — the breeze reads as organic, not a metronome.
-	_trees.clear()
-	for t in data.get("trees", []):
-		var tp := WorldData.to_vec2(t)
-		_trees.append({ "pos": tp, "phase": _phase_for(tp) })
-	_build_border(data.get("border", {}))
-
+	# Flowers carry a per-element wind "phase" (seeded from position) so they don't all
+	# sway in lockstep — the breeze reads as organic, not a metronome.
 	_flowers.clear()
 	for f in data.get("flowers", []):
 		var fp := Vector2(float(f[0]), float(f[1]))
@@ -156,15 +138,6 @@ func _scatter_grass() -> void:
 			"color": Color(0.30 + shade, 0.46 + shade, 0.28 + shade, 0.85),
 			"phase": _phase_for(pos),
 		})
-
-
-## Frame the world with an enclosing treeline so it feels like it *closes* at the
-## edges rather than abruptly stopping at the void. Procedural (a jittered ring of
-## trees just inside the bounds) so we don't hand-place dozens of coordinates; seeded
-## so the framing is identical every run. Data-driven via world.json "border".
-func _build_border(cfg: Dictionary) -> void:
-	for p in Solids.border_positions(_bounds, cfg):
-		_trees.append({ "pos": p, "phase": _phase_for(p) })
 
 
 ## Briefly glow the interactable at this index (called when it's touched).
@@ -242,57 +215,10 @@ func _draw() -> void:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
 		_draw_prop(it["type"], it["pos"], it["color"])
 
-	# trees (shadow + trunk + layered, wind-swayed canopy), drawn last so they sit above
-	var bark := _style.color("bark")
-	var f_dark := _style.color("foliage_dark")
-	var f_mid := _style.color("foliage_mid")
-	var f_light := _style.color("foliage_light")
-	for t in _trees:
-		var tp: Vector2 = t["pos"]
-		var cs := _sway(t["phase"], 1.0)  # canopy catches the most wind
-		_draw_shadow(tp + Vector2(0, 4), 18.0, 0.20)
-		if _tree_tex != null:
-			var sz := _tree_tex.get_size()
-			draw_texture(_tree_tex, tp + Vector2(cs - sz.x * 0.5, 6.0 - sz.y))
-			continue
-		# trunk with a lit left edge (light comes from up-left by default)
-		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(8, 22)), bark)
-		draw_rect(Rect2(tp + Vector2(-4, -6), Vector2(2.5, 22)), bark.lightened(0.12))
-		# canopy: dark side-lobes first, a mid mass, then a lit blob on top for volume
-		draw_circle(tp + Vector2(-11 + cs, -15), 14.0, f_dark)
-		draw_circle(tp + Vector2(11 + cs, -15), 14.0, f_dark)
-		draw_circle(tp + Vector2(cs, -20), 21.0, f_mid)
-		_style.draw_blob(self, tp + Vector2(cs, -23), 15.0, f_light)
-
-	# landmarks, drawn last and large so they read as beacons across the world
-	for lm in _landmarks:
-		_draw_landmark(lm)
-
-
-## A prominent, beckoning feature you can spot from across the world. For now a great
-## tree — a big, slow-swaying canopy on a heavy trunk — that gives a region an anchor
-## the eye is drawn toward, inviting you to walk over and see what's there.
-func _draw_landmark(lm: Dictionary) -> void:
-	var p: Vector2 = lm["pos"]
-	if _great_tree_tex != null:
-		var gsz := _great_tree_tex.get_size()
-		_draw_shadow(p + Vector2(0, 8), 36.0, 0.22)
-		draw_texture(_great_tree_tex, p + Vector2(_sway(lm["phase"], 1.4) - gsz.x * 0.5, 8.0 - gsz.y))
-		return
-	match String(lm["type"]):
-		_:  # "great_tree" (and the default)
-			var sway := _sway(lm["phase"], 1.4)
-			var bark := _style.color("bark")
-			var f_dark := _style.color("foliage_dark")
-			var f_mid := _style.color("foliage_mid")
-			var f_light := _style.color("foliage_light")
-			_draw_shadow(p + Vector2(0, 8), 36.0, 0.22)
-			draw_rect(Rect2(p + Vector2(-7, -10), Vector2(14, 40)), bark)
-			draw_rect(Rect2(p + Vector2(-7, -10), Vector2(4.0, 40)), bark.lightened(0.12))
-			draw_circle(p + Vector2(-28 + sway, -40), 30.0, f_dark)
-			draw_circle(p + Vector2(28 + sway, -40), 30.0, f_dark)
-			draw_circle(p + Vector2(sway, -50), 44.0, f_mid)
-			_style.draw_blob(self, p + Vector2(sway * 0.8, -60), 32.0, f_light)
+	# NOTE: trees and landmarks (great trees) are no longer drawn here. They're spawned
+	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
+	# companion can pass behind/in front of them by ground position. This pass renders
+	# only the always-underneath backdrop (ground, grass, flowers, paths, ponds, props).
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as

@@ -8,6 +8,7 @@
 [ext_resource type="Script" path="res://scripts/presentation/virtual_joystick.gd" id="6"]
 [ext_resource type="Script" path="res://scripts/presentation/debug_overlay.gd" id="7"]
 [ext_resource type="Shader" path="res://assets/vignette.gdshader" id="8"]
+[ext_resource type="Script" path="res://scripts/presentation/scenery.gd" id="9"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_vignette"]
 shader = ExtResource("8")
@@ -23,15 +24,19 @@ color = Color(1.04, 0.99, 0.9, 1)
 [node name="WorldArt" type="Node2D" parent="."]
 script = ExtResource("2")
 
-[node name="Companion" parent="." instance=ExtResource("3")]
+[node name="Scenery" type="Node2D" parent="."]
+y_sort_enabled = true
+script = ExtResource("9")
 
-[node name="Player" parent="." instance=ExtResource("4")]
-joystick_path = NodePath("../UI/Joystick")
+[node name="Companion" parent="Scenery" instance=ExtResource("3")]
+
+[node name="Player" parent="Scenery" instance=ExtResource("4")]
+joystick_path = NodePath("../../UI/Joystick")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 script = ExtResource("5")
-player_path = NodePath("../Player")
-companion_path = NodePath("../Companion")
+player_path = NodePath("../Scenery/Player")
+companion_path = NodePath("../Scenery/Companion")
 
 [node name="Pollen" type="CPUParticles2D" parent="Camera2D"]
 amount = 34
