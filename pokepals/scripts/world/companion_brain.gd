@@ -35,6 +35,14 @@ var _ref_rng := RandomNumberGenerator.new()
 # dedicated stream, so adding the hesitation leaves both the action RNG and the social-
 # referencing stream (and every seeded test that leans on them) byte-for-byte unchanged.
 var _consider_rng := RandomNumberGenerator.new()
+# Player COMMANDS (call/whistle, pet) carry a BOND-GATED chance — whether it comes when
+# whistled, whether it accepts a pet or shies away. That randomness rides its OWN dedicated
+# stream, pre-rolled here and handed to the command actions via perception, so adding these
+# verbs leaves the action RNG and every other stream (and the seeded tests on them) untouched.
+var _command_rng := RandomNumberGenerator.new()
+# A one-frame latch for a player order; consumed (and cleared) by update() the next frame, so
+# a command is a single edge the command-band actions can catch, exactly like an interaction.
+var _pending_command := ""
 var _attention := CompanionAttention.new()
 var _self: CompanionSelf
 var _actions: Array
@@ -52,11 +60,13 @@ func _init(cfg: Dictionary, seed_value: int = 0, existing_self: CompanionSelf = 
 		_mood_rng.seed = seed_value + 1  # distinct, still deterministic
 		_ref_rng.seed = seed_value + 2
 		_consider_rng.seed = seed_value + 3
+		_command_rng.seed = seed_value + 4
 	else:
 		_rng.randomize()
 		_mood_rng.randomize()
 		_ref_rng.randomize()
 		_consider_rng.randomize()
+		_command_rng.randomize()
 	# A loaded self carries the companion across sessions; otherwise start fresh.
 	_self = existing_self if existing_self != null else CompanionSelf.make_default(cfg)
 	_actions = CompanionActions.make_all(cfg, _rng)
@@ -70,6 +80,15 @@ func behavior() -> String:
 ## The companion's persistent identity, for the presentation layer to save.
 func get_self() -> CompanionSelf:
 	return _self
+
+
+## A player ORDER for the next decision — the implementation of the reserved `command`-band
+## seam. The presentation calls this (e.g. from a Call or Pet button); it's latched and folded
+## into the next frame's perception, where a command-band action may catch it. Whether the
+## companion actually obeys is up to that action and the bond — issuing a command never forces
+## the outcome, it just offers one (see ComeAction / PetAction).
+func issue_command(command: String) -> void:
+	_pending_command = command
 
 
 ## A snapshot of the last frame's decision for diagnostics: the winning behavior,
@@ -95,6 +114,16 @@ func update(context: Dictionary) -> Dictionary:
 	perception["glance_roll"] = _ref_rng.randf()
 	perception["cue_roll"] = _ref_rng.randf()
 	perception["investigate_roll"] = _consider_rng.randf()
+
+	# PLAYER COMMAND: hand this frame's pending order (if any) to the command-band actions,
+	# along with their pre-rolled bond-gated dice on the dedicated stream, then clear the latch
+	# so the order is a single edge (caught this frame or not at all). Both dice are rolled every
+	# frame so the stream advances uniformly whether or not a command is pending — the command
+	# action consumes the current value when it latches.
+	perception["command"] = _pending_command
+	perception["command_roll"] = _command_rng.randf()
+	perception["pet_roll"] = _command_rng.randf()
+	_pending_command = ""
 
 	# REMEMBER: fold this frame into the persistent self, advance the fast mood (reads the
 	# discovery novelty observe just recorded), then let traits drift slowly toward how the

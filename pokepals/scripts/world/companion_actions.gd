@@ -43,7 +43,9 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 	var b_auto := int(bands.get("autonomous", 1))
 	var b_social := int(bands.get("social", 2))
 	var b_interrupt := int(bands.get("interrupt", 4))
+	var b_command := int(bands.get("command", 5))
 	return [
+		ComeAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
 		FollowAction.new(b_auto),
@@ -553,5 +555,101 @@ class IdleAction extends CompanionAction:
 			"move_target": companion_pos,
 			"desired_speed": 0.0,
 			"look_at": _look_at if _has_look else player_pos,
+			"reactions": reactions,
+		}
+
+
+## The player's CALL / whistle — the implementation of the reserved `command` band. A whistle
+## is a BID for attention, not a guaranteed summon, and it leans on the same two axes the whole
+## game is built around: distance and bond. First DISTANCE gates it — beyond hear_radius the
+## companion simply can't hear you, so the call no-ops (it never reaches across the whole map;
+## if it has wandered off you may have to go to it). When it does hear, it ACKNOWLEDGES — stands,
+## looks over and perks for a beat, with a small mood lift from being noticed — and only THEN,
+## by BOND, decides whether to come: a fresh companion usually just acknowledges and carries on,
+## a bonded one reliably comes running. So the call's power grows with the relationship, the same
+## arc as the follow-distance tightening. On the command band, so the acknowledgment preempts any
+## autonomous beat; calling never grows bond (a whistle isn't earned discovery).
+class ComeAction extends CompanionAction:
+	enum { ACK, COME }
+	var _active := false
+	var _phase := ACK
+	var _ack_timer := 0.0
+	var _will_come := false
+	var _just_triggered := false
+	var _arrived := false
+
+	func _init(band_value: int) -> void:
+		id = "come"
+		band = band_value
+		behavior = "come"
+
+	func commitment(cfg: Dictionary) -> float:
+		# A call in progress (acknowledging, or on its way over) is a committed beat, so it
+		# follows through rather than being yanked by an autonomous urge mid-acknowledgment.
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		if String(perception.get("command", "")) == "come" and not _active:
+			var come: Dictionary = cfg.get("come", {})
+			# Out of earshot: it can't hear you, so the whistle does nothing at all.
+			if float(perception["dist_to_player"]) > float(come.get("hear_radius", 900.0)):
+				return 0.0
+			# Heard: latch and acknowledge first; the mood lifts at being called whether or not
+			# it then comes. Decide the come/stay outcome now (bond-gated, mood-nudged).
+			_active = true
+			_phase = ACK
+			_ack_timer = float(come.get("ack_pause", 0.5))
+			_just_triggered = true
+			_arrived = false
+			_will_come = float(perception.get("command_roll", 1.0)) < _come_chance(s, come)
+			s.apply_command_ack(cfg)
+		return 1.0 if _active else 0.0
+
+	# Odds it actually comes once it has heard you: bond is the axis, with a small mood nudge so a
+	# bright/energized companion is a touch readier. Clamped to a probability.
+	func _come_chance(s: CompanionSelf, come: Dictionary) -> float:
+		var chance := lerpf(float(come.get("chance_low", 0.1)), float(come.get("chance_high", 1.0)), s.bond)
+		chance += s.mood_valence * float(come.get("valence_weight", 0.0))
+		chance += s.mood_arousal * float(come.get("arousal_weight", 0.0))
+		return clampf(chance, 0.0, 1.0)
+
+	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var come: Dictionary = cfg.get("come", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var reactions: Array = []
+		if _just_triggered:
+			# The instant "I heard you" beat: perk and turn toward the player.
+			reactions.append("perk")
+			reactions.append("look")
+			_just_triggered = false
+		if _phase == ACK:
+			# Hold a beat to acknowledge, standing and looking at the player.
+			_ack_timer -= delta
+			if _ack_timer <= 0.0:
+				if _will_come:
+					_phase = COME
+				else:
+					_active = false  # acknowledged, but chose to stay its own course
+		else:
+			# Coming over: run to the player, then a happy arrival hop, and release.
+			if companion_pos.distance_to(player_pos) > float(come.get("stop_distance", 48.0)):
+				move_target = player_pos
+				speed = float(cfg["run_speed"])
+			else:
+				if not _arrived:
+					reactions.append("hop")
+					reactions.append("look")
+					_arrived = true
+				_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": player_pos,
 			"reactions": reactions,
 		}

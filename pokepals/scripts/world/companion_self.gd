@@ -388,6 +388,18 @@ func update_mood(perception: Dictionary, cfg: Dictionary, delta: float, rng: Ran
 	mood_arousal = clampf(mood_arousal, floor_v, 1.0)
 
 
+## The companion has just heard the player's CALL and is acknowledging it — a small, warm
+## mood lift (being noticed by you feels good), whether or not it then decides to come. No
+## bond: a whistle isn't earned discovery, so only the relationship — not repetition — makes
+## the call land. Clamped to the same cozy negative floor as the rest of the mood. A no-op
+## without "come"/"mood" config.
+func apply_command_ack(cfg: Dictionary) -> void:
+	var c: Dictionary = cfg.get("come", {})
+	var floor_v := float(cfg.get("mood", {}).get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence + float(c.get("ack_valence", 0.0)), floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal + float(c.get("ack_arousal", 0.0)), floor_v, 1.0)
+
+
 ## Normalized 0..1 read-outs of how the player plays, derived from observations:
 ##   explore   — how much they roam (distance over time vs. a reference pace)
 ##   together  — how much they stay close to the companion

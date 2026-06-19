@@ -86,6 +86,14 @@ func notify_interaction(world_position: Vector2, id: String = "", tags: Array = 
 	_events.append({ "type": "interaction", "position": world_position, "id": id, "tags": tags })
 
 
+## Called by the world when the player issues an order — a call/whistle ("come") or a pet
+## ("pet"). Pure passthrough to the brain's command seam; the brain (and the bond) decide
+## what actually happens.
+func issue_command(command: String) -> void:
+	if _brain != null:
+		_brain.issue_command(command)
+
+
 func _ready() -> void:
 	_cfg = WorldData.load_json(config_path)
 	# Carry the companion across sessions: load its saved self if there is one, so

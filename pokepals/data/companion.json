@@ -128,6 +128,18 @@
 	"checkin_pull_high": 0.0,
 	"checkin_linger": 2.5,
 	"checkin_stop_distance": 80.0,
+	"_come_comment": "The player's CALL / whistle — a bid for attention, never a guaranteed summon. It depends on BOTH distance and bond. hear_radius: the companion only hears a call within this range; whistle from farther and nothing happens (no infinite-range summon — if it has wandered off, you may have to go find it). When it does hear, it first ACKNOWLEDGES: it stands, looks over and perks for ack_pause seconds (a beat that reads as 'I heard you'), with a small mood lift (ack_valence/ack_arousal) from being called — being noticed by you feels good even if it doesn't come. Then, based on BOND, it either goes back to its own life or comes running: chance_low..chance_high is the probability it comes, by bond (a fresh companion rarely comes, a fully bonded one always does), nudged a little by mood (valence_weight/arousal_weight). If it comes, it runs to within stop_distance and gives a happy arrival hop. Calling never grows bond (a whistle isn't earned discovery) — only the relationship makes the call reliable, which is the whole point.",
+	"come": {
+		"hear_radius": 900.0,
+		"ack_pause": 0.5,
+		"stop_distance": 48.0,
+		"chance_low": 0.1,
+		"chance_high": 1.0,
+		"valence_weight": 0.1,
+		"arousal_weight": 0.1,
+		"ack_valence": 0.15,
+		"ack_arousal": 0.2
+	},
 	"_balance_comment": "How bond tips the wander-vs-follow contest. Self-wander scores wander_score_low at bond 0 (its own agenda) fading to wander_score_high at bond 1 (kept above 0 so a bonded companion still potters). Following scores follow_eager_low..follow_eager_high by bond, PLUS a distance leash (0 at the comfort distance ramping to follow_leash at follow_far), and is scaled by the clinginess trait. follow_eager_low is 0 and the comfort distance is wide when fresh, so a new companion has little pull to follow; the leash only comes to matter as the bond deepens and the comfort distance tightens in. A player-triggered look is fixed well above all of these.",
 	"wander_score_low": 7.0,
 	"wander_score_high": 3.5,

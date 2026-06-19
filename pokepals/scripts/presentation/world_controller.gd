@@ -18,6 +18,7 @@ const INTERACT_RANGE := 60.0
 @onready var _hint: Label = $UI/HintLabel
 @onready var _joystick: VirtualJoystick = $UI/Joystick
 @onready var _examine_button: Button = $UI/ExamineButton
+@onready var _call_button: Button = $UI/CallButton
 @onready var _reset_button: Button = $UI/ResetButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
@@ -102,6 +103,11 @@ func _ready() -> void:
 	# from also spinning up the movement thumbstick underneath it.
 	_examine_button.pressed.connect(_try_interact)
 	_joystick.add_exclusion(_examine_button)
+
+	# Call / whistle: always available (it's a bid for attention, not gated on a nearby prop).
+	# Keep its taps off the movement thumbstick underneath. Desktop: C (see _unhandled_input).
+	_call_button.pressed.connect(_try_call)
+	_joystick.add_exclusion(_call_button)
 
 	# Top-right "start over" button: only revealed once fully bonded (see _process).
 	_reset_button.pressed.connect(_on_reset_pressed)
@@ -253,6 +259,18 @@ func _on_reset_pressed() -> void:
 func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
 		_try_interact()
+	# Desktop convenience keys, matching the project's physical-key convention (no InputMap):
+	# C calls the companion over. Space/Enter stays Examine.
+	elif event is InputEventKey and event.pressed and not event.echo:
+		if event.physical_keycode == KEY_C:
+			_try_call()
+
+
+## Whistle for the companion. Whether it hears, acknowledges, and actually comes is up to the
+## brain and the bond (see ComeAction) — here we just issue the order and nudge the player.
+func _try_call() -> void:
+	_companion.issue_command("come")
+	_show_hint("You whistle for your companion.")
 
 
 func _try_interact() -> void:
