@@ -38,6 +38,11 @@ var _bounds := Rect2()
 var _body_radius := 6.0
 var _margin := 2.0
 var _collide := false
+# Eased read of the brain's feeling surface, so body language glides instead of twitching.
+var _mood_v := 0.0
+var _mood_a := 0.0
+# Active floating emotes: each { kind: String, age: float, life: float }.
+var _emotes: Array = []
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
@@ -120,6 +125,7 @@ func _process(delta: float) -> void:
 	_apply_movement(intent, delta)
 	_apply_attention(intent, delta)
 	_apply_reactions(intent["reactions"])
+	_apply_feeling(intent.get("feeling", {}), delta)
 	_decay_animation(delta)
 	queue_redraw()
 
@@ -212,25 +218,68 @@ func _apply_reactions(reactions: Array) -> void:
 				_hop_squash = 1.0
 			"perk":
 				_perk = 1.0
+			"love":
+				_spawn_emote("love")
+			"delight":
+				_spawn_emote("delight")
+
+
+## Ease the eased mood toward the brain's current feeling (frame-rate independent). The
+## mood already moves slowly in the sim; this just smooths per-frame jitter so the tail,
+## ears and bounce glide rather than snap.
+func _apply_feeling(feeling: Dictionary, delta: float) -> void:
+	if feeling.is_empty():
+		return
+	var ease := 1.0 - exp(-float(_cfg.get("expression", {}).get("ease_rate", 3.0)) * delta)
+	_mood_v += (float(feeling.get("valence", 0.0)) - _mood_v) * ease
+	_mood_a += (float(feeling.get("arousal", 0.0)) - _mood_a) * ease
+
+
+## Float a fresh emote glyph above the companion. Capped so a pathological burst can't grow
+## the list without bound (in practice these are rare, earned beats).
+func _spawn_emote(kind: String) -> void:
+	if _emotes.size() >= 4:
+		_emotes.pop_front()
+	_emotes.append({ "kind": kind, "age": 0.0, "life": float(_cfg.get("expression", {}).get("emote_life", 1.8)) })
 
 
 func _decay_animation(delta: float) -> void:
 	_bob = sin(_time * 3.0)
 	_hop_squash = maxf(0.0, _hop_squash - delta * 2.5)
 	_perk = maxf(0.0, _perk - delta * 2.0)
+	# Age out floating emotes; keep only those still alive.
+	if not _emotes.is_empty():
+		var alive: Array = []
+		for e in _emotes:
+			e["age"] = float(e["age"]) + delta
+			if float(e["age"]) < float(e["life"]):
+				alive.append(e)
+		_emotes = alive
 
 
 func _draw() -> void:
 	if _sprite_tex != null:
 		SpriteSlot.draw(self, _sprite_tex)
+		_draw_emotes()
 		return
 	# It faces where it walks when moving, and where it's looking (attending) when
 	# still; the brain-driven hop/perk become the actor's squash/stretch, and the
-	# eased eye_offset keeps the eyes tracking whatever it's attending to.
+	# eased eye_offset keeps the eyes tracking whatever it's attending to. The eased
+	# mood becomes continuous body language: a wagging tail, ear posture and idle bounce.
 	var cfg := _style.character("companion")
 	var facing := _look_dir
 	if velocity.length() > 6.0:
 		facing = velocity.normalized()
+	var expr: Dictionary = _cfg.get("expression", {})
+	var arousal01 := clampf((_mood_a + 1.0) * 0.5, 0.0, 1.0)
+	var pos_valence := clampf(_mood_v, 0.0, 1.0)   # only positive valence reads as "happy"
+	var neg_valence := clampf(-_mood_v, 0.0, 1.0)  # withdrawn → tucked tail, drooping ears
+	var wag_range: Array = expr.get("tail_wag_rate", [3.0, 11.0])
+	var wag_rate := lerpf(float(wag_range[0]), float(wag_range[1]), arousal01)
+	var wag_amp := pos_valence * float(expr.get("tail_wag_amp", 0.9)) * (0.4 + 0.6 * arousal01)
+	var ear_offset := float(expr.get("ear_droop", 3.0)) * neg_valence - float(expr.get("ear_raise", 4.0)) * pos_valence * (0.5 + 0.5 * arousal01)
+	var bounce_range: Array = expr.get("idle_bounce_gain", [0.6, 2.2])
+	var bounce_gain := lerpf(float(bounce_range[0]), float(bounce_range[1]), arousal01)
 	VectorActor.draw(self, _style, {
 		"facing": facing,
 		"speed": velocity.length(),
@@ -242,4 +291,24 @@ func _draw() -> void:
 		"ears": true,
 		"eye_offset": _eye_offset,
 		"width": float(cfg.get("width", 1.0)),
+		"tail": true,
+		"wag_rate": wag_rate,
+		"wag_amp": wag_amp,
+		"ear_offset": ear_offset,
+		"bounce_gain": bounce_gain,
 	})
+	_draw_emotes()
+
+
+## Render the floating emotes: each fades in fast, drifts upward, then fades out, drawn
+## above the companion's head. Pure presentation over the brain-supplied cue.
+func _draw_emotes() -> void:
+	for e in _emotes:
+		var life := maxf(float(e["life"]), 0.0001)
+		var p := clampf(float(e["age"]) / life, 0.0, 1.0)
+		var fade_in := clampf(p / 0.15, 0.0, 1.0)
+		var fade_out := 1.0 - clampf((p - 0.6) / 0.4, 0.0, 1.0)
+		var alpha := fade_in * fade_out
+		var rise := -18.0 - p * 16.0
+		var pop := 0.7 + 0.5 * clampf(p / 0.25, 0.0, 1.0)
+		EmoteGlyphs.draw(self, String(e["kind"]), Vector2(0.0, rise), alpha, pop)
