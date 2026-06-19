@@ -1,0 +1,69 @@
+{
+	"_comment": "The Riverbank: a long, linear walk down a riverside. You reach it through a portal in the Vale and step back through the portal at the start. Scattered along the bank and its shallows are rocks you can examine — ten hide little salamanders (the goal), a few hide other small finds that don't count, and many hide nothing. The hunt is laid out fresh and RANDOM every visit (see world_controller + SalamanderHunt), so 'rocks' here are just candidate positions; what's under each is decided at load. Find all ten and a second portal home shimmers open nearby. Coordinates are world-space pixels; colors are [r,g,b] 0..1. Layout: woods along the top (y ~ -210), the dry bank in the middle, the waterline near y~30, and the river filling the lower screen.",
+	"world_id": "riverbank",
+	"_regions_comment": "Two stretches of the bank, for the companion's new-area discovery bond and a faint underfoot tint. Same scheme as the Vale (world_id:region_id).",
+	"regions": [
+		{ "id": "upper_run", "min": [-160, -230], "max": [1200, 170], "tint": [0.62, 0.78, 0.66] },
+		{ "id": "lower_run", "min": [1200, -230], "max": [2600, 170], "tint": [0.56, 0.74, 0.78] }
+	],
+	"_bounds_comment": "A wide strip, taller than the 360px viewport so the camera never reveals void at the edges: woods + dry bank up top, river along the bottom. Long to walk down; the camera tracks sideways as you go.",
+	"bounds": { "min": [-160, -230], "max": [2600, 170] },
+	"border": { "ring": false },
+	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": false, "body_radius": 6, "margin": 2 },
+	"ground_color": [0.55, 0.60, 0.42],
+	"_river_comment": "The river: a long water band filling the lower part of the world, drawn by world_art with a lit bank-side edge and slow ripples drifting downstream. Presentation-only — it doesn't block movement this rung, so you can wade to the waterline rocks; the bounds keep you in the world.",
+	"river": { "rect": [-200, 30, 3000, 320], "color": [0.34, 0.52, 0.62], "rim": [0.78, 0.86, 0.88] },
+	"atmosphere": {
+		"day_tint": [1.0, 0.99, 0.94],
+		"vignette": { "strength": 0.30, "color": [0.05, 0.06, 0.10] },
+		"wind": { "strength": 1.2, "speed": 0.7 },
+		"ground_noise": { "contrast": 0.10, "tint": [0.34, 0.42, 0.28] },
+		"pollen": { "amount": 16, "color": [0.95, 0.97, 0.82] },
+		"glow": { "pulse_speed": 1.4 }
+	},
+	"player_spawn": [70, -70],
+	"companion_spawn": [10, -40],
+	"_trees_comment": "A treeline of woods backing the bank along the top edge, plus a few scattered mid-bank for depth, so the place feels enclosed on the land side and open onto the water.",
+	"trees": [
+		[-120, -190], [20, -200], [160, -180], [300, -205], [440, -178], [580, -195],
+		[720, -185], [860, -205], [1000, -180], [1140, -198], [1280, -176], [1420, -205],
+		[1560, -185], [1700, -198], [1840, -178], [1980, -205], [2120, -182], [2260, -198],
+		[2400, -180], [2540, -200],
+		[400, -110], [1100, -120], [1700, -100], [2300, -96]
+	],
+	"paths": [
+		{ "from": [40, -44], "to": [820, -52], "color": [0.62, 0.58, 0.44] },
+		{ "from": [820, -52], "to": [1640, -40], "color": [0.62, 0.58, 0.44] },
+		{ "from": [1640, -40], "to": [2480, -50], "color": [0.62, 0.58, 0.44] }
+	],
+	"flowers": [
+		[220, -120, 0.92, 0.78, 0.40], [520, -130, 0.70, 0.58, 0.86], [880, -118, 0.95, 0.85, 0.42],
+		[1240, -126, 0.92, 0.62, 0.34], [1600, -120, 0.70, 0.55, 0.85], [1980, -128, 0.95, 0.85, 0.40],
+		[2340, -116, 0.86, 0.46, 0.58]
+	],
+	"_rocks_comment": "Candidate rock positions along the waterline and into the shallows. Contents are assigned randomly at load by SalamanderHunt — there must be at least goal.count + goal.decoy_count of them.",
+	"rocks": [
+		[140, 60], [250, 10], [360, 90], [470, 40], [600, 80], [720, 5],
+		[840, 95], [960, 30], [1080, 75], [1200, 15], [1320, 100], [1440, 45],
+		[1560, 85], [1680, 20], [1800, 95], [1920, 35], [2040, 80], [2160, 10],
+		[2280, 100], [2400, 45], [180, 130], [900, 125], [1500, 135], [2100, 128]
+	],
+	"_goal_comment": "The hunt: hide `count` salamanders (these count) and `decoy_count` decoys (these don't) among the rocks; the rest are empty. Decoys are tagged so the companion appraises them too (see companion.json 'appraisal').",
+	"goal": {
+		"type": "find_salamanders",
+		"count": 10,
+		"decoy_count": 6,
+		"decoys": [
+			{ "label": "a smooth blue river-glass", "tags": ["shiny", "odd"] },
+			{ "label": "a heron's grey feather", "tags": ["odd"] },
+			{ "label": "a snail curled in its spiral shell", "tags": ["odd", "still"] },
+			{ "label": "an old brass button", "tags": ["shiny", "made"] },
+			{ "label": "a little fish-shaped pebble", "tags": ["stone", "odd"] },
+			{ "label": "a sleepy river beetle", "tags": ["odd"] }
+		]
+	},
+	"_portals_comment": "Doorways between worlds (walk through them). The entry portal here returns to the Vale, landing the player beside the Vale's portal. A second 'all ten found' portal is created at runtime nearby when the hunt completes.",
+	"portals": [
+		{ "id": "riverbank_entry", "type": "portal", "position": [-30, -90], "color": [0.66, 0.80, 0.96], "label": "the portal home", "target_world": "res://data/world.json", "target_portal": "vale_portal" }
+	]
+}

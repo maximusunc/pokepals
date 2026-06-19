@@ -75,5 +75,9 @@
 		{ "id": "crystal", "type": "crystal", "position": [1180, 420], "color": [0.62, 0.78, 0.86], "label": "a glimmering crystal", "tags": ["shiny", "light"] },
 		{ "id": "log", "type": "log", "position": [520, -120], "color": [0.46, 0.34, 0.26], "label": "a mossy fallen log", "tags": ["wood", "rest"] },
 		{ "id": "basin", "type": "basin", "position": [-360, 480], "color": [0.70, 0.74, 0.80], "label": "a quiet stone basin", "tags": ["water", "still"] }
+	],
+	"_portals_comment": "Doorways to other worlds — walk through one to travel. world_controller renders them (via world_art's 'portal' type) and watches for the player stepping into them; WorldRouter performs the scene swap and the arriving world sets you down beside its matching 'target_portal'. This one opens onto the Riverbank.",
+	"portals": [
+		{ "id": "vale_portal", "type": "portal", "position": [560, 250], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "res://data/riverbank.json", "target_portal": "riverbank_entry" }
 	]
 }
