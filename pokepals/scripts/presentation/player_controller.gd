@@ -34,6 +34,10 @@ func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float)
 
 
 func _ready() -> void:
+	# Crisp pixel art: nearest-neighbour sampling on this node only, so the dropped-in
+	# sprite stays sharp when the 640x360 view is scaled up — without touching how the
+	# procedural world is filtered.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	if joystick_path != NodePath(""):
 		_joystick = get_node_or_null(joystick_path)
 	if _style == null:
@@ -84,10 +88,15 @@ func _input_direction() -> Vector2:
 
 
 func _draw() -> void:
-	if _sprite_tex != null:
-		SpriteSlot.draw(self, _sprite_tex)
-		return
 	var cfg := _style.character("player")
+	if _sprite_tex != null:
+		# Directional, animated drop-in art (e.g. the Hooded Wanderer sheet).
+		SpriteActor.draw(self, _sprite_tex, {
+			"facing": _facing,
+			"speed": velocity.length(),
+			"time": _time,
+		}, cfg)
+		return
 	VectorActor.draw(self, _style, {
 		"facing": _facing,
 		"speed": velocity.length(),
