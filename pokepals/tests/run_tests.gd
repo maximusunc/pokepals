@@ -15,6 +15,7 @@ func _init() -> void:
 	failures += TestArbiter.run_all()
 	failures += TestCompanionBrain.run_all()
 	failures += TestCompanionCommand.run_all()
+	failures += TestCompanionLead.run_all()
 	failures += TestCompanionSelf.run_all()
 	failures += TestCompanionAttention.run_all()
 	failures += TestWorldAreas.run_all()

@@ -21,6 +21,7 @@ var _cfg: Dictionary
 var _player: PlayerView
 var _events: Array = []
 var _points_of_interest: Array = []
+var _poi_meta: Array = []
 var _world_id := ""
 var _regions: Array = []
 var _time := 0.0
@@ -66,9 +67,12 @@ func set_style(style: ArtStyle) -> void:
 
 
 ## Called by the world to tell the companion where the standing props are, so it
-## can choose to wander over and investigate them on its own.
-func set_points_of_interest(points: Array) -> void:
+## can choose to wander over and investigate them on its own. `meta`, when supplied, is an
+## index-aligned [{ pos, id, tags }] companion to `points` carrying each prop's identity, so
+## the companion can lead the player to a specific, still-novel, appealing find.
+func set_points_of_interest(points: Array, meta: Array = []) -> void:
 	_points_of_interest = points
+	_poi_meta = meta
 
 
 ## Called by the world to hand over its id and named regions, so the companion can resolve
@@ -125,6 +129,7 @@ func _process(delta: float) -> void:
 		"events": _events,
 		"time": _time,
 		"points_of_interest": _points_of_interest,
+		"poi_meta": _poi_meta,
 		"current_area": WorldAreas.resolve(position, _world_id, _regions),
 	}
 	_events = []

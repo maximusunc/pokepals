@@ -91,11 +91,15 @@ func _ready() -> void:
 			"tags": it.get("tags", []),
 		})
 
-	# Let the companion know where the props are, so it can wander to them on its own.
+	# Let the companion know where the props are, so it can wander to them on its own — and,
+	# index-aligned, each prop's identity (id + tags) so it can choose to LEAD the player to a
+	# specific, appealing, still-novel find.
 	var poi: Array = []
+	var poi_meta: Array = []
 	for entry in _interactables:
 		poi.append(entry["pos"])
-	_companion.set_points_of_interest(poi)
+		poi_meta.append({ "pos": entry["pos"], "id": entry["id"], "tags": entry["tags"] })
+	_companion.set_points_of_interest(poi, poi_meta)
 
 	# Hand the companion the world's id and named regions, so it can feel the bond of
 	# reaching a new area (resolved from its own position; see WorldAreas / CompanionSelf).

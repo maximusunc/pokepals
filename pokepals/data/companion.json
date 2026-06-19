@@ -45,6 +45,7 @@
 		"grow_per_shared_attention": 0.0003,
 		"grow_per_area": 0.0006,
 		"grow_per_pet": 0.00025,
+		"grow_per_led_discovery": 0.0005,
 		"novelty_decay": 0.4,
 		"time_scale": 145.0,
 		"milestones": [0.25, 0.5, 0.75, 1.0]
@@ -152,6 +153,20 @@
 		"arousal": 0.25,
 		"rebuff_valence": -0.1,
 		"bond_cooldown": 4.0
+	},
+	"_lead_comment": "Companion-LED discovery — the deepest partnership beat, where the companion stops being a reactor and takes YOU somewhere. On its own initiative it picks an appealing, still-novel prop and leads you to it, glancing back to check you're following, then presents it with a delight and a shared-discovery bond/mood bump. Reserved for a FULLY bonded companion (min_bond, set to bond.max): leading you to share a find is something only a partner that completely trusts you does. On the social band with a CheckIn-like spacing. interval: seconds between attempts (deterministic, NOT rng — a lead is a considered, no-dice beat; also the initial delay so it doesn't fire on spawn). min_appeal: only leads to a prop it actually likes (appraised appeal). min_novelty: and only one still fresh — never drags you to something you've already examined together (novelty is keyed by the same prop id as Examine, so the two paths never double-pay). beckon_time: the 'come on!' beat before setting off. glance_interval/glance_pause: how often, and for how long, it stops to look back and check you're coming. follow_check_distance/patience: if you lag beyond follow_check_distance for patience seconds it gives up gracefully and goes back to its life. stop_distance: how close to the prop it leads before presenting. present_linger: how long it admires the find with you before the beat ends.",
+	"lead": {
+		"min_bond": 1.0,
+		"interval": 40.0,
+		"min_appeal": 0.6,
+		"min_novelty": 0.5,
+		"beckon_time": 0.8,
+		"glance_interval": 1.5,
+		"glance_pause": 0.5,
+		"follow_check_distance": 320.0,
+		"patience": 4.0,
+		"stop_distance": 40.0,
+		"present_linger": 2.0
 	},
 	"_balance_comment": "How bond tips the wander-vs-follow contest. Self-wander scores wander_score_low at bond 0 (its own agenda) fading to wander_score_high at bond 1 (kept above 0 so a bonded companion still potters). Following scores follow_eager_low..follow_eager_high by bond, PLUS a distance leash (0 at the comfort distance ramping to follow_leash at follow_far), and is scaled by the clinginess trait. follow_eager_low is 0 and the comfort distance is wide when fresh, so a new companion has little pull to follow; the leash only comes to matter as the bond deepens and the comfort distance tightens in. A player-triggered look is fixed well above all of these.",
 	"wander_score_low": 7.0,

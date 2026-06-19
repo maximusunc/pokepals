@@ -49,6 +49,7 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 		PetAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
+		LeadAction.new(cfg, b_social),
 		FollowAction.new(b_auto),
 		WanderAction.new(cfg, rng, b_auto),
 		IdleAction.new(cfg, rng, b_auto),
@@ -728,5 +729,141 @@ class PetAction extends CompanionAction:
 			"move_target": move_target,
 			"desired_speed": speed,
 			"look_at": player_pos,
+			"reactions": reactions,
+		}
+
+
+## Companion-LED discovery — the companion's OWN initiative to take YOU somewhere. The deepest
+## partnership beat: it stops reacting to you and instead picks an appealing, still-novel prop,
+## beckons, and leads you to it, glancing back to check you're following, then presents the find
+## with a delight and a shared-discovery bond/mood bump. Reserved for a FULLY bonded companion
+## (leading you to share something is what a partner who completely trusts you does). On the
+## social band with a CheckIn-like spacing — but DETERMINISTIC throughout (deterministic interval,
+## nearest qualifying prop, no dice), so it draws no action RNG and leaves the seeded suite
+## byte-identical. Gives up gracefully if you don't follow. A large commitment while underway so
+## the trek reads as deliberate; a player look or command (higher band) still breaks in.
+class LeadAction extends CompanionAction:
+	enum { BECKON, TRAVEL, ARRIVE }
+	var _cooldown := 0.0
+	var _active := false
+	var _phase := BECKON
+	var _target := Vector2.ZERO
+	var _target_id := ""
+	var _target_appeal := 0.5
+	var _just_triggered := false
+	var _beckon_timer := 0.0
+	var _glance_timer := 0.0
+	var _glancing := false
+	var _glance_left := 0.0
+	var _patience := 0.0
+	var _linger := 0.0
+	var _presented := false
+
+	func _init(cfg: Dictionary, band_value: int) -> void:
+		id = "lead"
+		band = band_value
+		behavior = "lead"
+		# An initial delay so it never leads on spawn. Deterministic (no rng) by design.
+		_cooldown = float(cfg.get("lead", {}).get("interval", 40.0))
+
+	func tick(delta: float) -> void:
+		if not _active:
+			_cooldown = maxf(0.0, _cooldown - delta)
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		if _active:
+			return 1.0
+		if _cooldown > 0.0:
+			return 0.0
+		var lead: Dictionary = cfg.get("lead", {})
+		# Window elapsed: re-arm the spacing regardless (deterministic), then maybe set off.
+		_cooldown = float(lead.get("interval", 40.0))
+		# Only a FULLY bonded companion leads; only to a prop it likes and that's still novel.
+		if s.bond < float(lead.get("min_bond", 1.0)):
+			return 0.0
+		if not bool(perception.get("has_poi", false)):
+			return 0.0
+		if float(perception.get("nearest_poi_appeal", 0.0)) < float(lead.get("min_appeal", 0.6)):
+			return 0.0
+		if float(perception.get("nearest_poi_novelty", 0.0)) < float(lead.get("min_novelty", 0.5)):
+			return 0.0
+		# Set off: beckon first.
+		_active = true
+		_phase = BECKON
+		_target = perception["nearest_poi"]
+		_target_id = String(perception.get("nearest_poi_id", ""))
+		_target_appeal = float(perception.get("nearest_poi_appeal", 0.5))
+		_beckon_timer = float(lead.get("beckon_time", 0.8))
+		_glance_timer = 0.0
+		_glancing = false
+		_patience = 0.0
+		_presented = false
+		_just_triggered = true
+		return 1.0
+
+	func act(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var lead: Dictionary = cfg.get("lead", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var look_at := _target
+		var reactions: Array = []
+		if _just_triggered:
+			reactions.append("perk")
+			reactions.append("look")
+			_just_triggered = false
+		match _phase:
+			BECKON:
+				# Stand and call you over before setting off.
+				look_at = player_pos
+				_beckon_timer -= delta
+				if _beckon_timer <= 0.0:
+					_phase = TRAVEL
+			TRAVEL:
+				# Give up gracefully if you don't keep up for a while.
+				if player_pos.distance_to(companion_pos) > float(lead.get("follow_check_distance", 320.0)):
+					_patience += delta
+				else:
+					_patience = 0.0
+				if _patience >= float(lead.get("patience", 4.0)):
+					_active = false
+				elif _glancing:
+					# Paused to look back and check you're coming.
+					look_at = player_pos
+					_glance_left -= delta
+					if _glance_left <= 0.0:
+						_glancing = false
+						_glance_timer = 0.0
+				elif companion_pos.distance_to(_target) <= float(lead.get("stop_distance", 40.0)):
+					_phase = ARRIVE
+					_linger = float(lead.get("present_linger", 2.0))
+				else:
+					# Walk toward the find; periodically stop to glance back.
+					move_target = _target
+					speed = float(cfg["walk_speed"])
+					_glance_timer += delta
+					if _glance_timer >= float(lead.get("glance_interval", 1.5)):
+						_glancing = true
+						_glance_left = float(lead.get("glance_pause", 0.5))
+			ARRIVE:
+				look_at = _target
+				if not _presented:
+					reactions.append("delight")
+					s.record_led_discovery(_target_id, _target_appeal, cfg)
+					_presented = true
+				_linger -= delta
+				if _linger <= 0.0:
+					_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": look_at,
 			"reactions": reactions,
 		}

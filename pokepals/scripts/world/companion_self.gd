@@ -388,6 +388,43 @@ func update_mood(perception: Dictionary, cfg: Dictionary, delta: float, rng: Ran
 	mood_arousal = clampf(mood_arousal, floor_v, 1.0)
 
 
+## How fresh a given prop still is, 1.0 (never encountered) decaying toward 0 — the SAME
+## novelty the bond sources use, but READ-ONLY (it does not tick familiarity). Keyed by the
+## explicit prop id, so it shares one counter with the examine path: a companion-led discovery
+## of a thing you've already examined together is rightly stale. An empty id reads as fully
+## novel. A no-op-ish 1.0 without "bond" config.
+func novelty_of(key: String, cfg: Dictionary) -> float:
+	if key == "":
+		return 1.0
+	var seen := float(familiarity.get(key, 0.0))
+	return _novelty_factor(seen, cfg.get("bond", {}))
+
+
+## The companion has LED the player to a find and is presenting it — the deepest shared beat.
+## A novelty-weighted bond bump (keyed by the prop id, so it habituates and never double-pays
+## with Examine) plus an immediate discovery mood spike scaled by how much it likes the thing.
+## Unlike the per-frame discovery path, the mood is applied directly here (this runs in act(),
+## after update_mood for the frame), so the delight lands at once. A no-op without config.
+func record_led_discovery(key: String, appeal: float, cfg: Dictionary) -> void:
+	if not cfg.has("bond"):
+		return
+	var bond_cfg: Dictionary = cfg["bond"]
+	var seen := float(familiarity.get(key, 0.0)) if key != "" else 0.0
+	var novelty := _novelty_factor(seen, bond_cfg)
+	if key != "":
+		familiarity[key] = seen + 1.0
+	var amount := float(bond_cfg.get("grow_per_led_discovery", 0.0)) * novelty * float(bond_cfg.get("time_scale", 1.0))
+	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
+	_check_bond_milestone(bond_cfg)
+	# The shared-discovery delight, applied immediately and scaled by appeal + novelty (a loved,
+	# fresh find thrills more), clamped to the cozy floor like every other mood event.
+	var m: Dictionary = cfg.get("mood", {})
+	var floor_v := float(m.get("neg_floor", -1.0))
+	var spike := novelty * appeal
+	mood_valence = clampf(mood_valence + float(m.get("discovery_valence", 0.0)) * spike, floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal + float(m.get("discovery_arousal", 0.0)) * spike, floor_v, 1.0)
+
+
 ## The companion has just heard the player's CALL and is acknowledging it — a small, warm
 ## mood lift (being noticed by you feels good), whether or not it then decides to come. No
 ## bond: a whistle isn't earned discovery, so only the relationship — not repetition — makes
