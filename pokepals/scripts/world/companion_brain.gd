@@ -16,8 +16,11 @@ extends RefCounted
 ##
 ## intent (Dictionary):
 ##   { "move_target": Vector2, "desired_speed": float, "look_at": Vector2,
-##     "behavior": "idle"|"follow"|"wander"|"curious", "reactions": Array[String] }
-##   reactions are one-shot cues for presentation: "perk", "hop", "look".
+##     "behavior": "idle"|"follow"|"wander"|"curious", "reactions": Array[String],
+##     "feeling": { "valence": float, "arousal": float, "bond": float } }
+##   reactions are one-shot cues for presentation: "perk", "hop", "look", "love".
+##   feeling is a continuous read surface (mood -1..1, bond 0..1) for body language —
+##   the presentation reads it to express how the companion feels, never to decide behavior.
 
 var _cfg: Dictionary
 var _rng := RandomNumberGenerator.new()
@@ -104,6 +107,12 @@ func update(context: Dictionary) -> Dictionary:
 	# ACT: only the winner produces the intent.
 	var proposal: Dictionary = winner.act(perception, _self, _cfg, _rng, delta)
 	_behavior = proposal["behavior"]
+	# Affective cues ride alongside the winner's reactions: a bond milestone crossed this
+	# frame (set during observe) becomes a one-off "love" beat. Duplicate first so we never
+	# mutate the action's own reactions array.
+	var reactions: Array = (proposal["reactions"] as Array).duplicate()
+	if _self.bond_event == "milestone":
+		reactions.append("love")
 	_last_debug = {
 		"behavior": _behavior,
 		"dist_to_player": perception["dist_to_player"],
@@ -119,5 +128,10 @@ func update(context: Dictionary) -> Dictionary:
 		"desired_speed": proposal["desired_speed"],
 		"look_at": proposal["look_at"],
 		"behavior": _behavior,
-		"reactions": proposal["reactions"],
+		"reactions": reactions,
+		"feeling": {
+			"valence": _self.mood_valence,
+			"arousal": _self.mood_arousal,
+			"bond": _self.bond,
+		},
 	}

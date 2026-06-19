@@ -67,6 +67,11 @@ var _last_discovery_novelty: float = 0.0
 var _last_discovery_appeal: float = 1.0
 var _last_shared_novelty: float = 0.0
 var _seconds_since_novelty: float = 999.0
+# Set for the single frame the bond crosses a configured milestone (to "milestone"),
+# so the presentation can play a one-off "we grew closer" beat. NOT persisted — but the
+# milestones already reached ARE (in short_term), so a milestone never re-fires across
+# sessions. Cleared at the top of _grow_bond every frame.
+var bond_event: String = ""
 
 
 ## A fresh self seeded from the companion config. Traits come from an explicit
@@ -178,6 +183,7 @@ func observe(perception: Dictionary, cfg: Dictionary, delta: float) -> void:
 ## bounded so the wanderer->companion shift is felt across a session, not flipped in
 ## seconds. A no-op without "bond" config.
 func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: bool) -> void:
+	bond_event = ""  # transient; set below only on the frame a milestone is crossed
 	if not cfg.has("bond"):
 		return
 	var bond_cfg: Dictionary = cfg["bond"]
@@ -215,6 +221,26 @@ func _grow_bond(perception: Dictionary, cfg: Dictionary, delta: float, near: boo
 	# feel: the base rates are the real game, this multiplies them (set to 1.0 to ship).
 	amount *= float(bond_cfg.get("time_scale", 1.0))
 	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
+	_check_bond_milestone(bond_cfg)
+
+
+## A relationship deepening past a configured threshold (e.g. 0.25/0.5/0.75/1.0) is a
+## beat worth feeling. We remember the highest milestone reached in short_term (which IS
+## persisted), so each one fires exactly once ever — never on a repeat, never on reload.
+## When a fresh one is crossed this frame, flag bond_event for the presentation to read.
+func _check_bond_milestone(bond_cfg: Dictionary) -> void:
+	var milestones: Array = bond_cfg.get("milestones", [])
+	if milestones.is_empty():
+		return
+	var highest := float(short_term.get("bond_milestone", -1.0))
+	var crossed := highest
+	for m in milestones:
+		var threshold := float(m)
+		if bond >= threshold and threshold > crossed:
+			crossed = threshold
+	if crossed > highest:
+		short_term["bond_milestone"] = crossed
+		bond_event = "milestone"
 
 
 ## How fresh the Nth encounter with a prop is, 1.0 (first, seen == 0) decaying geometrically

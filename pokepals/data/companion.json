@@ -32,7 +32,18 @@
 		"grow_per_shared_attention": 0.0003,
 		"grow_per_area": 0.0006,
 		"novelty_decay": 0.4,
-		"time_scale": 145.0
+		"time_scale": 145.0,
+		"milestones": [0.25, 0.5, 0.75, 1.0]
+	},
+	"_expression_comment": "How the companion's FEELING shows in its body — the bridge from the mood sim to something the player can read without numbers. Pure presentation tuning (CompanionView maps the eased mood through this, VectorActor draws it). ease_rate: per-second smoothing of mood toward the brain's value, so body language glides rather than twitches. tail_wag_rate [calm,excited]: wag cycles/sec by arousal. tail_wag_amp: max sideways wag, reached only at high valence (a still/tucked tail when withdrawn) — the clearest 'glad you're here' tell. ear_raise: how far ears perk UP at peak happiness; ear_droop: how far they sag at low valence. idle_bounce_gain [calm,excited]: multiplies the resting breathing bob by arousal, so an excited companion fidgets and a calm one settles. emote_life: seconds a floating emote glyph lives.",
+	"expression": {
+		"ease_rate": 3.0,
+		"tail_wag_rate": [3.0, 11.0],
+		"tail_wag_amp": 0.9,
+		"ear_raise": 4.0,
+		"ear_droop": 3.0,
+		"idle_bounce_gain": [0.6, 2.2],
+		"emote_life": 1.8
 	},
 	"_mood_comment": "The fast affective layer — a 2D feeling that overlays the slower traits and gives each day its own weather. valence (withdrawn..warm) rides on clinginess; arousal (calm..energized) rides on energy; curiosity has no mood axis. overlay_scale: how strongly mood bends the effective trait (every action reads traits through CompanionTraits, so this biases the whole decision, not just the look). relax_rate: per-second ease back toward the resting point, so event spikes fade over a few seconds. rest_valence/rest_arousal: the resting point is derived from a trait via lerp(lo,hi,trait) — an energetic companion rests at higher arousal, a warm one at higher valence — so different companions feel different even at rest. discovery_*: a novel examine spikes valence+arousal, multiplied by the prop's novelty (a habituated prop barely moves it). separation_valence_rate: valence eases down per second while the player is far, times bond (a fresh companion likes its independence; a bonded one misses you). contagion_*: a moving player pulls arousal up (gain * player_speed/ref_speed, lightly bond-scaled). boredom_*: after boredom_onset seconds with nothing novel, arousal drifts down so the next novel thing pops. shared_attention_valence: a warming valence lift on a shared-attention moment (you and it focused on the same thing), novelty-weighted. noticed_valence_gain: a gentle continuous valence lift while the player seems to be noticing the companion (noticed_strength * this * delta). walk_amp: amplitude of the per-frame random walk — the PRIMARY source of day-to-day variety. neg_floor: cozy asymmetry — mood can't drop below this mild floor (real lows arrive with danger later). axis_map: which trait each mood axis overlays.",
 	"mood": {
