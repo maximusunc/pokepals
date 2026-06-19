@@ -111,6 +111,9 @@ func issue_command(command: String) -> void:
 
 
 func _ready() -> void:
+	# Crisp pixel art: nearest-neighbour sampling on this node only (matches PlayerView), so a
+	# dropped-in companion sheet stays sharp when scaled, without touching the procedural world.
+	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_cfg = WorldData.load_json(config_path)
 	# Carry the companion across sessions: load its saved self if there is one, so
 	# it returns as the same partner the player has been shaping.
@@ -288,10 +291,6 @@ func _decay_animation(delta: float) -> void:
 
 
 func _draw() -> void:
-	if _sprite_tex != null:
-		SpriteSlot.draw(self, _sprite_tex)
-		_draw_emotes()
-		return
 	# It faces where it walks when moving, and where it's looking (attending) when
 	# still; the brain-driven hop/perk become the actor's squash/stretch, and the
 	# eased eye_offset keeps the eyes tracking whatever it's attending to. The eased
@@ -310,6 +309,21 @@ func _draw() -> void:
 	var ear_offset := float(expr.get("ear_droop", 3.0)) * neg_valence - float(expr.get("ear_raise", 4.0)) * pos_valence * (0.5 + 0.5 * arousal01)
 	var bounce_range: Array = expr.get("idle_bounce_gain", [0.6, 2.2])
 	var bounce_gain := lerpf(float(bounce_range[0]), float(bounce_range[1]), arousal01)
+	# Expressive pixel-art rig (e.g. the foxlike-kit sheet): the same mood signals drive a
+	# wagging tail, perking/drooping ears and an idle bounce, just rendered as sprite layers.
+	if _sprite_tex != null:
+		CompanionSprite.draw(self, _sprite_tex, {
+			"facing": facing,
+			"speed": velocity.length(),
+			"time": _time,
+			"squash": 0.16 * _perk - 0.12 * _hop_squash,
+			"wag_rate": wag_rate,
+			"wag_amp": wag_amp,
+			"ear_offset": ear_offset,
+			"bounce_gain": bounce_gain,
+		}, cfg)
+		_draw_emotes()
+		return
 	VectorActor.draw(self, _style, {
 		"facing": facing,
 		"speed": velocity.length(),
