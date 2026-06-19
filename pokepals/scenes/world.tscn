@@ -97,6 +97,33 @@ offset_bottom = -32.0
 theme_override_font_sizes/font_size = 24
 text = "Examine"
 
+[node name="CallButton" type="Button" parent="UI"]
+modulate = Color(1, 1, 1, 0.85)
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -376.0
+offset_top = -96.0
+offset_right = -216.0
+offset_bottom = -32.0
+theme_override_font_sizes/font_size = 24
+text = "Call"
+
+[node name="PetButton" type="Button" parent="UI"]
+visible = false
+modulate = Color(1, 1, 1, 0)
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -188.0
+offset_top = -170.0
+offset_right = -28.0
+offset_bottom = -106.0
+theme_override_font_sizes/font_size = 24
+text = "Pet"
+
 [node name="ResetButton" type="Button" parent="UI"]
 visible = false
 modulate = Color(1, 1, 1, 0)

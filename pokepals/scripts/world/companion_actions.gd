@@ -43,9 +43,13 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 	var b_auto := int(bands.get("autonomous", 1))
 	var b_social := int(bands.get("social", 2))
 	var b_interrupt := int(bands.get("interrupt", 4))
+	var b_command := int(bands.get("command", 5))
 	return [
+		ComeAction.new(b_command),
+		PetAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
+		LeadAction.new(cfg, b_social),
 		FollowAction.new(b_auto),
 		WanderAction.new(cfg, rng, b_auto),
 		IdleAction.new(cfg, rng, b_auto),
@@ -553,5 +557,330 @@ class IdleAction extends CompanionAction:
 			"move_target": companion_pos,
 			"desired_speed": 0.0,
 			"look_at": _look_at if _has_look else player_pos,
+			"reactions": reactions,
+		}
+
+
+## The player's CALL / whistle — the implementation of the reserved `command` band. A whistle
+## is a BID for attention, not a guaranteed summon, and it leans on the same two axes the whole
+## game is built around: distance and bond. First DISTANCE gates it — beyond hear_radius the
+## companion simply can't hear you, so the call no-ops (it never reaches across the whole map;
+## if it has wandered off you may have to go to it). When it does hear, it ACKNOWLEDGES — stands,
+## looks over and perks for a beat, with a small mood lift from being noticed — and only THEN,
+## by BOND, decides whether to come: a fresh companion usually just acknowledges and carries on,
+## a bonded one reliably comes running. So the call's power grows with the relationship, the same
+## arc as the follow-distance tightening. On the command band, so the acknowledgment preempts any
+## autonomous beat; calling never grows bond (a whistle isn't earned discovery). Once it arrives
+## it doesn't park at the call spot and bolt — it ESCORTS you, sticking close and following while
+## you move, drifting back to its own life only a beat after you settle (so you can whistle it
+## along on the way somewhere).
+class ComeAction extends CompanionAction:
+	enum { ACK, COME, ESCORT }
+	var _active := false
+	var _phase := ACK
+	var _ack_timer := 0.0
+	var _will_come := false
+	var _just_triggered := false
+	var _escort_timer := 0.0
+
+	func _init(band_value: int) -> void:
+		id = "come"
+		band = band_value
+		behavior = "come"
+
+	func commitment(cfg: Dictionary) -> float:
+		# A call in progress (acknowledging, or on its way over) is a committed beat, so it
+		# follows through rather than being yanked by an autonomous urge mid-acknowledgment.
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		if String(perception.get("command", "")) == "come" and not _active:
+			var come: Dictionary = cfg.get("come", {})
+			# Out of earshot: it can't hear you, so the whistle does nothing at all.
+			if float(perception["dist_to_player"]) > float(come.get("hear_radius", 900.0)):
+				return 0.0
+			# Heard: latch and acknowledge first; the mood lifts at being called whether or not
+			# it then comes. Decide the come/stay outcome now (bond-gated, mood-nudged).
+			_active = true
+			_phase = ACK
+			_ack_timer = float(come.get("ack_pause", 0.5))
+			_just_triggered = true
+			_will_come = float(perception.get("command_roll", 1.0)) < _come_chance(s, come)
+			s.apply_command_ack(cfg)
+		return 1.0 if _active else 0.0
+
+	# Odds it actually comes once it has heard you: bond is the axis, with a small mood nudge so a
+	# bright/energized companion is a touch readier. Clamped to a probability.
+	func _come_chance(s: CompanionSelf, come: Dictionary) -> float:
+		var chance := lerpf(float(come.get("chance_low", 0.1)), float(come.get("chance_high", 1.0)), s.bond)
+		chance += s.mood_valence * float(come.get("valence_weight", 0.0))
+		chance += s.mood_arousal * float(come.get("arousal_weight", 0.0))
+		return clampf(chance, 0.0, 1.0)
+
+	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var come: Dictionary = cfg.get("come", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var reactions: Array = []
+		if _just_triggered:
+			# The instant "I heard you" beat: perk and turn toward the player.
+			reactions.append("perk")
+			reactions.append("look")
+			_just_triggered = false
+		var stop_distance := float(come.get("stop_distance", 48.0))
+		if _phase == ACK:
+			# Hold a beat to acknowledge, standing and looking at the player.
+			_ack_timer -= delta
+			if _ack_timer <= 0.0:
+				if _will_come:
+					_phase = COME
+				else:
+					_active = false  # acknowledged, but chose to stay its own course
+		elif _phase == COME:
+			# Coming over: run to the player, then a happy arrival hop, and fall in beside you.
+			if companion_pos.distance_to(player_pos) > stop_distance:
+				move_target = player_pos
+				speed = float(cfg["run_speed"])
+			else:
+				reactions.append("hop")
+				reactions.append("look")
+				_escort_timer = float(come.get("stay", 3.0))
+				_phase = ESCORT
+		else:
+			# ESCORT: stick close and travel with you. Stay near (run if you've pulled ahead,
+			# walk if just trailing), keep facing you. The window refreshes while you're moving,
+			# so it accompanies you the whole way; once you settle it counts down and only then
+			# drifts back to its own life — it doesn't bolt the instant it arrives.
+			var dist := companion_pos.distance_to(player_pos)
+			if dist > stop_distance:
+				move_target = player_pos
+				speed = float(cfg["run_speed"]) if dist > float(cfg.get("run_distance", 160.0)) else float(cfg["walk_speed"])
+			if bool(perception.get("player_moving", false)):
+				_escort_timer = float(come.get("stay", 3.0))
+			else:
+				_escort_timer -= delta
+			if _escort_timer <= 0.0:
+				_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": player_pos,
+			"reactions": reactions,
+		}
+
+
+## A deliberate PET when you're right beside it — also on the command band, sharing the
+## issue_command channel ("pet"), self-gated on distance. What it does is BOND-dependent: a
+## bonded companion leans in (a step toward you, a heart, a warm mood lift and a small,
+## un-grindable bond gain); a fresh, wary one often SHIES a little away instead (a startle step
+## back, a tiny mood dip, no bond) — it doesn't trust you yet. So petting a stranger is a gamble
+## and petting a friend is reliably sweet: the relationship is the mechanic. The accept/shy
+## outcome rides the pre-rolled pet_roll on the dedicated command stream (no action-RNG draw).
+class PetAction extends CompanionAction:
+	var _active := false
+	var _accept := false
+	var _timer := 0.0
+	var _just_triggered := false
+	var _step_target := Vector2.ZERO
+
+	func _init(band_value: int) -> void:
+		id = "pet"
+		band = band_value
+		behavior = "pet"
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		if String(perception.get("command", "")) == "pet" and not _active:
+			var pet: Dictionary = cfg.get("pet", {})
+			# Only a pet you can actually reach lands; out of range the order silently no-ops.
+			if float(perception["dist_to_player"]) > float(pet.get("range", 56.0)):
+				return 0.0
+			_active = true
+			_timer = float(pet.get("duration", 1.0))
+			_just_triggered = true
+			# Welcome it, or shy away? Bond is the axis, via the pre-rolled die.
+			var accept_chance := lerpf(float(pet.get("accept_low", 0.25)), float(pet.get("accept_high", 1.0)), s.bond)
+			_accept = float(perception.get("pet_roll", 1.0)) < accept_chance
+			# Where it ends up: a small step TOWARD you if welcomed, a startle step BACK if not.
+			var companion_pos: Vector2 = perception["companion_pos"]
+			var player_pos: Vector2 = perception["player_pos"]
+			var toward := player_pos - companion_pos
+			if toward.length() < 1.0:
+				toward = Vector2.RIGHT
+			toward = toward.normalized()
+			var step := float(pet.get("step", 14.0))
+			_step_target = companion_pos + (toward * step if _accept else -toward * step)
+			if _accept:
+				s.pet(cfg)
+			else:
+				s.pet_rebuff(cfg)
+		return 1.0 if _active else 0.0
+
+	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var reactions: Array = []
+		if _just_triggered:
+			reactions.append("love" if _accept else "perk")
+			_just_triggered = false
+		var move_target := companion_pos
+		var speed := 0.0
+		# Ease the little lean-in / shy-away over the beat, then settle and release.
+		if companion_pos.distance_to(_step_target) > 2.0:
+			move_target = _step_target
+			speed = float(cfg["walk_speed"])
+		_timer -= delta
+		if _timer <= 0.0:
+			_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": player_pos,
+			"reactions": reactions,
+		}
+
+
+## Companion-LED discovery — the companion's OWN initiative to take YOU somewhere. The deepest
+## partnership beat: it stops reacting to you and instead picks an appealing, still-novel prop,
+## beckons, and leads you to it, glancing back to check you're following, then presents the find
+## with a delight and a shared-discovery bond/mood bump. Reserved for a FULLY bonded companion
+## (leading you to share something is what a partner who completely trusts you does). On the
+## social band with a CheckIn-like spacing — but DETERMINISTIC throughout (deterministic interval,
+## nearest qualifying prop, no dice), so it draws no action RNG and leaves the seeded suite
+## byte-identical. Gives up gracefully if you don't follow. A large commitment while underway so
+## the trek reads as deliberate; a player look or command (higher band) still breaks in.
+class LeadAction extends CompanionAction:
+	enum { BECKON, TRAVEL, ARRIVE }
+	var _cooldown := 0.0
+	var _active := false
+	var _phase := BECKON
+	var _target := Vector2.ZERO
+	var _target_id := ""
+	var _target_appeal := 0.5
+	var _just_triggered := false
+	var _beckon_timer := 0.0
+	var _glance_timer := 0.0
+	var _glancing := false
+	var _glance_left := 0.0
+	var _patience := 0.0
+	var _linger := 0.0
+	var _presented := false
+
+	func _init(cfg: Dictionary, band_value: int) -> void:
+		id = "lead"
+		band = band_value
+		behavior = "lead"
+		# An initial delay so it never leads on spawn. Deterministic (no rng) by design.
+		_cooldown = float(cfg.get("lead", {}).get("interval", 40.0))
+
+	func tick(delta: float) -> void:
+		if not _active:
+			_cooldown = maxf(0.0, _cooldown - delta)
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		if _active:
+			return 1.0
+		if _cooldown > 0.0:
+			return 0.0
+		var lead: Dictionary = cfg.get("lead", {})
+		# Window elapsed: re-arm the spacing regardless (deterministic), then maybe set off.
+		_cooldown = float(lead.get("interval", 40.0))
+		# Only a FULLY bonded companion leads; only to a prop it likes and that's still novel.
+		if s.bond < float(lead.get("min_bond", 1.0)):
+			return 0.0
+		if not bool(perception.get("has_poi", false)):
+			return 0.0
+		if float(perception.get("nearest_poi_appeal", 0.0)) < float(lead.get("min_appeal", 0.6)):
+			return 0.0
+		if float(perception.get("nearest_poi_novelty", 0.0)) < float(lead.get("min_novelty", 0.5)):
+			return 0.0
+		# Set off: beckon first.
+		_active = true
+		_phase = BECKON
+		_target = perception["nearest_poi"]
+		_target_id = String(perception.get("nearest_poi_id", ""))
+		_target_appeal = float(perception.get("nearest_poi_appeal", 0.5))
+		_beckon_timer = float(lead.get("beckon_time", 0.8))
+		_glance_timer = 0.0
+		_glancing = false
+		_patience = 0.0
+		_presented = false
+		_just_triggered = true
+		return 1.0
+
+	func act(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var lead: Dictionary = cfg.get("lead", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var look_at := _target
+		var reactions: Array = []
+		if _just_triggered:
+			reactions.append("perk")
+			reactions.append("look")
+			_just_triggered = false
+		match _phase:
+			BECKON:
+				# Stand and call you over before setting off.
+				look_at = player_pos
+				_beckon_timer -= delta
+				if _beckon_timer <= 0.0:
+					_phase = TRAVEL
+			TRAVEL:
+				# Give up gracefully if you don't keep up for a while.
+				if player_pos.distance_to(companion_pos) > float(lead.get("follow_check_distance", 320.0)):
+					_patience += delta
+				else:
+					_patience = 0.0
+				if _patience >= float(lead.get("patience", 4.0)):
+					_active = false
+				elif _glancing:
+					# Paused to look back and check you're coming.
+					look_at = player_pos
+					_glance_left -= delta
+					if _glance_left <= 0.0:
+						_glancing = false
+						_glance_timer = 0.0
+				elif companion_pos.distance_to(_target) <= float(lead.get("stop_distance", 40.0)):
+					_phase = ARRIVE
+					_linger = float(lead.get("present_linger", 2.0))
+				else:
+					# Walk toward the find; periodically stop to glance back.
+					move_target = _target
+					speed = float(cfg["walk_speed"])
+					_glance_timer += delta
+					if _glance_timer >= float(lead.get("glance_interval", 1.5)):
+						_glancing = true
+						_glance_left = float(lead.get("glance_pause", 0.5))
+			ARRIVE:
+				look_at = _target
+				if not _presented:
+					reactions.append("delight")
+					s.record_led_discovery(_target_id, _target_appeal, cfg)
+					_presented = true
+				_linger -= delta
+				if _linger <= 0.0:
+					_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": look_at,
 			"reactions": reactions,
 		}

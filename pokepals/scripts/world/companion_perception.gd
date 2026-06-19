@@ -44,12 +44,35 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 	var has_poi := false
 	var nearest_poi := Vector2.ZERO
 	var best := INF
-	for p in context.get("points_of_interest", []):
+	var best_index := -1
+	var pois: Array = context.get("points_of_interest", [])
+	for i in pois.size():
+		var p: Vector2 = pois[i]
 		var d := companion_pos.distance_to(p)
 		if d <= wander_radius and d < best:
 			best = d
 			nearest_poi = p
 			has_poi = true
+			best_index = i
+
+	# Resolve the nearest prop's IDENTITY for the beats that need to reason about WHICH thing
+	# it is (so far: companion-led discovery). poi_meta is an OPTIONAL, index-aligned companion
+	# to points_of_interest — [{ pos, id, tags }] — so worlds/tests that pass only bare
+	# positions keep working: when it's absent we fall back to neutral appeal, full novelty and
+	# an empty id, leaving every existing consumer byte-identical.
+	var neutral := float(cfg.get("appraisal", {}).get("neutral", 0.5))
+	var nearest_poi_id := ""
+	var nearest_poi_tags: Array = []
+	var nearest_poi_appeal := neutral
+	var nearest_poi_novelty := 1.0
+	var poi_meta: Array = context.get("poi_meta", [])
+	if has_poi and best_index >= 0 and best_index < poi_meta.size():
+		var meta: Dictionary = poi_meta[best_index]
+		nearest_poi_id = String(meta.get("id", ""))
+		nearest_poi_tags = meta.get("tags", [])
+		nearest_poi_appeal = CompanionAppraisal.appeal(nearest_poi_tags, cfg, curiosity)
+		if s != null:
+			nearest_poi_novelty = s.novelty_of(nearest_poi_id, cfg)
 
 	return {
 		"companion_pos": companion_pos,
@@ -68,6 +91,10 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 		"current_area": String(context.get("current_area", "")),
 		"has_poi": has_poi,
 		"nearest_poi": nearest_poi,
+		"nearest_poi_id": nearest_poi_id,
+		"nearest_poi_tags": nearest_poi_tags,
+		"nearest_poi_appeal": nearest_poi_appeal,
+		"nearest_poi_novelty": nearest_poi_novelty,
 	}
 
 

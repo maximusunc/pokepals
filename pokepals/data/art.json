@@ -13,7 +13,7 @@
 	},
 	"light": { "dir": [-0.45, -0.89], "rim_strength": 0.22, "shadow_alpha": 0.20 },
 	"characters": {
-		"player": { "render": "procedural", "sprite": "", "body": [0.86, 0.52, 0.40], "accent": [0.96, 0.81, 0.67], "width": 0.7 },
+		"player": { "render": "procedural", "sprite": "", "body": [0.76, 0.52, 0.40], "accent": [0.96, 0.81, 0.67], "width": 0.9 },
 		"companion": { "render": "procedural", "sprite": "", "body": [0.55, 0.40, 0.27], "accent": [0.72, 0.56, 0.38] }
 	},
 	"entities": {

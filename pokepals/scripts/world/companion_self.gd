@@ -388,6 +388,92 @@ func update_mood(perception: Dictionary, cfg: Dictionary, delta: float, rng: Ran
 	mood_arousal = clampf(mood_arousal, floor_v, 1.0)
 
 
+## How fresh a given prop still is, 1.0 (never encountered) decaying toward 0 — the SAME
+## novelty the bond sources use, but READ-ONLY (it does not tick familiarity). Keyed by the
+## explicit prop id, so it shares one counter with the examine path: a companion-led discovery
+## of a thing you've already examined together is rightly stale. An empty id reads as fully
+## novel. A no-op-ish 1.0 without "bond" config.
+func novelty_of(key: String, cfg: Dictionary) -> float:
+	if key == "":
+		return 1.0
+	var seen := float(familiarity.get(key, 0.0))
+	return _novelty_factor(seen, cfg.get("bond", {}))
+
+
+## The companion has LED the player to a find and is presenting it — the deepest shared beat.
+## A novelty-weighted bond bump (keyed by the prop id, so it habituates and never double-pays
+## with Examine) plus an immediate discovery mood spike scaled by how much it likes the thing.
+## Unlike the per-frame discovery path, the mood is applied directly here (this runs in act(),
+## after update_mood for the frame), so the delight lands at once. A no-op without config.
+func record_led_discovery(key: String, appeal: float, cfg: Dictionary) -> void:
+	if not cfg.has("bond"):
+		return
+	var bond_cfg: Dictionary = cfg["bond"]
+	var seen := float(familiarity.get(key, 0.0)) if key != "" else 0.0
+	var novelty := _novelty_factor(seen, bond_cfg)
+	if key != "":
+		familiarity[key] = seen + 1.0
+	var amount := float(bond_cfg.get("grow_per_led_discovery", 0.0)) * novelty * float(bond_cfg.get("time_scale", 1.0))
+	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
+	_check_bond_milestone(bond_cfg)
+	# The shared-discovery delight, applied immediately and scaled by appeal + novelty (a loved,
+	# fresh find thrills more), clamped to the cozy floor like every other mood event.
+	var m: Dictionary = cfg.get("mood", {})
+	var floor_v := float(m.get("neg_floor", -1.0))
+	var spike := novelty * appeal
+	mood_valence = clampf(mood_valence + float(m.get("discovery_valence", 0.0)) * spike, floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal + float(m.get("discovery_arousal", 0.0)) * spike, floor_v, 1.0)
+
+
+## The companion has just heard the player's CALL and is acknowledging it — a small, warm
+## mood lift (being noticed by you feels good), whether or not it then decides to come. No
+## bond: a whistle isn't earned discovery, so only the relationship — not repetition — makes
+## the call land. Clamped to the same cozy negative floor as the rest of the mood. A no-op
+## without "come"/"mood" config.
+func apply_command_ack(cfg: Dictionary) -> void:
+	var c: Dictionary = cfg.get("come", {})
+	var floor_v := float(cfg.get("mood", {}).get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence + float(c.get("ack_valence", 0.0)), floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal + float(c.get("ack_arousal", 0.0)), floor_v, 1.0)
+
+
+## The player has petted an adjacent companion and it WELCOMED it: a warm mood lift, plus a
+## small bond gain gated TWICE so it can't be farmed — novelty-weighted under the "pet" key in
+## the familiarity map (first pets pay, repeats fade), AND no more than once per bond_cooldown
+## seconds of observed play time (a spam of taps in the same instant pays at most once).
+## time_scale multiplies the gain just like the other bond sources. A no-op without config.
+func pet(cfg: Dictionary) -> void:
+	var c: Dictionary = cfg.get("pet", {})
+	var floor_v := float(cfg.get("mood", {}).get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence + float(c.get("valence", 0.0)), floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal + float(c.get("arousal", 0.0)), floor_v, 1.0)
+	if not cfg.has("bond"):
+		return
+	var bond_cfg: Dictionary = cfg["bond"]
+	# Cooldown gate: only earn bond from a pet every so often of real play, so tapping fast
+	# can't farm it. (play_seconds doesn't advance between taps in one frame, so this is the
+	# anti-spam backstop the novelty curve alone wouldn't give.)
+	var now := float(observations.get("play_seconds", 0.0))
+	var last := float(short_term.get("last_pet_time", -1.0e9))
+	if now - last < float(c.get("bond_cooldown", 0.0)):
+		return
+	short_term["last_pet_time"] = now
+	var seen := float(familiarity.get("pet", 0.0))
+	var novelty := _novelty_factor(seen, bond_cfg)
+	familiarity["pet"] = seen + 1.0
+	var amount := float(bond_cfg.get("grow_per_pet", 0.0)) * novelty * float(bond_cfg.get("time_scale", 1.0))
+	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
+	_check_bond_milestone(bond_cfg)
+
+
+## The player petted a companion that wasn't ready to trust it: a small mood dip (it shied
+## away), clamped to the cozy negative floor. No bond — affection has to be welcomed to count.
+func pet_rebuff(cfg: Dictionary) -> void:
+	var c: Dictionary = cfg.get("pet", {})
+	var floor_v := float(cfg.get("mood", {}).get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence + float(c.get("rebuff_valence", 0.0)), floor_v, 1.0)
+
+
 ## Normalized 0..1 read-outs of how the player plays, derived from observations:
 ##   explore   — how much they roam (distance over time vs. a reference pace)
 ##   together  — how much they stay close to the companion
