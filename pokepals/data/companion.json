@@ -44,6 +44,7 @@
 		"grow_per_interaction": 0.0004,
 		"grow_per_shared_attention": 0.0003,
 		"grow_per_area": 0.0006,
+		"grow_per_pet": 0.00025,
 		"novelty_decay": 0.4,
 		"time_scale": 145.0,
 		"milestones": [0.25, 0.5, 0.75, 1.0]
@@ -139,6 +140,18 @@
 		"arousal_weight": 0.1,
 		"ack_valence": 0.15,
 		"ack_arousal": 0.2
+	},
+	"_pet_comment": "Deliberate affection, available only when you're adjacent (the Pet affordance fades in within range). What the pet DOES depends on BOND. range: the brain only accepts a pet within this distance (matches the controller's PET_RANGE). accept_low..accept_high: the probability it welcomes the pet, by bond — a fresh, wary companion (accept_low) often SHIES a little away instead (a startle step back, no bond, a tiny mood dip that never drops below the cozy floor); a bonded one (accept_high) always leans in. step: how far it leans toward you on a good pet, or shies back on a rebuff (px). On acceptance: a warm mood lift (valence/arousal) and a small bond gain, gated TWICE so it can't be farmed — novelty-weighted in the familiarity map under 'pet' (first pets pay, repeats fade) AND only once per bond_cooldown seconds of play time. rebuff_valence: the small mood dip on a shy-away (negative, clamped to neg_floor). duration: seconds the beat lasts. So petting a stranger is a gamble; petting a friend is reliably sweet — the relationship is, again, the mechanic.",
+	"pet": {
+		"range": 56.0,
+		"duration": 1.0,
+		"accept_low": 0.25,
+		"accept_high": 1.0,
+		"step": 14.0,
+		"valence": 0.35,
+		"arousal": 0.25,
+		"rebuff_valence": -0.1,
+		"bond_cooldown": 4.0
 	},
 	"_balance_comment": "How bond tips the wander-vs-follow contest. Self-wander scores wander_score_low at bond 0 (its own agenda) fading to wander_score_high at bond 1 (kept above 0 so a bonded companion still potters). Following scores follow_eager_low..follow_eager_high by bond, PLUS a distance leash (0 at the comfort distance ramping to follow_leash at follow_far), and is scaled by the clinginess trait. follow_eager_low is 0 and the comfort distance is wide when fresh, so a new companion has little pull to follow; the leash only comes to matter as the bond deepens and the comfort distance tightens in. A player-triggered look is fixed well above all of these.",
 	"wander_score_low": 7.0,

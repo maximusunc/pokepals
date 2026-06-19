@@ -9,6 +9,9 @@ extends Node2D
 const WORLD_PATH := "res://data/world.json"
 const ART_PATH := "res://data/art.json"
 const INTERACT_RANGE := 60.0
+# How close the player must be to the companion for the Pet affordance to appear. Mirrors the
+# brain's pet.range (companion.json) so the button only shows when a pet would actually land.
+const PET_RANGE := 56.0
 
 @onready var _world_art: WorldArt = $WorldArt
 @onready var _scenery: Scenery = $Scenery
@@ -19,6 +22,7 @@ const INTERACT_RANGE := 60.0
 @onready var _joystick: VirtualJoystick = $UI/Joystick
 @onready var _examine_button: Button = $UI/ExamineButton
 @onready var _call_button: Button = $UI/CallButton
+@onready var _pet_button: Button = $UI/PetButton
 @onready var _reset_button: Button = $UI/ResetButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
@@ -28,6 +32,7 @@ const INTERACT_RANGE := 60.0
 
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
+var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 var _style: ArtStyle
@@ -108,6 +113,11 @@ func _ready() -> void:
 	# Keep its taps off the movement thumbstick underneath. Desktop: C (see _unhandled_input).
 	_call_button.pressed.connect(_try_call)
 	_joystick.add_exclusion(_call_button)
+
+	# Pet: a contextual affordance, faded in only when standing beside the companion (see
+	# _process). Keep its taps off the thumbstick. Desktop: E (see _unhandled_input).
+	_pet_button.pressed.connect(_try_pet)
+	_joystick.add_exclusion(_pet_button)
 
 	# Top-right "start over" button: only revealed once fully bonded (see _process).
 	_reset_button.pressed.connect(_on_reset_pressed)
@@ -215,6 +225,9 @@ func _process(delta: float) -> void:
 		if _hint.text.begins_with("Examine "):
 			_hint.text = ""
 
+	# Surface the Pet affordance only when standing right beside the companion.
+	_set_pet_visible(_player.position.distance_to(_companion.position) <= PET_RANGE)
+
 	# Reveal the "new companion" button only once the bond is full.
 	_set_reset_visible(_companion.is_fully_bonded())
 
@@ -231,6 +244,20 @@ func _set_examine_visible(show_button: bool) -> void:
 	tween.tween_property(_examine_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
 	if not show_button:
 		tween.tween_callback(func() -> void: _examine_button.visible = false)
+
+
+## Gently fade the touch Pet button in when beside the companion, out otherwise — mirrors the
+## Examine fade, so the affordance signals "you can pet it now" without cluttering the screen.
+func _set_pet_visible(show_button: bool) -> void:
+	if show_button == _pet_shown:
+		return
+	_pet_shown = show_button
+	if show_button:
+		_pet_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_pet_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _pet_button.visible = false)
 
 
 ## Gently fade the "new companion" button in once fully bonded, out otherwise —
@@ -264,6 +291,8 @@ func _unhandled_input(event: InputEvent) -> void:
 	elif event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_C:
 			_try_call()
+		elif event.physical_keycode == KEY_E:
+			_try_pet()
 
 
 ## Whistle for the companion. Whether it hears, acknowledges, and actually comes is up to the
@@ -271,6 +300,15 @@ func _unhandled_input(event: InputEvent) -> void:
 func _try_call() -> void:
 	_companion.issue_command("come")
 	_show_hint("You whistle for your companion.")
+
+
+## Pet the companion when you're beside it. Whether it leans in or shies away is up to the
+## brain and the bond (see PetAction); out of range the command quietly no-ops.
+func _try_pet() -> void:
+	if _player.position.distance_to(_companion.position) > PET_RANGE:
+		return
+	_companion.issue_command("pet")
+	_show_hint("You reach out to your companion.")
 
 
 func _try_interact() -> void:

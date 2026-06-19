@@ -400,6 +400,43 @@ func apply_command_ack(cfg: Dictionary) -> void:
 	mood_arousal = clampf(mood_arousal + float(c.get("ack_arousal", 0.0)), floor_v, 1.0)
 
 
+## The player has petted an adjacent companion and it WELCOMED it: a warm mood lift, plus a
+## small bond gain gated TWICE so it can't be farmed — novelty-weighted under the "pet" key in
+## the familiarity map (first pets pay, repeats fade), AND no more than once per bond_cooldown
+## seconds of observed play time (a spam of taps in the same instant pays at most once).
+## time_scale multiplies the gain just like the other bond sources. A no-op without config.
+func pet(cfg: Dictionary) -> void:
+	var c: Dictionary = cfg.get("pet", {})
+	var floor_v := float(cfg.get("mood", {}).get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence + float(c.get("valence", 0.0)), floor_v, 1.0)
+	mood_arousal = clampf(mood_arousal + float(c.get("arousal", 0.0)), floor_v, 1.0)
+	if not cfg.has("bond"):
+		return
+	var bond_cfg: Dictionary = cfg["bond"]
+	# Cooldown gate: only earn bond from a pet every so often of real play, so tapping fast
+	# can't farm it. (play_seconds doesn't advance between taps in one frame, so this is the
+	# anti-spam backstop the novelty curve alone wouldn't give.)
+	var now := float(observations.get("play_seconds", 0.0))
+	var last := float(short_term.get("last_pet_time", -1.0e9))
+	if now - last < float(c.get("bond_cooldown", 0.0)):
+		return
+	short_term["last_pet_time"] = now
+	var seen := float(familiarity.get("pet", 0.0))
+	var novelty := _novelty_factor(seen, bond_cfg)
+	familiarity["pet"] = seen + 1.0
+	var amount := float(bond_cfg.get("grow_per_pet", 0.0)) * novelty * float(bond_cfg.get("time_scale", 1.0))
+	bond = clampf(bond + amount, 0.0, float(bond_cfg.get("max", 1.0)))
+	_check_bond_milestone(bond_cfg)
+
+
+## The player petted a companion that wasn't ready to trust it: a small mood dip (it shied
+## away), clamped to the cozy negative floor. No bond — affection has to be welcomed to count.
+func pet_rebuff(cfg: Dictionary) -> void:
+	var c: Dictionary = cfg.get("pet", {})
+	var floor_v := float(cfg.get("mood", {}).get("neg_floor", -1.0))
+	mood_valence = clampf(mood_valence + float(c.get("rebuff_valence", 0.0)), floor_v, 1.0)
+
+
 ## Normalized 0..1 read-outs of how the player plays, derived from observations:
 ##   explore   — how much they roam (distance over time vs. a reference pace)
 ##   together  — how much they stay close to the companion

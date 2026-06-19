@@ -46,6 +46,7 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 	var b_command := int(bands.get("command", 5))
 	return [
 		ComeAction.new(b_command),
+		PetAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
 		FollowAction.new(b_auto),
@@ -646,6 +647,82 @@ class ComeAction extends CompanionAction:
 					reactions.append("look")
 					_arrived = true
 				_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": player_pos,
+			"reactions": reactions,
+		}
+
+
+## A deliberate PET when you're right beside it — also on the command band, sharing the
+## issue_command channel ("pet"), self-gated on distance. What it does is BOND-dependent: a
+## bonded companion leans in (a step toward you, a heart, a warm mood lift and a small,
+## un-grindable bond gain); a fresh, wary one often SHIES a little away instead (a startle step
+## back, a tiny mood dip, no bond) — it doesn't trust you yet. So petting a stranger is a gamble
+## and petting a friend is reliably sweet: the relationship is the mechanic. The accept/shy
+## outcome rides the pre-rolled pet_roll on the dedicated command stream (no action-RNG draw).
+class PetAction extends CompanionAction:
+	var _active := false
+	var _accept := false
+	var _timer := 0.0
+	var _just_triggered := false
+	var _step_target := Vector2.ZERO
+
+	func _init(band_value: int) -> void:
+		id = "pet"
+		band = band_value
+		behavior = "pet"
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		if String(perception.get("command", "")) == "pet" and not _active:
+			var pet: Dictionary = cfg.get("pet", {})
+			# Only a pet you can actually reach lands; out of range the order silently no-ops.
+			if float(perception["dist_to_player"]) > float(pet.get("range", 56.0)):
+				return 0.0
+			_active = true
+			_timer = float(pet.get("duration", 1.0))
+			_just_triggered = true
+			# Welcome it, or shy away? Bond is the axis, via the pre-rolled die.
+			var accept_chance := lerpf(float(pet.get("accept_low", 0.25)), float(pet.get("accept_high", 1.0)), s.bond)
+			_accept = float(perception.get("pet_roll", 1.0)) < accept_chance
+			# Where it ends up: a small step TOWARD you if welcomed, a startle step BACK if not.
+			var companion_pos: Vector2 = perception["companion_pos"]
+			var player_pos: Vector2 = perception["player_pos"]
+			var toward := player_pos - companion_pos
+			if toward.length() < 1.0:
+				toward = Vector2.RIGHT
+			toward = toward.normalized()
+			var step := float(pet.get("step", 14.0))
+			_step_target = companion_pos + (toward * step if _accept else -toward * step)
+			if _accept:
+				s.pet(cfg)
+			else:
+				s.pet_rebuff(cfg)
+		return 1.0 if _active else 0.0
+
+	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var reactions: Array = []
+		if _just_triggered:
+			reactions.append("love" if _accept else "perk")
+			_just_triggered = false
+		var move_target := companion_pos
+		var speed := 0.0
+		# Ease the little lean-in / shy-away over the beat, then settle and release.
+		if companion_pos.distance_to(_step_target) > 2.0:
+			move_target = _step_target
+			speed = float(cfg["walk_speed"])
+		_timer -= delta
+		if _timer <= 0.0:
+			_active = false
 		return {
 			"behavior": behavior,
 			"move_target": move_target,

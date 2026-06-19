@@ -18,6 +18,9 @@ static func run_all() -> int:
 	fails += _test_calling_never_grows_bond(cfg)
 	fails += _test_brain_routes_a_call(cfg)
 	fails += _test_brain_ignores_a_call_from_afar(cfg)
+	fails += _test_pet_only_when_adjacent(cfg)
+	fails += _test_fresh_pet_can_shy_away(cfg)
+	fails += _test_bonded_pet_leans_in(cfg)
 	return fails
 
 
@@ -153,3 +156,59 @@ static func _test_brain_ignores_a_call_from_afar(cfg: Dictionary) -> int:
 	var far := float(cfg["come"]["hear_radius"]) + 1000.0
 	var intent := brain.update(_ctx(Vector2(0, 0), Vector2(far, 0)))
 	return _ok(intent["behavior"] != "come", "a call from beyond earshot is ignored by the brain")
+
+
+# A pet dict the PetAction reads: the order, distance, the accept/shy die, and positions.
+static func _pet_percept(dist: float, pet_roll: float) -> Dictionary:
+	return {
+		"command": "pet",
+		"dist_to_player": dist,
+		"pet_roll": pet_roll,
+		"companion_pos": Vector2(0, 0),
+		"player_pos": Vector2(dist, 0),
+	}
+
+
+# A pet only lands when you're adjacent; out of range the order silently no-ops.
+static func _test_pet_only_when_adjacent(cfg: Dictionary) -> int:
+	var pet := CompanionActions.PetAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 1.0
+	var far := float(cfg["pet"]["range"]) + 50.0
+	return _ok(pet.score(_pet_percept(far, 0.0), s, cfg, _rng()) == 0.0, "a pet out of range does nothing")
+
+
+# A fresh, wary companion can refuse a pet: with an unfavorable roll it shies a step AWAY
+# (no heart, no bond), the small mood dip and all.
+static func _test_fresh_pet_can_shy_away(cfg: Dictionary) -> int:
+	var pet := CompanionActions.PetAction.new(5)
+	var s := CompanionSelf.make_default(cfg)  # bond 0 -> accept_chance ~ accept_low
+	var b0 := s.bond
+	var p := _pet_percept(40.0, 0.99)  # high roll -> shies away
+	var score := pet.score(p, s, cfg, _rng())
+	var intent := pet.act(p, s, cfg, _rng(), 0.016)
+	var step_x := float((intent["move_target"] as Vector2).x)
+	var fails := 0
+	fails += _ok(score == 1.0, "an adjacent pet latches even when it will be refused")
+	fails += _ok(not ("love" in intent["reactions"]), "a refused pet shows no heart")
+	fails += _ok(step_x < 0.0, "a refused pet makes it shy a step away from the player")
+	fails += _ok(is_equal_approx(s.bond, b0), "a refused pet grows no bond")
+	return fails
+
+
+# A bonded companion welcomes a pet: it leans a step TOWARD you, shows a heart, and bond rises.
+static func _test_bonded_pet_leans_in(cfg: Dictionary) -> int:
+	var pet := CompanionActions.PetAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.6  # accept_chance ~0.7, with headroom below bond.max to grow
+	s.observations["play_seconds"] = 100.0  # past any pet cooldown
+	var b0 := s.bond
+	var p := _pet_percept(40.0, 0.0)  # low roll -> welcomed
+	pet.score(p, s, cfg, _rng())
+	var intent := pet.act(p, s, cfg, _rng(), 0.016)
+	var step_x := float((intent["move_target"] as Vector2).x)
+	var fails := 0
+	fails += _ok("love" in intent["reactions"], "a welcomed pet shows a heart")
+	fails += _ok(step_x > 0.0, "a welcomed pet makes it lean a step toward the player")
+	fails += _ok(s.bond > b0, "a welcomed pet grows bond")
+	return fails

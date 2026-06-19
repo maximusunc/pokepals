@@ -38,6 +38,11 @@ static func run_all() -> int:
 	fails += _test_appeal_scales_discovery_delight(cfg)
 	fails += _test_bond_milestone_fires_once(cfg)
 	fails += _test_bond_milestone_persists_across_save(cfg)
+	fails += _test_pet_grows_bond_then_habituates(cfg)
+	fails += _test_pet_spam_pays_once(cfg)
+	fails += _test_pet_lifts_mood(cfg)
+	fails += _test_pet_rebuff_no_bond_and_stays_above_floor(cfg)
+	fails += _test_pet_familiarity_round_trips(cfg)
 	return fails
 
 
@@ -603,3 +608,71 @@ static func _test_bond_milestone_persists_across_save(cfg: Dictionary) -> int:
 	restored.observe(_perception(true), cfg, 0.0)
 	fails += _ok(restored.bond_event == "", "a reloaded companion does not re-fire a milestone it already reached")
 	return fails
+
+
+# A welcomed pet grows bond, and like every bond source it HABITUATES: the second pet (well
+# after the cooldown, so the cooldown gate isn't what's limiting it) grows bond less.
+static func _test_pet_grows_bond_then_habituates(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observations["play_seconds"] = 100.0
+	var b0 := s.bond
+	s.pet(cfg)
+	var first := s.bond - b0
+	s.observations["play_seconds"] += float(cfg["pet"]["bond_cooldown"]) + 1.0
+	var b1 := s.bond
+	s.pet(cfg)
+	var second := s.bond - b1
+	var fails := 0
+	fails += _ok(first > 0.0, "the first pet grows bond")
+	fails += _ok(second > 0.0, "a later pet still grows some bond")
+	fails += _ok(second < first, "repeated pets habituate (each grows bond less)")
+	return fails
+
+
+# The anti-farm backstop: tapping Pet many times within the same instant of play (play_seconds
+# not advancing) pays AT MOST once — the cooldown gate stops the spam the novelty curve alone
+# wouldn't (since familiarity would still tick on each call).
+static func _test_pet_spam_pays_once(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observations["play_seconds"] = 100.0
+	var b0 := s.bond
+	for _i in 20:
+		s.pet(cfg)  # same play_seconds throughout -> only the first should pay
+	var spammed_gain := s.bond - b0
+	# Compare to a single pet on an identical fresh self.
+	var t := CompanionSelf.make_default(cfg)
+	t.observations["play_seconds"] = 100.0
+	var tb := t.bond
+	t.pet(cfg)
+	var single_gain := t.bond - tb
+	return _ok(is_equal_approx(spammed_gain, single_gain), "spamming pet in one instant pays at most once (anti-farm)")
+
+
+static func _test_pet_lifts_mood(cfg: Dictionary) -> int:
+	var c := _mood_cfg_no_walk(cfg)
+	var s := CompanionSelf.make_default(c)
+	_settle_mood(s, c)
+	var v0 := s.mood_valence
+	s.pet(c)
+	return _ok(s.mood_valence > v0, "a welcomed pet lifts the mood")
+
+
+# A rebuff (shy-away) costs no bond and never drops the mood below the cozy floor.
+static func _test_pet_rebuff_no_bond_and_stays_above_floor(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var floor_v := float(cfg["mood"]["neg_floor"])
+	s.mood_valence = floor_v  # already at the floor
+	var b0 := s.bond
+	s.pet_rebuff(cfg)
+	var fails := 0
+	fails += _ok(s.mood_valence >= floor_v - 0.0001, "a rebuff never drops the mood below the negative floor")
+	fails += _ok(is_equal_approx(s.bond, b0), "a rebuff grows no bond")
+	return fails
+
+
+static func _test_pet_familiarity_round_trips(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.observations["play_seconds"] = 100.0
+	s.pet(cfg)
+	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
+	return _ok(is_equal_approx(float(restored.familiarity.get("pet", 0.0)), 1.0), "pet familiarity survives a save/load")
