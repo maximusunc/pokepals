@@ -130,11 +130,12 @@
 	"checkin_pull_high": 0.0,
 	"checkin_linger": 2.5,
 	"checkin_stop_distance": 80.0,
-	"_come_comment": "The player's CALL / whistle — a bid for attention, never a guaranteed summon. It depends on BOTH distance and bond. hear_radius: the companion only hears a call within this range; whistle from farther and nothing happens (no infinite-range summon — if it has wandered off, you may have to go find it). When it does hear, it first ACKNOWLEDGES: it stands, looks over and perks for ack_pause seconds (a beat that reads as 'I heard you'), with a small mood lift (ack_valence/ack_arousal) from being called — being noticed by you feels good even if it doesn't come. Then, based on BOND, it either goes back to its own life or comes running: chance_low..chance_high is the probability it comes, by bond (a fresh companion rarely comes, a fully bonded one always does), nudged a little by mood (valence_weight/arousal_weight). If it comes, it runs to within stop_distance and gives a happy arrival hop. Calling never grows bond (a whistle isn't earned discovery) — only the relationship makes the call reliable, which is the whole point.",
+	"_come_comment": "The player's CALL / whistle — a bid for attention, never a guaranteed summon. It depends on BOTH distance and bond. hear_radius: the companion only hears a call within this range; whistle from farther and nothing happens (no infinite-range summon — if it has wandered off, you may have to go find it). When it does hear, it first ACKNOWLEDGES: it stands, looks over and perks for ack_pause seconds (a beat that reads as 'I heard you'), with a small mood lift (ack_valence/ack_arousal) from being called — being noticed by you feels good even if it doesn't come. Then, based on BOND, it either goes back to its own life or comes running: chance_low..chance_high is the probability it comes, by bond (a fresh companion rarely comes, a fully bonded one always does), nudged a little by mood (valence_weight/arousal_weight). If it comes, it runs to within stop_distance and gives a happy arrival hop, then ESCORTS you: it sticks close and follows as you move (running if you pull farther than run_distance ahead, otherwise walking), so you can whistle it along on the way somewhere instead of it parking at the call spot. stay: how many seconds it keeps sticking close after you STOP before drifting back to its own life — the window refreshes while you're still moving, so it accompanies you the whole trip. Calling never grows bond (a whistle isn't earned discovery) — only the relationship makes the call reliable, which is the whole point.",
 	"come": {
 		"hear_radius": 900.0,
 		"ack_pause": 0.5,
 		"stop_distance": 48.0,
+		"stay": 3.0,
 		"chance_low": 0.1,
 		"chance_high": 1.0,
 		"valence_weight": 0.1,

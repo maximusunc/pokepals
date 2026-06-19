@@ -570,15 +570,18 @@ class IdleAction extends CompanionAction:
 ## by BOND, decides whether to come: a fresh companion usually just acknowledges and carries on,
 ## a bonded one reliably comes running. So the call's power grows with the relationship, the same
 ## arc as the follow-distance tightening. On the command band, so the acknowledgment preempts any
-## autonomous beat; calling never grows bond (a whistle isn't earned discovery).
+## autonomous beat; calling never grows bond (a whistle isn't earned discovery). Once it arrives
+## it doesn't park at the call spot and bolt — it ESCORTS you, sticking close and following while
+## you move, drifting back to its own life only a beat after you settle (so you can whistle it
+## along on the way somewhere).
 class ComeAction extends CompanionAction:
-	enum { ACK, COME }
+	enum { ACK, COME, ESCORT }
 	var _active := false
 	var _phase := ACK
 	var _ack_timer := 0.0
 	var _will_come := false
 	var _just_triggered := false
-	var _arrived := false
+	var _escort_timer := 0.0
 
 	func _init(band_value: int) -> void:
 		id = "come"
@@ -604,7 +607,6 @@ class ComeAction extends CompanionAction:
 			_phase = ACK
 			_ack_timer = float(come.get("ack_pause", 0.5))
 			_just_triggered = true
-			_arrived = false
 			_will_come = float(perception.get("command_roll", 1.0)) < _come_chance(s, come)
 			s.apply_command_ack(cfg)
 		return 1.0 if _active else 0.0
@@ -629,6 +631,7 @@ class ComeAction extends CompanionAction:
 			reactions.append("perk")
 			reactions.append("look")
 			_just_triggered = false
+		var stop_distance := float(come.get("stop_distance", 48.0))
 		if _phase == ACK:
 			# Hold a beat to acknowledge, standing and looking at the player.
 			_ack_timer -= delta
@@ -637,16 +640,30 @@ class ComeAction extends CompanionAction:
 					_phase = COME
 				else:
 					_active = false  # acknowledged, but chose to stay its own course
-		else:
-			# Coming over: run to the player, then a happy arrival hop, and release.
-			if companion_pos.distance_to(player_pos) > float(come.get("stop_distance", 48.0)):
+		elif _phase == COME:
+			# Coming over: run to the player, then a happy arrival hop, and fall in beside you.
+			if companion_pos.distance_to(player_pos) > stop_distance:
 				move_target = player_pos
 				speed = float(cfg["run_speed"])
 			else:
-				if not _arrived:
-					reactions.append("hop")
-					reactions.append("look")
-					_arrived = true
+				reactions.append("hop")
+				reactions.append("look")
+				_escort_timer = float(come.get("stay", 3.0))
+				_phase = ESCORT
+		else:
+			# ESCORT: stick close and travel with you. Stay near (run if you've pulled ahead,
+			# walk if just trailing), keep facing you. The window refreshes while you're moving,
+			# so it accompanies you the whole way; once you settle it counts down and only then
+			# drifts back to its own life — it doesn't bolt the instant it arrives.
+			var dist := companion_pos.distance_to(player_pos)
+			if dist > stop_distance:
+				move_target = player_pos
+				speed = float(cfg["run_speed"]) if dist > float(cfg.get("run_distance", 160.0)) else float(cfg["walk_speed"])
+			if bool(perception.get("player_moving", false)):
+				_escort_timer = float(come.get("stay", 3.0))
+			else:
+				_escort_timer -= delta
+			if _escort_timer <= 0.0:
 				_active = false
 		return {
 			"behavior": behavior,

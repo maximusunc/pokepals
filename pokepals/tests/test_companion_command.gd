@@ -16,6 +16,7 @@ static func run_all() -> int:
 	fails += _test_bonded_comes_after_acknowledging(cfg)
 	fails += _test_fresh_acknowledges_but_stays(cfg)
 	fails += _test_calling_never_grows_bond(cfg)
+	fails += _test_escorts_after_arriving(cfg)
 	fails += _test_brain_routes_a_call(cfg)
 	fails += _test_brain_ignores_a_call_from_afar(cfg)
 	fails += _test_pet_only_when_adjacent(cfg)
@@ -135,6 +136,67 @@ static func _test_calling_never_grows_bond(cfg: Dictionary) -> int:
 	for _i in 200:
 		come.act(p, s, cfg, _rng(), 0.016)
 	return _ok(is_equal_approx(s.bond, b0), "calling never grows bond (a whistle isn't earned discovery)")
+
+
+# A mutable escort-phase perception: positions, whether the player is moving, and (so it never
+# re-latches) an empty command unless we're issuing the call.
+static func _escort_percept(companion_pos: Vector2, player_pos: Vector2, moving: bool, command: String = "") -> Dictionary:
+	return {
+		"command": command,
+		"dist_to_player": companion_pos.distance_to(player_pos),
+		"command_roll": 0.0,
+		"companion_pos": companion_pos,
+		"player_pos": player_pos,
+		"player_moving": moving,
+		"player_velocity": Vector2(80, 0) if moving else Vector2.ZERO,
+	}
+
+
+# After arriving it ESCORTS: it sticks close and follows a MOVING player (rather than parking at
+# the call spot), keeps escorting as long as you move, and only releases a beat after you settle.
+static func _test_escorts_after_arriving(cfg: Dictionary) -> int:
+	var come := CompanionActions.ComeAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 1.0
+	var stay := float(cfg["come"]["stay"])
+	var companion_pos := Vector2(0, 0)
+	var player_pos := Vector2(10, 0)  # already within stop_distance -> arrives right after ack
+	# Latch the call, then drive past the acknowledgment to reach the escort phase.
+	come.score(_escort_percept(companion_pos, player_pos, false, "come"), s, cfg, _rng())
+	var hopped := false
+	for _i in 60:  # ~1s, past ack_pause
+		var intent := come.act(_escort_percept(companion_pos, player_pos, false), s, cfg, _rng(), 0.016)
+		if "hop" in intent["reactions"]:
+			hopped = true
+
+	# Player runs off: the companion should chase to keep close, and NOT release while you move,
+	# even well past `stay` seconds (the escort window refreshes while moving).
+	player_pos = Vector2(600, 0)
+	var chased := false
+	var released_while_moving := false
+	for _i in int((stay + 3.0) / 0.016):
+		var intent := come.act(_escort_percept(companion_pos, player_pos, true), s, cfg, _rng(), 0.016)
+		if float(intent["desired_speed"]) > 0.0:
+			chased = true
+		if come.score(_escort_percept(companion_pos, player_pos, true), s, cfg, _rng()) <= 0.0:
+			released_while_moving = true
+			break
+
+	# Player stops, companion settled close: it should drift back to its own life after ~stay.
+	player_pos = companion_pos + Vector2(10, 0)
+	var release_t := -1.0
+	for i in int((stay + 2.0) / 0.016):
+		come.act(_escort_percept(companion_pos, player_pos, false), s, cfg, _rng(), 0.016)
+		if come.score(_escort_percept(companion_pos, player_pos, false), s, cfg, _rng()) <= 0.0:
+			release_t = i * 0.016
+			break
+
+	var fails := 0
+	fails += _ok(hopped, "gives the arrival hop when it reaches you")
+	fails += _ok(chased, "escorts a moving player (follows instead of parking at the call spot)")
+	fails += _ok(not released_while_moving, "keeps escorting as long as you keep moving")
+	fails += _ok(release_t >= stay * 0.8, "after you settle it stays close a beat before resuming its own life")
+	return fails
 
 
 # End-to-end: issue_command routes through the brain to a "come" beat when within earshot.
