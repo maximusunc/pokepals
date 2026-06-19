@@ -96,4 +96,5 @@ func _draw() -> void:
 		"accent_color": WorldData.to_color(cfg.get("accent", [0.96, 0.81, 0.67])),
 		"radius": 10.0,
 		"head": true,
+		"width": float(cfg.get("width", 1.0)),
 	})

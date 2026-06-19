@@ -241,4 +241,5 @@ func _draw() -> void:
 		"radius": 9.0,
 		"ears": true,
 		"eye_offset": _eye_offset,
+		"width": float(cfg.get("width", 1.0)),
 	})

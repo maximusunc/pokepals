@@ -36,6 +36,7 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	var ears: bool = params.get("ears", false)
 	var head: bool = params.get("head", false)
 	var eye_offset: Vector2 = params.get("eye_offset", Vector2.ZERO)
+	var width: float = params.get("width", 1.0)  # <1 = slimmer (narrower, same height)
 
 	var fdir := facing
 	if fdir.length() < 0.01:
@@ -65,7 +66,7 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 
 	# Contact shadow (flattened via the draw transform).
 	var sh := style.color("shadow")
-	ci.draw_set_transform(Vector2(0.0, 7.0), 0.0, Vector2(1.0, 0.42))
+	ci.draw_set_transform(Vector2(0.0, 7.0), 0.0, Vector2(width, 0.42))
 	ci.draw_circle(Vector2.ZERO, radius * 0.95, Color(sh.r, sh.g, sh.b, style.shadow_alpha()))
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -73,12 +74,12 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	var foot_color := body_color.darkened(0.25)
 	var lift_l := (maxf(0.0, sin(phase)) * 2.4) if moving else 0.0
 	var lift_r := (maxf(0.0, sin(phase + PI)) * 2.4) if moving else 0.0
-	ci.draw_circle(Vector2(-radius * 0.45, 5.0 - lift_l) + lean, radius * 0.30, foot_color)
-	ci.draw_circle(Vector2(radius * 0.45, 5.0 - lift_r) + lean, radius * 0.30, foot_color)
+	ci.draw_circle(Vector2(-radius * 0.45 * width, 5.0 - lift_l) + lean, radius * 0.30, foot_color)
+	ci.draw_circle(Vector2(radius * 0.45 * width, 5.0 - lift_r) + lean, radius * 0.30, foot_color)
 
 	# Body (a lit blob), squashed/stretched and leaning the way it moves.
 	var body_center := Vector2(0.0, -radius * 0.35 - bob) + lean
-	ci.draw_set_transform(body_center, 0.0, Vector2(hscale, vscale))
+	ci.draw_set_transform(body_center, 0.0, Vector2(hscale * width, vscale))
 	style.draw_blob(ci, Vector2.ZERO, radius, body_color)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -88,7 +89,7 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	if head:
 		face_center = body_center + Vector2(0.0, -radius * 0.85)
 		face_radius = radius * 0.62
-		ci.draw_set_transform(face_center, 0.0, Vector2(hscale, vscale))
+		ci.draw_set_transform(face_center, 0.0, Vector2(hscale * width, vscale))
 		style.draw_blob(ci, Vector2.ZERO, face_radius, accent)
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
@@ -96,15 +97,15 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	if ears:
 		var ear_color := body_color.darkened(0.06)
 		var ey := body_center + Vector2(0.0, -radius * 0.72)
-		ci.draw_circle(ey + Vector2(-radius * 0.55, 0.0) + lean * 0.5, radius * 0.30, ear_color)
-		ci.draw_circle(ey + Vector2(radius * 0.55, 0.0) + lean * 0.5, radius * 0.30, ear_color)
+		ci.draw_circle(ey + Vector2(-radius * 0.55 * width, 0.0) + lean * 0.5, radius * 0.30, ear_color)
+		ci.draw_circle(ey + Vector2(radius * 0.55 * width, 0.0) + lean * 0.5, radius * 0.30, ear_color)
 
 	# Eyes — hidden when it's turned away (facing up), shifted toward attention/facing.
 	if not facing_up:
 		var eye_color := Color(0.12, 0.12, 0.16)
-		var ex := face_radius * 0.42
+		var ex := face_radius * 0.42 * width
 		var ey2 := face_center.y - face_radius * 0.04
-		var look := eye_offset + Vector2(side_x * face_radius * 0.22, (face_radius * 0.14 if facing_down else 0.0))
+		var look := eye_offset + Vector2(side_x * face_radius * 0.22 * width, (face_radius * 0.14 if facing_down else 0.0))
 		if side_x != 0.0:
 			ci.draw_circle(Vector2(side_x * ex * 0.6, ey2) + look, face_radius * 0.18, eye_color)
 		else:
