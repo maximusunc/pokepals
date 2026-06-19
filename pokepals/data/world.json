@@ -12,6 +12,8 @@
 	"bounds": { "min": [-700, -560], "max": [1520, 1120] },
 	"_border_comment": "A procedural, jittered treeline just inside the bounds so the world feels enclosed rather than ending at the void. Presentation-only (world_art builds it); seeded, so it's identical every run.",
 	"border": { "ring": true, "spacing": 132, "inset": 18, "jitter": 34, "rows": 2, "row_gap": 62 },
+	"_collision_comment": "Barriers. tree_radius/great_tree_radius are the blocking circles for trees and landmark great-trees; pond_blocks makes water solid; body_radius is how big the player/companion are for collision; margin stops them a touch short of things. Tall props (bench, signpost, lantern, crystal, log, berry_bush) block by default — any interactable can override with its own \"solid\": true/false and \"collision_radius\".",
+	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"_landmarks_comment": "Oversized, beckoning features (a great tree) you can spot from afar — anchors that pull you to explore. Presentation-only; drawn by world_art._draw_landmark.",
 	"landmarks": [
 		{ "type": "great_tree", "position": [300, -340] },

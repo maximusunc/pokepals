@@ -17,6 +17,20 @@ var _time := 0.0
 var _facing := Vector2.DOWN  # eased toward the movement direction, held when still
 var _style: ArtStyle
 var _sprite_tex: Texture2D = null  # set if the user dropped in their own player art
+var _solids: Array = []
+var _bounds := Rect2()
+var _body_radius := 6.0
+var _margin := 2.0
+var _collide := false
+
+
+## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
+func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float) -> void:
+	_solids = solids
+	_bounds = bounds
+	_body_radius = body_radius
+	_margin = margin
+	_collide = true
 
 
 func _ready() -> void:
@@ -39,7 +53,13 @@ func _process(delta: float) -> void:
 	# Exponential smoothing -> snappy but not robotic. (1 - e^(-k*dt)) is a
 	# framerate-independent lerp weight.
 	velocity = velocity.lerp(desired, 1.0 - exp(-accel * delta))
+	var before := position
 	position += velocity * delta
+	# Keep out of barriers; reconcile velocity to the real (possibly slid) displacement
+	# so facing/walk-cycle reflect what actually happened, not the blocked intent.
+	if _collide:
+		position = Solids.resolve(position, _body_radius, _solids, _bounds, _margin)
+		velocity = (position - before) / maxf(delta, 0.0001)
 	# Face where we're heading; hold the last facing when standing still.
 	if velocity.length() > 8.0:
 		_facing = _facing.lerp(velocity.normalized(), 1.0 - exp(-8.0 * delta))

@@ -54,7 +54,20 @@ func _ready() -> void:
 
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
-	_camera.set_bounds(Rect2(bmin, bmax - bmin))
+	var bounds_rect := Rect2(bmin, bmax - bmin)
+	_camera.set_bounds(bounds_rect)
+
+	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
+	# props, great-trees, ponds) and hand it to both characters to collide against. The
+	# border positions come from the same pure helper the renderer uses, so the drawn
+	# treeline and its colliders match exactly.
+	var ccfg: Dictionary = data.get("collision", {})
+	var border_pts := Solids.border_positions(bounds_rect, data.get("border", {}))
+	var solids := Solids.build(data, border_pts, ccfg)
+	var body_radius := float(ccfg.get("body_radius", 6.0))
+	var margin := float(ccfg.get("margin", 2.0))
+	_player.set_solids(solids, bounds_rect, body_radius, margin)
+	_companion.set_solids(solids, bounds_rect, body_radius, margin)
 
 	for i in data.get("interactables", []).size():
 		var it: Dictionary = data["interactables"][i]

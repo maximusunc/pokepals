@@ -33,6 +33,20 @@ var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
 var _style: ArtStyle
 var _sprite_tex: Texture2D = null  # set if the user dropped in their own companion art
+var _solids: Array = []
+var _bounds := Rect2()
+var _body_radius := 6.0
+var _margin := 2.0
+var _collide := false
+
+
+## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
+func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float) -> void:
+	_solids = solids
+	_bounds = bounds
+	_body_radius = body_radius
+	_margin = margin
+	_collide = true
 
 
 ## Called by the world to hand the companion its player to follow.
@@ -176,7 +190,12 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 	if to_target.length() > 2.0 and speed > 0.0:
 		desired_velocity = to_target.normalized() * speed
 	velocity = velocity.lerp(desired_velocity, 1.0 - exp(-float(_cfg["accel"]) * delta))
+	var before := position
 	position += velocity * delta
+	# Keep out of barriers; the companion slides around obstacles (no path-finding).
+	if _collide:
+		position = Solids.resolve(position, _body_radius, _solids, _bounds, _margin)
+		velocity = (position - before) / maxf(delta, 0.0001)
 
 
 func _apply_attention(intent: Dictionary, delta: float) -> void:
