@@ -31,8 +31,8 @@ func _process(_delta: float) -> bool:
 	# keep to its own life — following is a bonded beat now, so we bond it first, then
 	# expect it to chase.
 	if _player == null:
-		_player = _world.get_node("Player")
-		_companion = _world.get_node("Companion")
+		_player = _world.get_node("Scenery/Player")
+		_companion = _world.get_node("Scenery/Companion")
 		_player.set_process(false)
 		_companion._brain.get_self().bond = 1.0
 		_player.position = _companion.position + Vector2(380, 0)
