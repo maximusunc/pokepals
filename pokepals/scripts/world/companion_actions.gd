@@ -83,15 +83,26 @@ class CompanionAction extends RefCounted:
 
 
 ## Player-triggered curiosity: something the player did nearby caught its attention — the
-## sacred "it noticed what I did" beat. It waddles over, lingers, then loses interest, on
-## a cooldown so a flurry of pokes doesn't spam it. On the interrupt band, so it preempts
-## any autonomous beat; carries a large commitment while it lasts so the look reads as deliberate.
+## sacred "it noticed what I did" beat. The NOTICE is instant (it perks and turns to look),
+## but coming over is a CONSIDERED choice, not a reflex: it pauses for a beat to weigh it up,
+## then sometimes ambles over and sometimes doesn't. The pause and the odds of going both
+## scale with bond — a fresh companion hesitates longer and often stays put; a bonded one
+## barely pauses and reliably comes — with appeal and current mood tipping the marginal calls
+## (a loved find, or a bright/energized mood, makes it readier to go). Even fully bonded a
+## slight delay remains, so coming over always reads as a live decision. On a cooldown so a
+## flurry of pokes doesn't spam it. On the interrupt band, so it preempts any autonomous beat;
+## carries a large commitment while it lasts (consider AND approach) so the beat reads as deliberate.
 class InvestigateAction extends CompanionAction:
 	var _active := false
 	var _target := Vector2.ZERO
 	var _linger := 0.0
 	var _cooldown := 0.0
 	var _just_triggered := false
+	# The hesitation: while considering, it stands and looks but doesn't move; _will_approach is
+	# the (bond/appeal/mood-weighted) decision rolled when it first notices.
+	var _considering := false
+	var _consider_timer := 0.0
+	var _will_approach := false
 
 	func _init(band_value: int) -> void:
 		id = "investigate"
@@ -101,18 +112,38 @@ class InvestigateAction extends CompanionAction:
 	func tick(delta: float) -> void:
 		_cooldown = maxf(0.0, _cooldown - delta)
 
-	func score(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
 		if perception["has_interaction"] and _cooldown <= 0.0 and not _active:
 			_active = true
 			_target = perception["interaction_point"]
-			# Linger longer admiring a thing it likes, briefer at one it's indifferent to
-			# (appraisal); appeal is neutral for untagged things, so this is a gentle no-op then.
+			# Notice now; decide whether/when to actually go during the pause that follows.
+			_considering = true
+			var cc: Dictionary = cfg.get("curiosity_consider", {})
+			_consider_timer = lerpf(float(cc.get("delay_low", 1.3)), float(cc.get("delay_high", 0.4)), s.bond)
+			_will_approach = float(perception.get("investigate_roll", 0.0)) < _approach_chance(perception, s, cfg, cc)
+			# Set the admiring linger now, while the thing's appraised appeal is still in
+			# perception — it lingers longer over a thing it likes. Only spent once it actually
+			# goes (the engage branch counts it down), so the pause doesn't eat into it.
 			var la: Array = cfg.get("appraisal", {}).get("linger_appeal", [1.0, 1.0])
 			var appeal := float(perception.get("interaction_appeal", 1.0))
 			_linger = float(cfg["curiosity_linger"]) * lerpf(float(la[0]), float(la[1]), appeal)
 			_just_triggered = true
 			_cooldown = float(cfg["curiosity_cooldown"])
 		return 1.0 if _active else 0.0
+
+	# The odds of coming over: bond is the primary axis; a tempting thing (appeal) and a
+	# bright/energized mood nudge it up, a dull thing or a withdrawn mood down. Clamped to a
+	# probability. Weights are small so bond stays dominant — appeal and mood only tip the
+	# marginal calls (and mood's random walk gives the decision its day-to-day variability).
+	func _approach_chance(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, cc: Dictionary) -> float:
+		var base := lerpf(float(cc.get("approach_low", 0.35)), float(cc.get("approach_high", 1.0)), s.bond)
+		var neutral := float(cfg.get("appraisal", {}).get("neutral", 0.5))
+		var appeal := float(perception.get("interaction_appeal", neutral))
+		var chance := base
+		chance += (appeal - neutral) * float(cc.get("appeal_weight", 0.5))
+		chance += s.mood_valence * float(cc.get("valence_weight", 0.15))
+		chance += s.mood_arousal * float(cc.get("arousal_weight", 0.15))
+		return clampf(chance, 0.0, 1.0)
 
 	func commitment(cfg: Dictionary) -> float:
 		# A look in progress is a committed beat, so it reads as deliberate, not a twitch.
@@ -125,15 +156,24 @@ class InvestigateAction extends CompanionAction:
 		if _just_triggered:
 			reactions.append("perk")
 			_just_triggered = false
-		_linger -= delta
 		var companion_pos: Vector2 = perception["companion_pos"]
 		var move_target := companion_pos
 		var speed := 0.0
-		if companion_pos.distance_to(_target) > float(cfg["curiosity_stop_distance"]):
-			move_target = _target
-			speed = float(cfg["walk_speed"])
-		if _linger <= 0.0:
-			_active = false
+		if _considering:
+			# Pause and weigh it up — stand still, keep looking at the thing.
+			_consider_timer -= delta
+			if _consider_timer <= 0.0:
+				_considering = false
+				if not _will_approach:
+					_active = false  # considered it, decided to stay put
+		else:
+			# Decided to go: amble over, then admire until the linger runs out.
+			_linger -= delta
+			if companion_pos.distance_to(_target) > float(cfg["curiosity_stop_distance"]):
+				move_target = _target
+				speed = float(cfg["walk_speed"])
+			if _linger <= 0.0:
+				_active = false
 		return {
 			"behavior": behavior,
 			"move_target": move_target,

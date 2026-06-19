@@ -36,6 +36,8 @@ static func run_all() -> int:
 	fails += _test_new_area_grows_bond_once(cfg)
 	fails += _test_new_world_is_all_new(cfg)
 	fails += _test_appeal_scales_discovery_delight(cfg)
+	fails += _test_bond_milestone_fires_once(cfg)
+	fails += _test_bond_milestone_persists_across_save(cfg)
 	return fails
 
 
@@ -565,3 +567,39 @@ static func _test_appeal_scales_discovery_delight(cfg: Dictionary) -> int:
 	var plain_jump := plain.mood_valence - pv0
 
 	return _ok(loved_jump > plain_jump, "a loved find delights more than an indifferent one")
+
+
+# Crossing a bond milestone flags bond_event exactly once: it fires the frame the threshold
+# is passed, stays clear while bond holds, and never re-fires for an already-reached level.
+static func _test_bond_milestone_fires_once(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var fails := 0
+	# A fresh companion at bond 0 hasn't crossed anything yet.
+	s.observe(_perception(true), cfg, 0.1)
+	fails += _ok(s.bond_event == "", "no milestone fires before any threshold is crossed")
+	# Jump bond just past the first milestone (0.25) and observe a frame.
+	s.bond = 0.26
+	s.observe(_perception(true), cfg, 0.0)
+	fails += _ok(s.bond_event == "milestone", "crossing the first milestone fires a milestone event")
+	# The very next frame, still above 0.25, must not re-fire.
+	s.observe(_perception(true), cfg, 0.0)
+	fails += _ok(s.bond_event == "", "an already-reached milestone does not fire again")
+	# A second, higher milestone (0.5) fires its own event.
+	s.bond = 0.51
+	s.observe(_perception(true), cfg, 0.0)
+	fails += _ok(s.bond_event == "milestone", "crossing the next milestone fires again")
+	return fails
+
+
+# The milestone memory lives in short_term, which is persisted — so a companion loaded from
+# a save past a milestone does NOT re-fire it on its first frame back.
+static func _test_bond_milestone_persists_across_save(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.30
+	s.observe(_perception(true), cfg, 0.0)  # crosses 0.25, records it in short_term
+	var restored := CompanionSelf.from_dict(s.to_dict(), cfg)
+	var fails := 0
+	fails += _ok(is_equal_approx(float(restored.short_term.get("bond_milestone", -1.0)), 0.25), "the reached milestone survives a save")
+	restored.observe(_perception(true), cfg, 0.0)
+	fails += _ok(restored.bond_event == "", "a reloaded companion does not re-fire a milestone it already reached")
+	return fails

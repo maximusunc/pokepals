@@ -12,6 +12,11 @@ static func run_all() -> int:
 	fails += _test_runs_when_very_far(cfg)
 	fails += _test_curious_about_nearby_interaction(cfg)
 	fails += _test_ignores_distant_interaction(cfg)
+	fails += _test_interaction_hesitates_then_comes_when_bonded(cfg)
+	fails += _test_low_bond_sometimes_declines(cfg)
+	fails += _test_bond_raises_approach_rate(cfg)
+	fails += _test_appeal_raises_approach_rate(cfg)
+	fails += _test_mood_raises_approach_rate(cfg)
 	fails += _test_wanders_to_poi_on_its_own(cfg)
 	fails += _test_fresh_roams_free_when_player_is_far(cfg)
 	fails += _test_low_bond_lingers_when_player_drifts(cfg)
@@ -111,6 +116,118 @@ static func _test_ignores_distant_interaction(cfg: Dictionary) -> int:
 	var event := { "type": "interaction", "position": Vector2(far, 0) }
 	var intent: Dictionary = brain.update(_ctx(Vector2(0, 0), Vector2(10, 0), [event]))
 	return _ok(intent["behavior"] != "curious", "ignores an interaction beyond curiosity_radius")
+
+
+# A copy of cfg with the appeal/mood nudges zeroed, so the approach decision is purely
+# bond-driven and thus deterministic — for pinning the hesitation beat itself.
+static func _consider_cfg_bond_only(cfg: Dictionary) -> Dictionary:
+	var c := cfg.duplicate(true)
+	c["curiosity_consider"]["appeal_weight"] = 0.0
+	c["curiosity_consider"]["valence_weight"] = 0.0
+	c["curiosity_consider"]["arousal_weight"] = 0.0
+	return c
+
+
+# Trigger a nearby interaction on the first frame, then run a couple of seconds of empty
+# frames (companion held in place, so it stays >stop_distance from the thing). Reports whether
+# it perked on notice and whether it ever actually set off toward the thing (desired_speed > 0).
+static func _notice_then_run(brain: CompanionBrain, cfg: Dictionary, tags: Array = []) -> Dictionary:
+	var companion_pos := Vector2(100, 100)
+	var target := Vector2(200, 100)  # within curiosity_radius (260), beyond stop_distance (30)
+	var event := { "type": "interaction", "position": target, "tags": tags }
+	var first := brain.update(_ctx(companion_pos, Vector2(110, 100), [event]))
+	var moved := false
+	for _i in 140:  # ~2.2s at delta 0.016 — past the longest (fresh) consider delay
+		if float(brain.update(_ctx(companion_pos, Vector2(110, 100), []))["desired_speed"]) > 0.0:
+			moved = true
+			break
+	return { "perked": "perk" in first["reactions"], "moved": moved, "first": first }
+
+
+# Count, over a span of seeds, how many fresh-or-bonded companions actually come over.
+static func _approach_rate(cfg: Dictionary, bond: float, tags: Array = []) -> int:
+	var approached := 0
+	for sv in range(1, 41):
+		var s := CompanionSelf.make_default(cfg)
+		s.bond = bond
+		var brain := CompanionBrain.new(cfg, sv, s)
+		if _notice_then_run(brain, cfg, tags)["moved"]:
+			approached += 1
+	return approached
+
+
+# Even fully bonded, it pauses a beat before moving (so coming over reads as a live decision),
+# but after that brief hesitation it reliably comes. Weights zeroed so the outcome is exact.
+static func _test_interaction_hesitates_then_comes_when_bonded(cfg: Dictionary) -> int:
+	var c := _consider_cfg_bond_only(cfg)
+	var s := CompanionSelf.make_default(c)
+	s.bond = 1.0
+	var brain := CompanionBrain.new(c, 1, s)
+	var r := _notice_then_run(brain, c)
+	var first: Dictionary = r["first"]
+	var fails := 0
+	fails += _ok(first["behavior"] == "curious", "notices the interaction at once (curious)")
+	fails += _ok("perk" in first["reactions"], "perks the moment it notices")
+	fails += _ok(float(first["desired_speed"]) == 0.0, "pauses to consider before moving — no movement on the notice frame")
+	fails += _ok(bool(r["moved"]), "a bonded companion does come over after the brief hesitation")
+	return fails
+
+
+# A fresh companion always NOTICES (perks), but only sometimes decides to come — over many
+# seeds we should see both outcomes, never all-or-nothing.
+static func _test_low_bond_sometimes_declines(cfg: Dictionary) -> int:
+	var approached := 0
+	var trials := 40
+	var always_perked := true
+	for sv in range(1, trials + 1):
+		var s := CompanionSelf.make_default(cfg)  # bond 0
+		var brain := CompanionBrain.new(cfg, sv, s)
+		var r := _notice_then_run(brain, cfg)
+		if bool(r["moved"]):
+			approached += 1
+		if not bool(r["perked"]):
+			always_perked = false
+	var fails := 0
+	fails += _ok(always_perked, "a fresh companion always notices (perks), even when it won't come")
+	fails += _ok(approached > 0 and approached < trials, "a fresh companion sometimes comes, sometimes stays put (%d/%d)" % [approached, trials])
+	return fails
+
+
+# Bond is the primary axis: a fully bonded companion comes over far more often than a fresh one.
+static func _test_bond_raises_approach_rate(cfg: Dictionary) -> int:
+	var fresh := _approach_rate(cfg, 0.0)
+	var bonded := _approach_rate(cfg, 1.0)
+	return _ok(bonded > fresh, "a bonded companion comes over more often than a fresh one (%d vs %d)" % [bonded, fresh])
+
+
+# Appeal tips marginal calls: a tempting find draws it over more than a dull one, at equal bond.
+static func _test_appeal_raises_approach_rate(cfg: Dictionary) -> int:
+	var loved := _approach_rate(cfg, 0.0, ["shiny"])
+	var dull := _approach_rate(cfg, 0.0, ["made"])
+	return _ok(loved > dull, "a tempting find draws it over more than a dull one (%d vs %d)" % [loved, dull])
+
+
+# Mood tips marginal calls too: with the random walk silenced to isolate it, a bright/energized
+# companion is readier to get up and come than a withdrawn one at the same bond.
+static func _test_mood_raises_approach_rate(cfg: Dictionary) -> int:
+	var c := cfg.duplicate(true)
+	c["mood"]["walk_amp"] = 0.0
+	var bright := _approach_rate_mood(c, 0.5, 0.5)
+	var low := _approach_rate_mood(c, -0.4, -0.4)
+	return _ok(bright > low, "a brighter mood makes it readier to come (%d vs %d)" % [bright, low])
+
+
+static func _approach_rate_mood(cfg: Dictionary, valence: float, arousal: float) -> int:
+	var approached := 0
+	for sv in range(1, 41):
+		var s := CompanionSelf.make_default(cfg)
+		s.bond = 0.0
+		s.mood_valence = valence
+		s.mood_arousal = arousal
+		var brain := CompanionBrain.new(cfg, sv, s)
+		if _notice_then_run(brain, cfg)["moved"]:
+			approached += 1
+	return approached
 
 
 # With no input from the player but a prop nearby, the companion should — given

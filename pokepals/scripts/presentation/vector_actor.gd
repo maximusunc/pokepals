@@ -20,6 +20,10 @@ extends RefCounted
 ##   ears: bool       — draw little ears (companion)
 ##   head: bool       — draw a head blob above the body (player)
 ##   eye_offset: Vector2 — extra eye shift (companion attention)
+##   tail: bool       — draw a wagging tail (companion)
+##   wag_rate: float  — tail wag cycles/sec (mood arousal); wag_amp: max sway (mood valence)
+##   ear_offset: float — vertical ear shift: + droops (low mood), - perks up (happy)
+##   bounce_gain: float — multiplier on the idle breathing bob (mood arousal); default 1.0
 
 const MOVE_GATE := 6.0   # below this speed the actor is "idle" (matches the views' gates)
 const CADENCE := 11.0    # walk-cycle steps per second
@@ -37,6 +41,11 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	var head: bool = params.get("head", false)
 	var eye_offset: Vector2 = params.get("eye_offset", Vector2.ZERO)
 	var width: float = params.get("width", 1.0)  # <1 = slimmer (narrower, same height)
+	var tail: bool = params.get("tail", false)
+	var wag_rate: float = params.get("wag_rate", 0.0)
+	var wag_amp: float = params.get("wag_amp", 0.0)
+	var ear_offset: float = params.get("ear_offset", 0.0)
+	var bounce_gain: float = params.get("bounce_gain", 1.0)
 
 	var fdir := facing
 	if fdir.length() < 0.01:
@@ -59,10 +68,12 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 		bob = absf(sin(phase)) * 2.6
 		stretch = sin(phase * 2.0) * 0.05
 	else:
-		bob = sin(t * 2.4) * 0.8  # gentle idle breathing
+		bob = sin(t * 2.4) * 0.8 * bounce_gain  # gentle idle breathing, livelier when excited
 	var vscale := maxf(0.5, 1.0 + ext_squash + stretch)
 	var hscale := 1.0 - (vscale - 1.0) * 0.55
 	var lean := Vector2(fdir.x, 0.0) * (1.8 if moving else 0.0)
+	# The body's anchor, needed early so the tail can hang off its rear (drawn behind it).
+	var body_center := Vector2(0.0, -radius * 0.35 - bob) + lean
 
 	# Contact shadow (flattened via the draw transform).
 	var sh := style.color("shadow")
@@ -77,8 +88,22 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	ci.draw_circle(Vector2(-radius * 0.45 * width, 5.0 - lift_l) + lean, radius * 0.30, foot_color)
 	ci.draw_circle(Vector2(radius * 0.45 * width, 5.0 - lift_r) + lean, radius * 0.30, foot_color)
 
+	# Tail (companion) — a tapering trio of blobs off the body's rear, sweeping side to side.
+	# It points away from facing and sways perpendicular to that, so a wide brisk wag (happy +
+	# energized) reads instantly as delight and is most visible when the actor faces away.
+	if tail:
+		var tail_color := body_color.darkened(0.06)
+		var back := -fdir
+		var perp := Vector2(-back.y, back.x)
+		var wag := sin(t * wag_rate) * wag_amp
+		var tbase := body_center + back * (radius * 0.55)
+		var tmid := tbase + back * (radius * 0.45) + perp * (radius * 0.5 * wag)
+		var ttip := tbase + back * (radius * 0.9) + perp * (radius * 0.9 * wag)
+		ci.draw_circle(tbase, radius * 0.30, tail_color)
+		ci.draw_circle(tmid, radius * 0.23, tail_color)
+		ci.draw_circle(ttip, radius * 0.17, tail_color)
+
 	# Body (a lit blob), squashed/stretched and leaning the way it moves.
-	var body_center := Vector2(0.0, -radius * 0.35 - bob) + lean
 	ci.draw_set_transform(body_center, 0.0, Vector2(hscale * width, vscale))
 	style.draw_blob(ci, Vector2.ZERO, radius, body_color)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
@@ -96,7 +121,7 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	# Ears (companion), tucked on top of the body and tilting a little with the lean.
 	if ears:
 		var ear_color := body_color.darkened(0.06)
-		var ey := body_center + Vector2(0.0, -radius * 0.72)
+		var ey := body_center + Vector2(0.0, -radius * 0.72 + ear_offset)
 		ci.draw_circle(ey + Vector2(-radius * 0.55 * width, 0.0) + lean * 0.5, radius * 0.30, ear_color)
 		ci.draw_circle(ey + Vector2(radius * 0.55 * width, 0.0) + lean * 0.5, radius * 0.30, ear_color)
 
