@@ -11,8 +11,9 @@ const ART_PATH := "res://data/art.json"
 const INTERACT_RANGE := 60.0
 
 @onready var _world_art: WorldArt = $WorldArt
-@onready var _player: PlayerView = $Player
-@onready var _companion: CompanionView = $Companion
+@onready var _scenery: Scenery = $Scenery
+@onready var _player: PlayerView = $Scenery/Player
+@onready var _companion: CompanionView = $Scenery/Companion
 @onready var _camera: CameraRig = $Camera2D
 @onready var _hint: Label = $UI/HintLabel
 @onready var _joystick: VirtualJoystick = $UI/Joystick
@@ -63,6 +64,9 @@ func _ready() -> void:
 	# treeline and its colliders match exactly.
 	var ccfg: Dictionary = data.get("collision", {})
 	var border_pts := Solids.border_positions(bounds_rect, data.get("border", {}))
+	# Spawn the trees (hand-placed + this border ring + landmarks) into the y-sorted
+	# Scenery layer, using the same border points as the colliders so drawing matches.
+	_scenery.populate(data, border_pts, _style)
 	var solids := Solids.build(data, border_pts, ccfg)
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
