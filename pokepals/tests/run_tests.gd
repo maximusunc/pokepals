@@ -21,6 +21,7 @@ func _init() -> void:
 	failures += TestWorldAreas.run_all()
 	failures += TestCompanionAppraisal.run_all()
 	failures += TestSolids.run_all()
+	failures += TestSalamanderHunt.run_all()
 
 	print("")
 	if failures == 0:

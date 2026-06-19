@@ -29,6 +29,8 @@ var _autosave_accum := 0.0
 
 var _look_dir := Vector2.DOWN
 var _eye_offset := Vector2.ZERO
+var _hint_look_pos := Vector2.ZERO  # a world point to briefly glance at (subtle salamander hint)
+var _hint_look_t := 0.0             # seconds of glance left; overrides the brain's look while > 0
 var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
@@ -58,6 +60,16 @@ func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float)
 ## Called by the world to hand the companion its player to follow.
 func setup(player: PlayerView) -> void:
 	_player = player
+
+
+## A presentation-only "subtle hint": briefly glance toward a world point (a nearby rock that
+## hides a salamander) with a soft perk. It does NOT touch the brain — it only overrides where
+## the eyes attend for a moment, then fades back to whatever the brain is looking at. The
+## decision of *when* to nudge lives in world_controller (it knows where the salamanders are).
+func glance_toward(world_pos: Vector2) -> void:
+	_hint_look_pos = world_pos
+	_hint_look_t = 1.2
+	_perk = maxf(_perk, 0.6)
 
 
 ## Hand the avatar its shared art direction (palette + light). Called by the world.
@@ -218,7 +230,11 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 
 
 func _apply_attention(intent: Dictionary, delta: float) -> void:
-	var to_look := (intent["look_at"] as Vector2) - position
+	# A subtle hint glance, while active, takes over the eyes from the brain's chosen target.
+	var look_target := intent["look_at"] as Vector2
+	if _hint_look_t > 0.0:
+		look_target = _hint_look_pos
+	var to_look := look_target - position
 	if to_look.length() > 1.0:
 		_look_dir = _look_dir.lerp(to_look.normalized(), 1.0 - exp(-6.0 * delta))
 	_eye_offset = _look_dir.normalized() * 2.4
@@ -260,6 +276,7 @@ func _decay_animation(delta: float) -> void:
 	_bob = sin(_time * 3.0)
 	_hop_squash = maxf(0.0, _hop_squash - delta * 2.5)
 	_perk = maxf(0.0, _perk - delta * 2.0)
+	_hint_look_t = maxf(0.0, _hint_look_t - delta)
 	# Age out floating emotes; keep only those still alive.
 	if not _emotes.is_empty():
 		var alive: Array = []

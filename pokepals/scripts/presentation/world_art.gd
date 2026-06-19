@@ -10,10 +10,11 @@ extends Node2D
 var _ground_color := Color(0.43, 0.58, 0.36)
 var _bounds := Rect2()
 var _ponds: Array = []     # [ { center: Vector2, radius: float, color: Color } ]
+var _river: Dictionary = {}  # { rect: Rect2, color: Color, rim: Color } — a long water band, or empty
 var _paths: Array = []     # [ { from: Vector2, to: Vector2, color: Color } ]
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
-var _interactables: Array = []  # [ { pos: Vector2, color: Color, type: String, pulse: float } ]
+var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
 var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
@@ -64,6 +65,18 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	for p in data.get("ponds", []):
 		_ponds.append(_parse_pond(p))
 
+	# A long river band (the Riverbank world): one big water rectangle along an edge, drawn
+	# like the ponds but rectangular, with a lighter rim and drifting ripples.
+	_river = {}
+	if data.has("river"):
+		var rv: Dictionary = data["river"]
+		var r: Array = rv["rect"]  # [x, y, w, h]
+		_river = {
+			"rect": Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])),
+			"color": WorldData.to_color(rv["color"]),
+			"rim": WorldData.to_color(rv.get("rim", [0.78, 0.86, 0.88])),
+		}
+
 	_paths.clear()
 	for p in data.get("paths", []):
 		_paths.append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]), "color": WorldData.to_color(p["color"]) })
@@ -84,6 +97,8 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"color": WorldData.to_color(it["color"]),
 			"type": String(it.get("type", "")),
 			"pulse": 0.0,
+			"examined": false,   # rocks flip this on when turned over
+			"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
 		})
 
 	queue_redraw()
@@ -146,6 +161,27 @@ func pulse_interactable(index: int) -> void:
 		_interactables[index]["pulse"] = 1.0
 
 
+## Turn over the rock at this index: mark it searched and record what it revealed
+## (salamander | decoy | empty) so it draws differently from here on, with a little pulse
+## of acknowledgement. Called by world_controller after the hunt resolves the examine.
+func reveal_rock(index: int, content: String) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["examined"] = true
+		_interactables[index]["content"] = content
+		_interactables[index]["pulse"] = 1.0
+
+
+## Append a freshly-created interactable (e.g. the completion portal that opens when the
+## last salamander is found) so it draws alongside the rest. Returns its index.
+func add_interactable(pos: Vector2, color: Color, type: String) -> int:
+	_interactables.append({
+		"pos": pos, "color": color, "type": type, "pulse": 1.0,
+		"examined": false, "content": "",
+	})
+	queue_redraw()
+	return _interactables.size() - 1
+
+
 func _process(delta: float) -> void:
 	_time += delta
 	for it in _interactables:
@@ -189,6 +225,18 @@ func _draw() -> void:
 	for p in _paths:
 		draw_line(p["from"], p["to"], p["color"], 16.0)
 
+	# the river: a long water band with a lit upper edge and a few ripples drifting downstream
+	if not _river.is_empty():
+		var rrect: Rect2 = _river["rect"]
+		draw_rect(rrect, _river["color"])
+		# a soft brighter rim along the bank-side (top) edge where land meets water
+		draw_line(rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
+		for k in 3:
+			var ry := rrect.position.y + 16.0 + float(k) * 26.0
+			var drift := fposmod(_time * 12.0 + float(k) * 40.0, rrect.size.x)
+			var rip := Color(0.85, 0.92, 0.95, 0.16)
+			draw_line(rrect.position + Vector2(drift, ry - rrect.position.y), rrect.position + Vector2(minf(drift + 70.0, rrect.size.x), ry - rrect.position.y), rip, 1.5)
+
 	# ponds, each with a lighter rim and a couple of slow, breathing ripples
 	for pond in _ponds:
 		var center: Vector2 = pond["center"]
@@ -213,7 +261,10 @@ func _draw() -> void:
 		var pulse: float = it["pulse"]
 		if pulse > 0.0:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
-		_draw_prop(it["type"], it["pos"], it["color"])
+		if String(it["type"]) == "rock":
+			_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]))
+		else:
+			_draw_prop(it["type"], it["pos"], it["color"])
 
 	# NOTE: trees and landmarks (great trees) are no longer drawn here. They're spawned
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
@@ -240,6 +291,8 @@ func _draw_glow(type: String, p: Vector2) -> void:
 			warm = Color(1.0, 0.85, 0.5)
 		"crystal":
 			warm = Color(0.6, 0.85, 1.0)
+		"portal":
+			warm = Color(0.74, 0.7, 1.0)
 		_:
 			return
 	var breathe := 0.82 + 0.18 * sin(_time * _glow_pulse_speed)
@@ -315,7 +368,74 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 2), 12.0, color)
 			draw_circle(p + Vector2(0, 0), 8.0, Color(0.40, 0.56, 0.64))
 			draw_arc(p + Vector2(0, 0), 8.0, 0.0, TAU, 20, Color(0.85, 0.92, 0.95, 0.6), 1.0)
+		"portal":
+			# an upright shimmering oval doorway, gently breathing, with sparks circling its rim
+			var sway := 0.9 + 0.1 * sin(_time * 2.0)
+			var center := p + Vector2(0, -18)
+			draw_set_transform(center, 0.0, Vector2(1.0, 1.9))
+			draw_circle(Vector2.ZERO, 13.0, Color(color.r, color.g, color.b, 0.22))
+			draw_circle(Vector2.ZERO, 10.0 * sway, Color(color.r, color.g, color.b, 0.5))
+			draw_circle(Vector2.ZERO, 6.0 * sway, Color(1, 1, 1, 0.35))
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+			for k in 3:
+				var ang := _time * 1.6 + float(k) * TAU / 3.0
+				draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
 		_:
 			# fallback: the original ringed disc
 			draw_circle(p, 8.0, color)
 			draw_arc(p, 8.0, 0.0, TAU, 20, Color(1, 1, 1, 0.5), 1.5)
+
+
+## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its
+## side beside a damp hollow, and whatever was hiding under it (a salamander, a small
+## decoy find, or nothing) is drawn in the hollow — so a searched rock reads at a glance.
+func _draw_rock(p: Vector2, color: Color, examined: bool, content: String) -> void:
+	if not examined:
+		draw_circle(p + Vector2(0, 2), 11.0, color.darkened(0.12))
+		draw_circle(p + Vector2(-2, -2), 9.0, color)
+		draw_circle(p + Vector2(2, -4), 5.5, color.lightened(0.12))
+		return
+	# the damp hollow the rock used to sit in
+	draw_circle(p + Vector2(0, 2), 11.0, Color(0.20, 0.22, 0.20, 0.55))
+	draw_circle(p + Vector2(0, 2), 8.0, Color(0.26, 0.27, 0.22, 0.55))
+	# what was hiding underneath, revealed in the hollow
+	match content:
+		"salamander":
+			_draw_salamander(p + Vector2(-1, 1))
+		"decoy":
+			_draw_decoy(p + Vector2(-1, 1))
+		_:
+			pass
+	# the stone itself, tipped up onto its side just beside the hollow
+	draw_set_transform(p + Vector2(13, -1), -0.5, Vector2.ONE)
+	draw_circle(Vector2(0, 2), 9.0, color.darkened(0.18))
+	draw_circle(Vector2(0, -1), 7.0, color.darkened(0.04))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## A little river salamander: a russet body with a curving, gently wagging tail, a small
+## head with a bright eye, stubby legs and a couple of warm spots. The found-a-friend beat.
+func _draw_salamander(p: Vector2) -> void:
+	var warm := Color(0.86, 0.42, 0.30)
+	var belly := Color(0.96, 0.76, 0.42)
+	var wig := sin(_time * 5.0) * 3.0
+	draw_line(p + Vector2(-2, 1), p + Vector2(-10, 2.0 + wig), warm, 2.5)  # tail
+	draw_line(p + Vector2(-1, 3), p + Vector2(-3, 5), warm, 1.4)           # legs
+	draw_line(p + Vector2(3, 3), p + Vector2(5, 5), warm, 1.4)
+	draw_circle(p, 4.5, warm)                                              # body
+	draw_circle(p + Vector2(0, 1.4), 2.6, belly)                           # belly
+	draw_circle(p + Vector2(5, -1), 3.2, warm)                             # head
+	draw_circle(p + Vector2(6.4, -2), 0.8, Color(0.10, 0.10, 0.12))        # eye
+	draw_circle(p + Vector2(-3, -1), 0.9, belly)                           # spots
+	draw_circle(p + Vector2(1, -2), 0.9, belly)
+
+
+## A small non-counting find (feather, river-glass, button, shell, beetle, pebble): a
+## little gleam with a drifting sparkle. Generic on purpose — the label carries the flavor.
+func _draw_decoy(p: Vector2) -> void:
+	var c := Color(0.82, 0.78, 0.54)
+	draw_circle(p, 3.4, c)
+	draw_circle(p + Vector2(-1, -1), 1.2, Color(1, 1, 1, 0.8))
+	var s := 0.6 + 0.4 * sin(_time * 3.0)
+	draw_line(p + Vector2(0, -6), p + Vector2(0, -3), Color(1, 1, 1, 0.6 * s), 1.0)
+	draw_line(p + Vector2(-3, -4), p + Vector2(-1, -4), Color(1, 1, 1, 0.5 * s), 1.0)
