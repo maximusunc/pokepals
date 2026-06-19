@@ -444,7 +444,7 @@ static func _test_identity_crystallizes_with_bond(cfg: Dictionary) -> int:
 	var bonded := CompanionSelf.make_default(cfg)
 	bonded.bond = 1.0
 	_seed_exploring(bonded)
-	var start := fresh.identity["energy"]  # both start equal (make_default)
+	var start: float = float(fresh.identity["energy"])  # both start equal (make_default)
 	for _i in 600:
 		fresh.apply_drift(cfg, 0.1)
 		bonded.apply_drift(cfg, 0.1)

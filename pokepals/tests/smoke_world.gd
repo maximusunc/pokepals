@@ -61,13 +61,29 @@ func _process(_delta: float) -> bool:
 			_curious_seen = true
 		if _frames - _phase_frame > 30:
 			print("SMOKE curiosity: %s" % ("OK" if _curious_seen else "FAIL"))
-			if _curious_seen:
-				print("ALL WORLD SMOKE CHECKS PASSED")
-				quit(0)
-			else:
+			if not _curious_seen:
 				print("SMOKE FAILED")
 				quit(1)
-			return true
+				return true
+			_phase = 2
+			_phase_frame = _frames
 		return false
+
+	if _phase == 2:
+		# Collision wiring: the player received a non-empty barrier list + bounds, and
+		# the resolver keeps an out-of-bounds point inside the map (detailed behavior is
+		# covered by TestSolids).
+		var solids: Array = _player._solids
+		var bounds: Rect2 = _player._bounds
+		var fixed := Solids.resolve(bounds.position - Vector2(500, 500), _player._body_radius, solids, bounds, _player._margin)
+		var contained := bounds.has_point(fixed)
+		print("SMOKE collision: solids=%d edge_contained=%s" % [solids.size(), str(contained)])
+		if solids.size() > 0 and contained:
+			print("ALL WORLD SMOKE CHECKS PASSED")
+			quit(0)
+		else:
+			print("SMOKE FAILED")
+			quit(1)
+		return true
 
 	return false

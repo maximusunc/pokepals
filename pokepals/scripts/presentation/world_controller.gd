@@ -7,6 +7,7 @@ extends Node2D
 ## about it.
 
 const WORLD_PATH := "res://data/world.json"
+const ART_PATH := "res://data/art.json"
 const INTERACT_RANGE := 60.0
 
 @onready var _world_art: WorldArt = $WorldArt
@@ -19,24 +20,54 @@ const INTERACT_RANGE := 60.0
 @onready var _reset_button: Button = $UI/ResetButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
+@onready var _day_tint: CanvasModulate = $DayTint
+@onready var _vignette: ColorRect = $Vignette/Rect
+@onready var _pollen: CPUParticles2D = $Camera2D/Pollen
 
 var _interactables: Array = []  # [ { pos: Vector2, label: String } ]
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
+var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
+var _style: ArtStyle
+var _day_enabled := false
+var _day_period := 480.0
+var _day_loop := true
+var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sorted by t
+var _day_time := 0.0
 
 
 func _ready() -> void:
 	var data := WorldData.load_json(WORLD_PATH)
 
+	# Shared art direction (palette + light): the one place the whole look is tuned.
+	_style = ArtStyle.load_style(ART_PATH)
+	_player.set_style(_style)
+	_companion.set_style(_style)
+
 	_player.position = WorldData.to_vec2(data["player_spawn"])
 	_companion.position = WorldData.to_vec2(data["companion_spawn"])
 	_companion.setup(_player)
 
-	_world_art.render_world(data)
+	_world_art.render_world(data, _style)
+	_apply_atmosphere(data.get("atmosphere", {}))
+	_setup_daycycle(_style.daycycle())
 
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
-	_camera.set_bounds(Rect2(bmin, bmax - bmin))
+	var bounds_rect := Rect2(bmin, bmax - bmin)
+	_camera.set_bounds(bounds_rect)
+
+	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
+	# props, great-trees, ponds) and hand it to both characters to collide against. The
+	# border positions come from the same pure helper the renderer uses, so the drawn
+	# treeline and its colliders match exactly.
+	var ccfg: Dictionary = data.get("collision", {})
+	var border_pts := Solids.border_positions(bounds_rect, data.get("border", {}))
+	var solids := Solids.build(data, border_pts, ccfg)
+	var body_radius := float(ccfg.get("body_radius", 6.0))
+	var margin := float(ccfg.get("margin", 2.0))
+	_player.set_solids(solids, bounds_rect, body_radius, margin)
+	_companion.set_solids(solids, bounds_rect, body_radius, margin)
 
 	for i in data.get("interactables", []).size():
 		var it: Dictionary = data["interactables"][i]
@@ -78,15 +109,96 @@ func _ready() -> void:
 	_debug_button.pressed.connect(_debug.toggle)
 	_joystick.add_exclusion(_debug_button)
 
+	# Opening instruction, then let it quietly fade so the world isn't framed by UI
+	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
 	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
+	_hint.modulate.a = 1.0
+	_intro_tween = create_tween()
+	_intro_tween.tween_interval(5.0)
+	_intro_tween.tween_property(_hint, "modulate:a", 0.0, 1.4)
 
 
-func _process(_delta: float) -> void:
+## Show a hint at full opacity, cancelling the opening fade if it's still running, so
+## prompts (and the reset message) are always readable even after the intro faded out.
+func _show_hint(text: String) -> void:
+	if _intro_tween != null and _intro_tween.is_valid():
+		_intro_tween.kill()
+	_hint.text = text
+	_hint.modulate.a = 1.0
+
+
+## Push the world's presentation-only mood knobs into the scene nodes that render
+## them: the global warm color-wash (CanvasModulate), the screen-edge vignette, and
+## the drifting pollen. All data-driven from world.json's "atmosphere" block, with
+## defaults so a world without the block still looks right.
+func _apply_atmosphere(atmo: Dictionary) -> void:
+	if atmo.has("day_tint"):
+		_day_tint.color = WorldData.to_color(atmo["day_tint"])
+
+	var vig: Dictionary = atmo.get("vignette", {})
+	var mat := _vignette.material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("strength", float(vig.get("strength", 0.34)))
+		mat.set_shader_parameter("tint", WorldData.to_color(vig.get("color", [0.06, 0.05, 0.10])))
+
+	var pol: Dictionary = atmo.get("pollen", {})
+	_pollen.amount = maxi(1, int(pol.get("amount", 34)))
+	var pc := WorldData.to_color(pol.get("color", [1.0, 0.96, 0.74]))
+	pc.a = 0.45
+	_pollen.color = pc
+
+
+## Parse the day→dusk cycle config into sorted stops we can interpolate between.
+func _setup_daycycle(cfg: Dictionary) -> void:
+	_day_enabled = bool(cfg.get("enabled", false))
+	_day_period = maxf(1.0, float(cfg.get("period_sec", 480.0)))
+	_day_loop = bool(cfg.get("loop", true))
+	_day_stops.clear()
+	for s in cfg.get("stops", []):
+		_day_stops.append({
+			"t": float(s.get("t", 0.0)),
+			"tint": WorldData.to_color(s.get("tint", [1.0, 1.0, 1.0])),
+			"vig": WorldData.to_color(s.get("vignette", [0.06, 0.05, 0.10])),
+			"vstr": float(s.get("vstrength", 0.34)),
+		})
+	_day_stops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["t"] < b["t"])
+	if _day_enabled and _day_stops.size() >= 2:
+		_apply_daycycle(0.0)  # start at the first stop so a fresh load looks like "day"
+
+
+## Apply the cycle at normalized progress u in [0,1]: lerp the warm wash + vignette
+## between the two bracketing stops.
+func _apply_daycycle(u: float) -> void:
+	var a: Dictionary = _day_stops[0]
+	var b: Dictionary = _day_stops[_day_stops.size() - 1]
+	for i in range(_day_stops.size() - 1):
+		if u >= float(_day_stops[i]["t"]) and u <= float(_day_stops[i + 1]["t"]):
+			a = _day_stops[i]
+			b = _day_stops[i + 1]
+			break
+	var span := maxf(0.0001, float(b["t"]) - float(a["t"]))
+	var k := clampf((u - float(a["t"])) / span, 0.0, 1.0)
+	_day_tint.color = (a["tint"] as Color).lerp(b["tint"], k)
+	var mat := _vignette.material as ShaderMaterial
+	if mat != null:
+		mat.set_shader_parameter("tint", (a["vig"] as Color).lerp(b["vig"], k))
+		mat.set_shader_parameter("strength", lerpf(float(a["vstr"]), float(b["vstr"]), k))
+
+
+func _process(delta: float) -> void:
+	# Slow ambient day→dusk drift, if enabled, driving the warm wash + vignette.
+	if _day_enabled and _day_stops.size() >= 2:
+		_day_time += delta
+		var u := fmod(_day_time, _day_period) / _day_period
+		if _day_loop:
+			u = 1.0 - absf(2.0 * u - 1.0)  # ping-pong: day → dusk → day
+		_apply_daycycle(u)
+
 	# Surface a gentle prompt — and the touch Examine button — when standing near
 	# something to examine.
 	var nearest := _nearest_interactable()
 	if nearest >= 0:
-		_hint.text = "Examine %s" % _interactables[nearest]["label"]
+		_show_hint("Examine %s" % _interactables[nearest]["label"])
 		_set_examine_visible(true)
 	else:
 		_set_examine_visible(false)
@@ -131,7 +243,7 @@ func _set_reset_visible(show_button: bool) -> void:
 func _on_reset_pressed() -> void:
 	_companion.reset()
 	_set_reset_visible(false)
-	_hint.text = "A new companion blinks into the world beside you."
+	_show_hint("A new companion blinks into the world beside you.")
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -146,7 +258,7 @@ func _try_interact() -> void:
 	var spot: Vector2 = _interactables[index]["pos"]
 	_world_art.pulse_interactable(index)
 	_companion.notify_interaction(spot, _interactables[index]["id"], _interactables[index]["tags"])
-	_hint.text = "You examine %s. Your companion perks up." % _interactables[index]["label"]
+	_show_hint("You examine %s. Your companion perks up." % _interactables[index]["label"])
 
 
 ## Index of the closest interactable within range, or -1 if none.
