@@ -15,6 +15,16 @@
 	"curiosity_cooldown": 3.5,
 	"curiosity_linger": 3.2,
 	"curiosity_stop_distance": 30.0,
+	"_curiosity_consider_comment": "The beat of HESITATION before coming over to something the player interacted with. Noticing is instant (it perks and looks); deciding to walk over is a considered choice. delay_low/high: seconds it pauses to weigh it up, by bond — longer when fresh, brief (but never zero) when bonded, so coming over always reads as a live decision. approach_low/high: the probability it actually goes, by bond — fresh companions often stay put, a fully bonded one always comes (after the slight delay). appeal_weight, valence_weight, arousal_weight: small nudges so bond stays the dominant axis — a tempting find (high appraised appeal, centered on appraisal.neutral) or a bright/energized mood makes it readier to go; a dull thing or a withdrawn mood, less so. Mood's random walk is what gives the same prop at the same bond its day-to-day variability.",
+	"curiosity_consider": {
+		"delay_low": 1.3,
+		"delay_high": 0.4,
+		"approach_low": 0.35,
+		"approach_high": 1.0,
+		"appeal_weight": 0.5,
+		"valence_weight": 0.15,
+		"arousal_weight": 0.15
+	},
 	"_wander_comment": "Self-directed roaming — the independent, pre-bond life, but it never fully stops. Left alone the companion moseys to a spot, lingers, then after a pause picks somewhere new. wander_radius: how near a prop must be to be chosen as a destination (it investigates props it passes). roam_radius: how far an aimless amble strays when there's no prop to head for — set to map scale so a fresh companion can end up anywhere on the map (it shrinks on its own as the bond grows). wander_min_radius: a FLOOR on that range so even a fully bonded companion still takes visible little excursions around you rather than gluing to your side. roam_pause: [min,max] seconds of standing about between roams. roam_pause_bond_scale: pauses are multiplied toward this as bond->1, so a bonded companion ranges less. wander_linger: seconds it dwells once it arrives.",
 	"wander_radius": 200.0,
 	"roam_radius": 2400.0,

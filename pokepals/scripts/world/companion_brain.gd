@@ -31,6 +31,10 @@ var _mood_rng := RandomNumberGenerator.new()
 # dice here and hands them to the actions via perception, so adding this feature leaves the
 # action RNG sequence (and every seeded test that depends on it) byte-for-byte unchanged.
 var _ref_rng := RandomNumberGenerator.new()
+# Whether to bother coming over to investigate is its own pre-rolled decision, on yet another
+# dedicated stream, so adding the hesitation leaves both the action RNG and the social-
+# referencing stream (and every seeded test that leans on them) byte-for-byte unchanged.
+var _consider_rng := RandomNumberGenerator.new()
 var _attention := CompanionAttention.new()
 var _self: CompanionSelf
 var _actions: Array
@@ -47,10 +51,12 @@ func _init(cfg: Dictionary, seed_value: int = 0, existing_self: CompanionSelf = 
 		_rng.seed = seed_value
 		_mood_rng.seed = seed_value + 1  # distinct, still deterministic
 		_ref_rng.seed = seed_value + 2
+		_consider_rng.seed = seed_value + 3
 	else:
 		_rng.randomize()
 		_mood_rng.randomize()
 		_ref_rng.randomize()
+		_consider_rng.randomize()
 	# A loaded self carries the companion across sessions; otherwise start fresh.
 	_self = existing_self if existing_self != null else CompanionSelf.make_default(cfg)
 	_actions = CompanionActions.make_all(cfg, _rng)
@@ -88,6 +94,7 @@ func update(context: Dictionary) -> Dictionary:
 	perception["noticed_strength"] = attention["noticed_strength"]
 	perception["glance_roll"] = _ref_rng.randf()
 	perception["cue_roll"] = _ref_rng.randf()
+	perception["investigate_roll"] = _consider_rng.randf()
 
 	# REMEMBER: fold this frame into the persistent self, advance the fast mood (reads the
 	# discovery novelty observe just recorded), then let traits drift slowly toward how the
