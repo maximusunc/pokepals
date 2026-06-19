@@ -163,35 +163,8 @@ func _scatter_grass() -> void:
 ## trees just inside the bounds) so we don't hand-place dozens of coordinates; seeded
 ## so the framing is identical every run. Data-driven via world.json "border".
 func _build_border(cfg: Dictionary) -> void:
-	if cfg.is_empty() or not bool(cfg.get("ring", true)):
-		return
-	var spacing := float(cfg.get("spacing", 130.0))
-	var inset := float(cfg.get("inset", 20.0))
-	var jitter := float(cfg.get("jitter", 34.0))
-	var rows := int(cfg.get("rows", 2))
-	var row_gap := float(cfg.get("row_gap", 64.0))
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 0xBEEF
-	for row in rows:
-		var pad := inset + float(row) * row_gap
-		var rect := Rect2(_bounds.position + Vector2(pad, pad), _bounds.size - Vector2(pad * 2.0, pad * 2.0))
-		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
-			continue
-		var x := rect.position.x
-		while x <= rect.end.x:
-			_add_border_tree(Vector2(x, rect.position.y), jitter, rng)
-			_add_border_tree(Vector2(x, rect.end.y), jitter, rng)
-			x += spacing
-		var y := rect.position.y + spacing
-		while y < rect.end.y:
-			_add_border_tree(Vector2(rect.position.x, y), jitter, rng)
-			_add_border_tree(Vector2(rect.end.x, y), jitter, rng)
-			y += spacing
-
-
-func _add_border_tree(base: Vector2, jitter: float, rng: RandomNumberGenerator) -> void:
-	var p := base + Vector2(rng.randf_range(-jitter, jitter), rng.randf_range(-jitter, jitter))
-	_trees.append({ "pos": p, "phase": _phase_for(p) })
+	for p in Solids.border_positions(_bounds, cfg):
+		_trees.append({ "pos": p, "phase": _phase_for(p) })
 
 
 ## Briefly glow the interactable at this index (called when it's touched).
