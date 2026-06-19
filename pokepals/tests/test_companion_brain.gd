@@ -27,6 +27,7 @@ static func run_all() -> int:
 	fails += _test_curiosity_biases_poi_choice(cfg)
 	fails += _test_bond_grows_with_time_together(cfg)
 	fails += _test_roam_is_a_committed_beat(cfg)
+	fails += _test_wander_gives_up_when_blocked(cfg)
 	return fails
 
 
@@ -444,3 +445,34 @@ static func _test_roam_is_a_committed_beat(cfg: Dictionary) -> int:
 	fails += _ok(is_equal_approx(paused_commitment, float(cfg["arbiter"]["commit_bonus"])), "a paused wander carries only the base commit nudge")
 	fails += _ok(roaming_commitment > paused_commitment + 1.0, "setting off on a roam raises commitment well above the base (a committed beat)")
 	return fails
+
+
+# The stuck-at-the-border bug: a fresh companion's roam range is wider than the map, so it
+# can pick a target beyond the border treeline / off the edge that Solids.resolve pins it
+# short of. It never reaches curiosity_stop_distance (no linger give-up) and the player is
+# right here (no player-left give-up) — so without the stuck-guard it grinds against the
+# barrier forever. Here we pin its body (as the collision resolver would) and assert it
+# notices the lack of progress, abandons the roam, and stops bidding.
+static func _test_wander_gives_up_when_blocked(cfg: Dictionary) -> int:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 1
+	var wander := CompanionActions.WanderAction.new(cfg, rng, 1)
+	var s := CompanionSelf.make_default(cfg)  # bond ~ 0 → widest range, the case that bites
+	wander.tick(10.0)  # elapse the opening pause so it's ready to set off
+	var blocked_pos := Vector2(100, 100)  # a barrier holds the body here; it can't advance
+	var perception := {
+		"dist_to_player": 50.0,
+		"player_pos": Vector2(100, 100),
+		"companion_pos": blocked_pos,
+		"has_poi": false,
+		"nearest_poi": Vector2.ZERO,
+	}
+	wander.score(perception, s, cfg, rng)  # PAUSE → ROAM, picks a (far, unreachable) target
+	# Body never moves; tick act() past the stuck window. It should give up and bid nothing.
+	var gave_up := false
+	for i in 60:
+		wander.act(perception, s, cfg, rng, 0.05)
+		if wander.score(perception, s, cfg, rng) <= 0.0:
+			gave_up = true
+			break
+	return _ok(gave_up, "a wander blocked short of an unreachable target gives up instead of grinding at the border forever")

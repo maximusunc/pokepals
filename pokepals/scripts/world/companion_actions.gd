@@ -343,6 +343,11 @@ class WanderAction extends CompanionAction:
 	var _target := Vector2.ZERO
 	var _linger := 0.0
 	var _just_set_off := false
+	# Stuck-guard bookkeeping: the body's position last act() and how long it's been
+	# trying-but-failing to make headway toward a roam target (see act()).
+	var _prev_pos := Vector2.ZERO
+	var _has_prev := false
+	var _stuck := 0.0
 
 	func _init(cfg: Dictionary, rng: RandomNumberGenerator, band_value: int) -> void:
 		id = "wander"
@@ -391,6 +396,8 @@ class WanderAction extends CompanionAction:
 			_state = ROAM
 			_linger = 0.0
 			_just_set_off = true
+			_has_prev = false
+			_stuck = 0.0
 			return _roam_score(s, cfg)
 		return 0.0
 
@@ -408,6 +415,29 @@ class WanderAction extends CompanionAction:
 		if companion_pos.distance_to(_target) > float(cfg["curiosity_stop_distance"]):
 			move_target = _target
 			speed = float(cfg["walk_speed"])
+			# Stuck-guard. A roam target can land beyond a barrier the companion can't get
+			# past — the border treeline, a solid prop, the map edge — and it has no
+			# path-finding: the body just slides along the obstacle while the edge clamps it.
+			# Without this it grinds there forever, because it never reaches
+			# curiosity_stop_distance to begin its linger, and the player-left give-up in
+			# score() never trips while the player stands by. So watch our OWN body: if we
+			# mean to walk yet barely move for a moment, the way is blocked — abandon the
+			# roam and pause. (Pure self-observation, so the brain stays geometry-blind: it
+			# reads its own position each frame, never the world's solids.)
+			if _has_prev:
+				var moved := companion_pos.distance_to(_prev_pos)
+				var expected := float(cfg["walk_speed"]) * delta
+				if moved < expected * float(cfg.get("wander_stuck_fraction", 0.3)):
+					_stuck += delta
+				else:
+					_stuck = 0.0
+			_prev_pos = companion_pos
+			_has_prev = true
+			if _stuck >= float(cfg.get("wander_stuck_time", 0.5)):
+				_state = PAUSE
+				_pause_timer = _roll_pause(cfg, rng, s.bond, CompanionTraits.value(s, cfg, "energy"))
+				move_target = companion_pos
+				speed = 0.0
 		else:
 			_linger += delta
 			if _linger >= float(cfg.get("wander_linger", 2.5)):
