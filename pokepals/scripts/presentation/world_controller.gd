@@ -15,10 +15,6 @@ const PET_RANGE := 56.0
 # step away before a just-used portal re-arms (so arriving on a portal doesn't bounce you back).
 const PORTAL_RANGE := 22.0
 const PORTAL_ARM_BUFFER := 18.0
-# Subtle salamander hints: how near a hidden salamander must be to the companion for it to
-# glance, and the random pause between glances so the nudge stays occasional, never leading.
-const HINT_RADIUS := 92.0
-const HINT_COOLDOWN := Vector2(4.0, 7.0)
 
 @onready var _world_art: WorldArt = $WorldArt
 @onready var _scenery: Scenery = $Scenery
@@ -46,7 +42,15 @@ var _rocks: Array = []  # [ { pos, hunt_index, render_index } ] — the examinab
 var _goal_active := false
 var _home_world := ""  # where this world's portals (incl. the completion one) lead back to
 var _home_portal := ""
-var _hint_cooldown := 0.0
+var _flip_budget := 0  # max rocks the player may turn over this hunt (0 = unlimited); from goal.flip_budget
+var _flips_left := 0   # rocks remaining in the budget, shown on the goal label
+var _hunt_over := false  # latched once the hunt ends (won or run out) so it resolves only once
+# Detector "tell" tuning (companion.json "detector"), cached from the companion at setup. The
+# companion points toward a hidden salamander when one is near; range + strength scale with bond.
+var _sense_low := 70.0    # sense range (px) at zero bond — short and vague when fresh
+var _sense_high := 200.0  # sense range (px) at full bond — long and sure
+var _tell_low := 0.4      # max tell strength at zero bond
+var _tell_high := 1.0     # max tell strength at full bond
 var _transitioning := false  # true once a portal transition's fade has begun
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
@@ -191,10 +195,14 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	var rock_defs: Array = data.get("rocks", [])
 	if String(goal.get("type", "")) == "find_salamanders" and not rock_defs.is_empty():
 		_goal_active = true
+		_hunt_over = false
+		_flip_budget = int(goal.get("flip_budget", 0))
+		_flips_left = _flip_budget
+		_cache_detector_tuning()
 		_hunt = SalamanderHunt.new()
 		var rng := RandomNumberGenerator.new()
 		rng.randomize()
-		_hunt.setup(rock_defs.size(), int(goal.get("count", 10)), goal.get("decoys", []), int(goal.get("decoy_count", 0)), rng)
+		_hunt.setup(rock_defs.size(), int(goal.get("count", 10)), goal.get("decoys", []), int(goal.get("decoy_count", 0)), rng, _flip_budget)
 		for ri in rock_defs.size():
 			var rpos := WorldData.to_vec2(rock_defs[ri])
 			var render_index := combined.size()
@@ -227,6 +235,17 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		_set_goal_text(0, int(goal.get("count", 10)))
 	else:
 		_goal_label.visible = false
+
+
+## Cache the companion's presentation-only "detector" tuning (sense range + tell strength by bond)
+## so _update_hints can shape the point without re-reading the config each frame. Defaults keep it
+## working if the block is absent.
+func _cache_detector_tuning() -> void:
+	var det: Dictionary = _companion.detector_cfg()
+	_sense_low = float(det.get("sense_range_low", 70.0))
+	_sense_high = float(det.get("sense_range_high", 200.0))
+	_tell_low = float(det.get("tell_low", 0.4))
+	_tell_high = float(det.get("tell_high", 1.0))
 
 
 ## Put the player and companion down: beside the named arrival portal if we travelled here
@@ -448,11 +467,11 @@ func _try_interact() -> void:
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
 
 
-## Turn over a rock: ask the hunt what's hidden under it, reveal it (world_art tips the rock and
-## shows the find), let the companion appraise what surfaced, tick the counter on a salamander,
-## and on the very last one open a second way home a little up the bank.
+## Turn over a rock: ask the hunt what's hidden under it (this spends a flip from the budget),
+## reveal it (world_art tips the rock and shows the find), let the companion appraise what
+## surfaced, tick the counter, and resolve the hunt if this flip won it or spent the last flip.
 func _examine_rock(entry: Dictionary) -> void:
-	if _hunt == null:
+	if _hunt == null or _hunt_over:
 		return
 	var result: Dictionary = _hunt.examine(int(entry["hunt_index"]))
 	if bool(result["already_examined"]):
@@ -464,17 +483,46 @@ func _examine_rock(entry: Dictionary) -> void:
 	# rock being a brand-new wonder.
 	_companion.notify_interaction(entry["pos"], "rock_" + kind, result["tags"])
 	_show_hint("You lift the rock: %s" % result["label"])
+	# Tick the counter every flip so the dwindling flip budget is always legible; pop it on a find.
+	_flips_left = int(result["flips_remaining"])
+	_set_goal_text(int(result["found"]), int(result["total"]))
 	if kind == "salamander":
-		_set_goal_text(int(result["found"]), int(result["total"]))
 		_bounce_goal_label()
+	# Resolve the hunt at most once. A win beats run-out: out_of_flips() already excludes the
+	# flip that finds the last salamander, so the order here is just belt-and-suspenders.
 	if bool(result["newly_complete"]):
-		_open_completion_portal(entry["pos"])
+		_on_hunt_won(entry["pos"], int(result["found"]))
+	elif bool(result["out_of_flips"]):
+		_on_hunt_run_out(entry["pos"])
+
+
+## Won the hunt — all salamanders found. Open a way home and celebrate, with an extra flourish for
+## a flawless run (every flip a salamander, none wasted) — the reward for trusting your companion.
+func _on_hunt_won(at: Vector2, total: int) -> void:
+	_hunt_over = true
+	_open_completion_portal(at)
+	if _flip_budget > 0 and _hunt.flips_used == total:
+		_show_hint("A perfect hunt — every flip a salamander! A portal shimmers open just up the bank.")
+	else:
 		_show_hint("All ten salamanders found! A portal shimmers open just up the bank.")
 
 
-## When the last salamander is found, open a second portal home a little up the bank from the
-## rock, so the player needn't trek all the way back to the entry portal. Leads where this
-## world's portals lead (the Vale).
+## Ran out of flips before finding them all — no hard loss. Flip every rock still face-down so the
+## player sees what they missed (dimmed), open the way home, and gently invite them back: as the
+## bond deepens, the companion's tell sharpens and the next visit goes better.
+func _on_hunt_run_out(at: Vector2) -> void:
+	_hunt_over = true
+	for r in _rocks:
+		var hi := int(r["hunt_index"])
+		if not _hunt.is_examined(hi):
+			_world_art.reveal_rock(int(r["render_index"]), _hunt.content_kind(hi), true)
+	_open_completion_portal(at)
+	_show_hint("Out of flips. Here's what the river was hiding — come back and let your companion help you find them.")
+
+
+## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
+## player needn't trek all the way back to the entry portal. Leads where this world's portals
+## lead (the Vale). Serves both terminal states (a win and a run-out).
 func _open_completion_portal(at: Vector2) -> void:
 	var pos := at + Vector2(46, -28)
 	var render_index := _world_art.add_interactable(pos, Color(0.74, 0.66, 0.96), "portal")
@@ -513,21 +561,30 @@ func _begin_transition(portal: Dictionary) -> void:
 	tw.tween_callback(func() -> void: WorldRouter.go_to(String(portal["target_world"]), String(portal["target_portal"])))
 
 
-## Subtle salamander hints: every few seconds, if an un-turned salamander rock is near the
-## companion, have it glance that way — a warm nudge, never a giveaway (it doesn't walk over).
-func _update_hints(delta: float) -> void:
+## The companion as a living salamander DETECTOR — the heart of the hunt. Each frame, find the
+## nearest un-found salamander rock within the companion's (bond-scaled) sense range and have it
+## "point": a graded freeze/orient whose strength grows the closer it is and the deeper the bond.
+## A fresh companion senses only a short way and tells weakly/late; a bonded one locks on early and
+## strongly, practically leading you. Reading this — instead of flipping blindly — is the skill,
+## and it's why a deeper bond means a better score. Presentation only: this reads the hunt's truth
+## but feeds it solely to the companion's BODY (point_at), never its brain, so the companion still
+## never *knows* where the salamanders are. Decoys/empties are never sense-able, keeping the tell honest.
+func _update_hints(_delta: float) -> void:
 	if not _goal_active or _hunt == null:
 		return
-	_hint_cooldown -= delta
-	if _hint_cooldown > 0.0:
+	if _hunt_over:
+		_companion.point_at(Vector2.ZERO, 0.0)  # hunt's done — relax the pose
 		return
+	var bond := _companion.bond_value()
+	var sense := lerpf(_sense_low, _sense_high, bond)
 	var best := Vector2.ZERO
-	var best_d := HINT_RADIUS
+	var best_d := sense
 	var found := false
 	for r in _rocks:
-		if _hunt.is_examined(int(r["hunt_index"])):
+		var hi := int(r["hunt_index"])
+		if _hunt.is_examined(hi):
 			continue
-		if _hunt.content_kind(int(r["hunt_index"])) != "salamander":
+		if _hunt.content_kind(hi) != "salamander":
 			continue
 		var d := _companion.position.distance_to(r["pos"])
 		if d <= best_d:
@@ -535,14 +592,18 @@ func _update_hints(delta: float) -> void:
 			best = r["pos"]
 			found = true
 	if found:
-		_companion.glance_toward(best)
-		_hint_cooldown = randf_range(HINT_COOLDOWN.x, HINT_COOLDOWN.y)
+		var prox := 1.0 - clampf(best_d / maxf(sense, 0.001), 0.0, 1.0)  # closer = stronger
+		var strength := clampf(prox * lerpf(_tell_low, _tell_high, bond), 0.0, 1.0)
+		_companion.point_at(best, strength)
 	else:
-		_hint_cooldown = 0.6  # nothing near; check again shortly
+		_companion.point_at(Vector2.ZERO, 0.0)  # nothing sensed nearby — stand easy
 
 
 func _set_goal_text(found: int, total: int) -> void:
-	_goal_label.text = "Salamanders  %d / %d" % [found, total]
+	if _flip_budget > 0:
+		_goal_label.text = "Salamanders  %d / %d\nFlips left  %d" % [found, total, _flips_left]
+	else:
+		_goal_label.text = "Salamanders  %d / %d" % [found, total]
 
 
 ## A small celebratory pop of the counter each time you find one.
@@ -552,13 +613,14 @@ func _bounce_goal_label() -> void:
 
 
 ## Index of the closest examinable interactable within range, or -1 if none. Already-searched
-## rocks are skipped, so a turned-over rock no longer prompts "Examine".
+## rocks are skipped, so a turned-over rock no longer prompts "Examine"; once the hunt is over
+## (won or run out) no rock prompts at all — the search is finished, the way home is open.
 func _nearest_interactable() -> int:
 	var best := -1
 	var best_dist := INTERACT_RANGE
 	for i in _interactables.size():
 		var e: Dictionary = _interactables[i]
-		if String(e.get("kind", "prop")) == "rock" and _hunt != null and _hunt.is_examined(int(e["hunt_index"])):
+		if String(e.get("kind", "prop")) == "rock" and _hunt != null and (_hunt_over or _hunt.is_examined(int(e["hunt_index"]))):
 			continue
 		var d := _player.position.distance_to(e["pos"])
 		if d <= best_dist:

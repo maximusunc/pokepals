@@ -99,6 +99,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"pulse": 0.0,
 			"examined": false,   # rocks flip this on when turned over
 			"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
+			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
 		})
 
 	queue_redraw()
@@ -164,11 +165,14 @@ func pulse_interactable(index: int) -> void:
 ## Turn over the rock at this index: mark it searched and record what it revealed
 ## (salamander | decoy | empty) so it draws differently from here on, with a little pulse
 ## of acknowledgement. Called by world_controller after the hunt resolves the examine.
-func reveal_rock(index: int, content: String) -> void:
+## `missed` flags a rock flipped by the end-of-hunt run-out reveal (not by the player) — those
+## draw dimmed, reading as "here's what you missed" rather than a triumphant find.
+func reveal_rock(index: int, content: String, missed: bool = false) -> void:
 	if index >= 0 and index < _interactables.size():
 		_interactables[index]["examined"] = true
 		_interactables[index]["content"] = content
-		_interactables[index]["pulse"] = 1.0
+		_interactables[index]["missed"] = missed
+		_interactables[index]["pulse"] = 0.0 if missed else 1.0
 
 
 ## Append a freshly-created interactable (e.g. the completion portal that opens when the
@@ -176,7 +180,7 @@ func reveal_rock(index: int, content: String) -> void:
 func add_interactable(pos: Vector2, color: Color, type: String) -> int:
 	_interactables.append({
 		"pos": pos, "color": color, "type": type, "pulse": 1.0,
-		"examined": false, "content": "",
+		"examined": false, "content": "", "missed": false,
 	})
 	queue_redraw()
 	return _interactables.size() - 1
@@ -262,7 +266,7 @@ func _draw() -> void:
 		if pulse > 0.0:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
 		if String(it["type"]) == "rock":
-			_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]))
+			_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
 		else:
 			_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -389,7 +393,7 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its
 ## side beside a damp hollow, and whatever was hiding under it (a salamander, a small
 ## decoy find, or nothing) is drawn in the hollow — so a searched rock reads at a glance.
-func _draw_rock(p: Vector2, color: Color, examined: bool, content: String) -> void:
+func _draw_rock(p: Vector2, color: Color, examined: bool, content: String, missed: bool = false) -> void:
 	if not examined:
 		draw_circle(p + Vector2(0, 2), 11.0, color.darkened(0.12))
 		draw_circle(p + Vector2(-2, -2), 9.0, color)
@@ -398,12 +402,14 @@ func _draw_rock(p: Vector2, color: Color, examined: bool, content: String) -> vo
 	# the damp hollow the rock used to sit in
 	draw_circle(p + Vector2(0, 2), 11.0, Color(0.20, 0.22, 0.20, 0.55))
 	draw_circle(p + Vector2(0, 2), 8.0, Color(0.26, 0.27, 0.22, 0.55))
-	# what was hiding underneath, revealed in the hollow
+	# what was hiding underneath, revealed in the hollow. A run-out reveal ("missed") draws it
+	# faded — you can see what you passed over without it reading as a find you earned.
+	var dim := 0.5 if missed else 1.0
 	match content:
 		"salamander":
-			_draw_salamander(p + Vector2(-1, 1))
+			_draw_salamander(p + Vector2(-1, 1), dim)
 		"decoy":
-			_draw_decoy(p + Vector2(-1, 1))
+			_draw_decoy(p + Vector2(-1, 1), dim)
 		_:
 			pass
 	# the stone itself, tipped up onto its side just beside the hollow
@@ -415,9 +421,9 @@ func _draw_rock(p: Vector2, color: Color, examined: bool, content: String) -> vo
 
 ## A little river salamander: a russet body with a curving, gently wagging tail, a small
 ## head with a bright eye, stubby legs and a couple of warm spots. The found-a-friend beat.
-func _draw_salamander(p: Vector2) -> void:
-	var warm := Color(0.86, 0.42, 0.30)
-	var belly := Color(0.96, 0.76, 0.42)
+func _draw_salamander(p: Vector2, dim: float = 1.0) -> void:
+	var warm := Color(0.86, 0.42, 0.30, dim)
+	var belly := Color(0.96, 0.76, 0.42, dim)
 	var wig := sin(_time * 5.0) * 3.0
 	draw_line(p + Vector2(-2, 1), p + Vector2(-10, 2.0 + wig), warm, 2.5)  # tail
 	draw_line(p + Vector2(-1, 3), p + Vector2(-3, 5), warm, 1.4)           # legs
@@ -425,17 +431,17 @@ func _draw_salamander(p: Vector2) -> void:
 	draw_circle(p, 4.5, warm)                                              # body
 	draw_circle(p + Vector2(0, 1.4), 2.6, belly)                           # belly
 	draw_circle(p + Vector2(5, -1), 3.2, warm)                             # head
-	draw_circle(p + Vector2(6.4, -2), 0.8, Color(0.10, 0.10, 0.12))        # eye
+	draw_circle(p + Vector2(6.4, -2), 0.8, Color(0.10, 0.10, 0.12, dim))   # eye
 	draw_circle(p + Vector2(-3, -1), 0.9, belly)                           # spots
 	draw_circle(p + Vector2(1, -2), 0.9, belly)
 
 
 ## A small non-counting find (feather, river-glass, button, shell, beetle, pebble): a
 ## little gleam with a drifting sparkle. Generic on purpose — the label carries the flavor.
-func _draw_decoy(p: Vector2) -> void:
-	var c := Color(0.82, 0.78, 0.54)
+func _draw_decoy(p: Vector2, dim: float = 1.0) -> void:
+	var c := Color(0.82, 0.78, 0.54, dim)
 	draw_circle(p, 3.4, c)
-	draw_circle(p + Vector2(-1, -1), 1.2, Color(1, 1, 1, 0.8))
+	draw_circle(p + Vector2(-1, -1), 1.2, Color(1, 1, 1, 0.8 * dim))
 	var s := 0.6 + 0.4 * sin(_time * 3.0)
-	draw_line(p + Vector2(0, -6), p + Vector2(0, -3), Color(1, 1, 1, 0.6 * s), 1.0)
-	draw_line(p + Vector2(-3, -4), p + Vector2(-1, -4), Color(1, 1, 1, 0.5 * s), 1.0)
+	draw_line(p + Vector2(0, -6), p + Vector2(0, -3), Color(1, 1, 1, 0.6 * s * dim), 1.0)
+	draw_line(p + Vector2(-3, -4), p + Vector2(-1, -4), Color(1, 1, 1, 0.5 * s * dim), 1.0)

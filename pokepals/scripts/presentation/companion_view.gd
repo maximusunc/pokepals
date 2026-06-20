@@ -31,6 +31,8 @@ var _look_dir := Vector2.DOWN
 var _eye_offset := Vector2.ZERO
 var _hint_look_pos := Vector2.ZERO  # a world point to briefly glance at (subtle salamander hint)
 var _hint_look_t := 0.0             # seconds of glance left; overrides the brain's look while > 0
+var _point_pos := Vector2.ZERO      # world point of the detector "tell" — a hidden salamander nearby
+var _point_t := 0.0                 # tell strength 0..1, set each frame by the controller; 0 = relaxed
 var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
@@ -70,6 +72,32 @@ func glance_toward(world_pos: Vector2) -> void:
 	_hint_look_pos = world_pos
 	_hint_look_t = 1.2
 	_perk = maxf(_perk, 0.6)
+
+
+## The salamander DETECTOR "tell" — a graded pointing/freeze, set every frame by the controller
+## from the hunt's truth + the bond (see world_controller._update_hints). strength 0..1: 0 relaxes
+## the pose, 1 is a full lock-on. Like glance_toward this is PRESENTATION ONLY — it never touches
+## the brain, so the companion still never *knows* where the salamanders are or paths to them; its
+## body just leans toward what it can sense nearby. The closer/more-bonded, the stronger the tell.
+func point_at(world_pos: Vector2, strength: float) -> void:
+	_point_t = clampf(strength, 0.0, 1.0)
+	if _point_t > 0.0:
+		_point_pos = world_pos
+		_perk = maxf(_perk, 0.3 + 0.5 * _point_t)  # a graded alertness, stronger the surer it is
+
+
+## The companion's bond (0..max), read-only, for presentation that scales with the relationship
+## (the detector tell sharpens as you bond). 0 before the brain exists.
+func bond_value() -> float:
+	if _brain == null:
+		return 0.0
+	return _brain.get_self().bond
+
+
+## The presentation-only "detector" tuning block from companion.json (sense range, tell ceiling,
+## pose params), for the controller to read. Empty dict if unconfigured (callers default).
+func detector_cfg() -> Dictionary:
+	return _cfg.get("detector", {})
 
 
 ## Hand the avatar its shared art direction (palette + light). Called by the world.
@@ -233,9 +261,12 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 
 
 func _apply_attention(intent: Dictionary, delta: float) -> void:
-	# A subtle hint glance, while active, takes over the eyes from the brain's chosen target.
+	# The detector tell (strongest) and the legacy hint glance both take the eyes over from the
+	# brain's chosen target while active — a pointing companion locks onto the rock it senses.
 	var look_target := intent["look_at"] as Vector2
-	if _hint_look_t > 0.0:
+	if _point_t > 0.0:
+		look_target = _point_pos
+	elif _hint_look_t > 0.0:
 		look_target = _hint_look_pos
 	var to_look := look_target - position
 	if to_look.length() > 1.0:
@@ -309,6 +340,14 @@ func _draw() -> void:
 	var ear_offset := float(expr.get("ear_droop", 3.0)) * neg_valence - float(expr.get("ear_raise", 4.0)) * pos_valence * (0.5 + 0.5 * arousal01)
 	var bounce_range: Array = expr.get("idle_bounce_gain", [0.6, 2.2])
 	var bounce_gain := lerpf(float(bounce_range[0]), float(bounce_range[1]), arousal01)
+	# The detector "point": as the tell strengthens, freeze the idle body language — a still body
+	# and a stiff (un-wagging) tail, the classic on-point hold — and prick the ears forward (a
+	# negative ear_offset raises/forwards them). Pure overlay on the mood-driven pose above.
+	var det: Dictionary = _cfg.get("detector", {})
+	var freeze := 1.0 - float(det.get("point_freeze", 0.85)) * _point_t
+	wag_amp *= freeze
+	bounce_gain *= freeze
+	ear_offset -= float(det.get("point_ear_forward", 5.0)) * _point_t
 	# Expressive pixel-art rig (e.g. the foxlike-kit sheet): the same mood signals drive a
 	# wagging tail, perking/drooping ears and an idle bounce, just rendered as sprite layers.
 	if _sprite_tex != null:

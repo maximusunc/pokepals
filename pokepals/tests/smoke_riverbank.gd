@@ -2,9 +2,9 @@ extends SceneTree
 ## Headless smoke test for the Riverbank world + portal wiring. Points WorldRouter at the
 ## riverbank as if we'd just stepped through the Vale's portal, loads the real World scene,
 ## and checks: the hunt is laid out (10 salamanders over its rocks), the entry portal exists
-## and the player arrives beside it, examining every rock finds all ten and completes the goal,
-## and a second "way home" portal opens on completion. Proves the goal/portal wiring runs
-## without errors. Run on its own:
+## and the player arrives beside it, flipping exactly the salamander rocks (within the flip budget —
+## what a perfect companion-read achieves) finds all ten and completes the goal, and a second "way
+## home" portal opens on completion. Proves the goal/portal wiring runs without errors. Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_riverbank.gd
 
 var _world: Node
@@ -50,16 +50,20 @@ func _process(_delta: float) -> bool:
 		fails += _check(d > 22.0, "player arrived clear of the portal's trigger range (no instant bounce-back)")
 	fails += _check(not _world._transitioning, "arriving did not start a transition back")
 
-	# Examine every rock: we should find exactly 10 salamanders and complete the hunt.
+	# A flip budget caps how many rocks you may turn over — so flipping all 24 is no longer the
+	# winning play. Flip exactly the salamander rocks (peeking at the hidden truth, as a perfect
+	# companion-read would lead you to): all ten, within the 15-flip budget, completing the hunt.
+	fails += _check(_world._flip_budget > 0, "the riverbank hunt has a flip budget (%d)" % _world._flip_budget)
 	var found_salamanders := 0
 	for entry_i in _world._interactables:
-		if String(entry_i.get("kind", "")) == "rock":
+		if String(entry_i.get("kind", "")) == "rock" and _world._hunt.content_kind(int(entry_i["hunt_index"])) == "salamander":
 			var before: int = _world._hunt.found
 			_world._examine_rock(entry_i)
 			if _world._hunt.found > before:
 				found_salamanders += 1
-	fails += _check(found_salamanders == 10, "examining all rocks found 10 salamanders (got %d)" % found_salamanders)
+	fails += _check(found_salamanders == 10, "flipping the salamander rocks found 10 salamanders (got %d)" % found_salamanders)
 	fails += _check(_world._hunt.is_complete(), "the hunt reports complete")
+	fails += _check(_world._hunt.flips_used == 10, "a perfect read used exactly 10 flips (got %d)" % _world._hunt.flips_used)
 
 	# Completing the hunt opened a second way home.
 	var done_portal := _find_portal("riverbank_exit_complete")
