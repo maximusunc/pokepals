@@ -63,15 +63,18 @@
 			{ "label": "a sleepy river beetle", "tags": ["odd"] }
 		]
 	},
-	"_companion_comment": "Per-world companion tuning, merged over companion.json by world_controller. The riverbank is a focused 'help me search' activity, so unlike the open Vale we keep the companion close at hand REGARDLESS of bond — both to quiet its wandering and, crucially, so it's near enough to the rocks to point out salamanders (the detector only fires when the COMPANION is near a hidden one). follow_near_low: trail near (300) even when fresh, instead of the Vale's wide 1200 berth — the single biggest lever. follow_eager_low/high + follow_leash: bid harder to stay at your side. wander_score_low/high + roam_radius: roam less, and stay close when it does. Tune these to taste; remove the block to fall back to global behavior.",
+	"_companion_comment": "Per-world companion tuning, merged over companion.json by world_controller (shallow top-level overwrite). The riverbank makes the bond contrast DRAMATIC, so the relationship is what you feel: a FRESH companion lives its own life and wanders the whole strip (these low-bond knobs sit at the global defaults — follow_near_low wide, follow_eager_low 0, wander_score_low high, roam_radius wide), while a BONDED one practically sticks to your side the whole time (the high-bond end is tightened hard). follow_near: snug 38px at-your-side distance when bonded. follow_deadzone: shrunk to 60 (from 220) so Follow pulls firmly just past the comfort distance instead of letting it mill in a wide bubble — the key 'bonded still wandered' fix. wander_min_radius: 80 (from 300) so even a rare bonded excursion is tiny. wander_score_high 0.4 + follow_eager_high 11 + follow_leash 14: bonded Follow dominates Wander. This keeps the bonded companion near the rocks as you walk, which is also what lets the detector keep stopping it to point. The Vale (world.json) has no such block, keeping its cozy bonded-pottering. Tune to taste; remove the block for global behavior.",
 	"companion": {
-		"follow_near_low": 300.0,
-		"follow_eager_low": 2.0,
-		"follow_eager_high": 12.0,
-		"follow_leash": 16.0,
-		"wander_score_low": 3.0,
-		"wander_score_high": 1.0,
-		"roam_radius": 700.0
+		"follow_near": 38.0,
+		"follow_near_low": 1100.0,
+		"follow_deadzone": 60.0,
+		"follow_eager_low": 0.0,
+		"follow_eager_high": 11.0,
+		"follow_leash": 14.0,
+		"wander_score_low": 7.0,
+		"wander_score_high": 0.4,
+		"roam_radius": 2400.0,
+		"wander_min_radius": 80.0
 	},
 	"_portals_comment": "Doorways between worlds (walk through them). The entry portal here returns to the Vale, landing the player beside the Vale's portal. A second 'all ten found' portal is created at runtime nearby when the hunt completes.",
 	"portals": [

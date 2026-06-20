@@ -45,12 +45,20 @@ var _home_portal := ""
 var _flip_budget := 0  # max rocks the player may turn over this hunt (0 = unlimited); from goal.flip_budget
 var _flips_left := 0   # rocks remaining in the budget, shown on the goal label
 var _hunt_over := false  # latched once the hunt ends (won or run out) so it resolves only once
-# Detector "tell" tuning (companion.json "detector"), cached from the companion at setup. The
-# companion points toward a hidden salamander when one is near; range + strength scale with bond.
-var _sense_low := 70.0    # sense range (px) at zero bond — short and vague when fresh
-var _sense_high := 200.0  # sense range (px) at full bond — long and sure
-var _tell_low := 0.4      # max tell strength at zero bond
-var _tell_high := 1.0     # max tell strength at full bond
+# Detector tuning (companion.json "detector"), cached from the companion at setup. When a hidden
+# salamander is within (bond-scaled) sense range and the cooldown has elapsed, the companion stops
+# and points at it for a couple seconds, then cools down — points more often the deeper the bond.
+var _sense_low := 70.0    # sense range (px) at zero bond — short when fresh
+var _sense_high := 200.0  # sense range (px) at full bond — long when bonded
+var _point_cooldown_low := 9.0   # seconds between points at zero bond (rare)
+var _point_cooldown_high := 2.0  # seconds between points at full bond (frequent)
+var _point_hold_seconds := 2.0   # how long it stops and holds a point
+# Point-event state machine (driven each frame in _update_hints).
+var _point_active := false       # true while the companion is holding a point
+var _point_hold_left := 0.0      # seconds remaining in the current point hold
+var _point_cd_left := 0.0        # seconds until the next point may fire
+var _point_target := Vector2.ZERO  # world pos the companion is pointing at
+var _point_target_hi := -1       # hunt_index of the pointed rock (to end early if it gets flipped)
 var _transitioning := false  # true once a portal transition's fade has begun
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
@@ -243,15 +251,21 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		_goal_label.visible = false
 
 
-## Cache the companion's presentation-only "detector" tuning (sense range + tell strength by bond)
-## so _update_hints can shape the point without re-reading the config each frame. Defaults keep it
-## working if the block is absent.
+## Cache the companion's presentation-only "detector" tuning (sense range + point cooldown/hold by
+## bond) so _update_hints can drive the point-event machine without re-reading the config each frame.
+## Defaults keep it working if the block is absent. Seeds the first cooldown to the long (fresh)
+## value so the companion never points on the very first frame of a fresh load.
 func _cache_detector_tuning() -> void:
 	var det: Dictionary = _companion.detector_cfg()
 	_sense_low = float(det.get("sense_range_low", 70.0))
 	_sense_high = float(det.get("sense_range_high", 200.0))
-	_tell_low = float(det.get("tell_low", 0.4))
-	_tell_high = float(det.get("tell_high", 1.0))
+	_point_cooldown_low = float(det.get("point_cooldown_low", 9.0))
+	_point_cooldown_high = float(det.get("point_cooldown_high", 2.0))
+	_point_hold_seconds = float(det.get("point_hold_seconds", 2.0))
+	_point_active = false
+	_point_hold_left = 0.0
+	_point_target_hi = -1
+	_point_cd_left = _point_cooldown_low
 
 
 ## Put the player and companion down: beside the named arrival portal if we travelled here
@@ -567,25 +581,52 @@ func _begin_transition(portal: Dictionary) -> void:
 	tw.tween_callback(func() -> void: WorldRouter.go_to(String(portal["target_world"]), String(portal["target_portal"])))
 
 
-## The companion as a living salamander DETECTOR — the heart of the hunt. Each frame, find the
-## nearest un-found salamander rock within the companion's (bond-scaled) sense range and have it
-## "point": a graded freeze/orient whose strength grows the closer it is and the deeper the bond.
-## A fresh companion senses only a short way and tells weakly/late; a bonded one locks on early and
-## strongly, practically leading you. Reading this — instead of flipping blindly — is the skill,
-## and it's why a deeper bond means a better score. Presentation only: this reads the hunt's truth
-## but feeds it solely to the companion's BODY (point_at), never its brain, so the companion still
-## never *knows* where the salamanders are. Decoys/empties are never sense-able, keeping the tell honest.
-func _update_hints(_delta: float) -> void:
+## The companion as a living salamander DETECTOR — the heart of the hunt. A DISCRETE-EVENT machine,
+## not a continuous readout: when a hidden, un-found salamander is within the companion's (bond-scaled)
+## sense range and the cooldown has elapsed, the companion STOPS and points at it at full strength for
+## a couple seconds (the view holds it still while pointing), then releases and cools down. The cooldown
+## scales with bond — a fresh companion points rarely, a bonded one often — so the help you get IS the
+## relationship. Presentation only: this reads the hunt's truth but feeds it solely to the companion's
+## BODY (point_at), never its brain, so the companion still never *knows* where the salamanders are.
+## Decoys/empties are never sense-able, keeping the tell honest.
+func _update_hints(delta: float) -> void:
 	if not _goal_active or _hunt == null:
 		return
 	if _hunt_over:
+		if _point_active:
+			_point_active = false
+			_point_target_hi = -1
 		_companion.point_at(Vector2.ZERO, 0.0)  # hunt's done — relax the pose
 		return
 	var bond := _companion.bond_value()
+
+	# Holding a point: keep it full-strength until the timer runs out (or the player flips the very
+	# rock it's pointing at), then release and roll the next cooldown, shorter the deeper the bond.
+	if _point_active:
+		_point_hold_left -= delta
+		if _point_target_hi >= 0 and _hunt.is_examined(_point_target_hi):
+			_point_hold_left = 0.0
+		if _point_hold_left <= 0.0:
+			_point_active = false
+			_point_target_hi = -1
+			_point_cd_left = lerpf(_point_cooldown_low, _point_cooldown_high, bond)
+			_companion.point_at(Vector2.ZERO, 0.0)
+		else:
+			_companion.point_at(_point_target, 1.0)
+		return
+
+	# Cooling down between points — stand easy.
+	if _point_cd_left > 0.0:
+		_point_cd_left = maxf(0.0, _point_cd_left - delta)
+		return
+
+	# Ready: if a sense-able salamander is near, start a point hold. Otherwise leave the cooldown at
+	# zero so it fires the instant one comes into range (the companion's closeness, set by bond, is
+	# what decides how often that happens).
 	var sense := lerpf(_sense_low, _sense_high, bond)
 	var best := Vector2.ZERO
 	var best_d := sense
-	var found := false
+	var best_hi := -1
 	for r in _rocks:
 		var hi := int(r["hunt_index"])
 		if _hunt.is_examined(hi):
@@ -596,13 +637,13 @@ func _update_hints(_delta: float) -> void:
 		if d <= best_d:
 			best_d = d
 			best = r["pos"]
-			found = true
-	if found:
-		var prox := 1.0 - clampf(best_d / maxf(sense, 0.001), 0.0, 1.0)  # closer = stronger
-		var strength := clampf(prox * lerpf(_tell_low, _tell_high, bond), 0.0, 1.0)
-		_companion.point_at(best, strength)
-	else:
-		_companion.point_at(Vector2.ZERO, 0.0)  # nothing sensed nearby — stand easy
+			best_hi = hi
+	if best_hi >= 0:
+		_point_active = true
+		_point_hold_left = _point_hold_seconds
+		_point_target = best
+		_point_target_hi = best_hi
+		_companion.point_at(best, 1.0)
 
 
 func _set_goal_text(found: int, total: int) -> void:
