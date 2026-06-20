@@ -48,6 +48,18 @@ var _collide := false
 # Eased read of the brain's feeling surface, so body language glides instead of twitching.
 var _mood_v := 0.0
 var _mood_a := 0.0
+# Eased RESTING LOOK — the slow mirror of who the companion is becoming (its grown identity)
+# and how bonded it is. Computed each frame by CompanionLook from identity+bond and glided
+# toward here so it shifts over a play session, never popping. _look_inited snaps these to
+# their target on the first frame (and after reset) so a loaded companion shows its current
+# self immediately instead of easing in from neutral.
+var _look_inited := false
+var _look_ear := 0.0     # px subtracted from ear_offset (+ perks, - relaxes)
+var _look_bounce := 0.0  # added to the idle bounce gain
+var _look_wag := 0.0     # resting tail-wag amplitude floor
+var _look_eye := 0.0     # px of upward gaze bias (procedural rig)
+var _look_coat := 0.0    # 0..1 emergent coat warming
+var _look_scale := 1.0   # body size multiplier over the bond arc
 # Active floating emotes: each { kind: String, age: float, life: float }.
 var _emotes: Array = []
 
@@ -194,6 +206,7 @@ func _process(delta: float) -> void:
 	_apply_attention(intent, delta)
 	_apply_reactions(intent["reactions"])
 	_apply_feeling(intent.get("feeling", {}), delta)
+	_apply_look(delta)
 	_decay_animation(delta)
 	queue_redraw()
 
@@ -229,6 +242,12 @@ func debug_state() -> Dictionary:
 	d["effective"] = CompanionTraits.effective_snapshot(_brain.get_self(), _cfg, ["energy", "clinginess"])
 	d["companion_pos"] = position
 	d["speed"] = velocity.length()
+	# The eased resting-look offsets, so the overlay can show how the grown identity + bond are
+	# bending the pose (and how big the companion has grown) alongside the traits driving them.
+	d["look"] = {
+		"ear": _look_ear, "bounce": _look_bounce, "wag": _look_wag,
+		"eye": _look_eye, "coat": _look_coat, "scale": _look_scale,
+	}
 	return d
 
 
@@ -240,6 +259,9 @@ func reset() -> void:
 	var fresh := CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
 	_brain = CompanionBrain.new(_cfg, 0, fresh)
 	_autosave_accum = 0.0
+	# Re-snap the resting look to the fresh companion next frame (it begins small and unshaped),
+	# rather than easing down from the previous, bonded partner's grown look.
+	_look_inited = false
 
 
 ## Persist who the companion has become. Cheap and idempotent.
@@ -316,6 +338,59 @@ func _apply_feeling(feeling: Dictionary, delta: float) -> void:
 	_mood_a += (float(feeling.get("arousal", 0.0)) - _mood_a) * ease
 
 
+## Glide the eased RESTING LOOK toward who the companion is becoming. CompanionLook turns its
+## grown identity + bond into small pose offsets (ear/bounce/tail/gaze biases, a coat warming,
+## and a size that grows over the bond arc); we ease toward them slowly so the change is felt
+## across a session, not seen frame to frame. The eased values are threaded into the rig in
+## _draw(). The first frame (and after reset) snaps, so a loaded companion shows its current
+## self at once rather than easing in from neutral on every launch.
+func _apply_look(delta: float) -> void:
+	if _brain == null:
+		return
+	var s := _brain.get_self()
+	var target := CompanionLook.resting_look(s.identity, s.bond, _cfg)
+	if not _look_inited:
+		_look_inited = true
+		_look_ear = float(target["ear_rest"])
+		_look_bounce = float(target["bounce_base"])
+		_look_wag = float(target["wag_life"])
+		_look_eye = float(target["eye_lift"])
+		_look_coat = float(target["coat_warm"])
+		_look_scale = float(target["body_scale"])
+		return
+	var k := 1.0 - exp(-float(_cfg.get("identity_look", {}).get("ease_rate", 0.6)) * delta)
+	_look_ear += (float(target["ear_rest"]) - _look_ear) * k
+	_look_bounce += (float(target["bounce_base"]) - _look_bounce) * k
+	_look_wag += (float(target["wag_life"]) - _look_wag) * k
+	_look_eye += (float(target["eye_lift"]) - _look_eye) * k
+	_look_coat += (float(target["coat_warm"]) - _look_coat) * k
+	_look_scale += (float(target["body_scale"]) - _look_scale) * k
+
+
+## The emergent coat warming as a node self_modulate tint, for the pixel rig. White when the
+## warming is off (the common case), easing toward a gentle warm/bright tint built from the
+## same RGB delta the procedural rig adds to its body color. _look_coat gates how far in it is.
+func _coat_modulate() -> Color:
+	if _look_coat <= 0.0:
+		return Color.WHITE
+	var warm: Array = _cfg.get("identity_look", {}).get("coat", {}).get("warm", [0.0, 0.0, 0.0])
+	var tint := Color(1.0 + float(warm[0]), 1.0 + float(warm[1]), 1.0 + float(warm[2]))
+	return Color.WHITE.lerp(tint, _look_coat)
+
+
+## Warm a base coat color by the emergent coat tint, for the procedural rig: adds the configured
+## RGB delta over the body color, eased in by _look_coat. A no-op (returns the input) when off.
+func _warm_coat(base: Color) -> Color:
+	if _look_coat <= 0.0:
+		return base
+	var warm: Array = _cfg.get("identity_look", {}).get("coat", {}).get("warm", [0.0, 0.0, 0.0])
+	var target := Color(
+		clampf(base.r + float(warm[0]), 0.0, 1.0),
+		clampf(base.g + float(warm[1]), 0.0, 1.0),
+		clampf(base.b + float(warm[2]), 0.0, 1.0))
+	return base.lerp(target, _look_coat)
+
+
 ## Float a fresh emote glyph above the companion. Capped so a pathological burst can't grow
 ## the list without bound (in practice these are rare, earned beats).
 func _spawn_emote(kind: String) -> void:
@@ -361,6 +436,14 @@ func _draw() -> void:
 	var ear_offset := float(expr.get("ear_droop", 3.0)) * neg_valence - float(expr.get("ear_raise", 4.0)) * pos_valence * (0.5 + 0.5 * arousal01)
 	var bounce_range: Array = expr.get("idle_bounce_gain", [0.6, 2.2])
 	var bounce_gain := lerpf(float(bounce_range[0]), float(bounce_range[1]), arousal01)
+	# Identity RESTING LOOK: a slow bias toward the companion's grown self, layered onto the
+	# mood-derived pose (see CompanionLook / _apply_look). Subtle and additive — a curious
+	# companion rests with ears a touch perked and eyes carried higher, an energetic one with a
+	# livelier idle and a little resting tail-life, a clingy one softer. Applied BEFORE the
+	# detector freeze below so an on-point companion still freezes regardless of temperament.
+	ear_offset -= _look_ear
+	bounce_gain += _look_bounce
+	wag_amp = maxf(wag_amp, _look_wag)
 	# The detector "point": as the point eases in, freeze the idle body language — a still body and a
 	# stiff (un-wagging) tail, the classic on-point hold — and prick the ears forward (a negative
 	# ear_offset raises/forwards them). Driven by the EASED _point_vis so the pose glides on/off.
@@ -377,6 +460,10 @@ func _draw() -> void:
 	# Expressive pixel-art rig (e.g. the foxlike-kit sheet): the same mood signals drive a
 	# wagging tail, perking/drooping ears and an idle bounce, just rendered as sprite layers.
 	if _sprite_tex != null:
+		# Emergent coat warmth on the pixel rig: there's no per-pixel recolor path, so warm the
+		# whole sprite via the node's self_modulate — a gentle warm/bright tint that only appears
+		# at a high bond. White (no tint) until then; the warm delta brightens-and-warms toward it.
+		self_modulate = _coat_modulate()
 		CompanionSprite.draw(self, _sprite_tex, {
 			"facing": facing,
 			"speed": velocity.length(),
@@ -386,6 +473,7 @@ func _draw() -> void:
 			"wag_amp": wag_amp,
 			"ear_offset": ear_offset,
 			"bounce_gain": bounce_gain,
+			"body_scale": _look_scale,
 		}, cfg)
 		_draw_emotes()
 		_draw_point_alert()
@@ -395,11 +483,11 @@ func _draw() -> void:
 		"speed": velocity.length(),
 		"time": _time,
 		"squash": 0.16 * _perk - 0.12 * _hop_squash,
-		"body_color": WorldData.to_color(cfg.get("body", [0.56, 0.62, 0.86])),
+		"body_color": _warm_coat(WorldData.to_color(cfg.get("body", [0.56, 0.62, 0.86]))),
 		"accent_color": WorldData.to_color(cfg.get("accent", [0.34, 0.37, 0.54])),
-		"radius": 9.0,
+		"radius": 9.0 * _look_scale,
 		"ears": true,
-		"eye_offset": _eye_offset,
+		"eye_offset": _eye_offset + Vector2(0.0, -_look_eye),
 		"width": float(cfg.get("width", 1.0)),
 		"tail": true,
 		"wag_rate": wag_rate,
