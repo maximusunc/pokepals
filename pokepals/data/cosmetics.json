@@ -1,0 +1,45 @@
+{
+	"_comment": "The COSMETIC CATALOG — every appearance piece the player could wear, defined as data (no code changes to add one). This is the 'inventory' half of player customization: which items exist, what SLOT each fills, and which WORLD granted it. The player's owned set + equipped loadout live separately in user://player_appearance.json (see PlayerAppearance); this file is the shared dictionary both the wardrobe and the renderer look items up in. Presentation-only: nothing here touches game logic. A 'sheet' that doesn't exist degrades silently (the layer is skipped), matching SpriteSlot's discipline, so new items can be declared before their art is drawn.",
+	"_slots_comment": "SLOTS are the paper-doll layers, drawn back-to-front by ascending 'z'. Exactly one item occupies a slot at a time. 'required':true means the slot must always resolve to something — PlayerAppearance falls back to the slot's base default so the avatar can never render empty. Leave room between z values so new layers can slot between without renumbering (same spacing discipline as the companion arbiter bands).",
+	"slots": [
+		{ "id": "body", "z": 0, "required": true },
+		{ "id": "outfit", "z": 20 },
+		{ "id": "footwear", "z": 25 },
+		{ "id": "hair", "z": 50 },
+		{ "id": "headwear", "z": 60 },
+		{ "id": "held", "z": 70 }
+	],
+	"_color_slots_comment": "COLOR slots are the 'palette' half of paper-doll + palette: cheap personalization that recolors a layer without new art (skin tone, hair color). 'applies_to' names the paper-doll slot the recolor targets; 'ramps' are the named choices; 'default' is what a fresh player gets. The recolor itself (a palette-swap shader over the layer) is a DEFERRED presentation wiring — the data model and the resolved per-layer 'palette' field are in place now so the door is open; AvatarCompositor reads them once the shader lands.",
+	"color_slots": [
+		{ "id": "skin_tone", "applies_to": "body", "default": "warm", "ramps": ["fair", "warm", "deep"] },
+		{ "id": "hair_color", "applies_to": "hair", "default": "auburn", "ramps": ["auburn", "ash", "wheat", "ink"] }
+	],
+	"_items_comment": "ITEMS keyed by a WORLD-NAMESPACED id ('origin:name'), mirroring the companion's area ids ('world:region') — so a world's drops are self-contained and a later authoritative server can grant them by id without collision. 'origin':'base' items are owned by every player from the start and are the slot defaults (one per required slot via 'default_for'). The render fields (sheet/frame/fps/walk_frames/idle_frame/dirs/z) follow the SAME sheet convention as the existing player/companion art (rows=facing, cols=walk cycle); see SpriteActor. Non-base items below are DECLARED EXAMPLES of the world-grant pattern — their art isn't drawn yet, so they render as nothing until both the sheet exists and the player has obtained + equipped them.",
+	"items": {
+		"base:wanderer": {
+			"slot": "body",
+			"name": "Wanderer",
+			"origin": "base",
+			"default_for": "body",
+			"sheet": "res://assets/sprites/player.png",
+			"z": 0,
+			"frame": [32, 32],
+			"fps": 8,
+			"walk_frames": 4,
+			"idle_frame": 0,
+			"dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+		"riverbank:reed_hat": {
+			"slot": "headwear",
+			"name": "Woven Reed Hat",
+			"origin": "riverbank",
+			"sheet": "res://assets/cosmetics/reed_hat.png",
+			"z": 60,
+			"frame": [32, 32],
+			"fps": 8,
+			"walk_frames": 4,
+			"idle_frame": 0,
+			"dirs": { "down": 0, "side": 1, "up": 2 }
+		}
+	}
+}
