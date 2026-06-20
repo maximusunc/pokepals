@@ -64,6 +64,16 @@ func setup(player: PlayerView) -> void:
 	_player = player
 
 
+## Patch the companion's tuning for THIS world, on top of the global companion.json defaults — e.g.
+## the riverbank quietens wandering and keeps the companion at your side for the hunt, without
+## changing how it behaves in the open Vale. A shallow overwrite of top-level keys is enough (the
+## wander/follow knobs are all top-level scalars). Safe to call after _ready (the brain reads _cfg
+## at decision time, not at construction) and before the first _process. No-op on an empty dict.
+func apply_config_overrides(overrides: Dictionary) -> void:
+	for key in overrides:
+		_cfg[key] = overrides[key]
+
+
 ## A presentation-only "subtle hint": briefly glance toward a world point (a nearby rock that
 ## hides a salamander) with a soft perk. It does NOT touch the brain — it only overrides where
 ## the eyes attend for a moment, then fades back to whatever the brain is looking at. The
@@ -348,6 +358,11 @@ func _draw() -> void:
 	wag_amp *= freeze
 	bounce_gain *= freeze
 	ear_offset -= float(det.get("point_ear_forward", 5.0)) * _point_t
+	# Direction toward the rock it senses, in the actor's local space (the node isn't rotated, so the
+	# world-delta is the local-delta). VectorActor leans the upper body this way while pointing.
+	var point_dir := Vector2.ZERO
+	if _point_t > 0.0:
+		point_dir = (_point_pos - position).normalized()
 	# Expressive pixel-art rig (e.g. the foxlike-kit sheet): the same mood signals drive a
 	# wagging tail, perking/drooping ears and an idle bounce, just rendered as sprite layers.
 	if _sprite_tex != null:
@@ -362,6 +377,7 @@ func _draw() -> void:
 			"bounce_gain": bounce_gain,
 		}, cfg)
 		_draw_emotes()
+		_draw_point_alert()
 		return
 	VectorActor.draw(self, _style, {
 		"facing": facing,
@@ -379,8 +395,28 @@ func _draw() -> void:
 		"wag_amp": wag_amp,
 		"ear_offset": ear_offset,
 		"bounce_gain": bounce_gain,
+		"point": _point_t,
+		"point_dir": point_dir,
 	})
 	_draw_emotes()
+	_draw_point_alert()
+
+
+## The detector "!" — floats over the companion's head while it points at a hidden salamander, its
+## opacity and size rising with the tell strength (a faint flicker when fresh/far, a bold pop when
+## bonded/close). Driven LIVE off _point_t, not the one-shot _emotes queue, so it holds for as long
+## as the companion is on-point and fades the instant it loses the scent. Presentation only.
+func _draw_point_alert() -> void:
+	var det: Dictionary = _cfg.get("detector", {})
+	var threshold := float(det.get("alert_threshold", 0.25))
+	if _point_t <= threshold:
+		return
+	# Ramp 0..1 across the band above the threshold, so the cue eases in rather than popping on.
+	var k := clampf((_point_t - threshold) / maxf(1.0 - threshold, 0.001), 0.0, 1.0)
+	var alpha := clampf(0.35 + 0.65 * k, 0.0, 1.0)
+	var scale := 0.85 + 0.5 * k
+	var bob := sin(_time * 6.0) * 1.2 * k     # a little excited quiver, stronger the surer it is
+	EmoteGlyphs.draw(self, "alert", Vector2(0.0, -30.0 + bob), alpha, scale)
 
 
 ## Render the floating emotes: each fades in fast, drifts upward, then fades out, drawn
