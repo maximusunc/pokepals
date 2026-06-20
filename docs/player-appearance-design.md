@@ -6,8 +6,8 @@ door open to the MMO destination without building it yet.
 
 **Status legend:** ✅ Resolved / built · 🔶 In progress · ⬜ Open / deferred · ⚠️ Flagged.
 
-> **Scope honesty.** We are still on Rung 1 (prove the companion bond feels real). The
-> full inventory + acquisition + wardrobe UI is **future-rung content**. What's built now
+> **Scope honesty.** Rungs 1–2 (the offline single-player core) are complete; the full
+> inventory + acquisition + wardrobe UI is still **future-rung content**. What's built now
 > is only the **architectural seam** — the part that's cheap today and expensive to
 > retrofit later (the CLAUDE.md "keep the door open" discipline). Renders identically to
 > before; opens the door to everything below.

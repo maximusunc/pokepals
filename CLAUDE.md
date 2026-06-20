@@ -24,14 +24,26 @@ the core feeling is real.
 
 -----
 
-## Current phase — Rung 1: single-player, offline “companion + world” vertical slice
+## Phase status — Rungs 1–2 complete ✅ (milestone pause before Rung 3)
 
-**Done = a small 2D world I can walk through beside a companion that feels like it’s
-genuinely *mine*, and that makes me want to keep walking around in it.**
+**Where we are (2026-06):** the offline single-player core is proven and locked in. The bar
+for both rungs was never a feature checklist — it was *feel*, validated by playtest.
 
-The whole point of this rung is to answer one question: *does moving through a little
-world next to a living-feeling companion feel like something?* This is a test of FEEL, not
-features. Favor atmosphere, presence, and charm over systems.
+**What proved out:**
+- **Rung 1 ✅** — walking a small 2D world beside one living-feeling companion feels like
+  *something*; it’s a place you want to linger in, not a tech demo.
+- **Rung 2 ✅** — the companion subtly evolves to reflect how you play *and that evolution is
+  now perceptible*: its resting look (ear/posture, idle liveliness, gaze, coat warmth, body
+  size) mirrors its grown identity + bond, so the bond is felt, not just simulated. Cozy
+  world interactions (examine, pet, call, shared-attention, companion-led discovery, the
+  riverbank hunt) and local save (companion self + player appearance in `user://`) are in.
+
+**Deliberately deferred (not blockers):** persistent coat *mark*, favorite-place memory,
+deeper behavioral legibility — pickup-able if we deepen further before Rung 3.
+
+**Next:** Rung 3 (first two-player shared presence) is the next rung but **not yet
+committed** — direction is an open decision. Until it is, the FEEL-first philosophy and the
+out-of-scope guardrails below still govern.
 
 ### In scope now
 
@@ -131,12 +143,12 @@ for 3D/VR worlds — all without a rewrite.
 
 ## Roadmap (the ladder — context only; build only the current rung)
 
-1. **[CURRENT]** Single-player, offline companion + small world vertical slice. Prove the
+1. **[DONE ✅]** Single-player, offline companion + small world vertical slice. Prove the
    bond feels real.
-1. Deepen the single-player loop: cozy world interactions, a companion that subtly evolves
-   to reflect the player, local save.
-1. Two players sharing a space for the first time — seeing each other and each other’s
-   companions (Godot ENet, then WebSockets).
+1. **[DONE ✅ — milestone just reached]** Deepen the single-player loop: cozy world
+   interactions, a companion that subtly evolves to reflect the player, local save.
+1. **[NEXT — not yet started]** Two players sharing a space for the first time — seeing each
+   other and each other’s companions (Godot ENet, then WebSockets).
 1. A small persistent shared world: WebSockets + Elixir/Phoenix Presence + proximity text
    chat.
 1. World-building / UGC tools, and only much later, other presentations (3D/VR). The
