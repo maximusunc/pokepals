@@ -10,13 +10,22 @@ extends Node2D
 @export var speed := 118.0
 @export var accel := 11.0
 @export var joystick_path: NodePath
+@export var cosmetics_path := "res://data/cosmetics.json"
+
+const APPEARANCE_SAVE_PATH := "user://player_appearance.json"
 
 var velocity := Vector2.ZERO
 var _joystick: Node = null
 var _time := 0.0
 var _facing := Vector2.DOWN  # eased toward the movement direction, held when still
 var _style: ArtStyle
-var _sprite_tex: Texture2D = null  # set if the user dropped in their own player art
+# The player's persistent LOOK (owned wardrobe + worn loadout) and the shared catalog it
+# resolves against — the inventory/customization seam. The avatar is composited from the
+# worn layers (AvatarCompositor); _avatar_layers caches the loaded textures so _draw
+# doesn't re-resolve every frame, refreshed only when the loadout changes.
+var _catalog: CosmeticsCatalog
+var _appearance: PlayerAppearance
+var _avatar_layers: Array = []
 var _solids: Array = []
 var _bounds := Rect2()
 var _body_radius := 6.0
@@ -42,12 +51,47 @@ func _ready() -> void:
 		_joystick = get_node_or_null(joystick_path)
 	if _style == null:
 		_style = ArtStyle.load_style()
+	# Load the wardrobe catalog and the player's saved look (or a fresh default that owns and
+	# wears the base set), then resolve the worn loadout into drawable layers once. Mirrors how
+	# CompanionView loads its saved self — appearance is the player's portable, persisted self.
+	_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+	var saved: Dictionary = SaveStore.load_json(APPEARANCE_SAVE_PATH)
+	if saved.is_empty():
+		_appearance = PlayerAppearance.make_default(_catalog)
+	else:
+		_appearance = PlayerAppearance.from_dict(saved, _catalog)
+	_refresh_avatar()
 
 
-## Hand the avatar its shared art direction (palette + light). Called by the world.
+## Re-resolve the worn loadout into drawable layers. Cheap; call it once at load and again
+## whenever the equipped items or colors change (a future wardrobe screen), not every frame.
+func _refresh_avatar() -> void:
+	if _appearance == null or _catalog == null:
+		_avatar_layers = []
+		return
+	_avatar_layers = AvatarCompositor.load_layers(_appearance.resolved_layers(_catalog))
+
+
+## Hand the avatar its shared art direction (palette + light). Called by the world. The
+## sprite layers now come from the cosmetics catalog (the wardrobe); style still drives the
+## procedural fallback's colors below.
 func set_style(style: ArtStyle) -> void:
 	_style = style
-	_sprite_tex = SpriteSlot.resolve(style.character("player"))
+
+
+## Persist the player's look. Cheap and idempotent; there's no runtime way to change the
+## loadout yet (the wardrobe UI is a later rung), so this currently just keeps the save in
+## step — but the round-trip is wired so equips persist the moment that UI lands.
+func _save_appearance() -> void:
+	if _appearance != null:
+		SaveStore.save_json(APPEARANCE_SAVE_PATH, _appearance.to_dict())
+
+
+## Save on the ways a session can end: window close, app backgrounded on mobile, or this
+## node leaving the tree — the same moments CompanionView persists its self.
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
+		_save_appearance()
 
 
 func _process(delta: float) -> void:
@@ -89,13 +133,14 @@ func _input_direction() -> Vector2:
 
 func _draw() -> void:
 	var cfg := _style.character("player")
-	if _sprite_tex != null:
-		# Directional, animated drop-in art (e.g. the Hooded Wanderer sheet).
-		SpriteActor.draw(self, _sprite_tex, {
+	if AvatarCompositor.has_drawable(_avatar_layers):
+		# Composite the worn wardrobe: a base body now, with hats/hair/outfits stacking on
+		# top once obtained. A single base layer here is identical to the old single-sheet draw.
+		AvatarCompositor.draw(self, _avatar_layers, {
 			"facing": _facing,
 			"speed": velocity.length(),
 			"time": _time,
-		}, cfg)
+		})
 		return
 	VectorActor.draw(self, _style, {
 		"facing": _facing,
