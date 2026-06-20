@@ -1,6 +1,6 @@
 # Mobile testing — getting Kithbound onto a phone
 
-Rung 1 is a test of **feel** on a touch device, so the fastest way to learn
+The single-player slice is a test of **feel** on a touch device, so the fastest way to learn
 something is to hold the companion in your hand. This doc covers both targets.
 **Android is dramatically easier** (no Mac, no signing) and tests the same
 touch feel — reach for it first unless you specifically need iOS.
@@ -58,7 +58,7 @@ is a *separate* Apple ID enrolled in nothing:
 3. In **Signing & Capabilities**, the Team dropdown now offers
    **"(Personal Team) Your Name"** — select it. Xcode mints the cert + profile.
 
-Free Personal Team limits (all fine for Rung 1): apps expire after **7 days**,
+Free Personal Team limits (all fine for this stage): apps expire after **7 days**,
 max **3** installed at once, **10** app IDs per 7 days, no push. Your iPhone does
 *not* need to be signed into this Apple ID.
 

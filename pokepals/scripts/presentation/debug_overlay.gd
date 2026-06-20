@@ -67,6 +67,18 @@ func _format(d: Dictionary) -> String:
 			float(idn.get("energy", 0.0)),
 			float(idn.get("clinginess", 0.0)),
 		])
+	# The resting LOOK those slow traits + bond are bending into — the presentation mirror of the
+	# evolution (ear perk/relax, idle liveliness, gaze lift, coat warmth, and the size it's grown to).
+	var lk: Dictionary = d.get("look", {})
+	if not lk.is_empty():
+		lines.append("look    ear %+.2f  bnc %+.2f  tail %.2f  eye %.2f  size %.2f  coat %.2f" % [
+			float(lk.get("ear", 0.0)),
+			float(lk.get("bounce", 0.0)),
+			float(lk.get("wag", 0.0)),
+			float(lk.get("eye", 0.0)),
+			float(lk.get("scale", 1.0)),
+			float(lk.get("coat", 0.0)),
+		])
 
 	# Mood (2D): the fast feeling overlaying the traits. Signed bars (centered at the
 	# resting point's sign), with the trait values mood is actually bending shown beneath.

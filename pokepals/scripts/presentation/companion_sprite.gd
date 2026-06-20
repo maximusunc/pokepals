@@ -20,7 +20,7 @@ const MOVE_GATE := 6.0   # matches CompanionView's walk gate
 const REACT_PX := 14.0   # how many px a full perk/hop squash becomes as a lift/dip
 
 
-## params: facing, speed, time, squash, wag_rate, wag_amp, ear_offset, bounce_gain
+## params: facing, speed, time, squash, wag_rate, wag_amp, ear_offset, bounce_gain, body_scale
 ## cfg (art.json): frame:[w,h], fps, walk_frames, idle_frame, dirs, ear_row, tail_row, tail_sway_px
 static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictionary) -> void:
 	var facing: Vector2 = params.get("facing", Vector2.DOWN)
@@ -69,13 +69,17 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var react := -float(params.get("squash", 0.0)) * REACT_PX  # perk springs up, hop dips down
 	var vy := roundi(bounce + react)
 
-	if flip:
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1.0, 1.0))  # mirror around origin
+	# Body GROWS with the bond: scale the whole rig about the ground-contact line (y = 8, where
+	# the feet meet the floor) so it grows UP from its feet, not from its centre, and fold the
+	# left-facing mirror into the same transform. Pixel-art scaled non-integer can shimmer a touch,
+	# but the growth is gentle (and a no-op at scale 1.0 with no flip — an identity transform).
+	var body_scale: float = params.get("body_scale", 1.0)
+	var sx := -body_scale if flip else body_scale
+	ci.draw_set_transform(Vector2(0.0, 8.0 * (1.0 - body_scale)), 0.0, Vector2(sx, body_scale))
 	_blit(ci, tex, fw, fh, dir_index, tail_row, tail_dx, vy)          # tail (behind)
 	_blit(ci, tex, fw, fh, body_col, body_row, 0, vy)                 # body
 	_blit(ci, tex, fw, fh, dir_index, ear_row, 0, vy + ear_dy)        # ears (in front)
-	if flip:
-		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## Blit one frame (col,row) anchored bottom-centre at the origin, offset by (ox, oy) px.

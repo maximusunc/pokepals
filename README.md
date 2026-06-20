@@ -3,9 +3,10 @@
 A cozy, 2D, companion-centered world game built in **Godot 4.6** with **GDScript**,
 mobile-friendly from the start.
 
-> **Status — Rung 1:** a single-player, offline *companion + world* vertical slice.
-> The goal of this phase is to find out whether wandering a small world *beside a
-> living-feeling companion* feels like something — a test of FEEL, not features.
+> **Status — Rungs 1–2 complete ✅:** the single-player, offline *companion + world* core is
+> proven — wandering a small world *beside a living-feeling companion* feels like something,
+> and the companion now visibly grows to reflect how you play. Next up (not yet started) is
+> first two-player shared presence. A test of FEEL, not features.
 > See [`CLAUDE.md`](CLAUDE.md) for the full vision and the staged roadmap.
 
 The Godot project lives in the [`pokepals/`](pokepals/) subdirectory. (An earlier
