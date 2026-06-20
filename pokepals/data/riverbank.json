@@ -48,10 +48,11 @@
 		[1560, 85], [1680, 20], [1800, 95], [1920, 35], [2040, 80], [2160, 10],
 		[2280, 100], [2400, 45], [180, 130], [900, 125], [1500, 135], [2100, 128]
 	],
-	"_goal_comment": "The hunt: hide `count` salamanders (these count) and `decoy_count` decoys (these don't) among the rocks; the rest are empty. Decoys are tagged so the companion appraises them too (see companion.json 'appraisal').",
+	"_goal_comment": "The hunt: hide `count` salamanders (these count) and `decoy_count` decoys (these don't) among the rocks; the rest are empty. Decoys are tagged so the companion appraises them too (see companion.json 'appraisal'). flip_budget caps how many rocks you may turn over before the hunt ends (re-tapping a flipped rock is free) — so the skill is reading your companion's 'tell' (companion.json 'detector') to spend flips on real salamanders, not flipping every rock. Find all `count` within budget for a win (flawless = a 'perfect hunt'); run out and every rock flips face-up dimmed so you see what you missed, then the way home opens and you can come back for a fresh shuffle. Set flip_budget to 0 to disable the budget (unlimited flips).",
 	"goal": {
 		"type": "find_salamanders",
 		"count": 10,
+		"flip_budget": 15,
 		"decoy_count": 6,
 		"decoys": [
 			{ "label": "a smooth blue river-glass", "tags": ["shiny", "odd"] },
