@@ -13,6 +13,7 @@ extends Node2D
 
 const SELF_SAVE_PATH := "user://companion_self.json"
 const AUTOSAVE_INTERVAL := 15.0
+const POINT_VIS_RATE := 8.0  # per-sec ease of the point's visual intensity toward its on/off target
 
 var velocity := Vector2.ZERO
 
@@ -32,7 +33,8 @@ var _eye_offset := Vector2.ZERO
 var _hint_look_pos := Vector2.ZERO  # a world point to briefly glance at (subtle salamander hint)
 var _hint_look_t := 0.0             # seconds of glance left; overrides the brain's look while > 0
 var _point_pos := Vector2.ZERO      # world point of the detector "tell" — a hidden salamander nearby
-var _point_t := 0.0                 # tell strength 0..1, set each frame by the controller; 0 = relaxed
+var _point_t := 0.0                 # point target, set by the controller: 1 while holding a point, else 0
+var _point_vis := 0.0               # eased 0..1 visual intensity of the point (smooths the pose/"!"; motion-hold uses _point_t)
 var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
@@ -261,6 +263,12 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 	var desired_velocity := Vector2.ZERO
 	if to_target.length() > 2.0 and speed > 0.0:
 		desired_velocity = to_target.normalized() * speed
+	# Hold still while pointing: the companion stops to point out a salamander. We zero the DESIRED
+	# velocity (not the velocity itself) so the body decelerates to a stop through the same accel ease
+	# — settling onto point rather than snapping — and re-accelerates from ~0 on release, no lurch.
+	# Keyed off the crisp binary _point_t (the controller's stop/go), not the eased _point_vis.
+	if _point_t > 0.0:
+		desired_velocity = Vector2.ZERO
 	velocity = velocity.lerp(desired_velocity, 1.0 - exp(-float(_cfg["accel"]) * delta))
 	var before := position
 	position += velocity * delta
@@ -321,6 +329,9 @@ func _decay_animation(delta: float) -> void:
 	_hop_squash = maxf(0.0, _hop_squash - delta * 2.5)
 	_perk = maxf(0.0, _perk - delta * 2.0)
 	_hint_look_t = maxf(0.0, _hint_look_t - delta)
+	# Ease the point's VISUAL intensity toward its on/off target so the lean/freeze/"!" glide,
+	# while the motion-hold below keys off the crisp binary _point_t for an exact stop/go.
+	_point_vis += (_point_t - _point_vis) * (1.0 - exp(-POINT_VIS_RATE * delta))
 	# Age out floating emotes; keep only those still alive.
 	if not _emotes.is_empty():
 		var alive: Array = []
@@ -350,18 +361,18 @@ func _draw() -> void:
 	var ear_offset := float(expr.get("ear_droop", 3.0)) * neg_valence - float(expr.get("ear_raise", 4.0)) * pos_valence * (0.5 + 0.5 * arousal01)
 	var bounce_range: Array = expr.get("idle_bounce_gain", [0.6, 2.2])
 	var bounce_gain := lerpf(float(bounce_range[0]), float(bounce_range[1]), arousal01)
-	# The detector "point": as the tell strengthens, freeze the idle body language — a still body
-	# and a stiff (un-wagging) tail, the classic on-point hold — and prick the ears forward (a
-	# negative ear_offset raises/forwards them). Pure overlay on the mood-driven pose above.
+	# The detector "point": as the point eases in, freeze the idle body language — a still body and a
+	# stiff (un-wagging) tail, the classic on-point hold — and prick the ears forward (a negative
+	# ear_offset raises/forwards them). Driven by the EASED _point_vis so the pose glides on/off.
 	var det: Dictionary = _cfg.get("detector", {})
-	var freeze := 1.0 - float(det.get("point_freeze", 0.85)) * _point_t
+	var freeze := 1.0 - float(det.get("point_freeze", 0.85)) * _point_vis
 	wag_amp *= freeze
 	bounce_gain *= freeze
-	ear_offset -= float(det.get("point_ear_forward", 5.0)) * _point_t
+	ear_offset -= float(det.get("point_ear_forward", 5.0)) * _point_vis
 	# Direction toward the rock it senses, in the actor's local space (the node isn't rotated, so the
 	# world-delta is the local-delta). VectorActor leans the upper body this way while pointing.
 	var point_dir := Vector2.ZERO
-	if _point_t > 0.0:
+	if _point_vis > 0.001:
 		point_dir = (_point_pos - position).normalized()
 	# Expressive pixel-art rig (e.g. the foxlike-kit sheet): the same mood signals drive a
 	# wagging tail, perking/drooping ears and an idle bounce, just rendered as sprite layers.
@@ -395,27 +406,23 @@ func _draw() -> void:
 		"wag_amp": wag_amp,
 		"ear_offset": ear_offset,
 		"bounce_gain": bounce_gain,
-		"point": _point_t,
+		"point": _point_vis,
 		"point_dir": point_dir,
 	})
 	_draw_emotes()
 	_draw_point_alert()
 
 
-## The detector "!" — floats over the companion's head while it points at a hidden salamander, its
-## opacity and size rising with the tell strength (a faint flicker when fresh/far, a bold pop when
-## bonded/close). Driven LIVE off _point_t, not the one-shot _emotes queue, so it holds for as long
-## as the companion is on-point and fades the instant it loses the scent. Presentation only.
+## The detector "!" — floats over the companion's head while it's stopped and pointing at a hidden
+## salamander, at FULL opacity (it's a discrete event, not a proximity readout). Driven by the eased
+## _point_vis so it fades in/out cleanly with the pose but holds full while on-point. Not the one-shot
+## _emotes queue — it holds for exactly as long as the point does, then releases. Presentation only.
 func _draw_point_alert() -> void:
-	var det: Dictionary = _cfg.get("detector", {})
-	var threshold := float(det.get("alert_threshold", 0.25))
-	if _point_t <= threshold:
+	if _point_vis <= 0.01:
 		return
-	# Ramp 0..1 across the band above the threshold, so the cue eases in rather than popping on.
-	var k := clampf((_point_t - threshold) / maxf(1.0 - threshold, 0.001), 0.0, 1.0)
-	var alpha := clampf(0.35 + 0.65 * k, 0.0, 1.0)
-	var scale := 0.85 + 0.5 * k
-	var bob := sin(_time * 6.0) * 1.2 * k     # a little excited quiver, stronger the surer it is
+	var alpha := _point_vis                    # eases to full (1.0) during the hold, fades on release
+	var scale := 0.85 + 0.5 * _point_vis
+	var bob := sin(_time * 6.0) * 1.2 * _point_vis  # a little excited quiver while it holds
 	EmoteGlyphs.draw(self, "alert", Vector2(0.0, -30.0 + bob), alpha, scale)
 
 
