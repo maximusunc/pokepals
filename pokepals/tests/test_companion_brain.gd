@@ -400,6 +400,13 @@ static func _test_curiosity_biases_poi_choice(cfg: Dictionary) -> int:
 # the prop, over a fixed seeded run.
 static func _count_poi_targets(cfg: Dictionary, curiosity: float, poi: Vector2) -> int:
 	var s := CompanionSelf.make_default(cfg)
+	# Pin the whole personality (birth + slow identity anchor + live disposition), not just the
+	# live trait: the disposition relaxes back toward identity every frame (apply_drift), so
+	# setting only `traits` lets this long run drift both companions toward the default identity
+	# and wash out the contrast this test is asserting. A persistently (in)curious companion sets
+	# all three layers, the way make_default/make_random do at creation.
+	s.birth["curiosity"] = curiosity
+	s.identity["curiosity"] = curiosity
 	s.traits["curiosity"] = curiosity
 	var brain := CompanionBrain.new(cfg, 4242, s)
 	var count := 0
