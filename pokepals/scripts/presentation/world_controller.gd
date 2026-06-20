@@ -230,6 +230,12 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 
 	data["interactables"] = combined
 
+	# Per-world companion tuning: a world may quieten the companion's wandering and keep it close
+	# (e.g. the riverbank, so it stays at your side to point out salamanders). Merged over the global
+	# companion.json defaults here, after the brain exists and before its first update.
+	if data.has("companion"):
+		_companion.apply_config_overrides(data["companion"])
+
 	if _goal_active:
 		_goal_label.visible = true
 		_set_goal_text(0, int(goal.get("count", 10)))

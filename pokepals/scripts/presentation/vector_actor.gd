@@ -24,9 +24,12 @@ extends RefCounted
 ##   wag_rate: float  — tail wag cycles/sec (mood arousal); wag_amp: max sway (mood valence)
 ##   ear_offset: float — vertical ear shift: + droops (low mood), - perks up (happy)
 ##   bounce_gain: float — multiplier on the idle breathing bob (mood arousal); default 1.0
+##   point: float     — detector "on point" strength 0..1; leans the upper body toward point_dir
+##   point_dir: Vector2 — unit direction toward the thing it's pointing at (companion detector tell)
 
 const MOVE_GATE := 6.0   # below this speed the actor is "idle" (matches the views' gates)
 const CADENCE := 11.0    # walk-cycle steps per second
+const POINT_LEAN := 3.2  # how far (px) the upper body leans toward a full-strength point
 
 
 static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
@@ -46,6 +49,8 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	var wag_amp: float = params.get("wag_amp", 0.0)
 	var ear_offset: float = params.get("ear_offset", 0.0)
 	var bounce_gain: float = params.get("bounce_gain", 1.0)
+	var point: float = params.get("point", 0.0)
+	var point_dir: Vector2 = params.get("point_dir", Vector2.ZERO)
 
 	var fdir := facing
 	if fdir.length() < 0.01:
@@ -72,8 +77,12 @@ static func draw(ci: CanvasItem, style: ArtStyle, params: Dictionary) -> void:
 	var vscale := maxf(0.5, 1.0 + ext_squash + stretch)
 	var hscale := 1.0 - (vscale - 1.0) * 0.55
 	var lean := Vector2(fdir.x, 0.0) * (1.8 if moving else 0.0)
+	# "On point": lean the upper body toward what the companion senses, even while standing still.
+	# This rides on body_center (which anchors the body, face, ears, eyes and tail base) but NOT the
+	# feet, so it reads as a planted-feet, leaning-in pose — a downward nose-dip toward a waterline rock.
+	var point_lean := point_dir * (point * POINT_LEAN)
 	# The body's anchor, needed early so the tail can hang off its rear (drawn behind it).
-	var body_center := Vector2(0.0, -radius * 0.35 - bob) + lean
+	var body_center := Vector2(0.0, -radius * 0.35 - bob) + lean + point_lean
 
 	# Contact shadow (flattened via the draw transform).
 	var sh := style.color("shadow")

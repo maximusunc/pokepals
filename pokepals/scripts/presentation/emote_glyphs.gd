@@ -10,6 +10,7 @@ extends RefCounted
 
 const HEART_COLOR := Color(0.95, 0.45, 0.57)
 const SPARKLE_COLOR := Color(1.0, 0.93, 0.62)
+const ALERT_COLOR := Color(1.0, 0.85, 0.35)
 
 
 ## Draw one glyph centered at `pos` (in the canvas item's local space), faded by `alpha`
@@ -20,6 +21,8 @@ static func draw(ci: CanvasItem, kind: String, pos: Vector2, alpha: float, scale
 			_draw_heart(ci, pos, scale, Color(HEART_COLOR.r, HEART_COLOR.g, HEART_COLOR.b, alpha))
 		"delight":
 			_draw_sparkle(ci, pos, scale, Color(SPARKLE_COLOR.r, SPARKLE_COLOR.g, SPARKLE_COLOR.b, alpha))
+		"alert":
+			_draw_exclamation(ci, pos, scale, Color(ALERT_COLOR.r, ALERT_COLOR.g, ALERT_COLOR.b, alpha))
 
 
 # A heart from two lobe circles over a downward triangle — reads clearly even at a few px.
@@ -44,3 +47,17 @@ static func _draw_sparkle(ci: CanvasItem, c: Vector2, s: float, col: Color) -> v
 	ci.draw_colored_polygon(PackedVector2Array([
 		c + Vector2(-r, 0.0), c + Vector2(0.0, r * 0.28), c + Vector2(r, 0.0), c + Vector2(0.0, -r * 0.28),
 	]), col)
+
+
+# An exclamation mark — a tapered upright bar over a round dot — the unmistakable "I'm onto
+# something!" tell that floats over the companion while it points at a hidden salamander. The bar
+# is slightly wider at the top so it reads as a "!" and not just a dash even at a few pixels.
+static func _draw_exclamation(ci: CanvasItem, c: Vector2, s: float, col: Color) -> void:
+	var h := 5.2 * s   # bar height
+	var w := 1.5 * s   # bar half-width at the top
+	var top := c + Vector2(0.0, -h)
+	ci.draw_colored_polygon(PackedVector2Array([
+		top + Vector2(-w, 0.0), top + Vector2(w, 0.0),
+		c + Vector2(w * 0.45, 0.0), c + Vector2(-w * 0.45, 0.0),
+	]), col)
+	ci.draw_circle(c + Vector2(0.0, 1.7 * s), 1.25 * s, col)
