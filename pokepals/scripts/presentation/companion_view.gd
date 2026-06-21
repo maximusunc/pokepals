@@ -14,6 +14,9 @@ extends Node2D
 const SELF_SAVE_PATH := "user://companion_self.json"
 const AUTOSAVE_INTERVAL := 15.0
 const POINT_VIS_RATE := 8.0  # per-sec ease of the point's visual intensity toward its on/off target
+# How fast a REMOTE puppet eases toward its latest received transform (matches PlayerView): the
+# friend's companion lands ~20 Hz and we glide toward it at 60 fps so its motion stays smooth.
+const REMOTE_LERP_RATE := 14.0
 
 var velocity := Vector2.ZERO
 
@@ -62,6 +65,62 @@ var _look_coat := 0.0    # 0..1 emergent coat warming
 var _look_scale := 1.0   # body size multiplier over the bond arc
 # Active floating emotes: each { kind: String, age: float, life: float }.
 var _emotes: Array = []
+
+# Networked PUPPET mode. The LOCAL companion (_is_local, the default) runs its brain, saves, and
+# collides. A REMOTE puppet (set via set_remote() before it enters the tree) runs NONE of those:
+# it carries no brain at all — it's a body driven purely by transforms over Net, its resting look
+# pulled once from the friend's identity packet. This is exactly why the brain never needs a
+# remote player's position: each brain only ever sees its own local player.
+var _is_local := true
+var _target_pos := Vector2.ZERO     # latest position received from the owner (remote only)
+var _target_look := Vector2.DOWN    # latest attention/look direction received (remote only)
+
+
+## Mark this companion a REMOTE puppet. MUST be called after instantiate() and before add_child(),
+## so the flag is set before _ready runs (no brain is built, no local save is read).
+func set_remote() -> void:
+	_is_local = false
+
+
+func is_local() -> bool:
+	return _is_local
+
+
+## The local companion's current attention direction, for the world to fold into its broadcast.
+func look_dir() -> Vector2:
+	return _look_dir
+
+
+## The local companion's RESTING LOOK as plain floats (ear/bounce/tail/gaze biases, coat warmth,
+## body size), for the world's identity packet — so a friend renders this companion's GROWN self
+## without ever seeing its mind. Computed from the same CompanionLook mapping the local rig uses.
+## Empty before the brain exists.
+func resting_look_payload() -> Dictionary:
+	if _brain == null:
+		return {}
+	var s := _brain.get_self()
+	return CompanionLook.resting_look(s.identity, s.bond, _cfg)
+
+
+## Apply a friend's resting-look floats to this puppet (remote only). The dict is UNTRUSTED input,
+## so every value is clamped to a sane range before it touches the rig — a hostile packet can make
+## the friend's companion look a little off, never break our render.
+func apply_remote_look(look: Dictionary) -> void:
+	_look_inited = true  # a puppet never eases this from the brain; we set it outright
+	_look_ear = clampf(float(look.get("ear_rest", 0.0)), -40.0, 40.0)
+	_look_bounce = clampf(float(look.get("bounce_base", 0.0)), 0.0, 20.0)
+	_look_wag = clampf(float(look.get("wag_life", 0.0)), 0.0, 20.0)
+	_look_eye = clampf(float(look.get("eye_lift", 0.0)), 0.0, 20.0)
+	_look_coat = clampf(float(look.get("coat_warm", 0.0)), 0.0, 1.0)
+	_look_scale = clampf(float(look.get("body_scale", 1.0)), 0.25, 4.0)
+
+
+## Feed a remote puppet the owner's latest transform: where it is, and where it's attending. Stored
+## only; _process eases the body toward it so motion stays smooth between the ~20 Hz samples.
+func set_remote_state(pos: Vector2, look: Vector2) -> void:
+	_target_pos = pos
+	if look.length() > 0.01:
+		_target_look = look.normalized()
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
@@ -167,24 +226,32 @@ func _ready() -> void:
 	# dropped-in companion sheet stays sharp when scaled, without touching the procedural world.
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	_cfg = WorldData.load_json(config_path)
-	# Carry the companion across sessions: load its saved self if there is one, so
-	# it returns as the same partner the player has been shaping.
-	var saved: Dictionary = SaveStore.load_json(SELF_SAVE_PATH)
-	var existing_self: CompanionSelf = null
-	if not saved.is_empty():
-		existing_self = CompanionSelf.from_dict(saved, _cfg)
-	else:
-		# A brand-new companion: gently randomize its traits so this playthrough's
-		# partner has its own slight leanings (a touch more wander-, prop-, or
-		# follow-inclined) rather than always the exact same temperament.
-		existing_self = CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
-	_brain = CompanionBrain.new(_cfg, 0, existing_self)
+	# A REMOTE puppet has no mind of its own — it's a body driven over the wire — so it builds no
+	# brain and reads no save (that save belongs to THIS machine's companion, not the friend's).
+	# Its resting look arrives via apply_remote_look. The config is still loaded above, since the
+	# rig (_draw) reads expression/detector/coat tuning from it for everyone.
+	if _is_local:
+		# Carry the companion across sessions: load its saved self if there is one, so
+		# it returns as the same partner the player has been shaping.
+		var saved: Dictionary = SaveStore.load_json(SELF_SAVE_PATH)
+		var existing_self: CompanionSelf = null
+		if not saved.is_empty():
+			existing_self = CompanionSelf.from_dict(saved, _cfg)
+		else:
+			# A brand-new companion: gently randomize its traits so this playthrough's
+			# partner has its own slight leanings (a touch more wander-, prop-, or
+			# follow-inclined) rather than always the exact same temperament.
+			existing_self = CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
+		_brain = CompanionBrain.new(_cfg, 0, existing_self)
 	if _style == null:
 		_style = ArtStyle.load_style()
 
 
 func _process(delta: float) -> void:
 	_time += delta
+	if not _is_local:
+		_process_remote(delta)
+		return
 	if _player == null:
 		return
 
@@ -216,6 +283,21 @@ func _process(delta: float) -> void:
 	if _autosave_accum >= AUTOSAVE_INTERVAL:
 		_autosave_accum = 0.0
 		_save_self()
+
+
+## A REMOTE puppet: no brain, no save, no collision. We glide toward the latest received position
+## (deriving velocity so the same walk/bob animation plays) and ease the eyes toward the owner's
+## reported attention direction. Its resting-look offsets were set once from the friend's identity
+## packet (apply_remote_look); its mood simply rests neutral. Enough to read as alive and "theirs".
+func _process_remote(delta: float) -> void:
+	var before := position
+	position = position.lerp(_target_pos, 1.0 - exp(-REMOTE_LERP_RATE * delta))
+	velocity = (position - before) / maxf(delta, 0.0001)
+	if _target_look.length() > 0.01:
+		_look_dir = _look_dir.lerp(_target_look, 1.0 - exp(-6.0 * delta))
+	_eye_offset = _look_dir.normalized() * 2.4
+	_decay_animation(delta)
+	queue_redraw()
 
 
 ## Whether the bond has reached its maximum — used by the world to reveal the
@@ -266,7 +348,9 @@ func reset() -> void:
 
 ## Persist who the companion has become. Cheap and idempotent.
 func _save_self() -> void:
-	if _brain == null:
+	# Never persist a remote puppet — it has no brain, and that save belongs to this machine's
+	# own companion, not the friend's.
+	if not _is_local or _brain == null:
 		return
 	SaveStore.save_json(SELF_SAVE_PATH, _brain.get_self().to_dict())
 

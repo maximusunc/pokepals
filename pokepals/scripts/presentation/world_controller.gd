@@ -15,6 +15,11 @@ const PET_RANGE := 56.0
 # step away before a just-used portal re-arms (so arriving on a portal doesn't bounce you back).
 const PORTAL_RANGE := 22.0
 const PORTAL_ARM_BUFFER := 18.0
+# Shared presence (Rung 3): how often we broadcast our own pair's transforms to peers. ~20 Hz is
+# plenty for a cozy walk-around — remote puppets interpolate between samples (see PlayerView).
+const NET_SEND_INTERVAL := 1.0 / 20.0
+const PLAYER_SCENE := preload("res://scenes/player.tscn")
+const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
 @onready var _world_art: WorldArt = $WorldArt
 @onready var _scenery: Scenery = $Scenery
@@ -71,6 +76,15 @@ var _day_loop := true
 var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sorted by t
 var _day_time := 0.0
 
+# --- Shared presence (Rung 3) -----------------------------------------------------------------
+# Each connected peer's PUPPET pair, keyed by Net peer id: { peer_id: { player, companion } }.
+# Spawned on peer_joined, freed on peer_left, and driven entirely by transforms arriving over Net.
+# An identity packet that lands before its pair exists is stashed and applied the moment it spawns.
+var _remote_pairs: Dictionary = {}
+var _pending_identity: Dictionary = {}
+var _bounds_rect := Rect2()  # the world's walkable bounds, kept to CLAMP untrusted remote positions
+var _net_accum := 0.0        # accumulates toward the next NET_SEND_INTERVAL broadcast
+
 
 func _ready() -> void:
 	# Which world to load is owned by WorldRouter (defaults to the Vale on a fresh boot); the
@@ -102,6 +116,7 @@ func _ready() -> void:
 	var bmin := WorldData.to_vec2(data["bounds"]["min"])
 	var bmax := WorldData.to_vec2(data["bounds"]["max"])
 	var bounds_rect := Rect2(bmin, bmax - bmin)
+	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 
 	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
@@ -161,6 +176,10 @@ func _ready() -> void:
 	_intro_tween = create_tween()
 	_intro_tween.tween_interval(5.0)
 	_intro_tween.tween_property(_hint, "modulate:a", 0.0, 1.4)
+
+	# Shared presence: hand Net our identity once, and listen for peers arriving/moving/leaving.
+	# Everything here is a no-op until the player actually Hosts/Joins via the lobby.
+	_setup_net()
 
 
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
@@ -394,6 +413,9 @@ func _process(delta: float) -> void:
 	_update_portals(delta)
 	_update_hints(delta)
 
+	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
+	_broadcast_presence(delta)
+
 
 ## Gently fade the touch Examine button in or out as the player nears a prop, so
 ## it signals "something's here" without cluttering the screen while wandering.
@@ -563,10 +585,27 @@ func _update_portals(_delta: float) -> void:
 		return
 	for p in _portals:
 		var d := _player.position.distance_to(p["pos"])
+		# Walking clearly away resets the "already told them" latch so the hint greets each
+		# fresh approach. This must live OUTSIDE the arm check below: in a connected session
+		# we never transition, so `armed` stays true after the first approach and that branch
+		# would otherwise never run again — leaving the hint stuck after showing it once.
+		if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
+			p["blocked_hint_shown"] = false
 		if not bool(p["armed"]):
 			if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
 				p["armed"] = true
 		elif d <= PORTAL_RANGE:
+			# Connected play stays together in the open Vale. A portal would carry only
+			# the local player away into the riverbank — whose salamander hunt is local
+			# and unsynced, and where multiplayer wouldn't survive the world swap. So
+			# while a session is active we hold travel and say why, once per approach,
+			# so it reads as intentional rather than a broken portal. Solo play (Net
+			# dormant) is untouched: portals work exactly as before.
+			if Net.is_active():
+				if not bool(p.get("blocked_hint_shown", false)):
+					_show_hint("You're wandering together — the riverbank waits for another day.")
+					p["blocked_hint_shown"] = true
+				return
 			_begin_transition(p)
 			return
 
@@ -674,3 +713,136 @@ func _nearest_interactable() -> int:
 			best = i
 			best_dist = d
 	return best
+
+
+# ============================================================================================
+# SHARED PRESENCE (Rung 3) — the game-side half of multiplayer: "me vs them". This decides WHAT
+# to send (our pair's transforms + a one-time identity) and turns a peer's wire state into a
+# spawned, smoothed puppet pair. It talks only to the Net seam in plain dictionaries, so it
+# survives the planned transport swaps (ENet -> WebSockets -> authoritative server) untouched.
+# The local Player/Companion (from the scene) stay fully authoritative over themselves and keep
+# running their own input/brain; remotes are pure puppets, driven only by what arrives over Net.
+# ============================================================================================
+
+## Wire up to the Net seam: publish our identity once, and react to peers joining, moving, and
+## leaving. Safe to call always — none of it does anything until the player Hosts or Joins.
+func _setup_net() -> void:
+	Net.set_local_identity(_local_identity())
+	Net.peer_joined.connect(_on_peer_joined)
+	Net.peer_left.connect(_on_peer_left)
+	Net.identity_received.connect(_on_identity_received)
+	Net.state_received.connect(_on_state_received)
+
+
+## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
+## the player's worn look (already JSON) and the companion's resting-look floats (its grown self,
+## with no mind attached). The friend never receives our save, our brain, or our bond — only this.
+func _local_identity() -> Dictionary:
+	return {
+		"name": "Friend",
+		"appearance": _player.appearance_dict(),
+		"companion_look": _companion.resting_look_payload(),
+	}
+
+
+## Stream our local pair's transforms to peers at ~20 Hz. Vector2s ride the RPC natively, so the
+## packet stays tiny: our player's position+facing and our companion's position+attention. A no-op
+## until connected (Net.broadcast_state guards it), so this is harmless to run every frame offline.
+func _broadcast_presence(delta: float) -> void:
+	if not Net.is_active():
+		return
+	_net_accum += delta
+	if _net_accum < NET_SEND_INTERVAL:
+		return
+	_net_accum = 0.0
+	Net.broadcast_state({
+		"p": _player.position,
+		"pf": _player.facing(),
+		"c": _companion.position,
+		"cl": _companion.look_dir(),
+	})
+
+
+## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery
+## layer so they depth-sort with us and the trees. They're flagged remote BEFORE entering the tree
+## (set_remote → no input, no brain, no save). Any identity that beat them here is applied at once.
+func _on_peer_joined(peer_id: int) -> void:
+	if _remote_pairs.has(peer_id):
+		return
+	var rp := PLAYER_SCENE.instantiate() as PlayerView
+	rp.set_remote()
+	rp.name = "RemotePlayer_%d" % peer_id
+	var rc := COMPANION_SCENE.instantiate() as CompanionView
+	rc.set_remote()
+	rc.name = "RemoteCompanion_%d" % peer_id
+	rp.set_style(_style)
+	rc.set_style(_style)
+	_scenery.add_child(rp)
+	_scenery.add_child(rc)
+	# Start them where our own pair stands so they don't pop in from the origin; the first state
+	# packet snaps them to the truth a frame later. (Remotes never collide — their owner is.)
+	rp.position = _player.position
+	rc.position = _companion.position
+	rp.set_remote_state(_player.position, Vector2.DOWN)
+	rc.set_remote_state(_companion.position, Vector2.DOWN)
+	_remote_pairs[peer_id] = { "player": rp, "companion": rc }
+	if _pending_identity.has(peer_id):
+		_apply_remote_identity(peer_id, _pending_identity[peer_id])
+		_pending_identity.erase(peer_id)
+
+
+## A peer left: free its puppet pair and forget it. Clean despawn so a friend quitting simply
+## vanishes rather than freezing in place.
+func _on_peer_left(peer_id: int) -> void:
+	if _remote_pairs.has(peer_id):
+		var pair: Dictionary = _remote_pairs[peer_id]
+		(pair["player"] as Node).queue_free()
+		(pair["companion"] as Node).queue_free()
+		_remote_pairs.erase(peer_id)
+	_pending_identity.erase(peer_id)
+
+
+## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they
+## spawn (the packet can race ahead of peer_joined). Untrusted input — validated by the appliers.
+func _on_identity_received(peer_id: int, payload: Dictionary) -> void:
+	if _remote_pairs.has(peer_id):
+		_apply_remote_identity(peer_id, payload)
+	else:
+		_pending_identity[peer_id] = payload
+
+
+func _apply_remote_identity(peer_id: int, payload: Dictionary) -> void:
+	var pair: Dictionary = _remote_pairs[peer_id]
+	var appearance: Variant = payload.get("appearance", {})
+	if appearance is Dictionary:
+		(pair["player"] as PlayerView).apply_identity(appearance)
+	var look: Variant = payload.get("companion_look", {})
+	if look is Dictionary:
+		(pair["companion"] as CompanionView).apply_remote_look(look)
+
+
+## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped
+## to the world bounds, non-Vector2 junk is ignored, and the data can only move THIS peer's puppet —
+## never our avatar, never the save. The puppets interpolate toward it for smooth motion.
+func _on_state_received(peer_id: int, payload: Dictionary) -> void:
+	if not _remote_pairs.has(peer_id):
+		return
+	var pair: Dictionary = _remote_pairs[peer_id]
+	(pair["player"] as PlayerView).set_remote_state(_clamp_to_bounds(_as_vec2(payload.get("p"))), _as_vec2(payload.get("pf")))
+	(pair["companion"] as CompanionView).set_remote_state(_clamp_to_bounds(_as_vec2(payload.get("c"))), _as_vec2(payload.get("cl")))
+
+
+## Coerce an untrusted wire value to a Vector2, defaulting to zero for anything else — so a
+## malformed packet can never crash us or inject a wrong type into the rig.
+func _as_vec2(v: Variant) -> Vector2:
+	return v if v is Vector2 else Vector2.ZERO
+
+
+## Keep a remote position inside the walkable world, so a peer (honest or not) can never park its
+## puppet out in the void past the edges.
+func _clamp_to_bounds(p: Vector2) -> Vector2:
+	if _bounds_rect.size == Vector2.ZERO:
+		return p
+	return Vector2(
+		clampf(p.x, _bounds_rect.position.x, _bounds_rect.end.x),
+		clampf(p.y, _bounds_rect.position.y, _bounds_rect.end.y))
