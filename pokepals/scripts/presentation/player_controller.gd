@@ -13,6 +13,9 @@ extends Node2D
 @export var cosmetics_path := "res://data/cosmetics.json"
 
 const APPEARANCE_SAVE_PATH := "user://player_appearance.json"
+# How fast a REMOTE puppet eases toward its latest received transform. Remote state lands ~20 Hz;
+# we render at 60 fps by lerping toward the newest sample, so a friend's avatar glides, not steps.
+const REMOTE_LERP_RATE := 14.0
 
 var velocity := Vector2.ZERO
 var _joystick: Node = null
@@ -31,6 +34,56 @@ var _bounds := Rect2()
 var _body_radius := 6.0
 var _margin := 2.0
 var _collide := false
+# Networked PUPPET mode. A locally-controlled avatar (_is_local, the default) reads input and
+# collides. A REMOTE puppet (set via set_remote() before it enters the tree) runs NEITHER: it's
+# driven purely by transforms arriving over Net and smoothed toward here, never reads input, and
+# never touches the local save — its look comes from the friend's identity packet (apply_identity).
+var _is_local := true
+var _target_pos := Vector2.ZERO       # latest position received from the owner (remote only)
+var _target_facing := Vector2.DOWN    # latest facing received from the owner (remote only)
+
+
+## Mark this avatar a REMOTE puppet. MUST be called after instantiate() and before add_child(),
+## so the flag is set before _ready runs (no input wiring, no local save load).
+func set_remote() -> void:
+	_is_local = false
+
+
+func is_local() -> bool:
+	return _is_local
+
+
+## The local avatar's current facing, for the world to fold into its broadcast packet.
+func facing() -> Vector2:
+	return _facing
+
+
+## A plain, JSON-ready snapshot of the worn look, for the world's identity packet. The mirror
+## of apply_identity below — what one client sends, the other rebuilds.
+func appearance_dict() -> Dictionary:
+	if _appearance == null:
+		return {}
+	return _appearance.to_dict()
+
+
+## Render this puppet as the friend's actual avatar. The incoming dict is UNTRUSTED: from_dict
+## rebuilds from defaults and validates every owned/equipped id against the local catalog,
+## silently dropping anything unknown — so a malformed or hostile packet can never break the
+## avatar. Remote only; the local avatar owns its look from its own save.
+func apply_identity(appearance: Dictionary) -> void:
+	if _catalog == null:
+		_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+	_appearance = PlayerAppearance.from_dict(appearance, _catalog)
+	_refresh_avatar()
+
+
+## Feed a remote puppet the owner's latest transform. We only STORE it here; _process eases the
+## body toward it so motion stays smooth between the ~20 Hz samples. Pure presentation: this never
+## moves a local avatar (the world only calls it on puppets).
+func set_remote_state(pos: Vector2, face: Vector2) -> void:
+	_target_pos = pos
+	if face.length() > 0.01:
+		_target_facing = face.normalized()
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
@@ -55,11 +108,17 @@ func _ready() -> void:
 	# wears the base set), then resolve the worn loadout into drawable layers once. Mirrors how
 	# CompanionView loads its saved self — appearance is the player's portable, persisted self.
 	_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
-	var saved: Dictionary = SaveStore.load_json(APPEARANCE_SAVE_PATH)
-	if saved.is_empty():
-		_appearance = PlayerAppearance.make_default(_catalog)
+	# Only the LOCAL avatar reads (and later writes) the on-disk look. A remote puppet starts on
+	# the default look and is overwritten the instant the friend's identity packet arrives, so it
+	# never touches — or is confused by — this machine's save.
+	if _is_local:
+		var saved: Dictionary = SaveStore.load_json(APPEARANCE_SAVE_PATH)
+		if saved.is_empty():
+			_appearance = PlayerAppearance.make_default(_catalog)
+		else:
+			_appearance = PlayerAppearance.from_dict(saved, _catalog)
 	else:
-		_appearance = PlayerAppearance.from_dict(saved, _catalog)
+		_appearance = PlayerAppearance.make_default(_catalog)
 	_refresh_avatar()
 
 
@@ -83,7 +142,8 @@ func set_style(style: ArtStyle) -> void:
 ## loadout yet (the wardrobe UI is a later rung), so this currently just keeps the save in
 ## step — but the round-trip is wired so equips persist the moment that UI lands.
 func _save_appearance() -> void:
-	if _appearance != null:
+	# Never persist a remote puppet — its look belongs to the friend's machine, not this save.
+	if _is_local and _appearance != null:
 		SaveStore.save_json(APPEARANCE_SAVE_PATH, _appearance.to_dict())
 
 
@@ -96,6 +156,9 @@ func _notification(what: int) -> void:
 
 func _process(delta: float) -> void:
 	_time += delta
+	if not _is_local:
+		_process_remote(delta)
+		return
 	var dir := _input_direction()
 	var desired := dir * speed
 	# Exponential smoothing -> snappy but not robotic. (1 - e^(-k*dt)) is a
@@ -111,6 +174,19 @@ func _process(delta: float) -> void:
 	# Face where we're heading; hold the last facing when standing still.
 	if velocity.length() > 8.0:
 		_facing = _facing.lerp(velocity.normalized(), 1.0 - exp(-8.0 * delta))
+	queue_redraw()
+
+
+## A REMOTE puppet: no input, no collision (its owner is authoritative over it). We just glide
+## toward the latest received position, deriving velocity from that movement so the same
+## walk-cycle/facing code lights up — and fall back to the owner's last reported facing when it's
+## standing still. This is what turns ~20 Hz samples into smooth, alive motion on our screen.
+func _process_remote(delta: float) -> void:
+	var before := position
+	position = position.lerp(_target_pos, 1.0 - exp(-REMOTE_LERP_RATE * delta))
+	velocity = (position - before) / maxf(delta, 0.0001)
+	var aim := velocity.normalized() if velocity.length() > 8.0 else _target_facing
+	_facing = _facing.lerp(aim, 1.0 - exp(-8.0 * delta))
 	queue_redraw()
 
 
