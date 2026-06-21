@@ -588,7 +588,19 @@ func _update_portals(_delta: float) -> void:
 		if not bool(p["armed"]):
 			if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
 				p["armed"] = true
+				p["blocked_hint_shown"] = false
 		elif d <= PORTAL_RANGE:
+			# Connected play stays together in the open Vale. A portal would carry only
+			# the local player away into the riverbank — whose salamander hunt is local
+			# and unsynced, and where multiplayer wouldn't survive the world swap. So
+			# while a session is active we hold travel and say why, once per approach,
+			# so it reads as intentional rather than a broken portal. Solo play (Net
+			# dormant) is untouched: portals work exactly as before.
+			if Net.is_active():
+				if not bool(p.get("blocked_hint_shown", false)):
+					_show_hint("You're wandering together — the riverbank waits for another day.")
+					p["blocked_hint_shown"] = true
+				return
 			_begin_transition(p)
 			return
 
