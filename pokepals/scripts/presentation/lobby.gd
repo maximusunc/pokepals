@@ -23,6 +23,15 @@ func _ready() -> void:
 	Net.disconnected.connect(_on_disconnected)
 	Net.peer_joined.connect(_on_peer_joined)
 	Net.peer_left.connect(_on_peer_left)
+	# The lobby is the world-ENTRY gate, meant to greet the player ONCE on a fresh launch.
+	# Travelling between worlds reloads this whole scene (WorldRouter.go_to → change_scene_to_file),
+	# which would otherwise pop the lobby back up on every hop — and again on the way back. Two
+	# conditions mean "we're already in the world, don't greet again": arriving via a portal
+	# (WorldRouter.pending_transition is still set here, since children _ready before the world root
+	# consumes it), or an active multiplayer session. Either way, stay out of the way.
+	if WorldRouter.pending_transition or Net.is_active():
+		visible = false
+		return
 	_status.text = "Wander together on your local network."
 
 
