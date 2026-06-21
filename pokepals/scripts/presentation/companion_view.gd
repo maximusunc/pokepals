@@ -433,6 +433,10 @@ func _apply_look(delta: float) -> void:
 		return
 	var s := _brain.get_self()
 	var target := CompanionLook.resting_look(s.identity, s.bond, _cfg)
+	# DEV-ONLY (DevAltLook): on the flagged instance, bias our OWN companion toward the distinct
+	# alternate look so this window matches what we broadcast to the friend. Remove with DevAltLook.
+	if DevAltLook.active():
+		target = DevAltLook.companion_look_override(target)
 	if not _look_inited:
 		_look_inited = true
 		_look_ear = float(target["ear_rest"])
