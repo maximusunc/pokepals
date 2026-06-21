@@ -1,22 +1,21 @@
 extends Control
-## The LAN lobby overlay: Host, or Join by IP. It only drives the Net seam (Net.host / Net.join)
-## and reflects connection status, then gets out of the way the moment a friend is actually here.
-## Pure presentation — gameplay is wired to Net's signals by the world, not here.
+## The connection overlay: type a server URL and Connect, or wander Solo. It only drives the Net
+## seam (Net.connect_to) and reflects connection status, then gets out of the way the moment a
+## friend is actually here. Pure presentation — gameplay is wired to Net's signals by the world.
 ##
-## This is intentionally the whole "connection UX" for this rung: one device Hosts and reads its
-## LAN IP out loud; the other types it and Joins. Later transports (WebSockets, a real server)
-## replace what Host/Join do under the hood without changing this screen's shape.
+## This is the whole "connection UX" for this rung: everyone connects to one minimal authoritative
+## server (run it on a machine on your network, or locally), and the server introduces the players
+## to each other. There's no Host concept anymore — the server is the host.
 
-@onready var _host_button: Button = $Box/HostButton
-@onready var _ip_edit: LineEdit = $Box/JoinRow/IpEdit
-@onready var _join_button: Button = $Box/JoinRow/JoinButton
+@onready var _url_edit: LineEdit = $Box/UrlRow/UrlEdit
+@onready var _connect_button: Button = $Box/UrlRow/ConnectButton
 @onready var _solo_button: Button = $Box/SoloButton
 @onready var _status: Label = $Box/Status
 
 
 func _ready() -> void:
-	_host_button.pressed.connect(_on_host)
-	_join_button.pressed.connect(_on_join)
+	_url_edit.text = Net.DEFAULT_SERVER_URL
+	_connect_button.pressed.connect(_on_connect)
 	_solo_button.pressed.connect(_on_solo)
 	Net.connected.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
@@ -28,34 +27,23 @@ func _ready() -> void:
 	# which would otherwise pop the lobby back up on every hop — and again on the way back. Two
 	# conditions mean "we're already in the world, don't greet again": arriving via a portal
 	# (WorldRouter.pending_transition is still set here, since children _ready before the world root
-	# consumes it), or an active multiplayer session. Either way, stay out of the way.
+	# consumes it), or an active session. Either way, stay out of the way.
 	if WorldRouter.pending_transition or Net.is_active():
 		visible = false
 		return
-	_status.text = "Wander together on your local network."
+	_status.text = "Connect to a server to wander together — or just wander solo."
 
 
-func _on_host() -> void:
-	var err := Net.host()
+func _on_connect() -> void:
+	var url := _url_edit.text.strip_edges()
+	if url == "":
+		_status.text = "Type the server's address first."
+		return
+	var err := Net.connect_to(url)
 	if err != OK:
-		_status.text = "Couldn't host (error %d). Is the port already in use?" % err
+		_status.text = "Couldn't start connecting (error %d). Check the address." % err
 		return
-	var ips := Net.local_ip_addresses()
-	var ip_text := ", ".join(ips) if not ips.is_empty() else "(unknown — check your network)"
-	_status.text = "Hosting. Have your friend Join at:\n%s" % ip_text
-	_set_controls_enabled(false)
-
-
-func _on_join() -> void:
-	var ip := _ip_edit.text.strip_edges()
-	if ip == "":
-		_status.text = "Type the host's IP first."
-		return
-	var err := Net.join(ip)
-	if err != OK:
-		_status.text = "Couldn't start joining (error %d)." % err
-		return
-	_status.text = "Connecting to %s…" % ip
+	_status.text = "Connecting to %s…" % url
 	_set_controls_enabled(false)
 
 
@@ -65,15 +53,14 @@ func _on_solo() -> void:
 	visible = false
 
 
-## Host went live, or this client linked to the host. We hold the panel until a PEER actually
-## arrives (peer_joined) — so the host keeps seeing its IP to read out while it waits.
+## The server accepted us. We hold the panel until a PEER actually arrives (peer_joined), so a
+## lone first arrival still sees a friendly "waiting" message instead of a blank world.
 func _on_connected() -> void:
-	if not Net.is_host():
-		_status.text = "Connected! Looking for your friend…"
+	_status.text = "Connected! Looking for your friend…"
 
 
 func _on_connection_failed() -> void:
-	_status.text = "Couldn't reach that host. Check the IP, and that they're hosting."
+	_status.text = "Couldn't reach that server. Check the address, and that it's running."
 	_set_controls_enabled(true)
 
 
@@ -101,6 +88,5 @@ func _reshow() -> void:
 
 
 func _set_controls_enabled(on: bool) -> void:
-	_host_button.disabled = not on
-	_join_button.disabled = not on
-	_ip_edit.editable = on
+	_connect_button.disabled = not on
+	_url_edit.editable = on

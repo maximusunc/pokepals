@@ -54,6 +54,20 @@ To play it on a phone (where the touch feel actually lives), see
 Android (no Mac, fastest) walkthroughs. Export presets for both ship in
 [`pokepals/export_presets.cfg`](pokepals/export_presets.cfg).
 
+## Wander together (Rung 4, step 1)
+
+To share the space with a friend, run the minimal authoritative server in
+[`server/`](server/) and have both clients **Connect** to it from the launch overlay:
+
+```sh
+cd server && mix deps.get && mix run --no-halt   # listens on :4000
+```
+
+Then in each Godot client type `ws://<server-ip>:4000/ws` (use `127.0.0.1` on the same
+machine) and press **Connect** — or **Wander solo** to play offline, fully intact. The server
+just assigns ids and relays each player's avatar + companion; it runs no game logic. See
+[`server/README.md`](server/README.md) for details. Solo play needs no server.
+
 ## Run the tests
 
 Fast, dependency-free headless tests cover the pure logic; smoke tests drive the

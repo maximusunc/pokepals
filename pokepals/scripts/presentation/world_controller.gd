@@ -745,9 +745,9 @@ func _local_identity() -> Dictionary:
 	}
 
 
-## Stream our local pair's transforms to peers at ~20 Hz. Vector2s ride the RPC natively, so the
-## packet stays tiny: our player's position+facing and our companion's position+attention. A no-op
-## until connected (Net.broadcast_state guards it), so this is harmless to run every frame offline.
+## Stream our local pair's transforms to peers at ~20 Hz. The packet stays tiny: our player's
+## position+facing and our companion's position+attention (the Net seam marshals the Vector2s for
+## the wire). A no-op until connected (Net.broadcast_state guards it), so it's harmless offline.
 func _broadcast_presence(delta: float) -> void:
 	if not Net.is_active():
 		return

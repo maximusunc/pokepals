@@ -191,21 +191,17 @@ theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 text = "Wander Together"
 
-[node name="HostButton" type="Button" parent="UI/Lobby/Box"]
-theme_override_font_sizes/font_size = 20
-text = "Host a session"
-
-[node name="JoinRow" type="HBoxContainer" parent="UI/Lobby/Box"]
+[node name="UrlRow" type="HBoxContainer" parent="UI/Lobby/Box"]
 theme_override_constants/separation = 8
 
-[node name="IpEdit" type="LineEdit" parent="UI/Lobby/Box/JoinRow"]
+[node name="UrlEdit" type="LineEdit" parent="UI/Lobby/Box/UrlRow"]
 custom_minimum_size = Vector2(230, 0)
 size_flags_horizontal = 3
-placeholder_text = "host IP, e.g. 192.168.1.5"
+placeholder_text = "ws://192.168.1.5:4000/ws"
 
-[node name="JoinButton" type="Button" parent="UI/Lobby/Box/JoinRow"]
+[node name="ConnectButton" type="Button" parent="UI/Lobby/Box/UrlRow"]
 theme_override_font_sizes/font_size = 20
-text = "Join"
+text = "Connect"
 
 [node name="SoloButton" type="Button" parent="UI/Lobby/Box"]
 modulate = Color(1, 1, 1, 0.8)

@@ -1,107 +1,107 @@
 extends Node
 ## Net — the transport-agnostic SYNC SEAM (the "pipe"), registered as an autoload.
 ##
-## This is the one place that touches Godot's networking. Everything above it (the world,
-## the avatars) talks to Net in plain dictionaries and never sees ENet, RPCs, or peer ids
-## beyond an opaque int. That's deliberate: the TRANSPORT here is Godot ENet (a listen-
-## server — one player Hosts, the other Joins by IP), and it is EXPECTED to be swapped for
-## WebSockets and then an authoritative Elixir/Phoenix server in later rungs. When that
-## happens, only this file changes; the game-side "me vs them" code carries forward.
+## This is the one place that touches networking. Everything above it (the world, the avatars)
+## talks to Net in plain dictionaries and never sees the socket, JSON, or peer ids beyond an
+## opaque int. That's deliberate: the TRANSPORT here is now a raw WebSocket to a MINIMAL
+## AUTHORITATIVE SERVER (Rung 4, step 1 — Elixir/Phoenix). Earlier rungs spoke Godot ENet
+## peer-to-peer; the seam stayed put and only this file changed. Later Rung-4 steps deepen the
+## same server (Phoenix Presence for a real roster, then Postgres persistence) without changing
+## the game-side "me vs them" code above this line.
 ##
-## What ever crosses the wire is only PRESENTATION STATE:
-##   • identity (reliable, once): a one-time packet — appearance + companion resting-look —
-##     so a peer can render *who you are*.
-##   • state (unreliable, ~20 Hz): the live transforms of your player+companion, newest wins.
-## Identity is pure JSON already (PlayerAppearance.to_dict()); the seam stays data-only.
+## TOPOLOGY: every client opens one WebSocket to the server (there is no "host" anymore). The
+## server assigns each client an id, holds the roster, and RELAYS presentation state between
+## clients. It does not simulate movement or run the companion brain — it routes.
 ##
-## TRUST MODEL (this rung): peer-to-peer with self-authority and NO referee, so a peer *can*
-## forge its own payloads. That's inherent to P2P and unfixable without an authoritative
-## server (a Rung-4 job). We keep the blast radius at zero instead: every incoming payload is
-## untrusted input that may ONLY update the SENDER's puppet for rendering — it never writes to
-## disk or moves your avatar. The sender id comes from the transport
-## (multiplayer.get_remote_sender_id()), not the payload, so a peer can't impersonate another.
+## What ever crosses the wire is only PRESENTATION STATE, as JSON text frames:
+##   • identity (reliable, on connect / on change): appearance + companion resting-look, so a
+##     peer can render *who you are*. Pure JSON already (PlayerAppearance.to_dict()).
+##   • state (~20 Hz): the live transforms of your player+companion, newest wins. Godot has no
+##     JSON Vector2, so each Vector2 is marshalled to a [x, y] array at this seam (and back), so
+##     the dict contract handed up to the world stays Vector2-valued.
+##
+## TRUST MODEL: the SERVER stamps the sender id onto every relayed frame — clients never send
+## their own id, so a peer can't impersonate another (the same anti-impersonation rule we had
+## when the id came from the ENet transport). Beyond identity/routing the server is not yet a
+## referee: incoming payloads are still untrusted input the presentation layer clamps
+## (_clamp_to_bounds) and bounds before rendering, and they may ONLY move the SENDER's puppet —
+## never our avatar or our save. Server-side validation of discrete world-events is a later
+## Rung-4 job; the dispatch-by-"t" shape below is the seam it will attach to.
 
 ## A peer connected / disconnected. The world spawns or frees that peer's puppet pair.
 signal peer_joined(peer_id: int)
 signal peer_left(peer_id: int)
-## A peer's one-time identity packet arrived (re-emitted from the RPC). { name, appearance, companion_look }.
+## A peer's identity packet arrived (re-emitted, id stamped by the server). { name, appearance, companion_look }.
 signal identity_received(peer_id: int, payload: Dictionary)
-## A peer's high-rate transform packet arrived (re-emitted from the RPC).
+## A peer's high-rate transform packet arrived (re-emitted, id stamped by the server).
 signal state_received(peer_id: int, payload: Dictionary)
 ## Connection lifecycle, for the lobby to reflect status.
-signal connected()           # this client finished connecting (or this host went live)
-signal connection_failed()   # this client could not reach the host
-signal disconnected()        # the link dropped (host quit / we left)
+signal connected()           # the server accepted us (our 'welcome' arrived with our id)
+signal connection_failed()   # we never reached the server (bad URL / refused / unreachable)
+signal disconnected()        # an established link dropped (server quit / we left)
 
-const DEFAULT_PORT := 24565
+## Where a client connects by default. The server listens on :4000 and upgrades GET /ws.
+const DEFAULT_SERVER_URL := "ws://127.0.0.1:4000/ws"
 
-# Our own identity packet, stashed so we can push it to any peer that connects (now or later)
-# without the world having to listen for every join. Set once by the world via set_local_identity.
+var _socket: WebSocketPeer = null
+# Our server-assigned id, from the 'welcome' frame. 0 until the server accepts us.
+var _my_id: int = 0
+# True once the socket has reached STATE_OPEN at least once this session — lets us tell a
+# never-connected failure apart from a dropped established link when the socket closes.
+var _was_open: bool = false
+# Our own identity packet, stashed so we can (re)send it the moment the socket is open, without
+# the world caring about connect timing. Set by the world via set_local_identity().
 var _local_identity: Dictionary = {}
 
 
-func _ready() -> void:
-	# MultiplayerAPI fires these on every peer. We translate them into our own clean signals so
-	# nothing upstream depends on Godot's networking object directly.
-	multiplayer.peer_connected.connect(_on_peer_connected)
-	multiplayer.peer_disconnected.connect(_on_peer_disconnected)
-	multiplayer.connected_to_server.connect(_on_connected_to_server)
-	multiplayer.connection_failed.connect(_on_connection_failed)
-	multiplayer.server_disconnected.connect(_on_server_disconnected)
+func _process(_delta: float) -> void:
+	if _socket == null:
+		return
+	_socket.poll()
+	match _socket.get_ready_state():
+		WebSocketPeer.STATE_OPEN:
+			if not _was_open:
+				_was_open = true
+				# The link is up: push whatever identity we've been handed.
+				_flush_identity()
+			while _socket.get_available_packet_count() > 0:
+				_handle_frame(_socket.get_packet().get_string_from_utf8())
+		WebSocketPeer.STATE_CLOSED:
+			_on_socket_closed()
 
 
-## True while a real ENet link is up (host or client). Broadcasts no-op when false, so the
-## world can call broadcast_state every frame and it simply does nothing until connected.
+## True while the socket is open. broadcast_state() no-ops when false, so the world can call it
+## every frame and it simply does nothing until we're connected.
 func is_active() -> bool:
-	var peer := multiplayer.multiplayer_peer
-	return peer != null and peer is ENetMultiplayerPeer and peer.get_connection_status() != MultiplayerPeer.CONNECTION_DISCONNECTED
+	return _socket != null and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN
 
 
-## True once we're the host (id 1). Meaningful only while is_active().
-func is_host() -> bool:
-	return is_active() and multiplayer.is_server()
-
-
-## Our peer id (host == 1). 0 before connecting.
+## Our server-assigned id (0 before 'welcome'). There is no host concept anymore.
 func local_id() -> int:
-	if not is_active():
-		return 0
-	return multiplayer.get_unique_id()
+	return _my_id
 
 
-## HOST a listen-server on `port`. Returns OK or a Godot error code the lobby can surface.
-func host(port: int = DEFAULT_PORT) -> int:
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_server(port)
+## CONNECT to the server at `url`. Returns OK or a Godot error code the lobby can surface.
+## Success of the handshake arrives later via connected()/connection_failed().
+func connect_to(url: String = DEFAULT_SERVER_URL) -> int:
+	_reset_socket()
+	_socket = WebSocketPeer.new()
+	var err := _socket.connect_to_url(url)
 	if err != OK:
+		_socket = null
 		return err
-	multiplayer.multiplayer_peer = peer
-	# A host is "connected" the instant it goes live (there's no server to wait for).
-	connected.emit()
-	return OK
-
-
-## JOIN a host at `ip`:`port`. Returns OK or a Godot error code. Success of the actual
-## handshake arrives later via connected()/connection_failed().
-func join(ip: String, port: int = DEFAULT_PORT) -> int:
-	var peer := ENetMultiplayerPeer.new()
-	var err := peer.create_client(ip, port)
-	if err != OK:
-		return err
-	multiplayer.multiplayer_peer = peer
 	return OK
 
 
 ## Tear the link down (and reset), e.g. on leaving. Safe to call when not connected.
 func leave() -> void:
-	if multiplayer.multiplayer_peer != null:
-		multiplayer.multiplayer_peer.close()
-		multiplayer.multiplayer_peer = null
-	_local_identity = {}
+	if _socket != null:
+		_socket.close()
+	_reset_socket()
 
 
-## The LAN addresses this device is reachable at, so the host can read one out to a friend.
-## IPv4 only and minus loopback, which is what a friend on the same network would type.
+## The LAN addresses this device is reachable at — informational, so whoever runs the server can
+## read one out to a friend. IPv4 only and minus loopback.
 func local_ip_addresses() -> Array:
 	var out: Array = []
 	for addr in IP.get_local_addresses():
@@ -111,66 +111,121 @@ func local_ip_addresses() -> Array:
 	return out
 
 
-## Hand Net our local identity packet. Net stashes it and delivers it (reliably) to every
-## peer already connected and to any that connect later — so the world sets it once and never
-## worries about join timing. Re-call it if the identity changes (e.g. a bond milestone).
+## Hand Net our local identity packet. Net stashes it and sends it as soon as the socket is open
+## (and again whenever it changes, e.g. a bond milestone) — so the world sets it once and never
+## worries about connect timing. The server relays it, id-stamped, to every other client.
 func set_local_identity(payload: Dictionary) -> void:
 	_local_identity = payload.duplicate(true)
-	if is_active():
-		for id in multiplayer.get_peers():
-			_send_identity_to(id)
+	_flush_identity()
 
 
-## Broadcast our live transform packet to every other peer (unreliable: newest wins, dropped
-## packets don't matter). A no-op until connected, so it's safe to call unconditionally.
+## Broadcast our live transform packet (newest wins; a dropped frame doesn't matter). A no-op
+## until connected, so it's safe to call unconditionally every frame.
 func broadcast_state(payload: Dictionary) -> void:
 	if not is_active():
 		return
-	_receive_state.rpc(payload)
+	var msg := _encode_state(payload)
+	msg["t"] = "state"
+	_socket.send_text(JSON.stringify(msg))
 
 
 # --- internals -------------------------------------------------------------------------
 
-func _send_identity_to(peer_id: int) -> void:
-	if _local_identity.is_empty():
+func _flush_identity() -> void:
+	if not is_active() or _local_identity.is_empty():
 		return
-	_receive_identity.rpc_id(peer_id, _local_identity)
+	var msg := _local_identity.duplicate(true)
+	msg["t"] = "identity"
+	_socket.send_text(JSON.stringify(msg))
 
 
-func _on_peer_connected(id: int) -> void:
-	peer_joined.emit(id)
-	# Push our identity straight to the newcomer (and we'll receive theirs the same way).
-	_send_identity_to(id)
+func _reset_socket() -> void:
+	_socket = null
+	_my_id = 0
+	_was_open = false
 
 
-func _on_peer_disconnected(id: int) -> void:
-	peer_left.emit(id)
+func _on_socket_closed() -> void:
+	# Distinguish "never reached the server" from "an established link dropped".
+	var was_up := _was_open
+	_reset_socket()
+	if was_up:
+		disconnected.emit()
+	else:
+		connection_failed.emit()
 
 
-func _on_connected_to_server() -> void:
-	connected.emit()
+func _handle_frame(text: String) -> void:
+	var data: Variant = JSON.parse_string(text)
+	if not (data is Dictionary):
+		return  # malformed frame: ignore rather than crash
+	match String(data.get("t", "")):
+		"welcome":
+			# The server has accepted us: adopt our id and learn who's already here.
+			_my_id = int(data.get("id", 0))
+			connected.emit()
+			var peers: Variant = data.get("peers", [])
+			if peers is Array:
+				for peer in peers:
+					if not (peer is Dictionary):
+						continue
+					var pid := int(peer.get("id", 0))
+					if pid == 0:
+						continue
+					peer_joined.emit(pid)
+					var ident: Variant = peer.get("identity", {})
+					if ident is Dictionary and not (ident as Dictionary).is_empty():
+						identity_received.emit(pid, ident)
+		"join":
+			var jid := int(data.get("id", 0))
+			if jid != 0:
+				peer_joined.emit(jid)
+		"leave":
+			var lid := int(data.get("id", 0))
+			if lid != 0:
+				peer_left.emit(lid)
+		"identity":
+			var iid := int(data.get("id", 0))
+			if iid != 0:
+				identity_received.emit(iid, _strip_envelope(data))
+		"state":
+			var sid := int(data.get("id", 0))
+			if sid != 0:
+				state_received.emit(sid, _decode_state(_strip_envelope(data)))
 
 
-func _on_connection_failed() -> void:
-	multiplayer.multiplayer_peer = null
-	connection_failed.emit()
+## Drop the routing envelope ("t" and the server-stamped "id") so what's emitted upward is the
+## bare presentation payload the world expects.
+func _strip_envelope(data: Dictionary) -> Dictionary:
+	var out := data.duplicate(true)
+	out.erase("t")
+	out.erase("id")
+	return out
 
 
-func _on_server_disconnected() -> void:
-	multiplayer.multiplayer_peer = null
-	disconnected.emit()
+## Vector2 → [x, y] for every Vector2-valued field (JSON has no Vector2). Pure + static so it's
+## unit-testable and portable. Non-Vector2 fields pass through untouched.
+static func _encode_state(payload: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for k in payload:
+		var v: Variant = payload[k]
+		out[k] = [v.x, v.y] if v is Vector2 else v
+	return out
 
 
-## Identity arrives here (reliable). We re-emit it tagged with the TRANSPORT's sender id, never
-## a value from the payload — so a peer can't claim to be someone else. The world validates the
-## contents (appearance against the catalog, look floats clamped) before rendering them.
-@rpc("any_peer", "call_remote", "reliable")
-func _receive_identity(payload: Dictionary) -> void:
-	identity_received.emit(multiplayer.get_remote_sender_id(), payload)
+## [x, y] → Vector2 for every 2-number array (the inverse of _encode_state). This is load-bearing:
+## the world's _as_vec2() returns ZERO for anything that isn't already a Vector2, so handing
+## Vector2-valued dicts up state_received is exactly what lets the world layer stay untouched.
+static func _decode_state(payload: Dictionary) -> Dictionary:
+	var out: Dictionary = {}
+	for k in payload:
+		var v: Variant = payload[k]
+		if v is Array and v.size() == 2 and _is_number(v[0]) and _is_number(v[1]):
+			out[k] = Vector2(v[0], v[1])
+		else:
+			out[k] = v
+	return out
 
 
-## Live transforms arrive here (unreliable). Same discipline: tagged with the transport sender,
-## treated as untrusted input the world clamps before it moves the sender's puppet.
-@rpc("any_peer", "call_remote", "unreliable")
-func _receive_state(payload: Dictionary) -> void:
-	state_received.emit(multiplayer.get_remote_sender_id(), payload)
+static func _is_number(v: Variant) -> bool:
+	return v is float or v is int
