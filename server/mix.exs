@@ -11,7 +11,19 @@ defmodule Server.MixProject do
       version: "0.1.0",
       elixir: "~> 1.15",
       start_permanent: Mix.env() == :prod,
-      deps: deps()
+      deps: deps(),
+      releases: releases()
+    ]
+  end
+
+  # `MIX_ENV=prod mix release` produces a self-contained OTP release under
+  # _build/prod/rel/server with a predictable `bin/server` launcher — no Elixir needed on the
+  # target host. See DEPLOYMENT.md.
+  defp releases do
+    [
+      server: [
+        include_executables_for: [:unix]
+      ]
     ]
   end
 

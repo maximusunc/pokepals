@@ -1,0 +1,30 @@
+# systemd unit for the no-Docker path: run the OTP release directly on a host/LXC.
+#
+# Install (see DEPLOYMENT.md for the full walkthrough):
+#   1. Build a release:            MIX_ENV=prod mix release
+#   2. Copy it to the host:        rsync -a _build/prod/rel/server/ host:/opt/pokepals-relay/
+#   3. Create the service user:    sudo useradd --system --home /opt/pokepals-relay pokepals
+#   4. Install this unit:          sudo cp pokepals-relay.service /etc/systemd/system/
+#   5. Enable + start:             sudo systemctl enable --now pokepals-relay
+#   6. Check it:                   systemctl status pokepals-relay  &&  curl localhost:4000/health
+
+[Unit]
+Description=pokepals relay (Rung 4 presence server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pokepals
+Group=pokepals
+WorkingDirectory=/opt/pokepals-relay
+Environment=PORT=4000
+Environment=LANG=en_US.UTF-8
+ExecStart=/opt/pokepals-relay/bin/server start
+ExecStop=/opt/pokepals-relay/bin/server stop
+Restart=always
+RestartSec=5
+LimitNOFILE=65536
+
+[Install]
+WantedBy=multi-user.target

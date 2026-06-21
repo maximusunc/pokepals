@@ -9,7 +9,7 @@ server-side game simulation. Those are later Rung-4 steps. The runtime stack her
 (**Bandit + WebSock + Phoenix.PubSub**) is the same one Phoenix Channels ride on, so growing into
 Channels/Presence later is additive.
 
-## Run it
+## Run it (development)
 
 Requires [Elixir](https://elixir-lang.org/install.html) (1.15+) and Erlang/OTP.
 
@@ -22,8 +22,20 @@ iex -S mix
 ```
 
 It listens on `:4000` (override with `PORT=...`). Clients connect to `ws://<this-machine-ip>:4000/ws`
-— use `127.0.0.1` if Godot runs on the same machine, or the LAN IP printed by the lobby's host for
-a friend on the same network. `GET /health` returns `ok` for a quick liveness check.
+— use `127.0.0.1` if Godot runs on the same machine, or the LAN IP for a friend on the same network.
+`GET /health` returns `ok` for a quick liveness check.
+
+## Deploy it somewhere
+
+To stand the relay up on a real host (a Proxmox LXC on a home server, a VPS, anything) — via Docker
+or a systemd-managed OTP release — see **[DEPLOYMENT.md](DEPLOYMENT.md)**. Quickest path, on a box
+with Docker:
+
+```sh
+docker compose up -d --build     # builds + runs, published on :4000
+```
+
+Common actions are also wrapped in the `Makefile` (`make release`, `make compose-up`, …; `make help`).
 
 ## Run the tests
 

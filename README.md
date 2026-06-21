@@ -68,6 +68,9 @@ machine) and press **Connect** — or **Wander solo** to play offline, fully int
 just assigns ids and relays each player's avatar + companion; it runs no game logic. See
 [`server/README.md`](server/README.md) for details. Solo play needs no server.
 
+To host it persistently on a real box (Docker or systemd; includes a Proxmox LXC walkthrough),
+see [`server/DEPLOYMENT.md`](server/DEPLOYMENT.md).
+
 ## Run the tests
 
 Fast, dependency-free headless tests cover the pure logic; smoke tests drive the

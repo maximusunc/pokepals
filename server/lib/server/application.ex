@@ -9,7 +9,9 @@ defmodule Server.Application do
 
   @impl true
   def start(_type, _args) do
-    port = port()
+    # Port comes from runtime.exs (driven by $PORT); default covers a bare `iex -S mix` with no
+    # config loaded.
+    port = Application.get_env(:server, :port, 4000)
 
     children = [
       # Live fan-out between connections (one node for now; this is the seam a multi-node /
@@ -17,19 +19,12 @@ defmodule Server.Application do
       {Phoenix.PubSub, name: Server.PubSub},
       # The only shared state: id assignment + the roster.
       Server.Hub,
-      # The HTTP/WebSocket listener.
-      {Bandit, plug: Server.Router, scheme: :http, port: port}
+      # The HTTP/WebSocket listener. Bind ALL interfaces ({0,0,0,0}) so clients on other machines
+      # (and from outside a container) can reach it — not just loopback.
+      {Bandit, plug: Server.Router, scheme: :http, ip: {0, 0, 0, 0}, port: port}
     ]
 
     Logger.info("pokepals relay listening on ws://0.0.0.0:#{port}/ws")
     Supervisor.start_link(children, strategy: :one_for_one, name: Server.Supervisor)
-  end
-
-  # Listen on $PORT if set (handy for a hosted box), else 4000 — the client's DEFAULT_SERVER_URL.
-  defp port do
-    case System.get_env("PORT") do
-      nil -> 4000
-      str -> String.to_integer(str)
-    end
   end
 end

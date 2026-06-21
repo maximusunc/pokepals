@@ -1,0 +1,18 @@
+# One-command spin-up:  docker compose up -d --build
+# Then point Godot clients at  ws://<this-host-ip>:4000/ws  (127.0.0.1 if on the same machine).
+services:
+  relay:
+    build: .
+    image: pokepals-relay:latest
+    container_name: pokepals-relay
+    ports:
+      - "4000:4000"
+    environment:
+      PORT: "4000"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4000/health"]
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 5s
