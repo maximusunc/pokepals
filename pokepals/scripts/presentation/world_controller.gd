@@ -585,10 +585,15 @@ func _update_portals(_delta: float) -> void:
 		return
 	for p in _portals:
 		var d := _player.position.distance_to(p["pos"])
+		# Walking clearly away resets the "already told them" latch so the hint greets each
+		# fresh approach. This must live OUTSIDE the arm check below: in a connected session
+		# we never transition, so `armed` stays true after the first approach and that branch
+		# would otherwise never run again — leaving the hint stuck after showing it once.
+		if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
+			p["blocked_hint_shown"] = false
 		if not bool(p["armed"]):
 			if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
 				p["armed"] = true
-				p["blocked_hint_shown"] = false
 		elif d <= PORTAL_RANGE:
 			# Connected play stays together in the open Vale. A portal would carry only
 			# the local player away into the riverbank — whose salamander hunt is local
