@@ -732,29 +732,17 @@ func _setup_net() -> void:
 	Net.peer_left.connect(_on_peer_left)
 	Net.identity_received.connect(_on_identity_received)
 	Net.state_received.connect(_on_state_received)
-	# DEV-ONLY (DevAltLook): on the flagged instance, tint our OWN local avatar to match what
-	# we broadcast, so this window also shows itself as the distinct one. Remove with DevAltLook.
-	if DevAltLook.active():
-		_player.modulate = DevAltLook.player_tint()
 
 
 ## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
 ## the player's worn look (already JSON) and the companion's resting-look floats (its grown self,
 ## with no mind attached). The friend never receives our save, our brain, or our bond — only this.
 func _local_identity() -> Dictionary:
-	var companion_look := _companion.resting_look_payload()
-	var d := {
+	return {
 		"name": "Friend",
 		"appearance": _player.appearance_dict(),
-		"companion_look": companion_look,
+		"companion_look": _companion.resting_look_payload(),
 	}
-	# DEV-ONLY (DevAltLook): the flagged instance broadcasts a visibly DISTINCT look — a tinted
-	# avatar and an overridden (real) companion resting-look — for the side-by-side feel test.
-	# Both fields are honored by the existing appliers below. Remove with DevAltLook.
-	if DevAltLook.active():
-		d["companion_look"] = DevAltLook.companion_look_override(companion_look)
-		d["player_tint"] = DevAltLook.player_tint()
-	return d
 
 
 ## Stream our local pair's transforms to peers at ~20 Hz. Vector2s ride the RPC natively, so the
@@ -831,11 +819,6 @@ func _apply_remote_identity(peer_id: int, payload: Dictionary) -> void:
 	var look: Variant = payload.get("companion_look", {})
 	if look is Dictionary:
 		(pair["companion"] as CompanionView).apply_remote_look(look)
-	# DEV-ONLY (DevAltLook): a flagged peer also sends a tint for its avatar; paint its puppet
-	# with it so we see them as the distinct one. Untrusted, so type-guarded. Remove with DevAltLook.
-	var tint: Variant = payload.get("player_tint", null)
-	if tint is Color:
-		(pair["player"] as PlayerView).modulate = tint
 
 
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped
