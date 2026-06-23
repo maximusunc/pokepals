@@ -3,10 +3,12 @@
 # Two-stage build: compile a self-contained OTP release, then ship only that release on a slim
 # base. The result needs no Elixir/Erlang on the host — just Docker. See DEPLOYMENT.md.
 #
-# The image tags below pin Elixir/Erlang/Debian for a reproducible build; bump them freely.
+# The image tags below pin Elixir/Erlang/Debian for a reproducible build. Bump them freely from the
+# list at https://hub.docker.com/r/hexpm/elixir/tags — but keep the builder's Debian release (here:
+# trixie) in sync with the runtime stage's base image below, so their libc/OpenSSL/ncurses ABIs match.
 
 # ---- Build stage --------------------------------------------------------------------------
-FROM hexpm/elixir:1.16.3-erlang-26.2.5.4-debian-bookworm-20240701-slim AS build
+FROM hexpm/elixir:1.17.3-erlang-27.3.4-debian-trixie-20260610-slim AS build
 
 RUN apt-get update -y \
   && apt-get install -y --no-install-recommends build-essential git \
@@ -33,7 +35,8 @@ RUN mix compile
 RUN mix release
 
 # ---- Runtime stage ------------------------------------------------------------------------
-FROM debian:bookworm-slim AS app
+# Match the builder's Debian release (trixie) so the BEAM's runtime libs line up.
+FROM debian:trixie-slim AS app
 
 # Runtime libs the BEAM needs, plus curl for the healthcheck, plus a UTF-8 locale.
 RUN apt-get update -y \

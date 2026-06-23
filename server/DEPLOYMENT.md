@@ -139,7 +139,8 @@ On the ThinkCentre (or any Proxmox host), an **unprivileged LXC** is the lean ch
 kernel overhead like a full VM.
 
 1. **Create the container** (Proxmox UI → *Create CT*, or `pct create`):
-   - Template: Debian 12 (bookworm).
+   - Template: Debian 13 (trixie) — matches the Docker image's base, so a release built/run on the
+     LXC shares its libc family.
    - Cores: **1**, Memory: **512 MB**, Disk: **4 GB**.
    - Unprivileged: yes. Give it a network interface on your LAN (DHCP or a static IP you'll hand to
      friends).
