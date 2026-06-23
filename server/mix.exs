@@ -40,7 +40,10 @@ defmodule Server.MixProject do
       {:websock_adapter, "~> 0.5"},
       {:plug, "~> 1.16"},
       {:jason, "~> 1.4"},
-      {:phoenix_pubsub, "~> 2.1"}
+      {:phoenix_pubsub, "~> 2.1"},
+      # Phoenix.Presence lives in the `phoenix` package; we use ONLY Presence (a CRDT roster over
+      # Phoenix.PubSub) — no Endpoint, no Channels, no HTML. Configured with pubsub_server: only.
+      {:phoenix, "~> 1.7"}
     ]
   end
 end

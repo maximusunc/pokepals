@@ -46,12 +46,14 @@ validated by playtest — never a feature checklist.
 **Deliberately deferred (not blockers):** persistent coat *mark*, favorite-place memory,
 deeper behavioral legibility — pickup-able whenever we deepen the single-player loop again.
 
-**Next — we are now in Rung 4** (a small persistent shared world). We take it one step at a
-time. **Step 1 (current):** swap the transport for raw WebSockets and stand up a *minimal
-authoritative server* (Elixir/Phoenix) that assigns ids and relays presence — no database, no
-accounts, no Presence, no server-side simulation yet. **Later Rung-4 steps:** Phoenix Presence
-(a proper roster), Postgres persistence of the companion/wardrobe, and proximity text chat. The
-FEEL-first philosophy and the guardrails below still govern.
+**Next — we are now in Rung 4** (a small persistent shared world). We take it one step at a time.
+**Step 1 ✅:** swapped the transport for raw WebSockets and stood up a *minimal authoritative
+server* (Elixir/Phoenix, Bandit + WebSock) that assigns ids and relays presence. **Step 2 ✅:**
+the roster now runs on **Phoenix.Presence** (a CRDT — robust crash/disconnect detection, multi-node
+ready); the server adapts Presence diffs into the unchanged client wire protocol, so the Godot
+client was untouched. **Remaining Rung-4 steps:** Postgres persistence of the companion/wardrobe
+(needs a stable player id — none exists yet), then proximity text chat. The FEEL-first philosophy
+and the guardrails below still govern.
 
 ### In scope now (Rung 4, step 1)
 

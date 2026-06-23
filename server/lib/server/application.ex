@@ -14,10 +14,12 @@ defmodule Server.Application do
     port = Application.get_env(:server, :port, 4000)
 
     children = [
-      # Live fan-out between connections (one node for now; this is the seam a multi-node /
-      # Presence setup grows from).
+      # Live fan-out between connections; both the presence roster and the ~20 Hz state relay ride
+      # on it.
       {Phoenix.PubSub, name: Server.PubSub},
-      # The only shared state: id assignment + the roster.
+      # The roster, as a CRDT (must start after PubSub, which it broadcasts diffs over).
+      Server.Presence,
+      # Hands out unique per-connection ids (the roster key).
       Server.Hub,
       # The HTTP/WebSocket listener. Bind ALL interfaces ({0,0,0,0}) so clients on other machines
       # (and from outside a container) can reach it — not just loopback.
