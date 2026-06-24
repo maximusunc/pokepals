@@ -1,14 +1,36 @@
 # One-command spin-up:  docker compose up -d --build
 # Then point Godot clients at  ws://<this-host-ip>:4000/ws  (127.0.0.1 if on the same machine).
 services:
+  db:
+    image: postgres:16-alpine
+    container_name: pokepals-db
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pokepals
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
   relay:
     build: .
     image: pokepals-relay:latest
     container_name: pokepals-relay
+    depends_on:
+      db:
+        condition: service_healthy
     ports:
       - "4000:4000"
     environment:
       PORT: "4000"
+      # Host `db` is the compose service name (Docker's internal DNS). The relay runs migrations on
+      # boot (see the Dockerfile CMD), then serves.
+      DATABASE_URL: "ecto://postgres:postgres@db/pokepals"
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:4000/health"]
@@ -16,3 +38,6 @@ services:
       timeout: 3s
       retries: 3
       start_period: 5s
+
+volumes:
+  pgdata:

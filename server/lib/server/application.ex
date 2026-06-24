@@ -1,8 +1,7 @@
 defmodule Server.Application do
   @moduledoc """
-  Boots the minimal authoritative relay: a PubSub hub for fan-out, the id/roster Hub, and a
-  Bandit HTTP server that upgrades `GET /ws` to a WebSocket per client. No database, no Presence,
-  no game simulation yet — this is Rung 4, step 1.
+  Boots the authoritative server: the Postgres Repo, a PubSub hub for fan-out, the Presence roster,
+  the id Hub, and a Bandit HTTP server that upgrades `GET /ws` to a WebSocket per client.
   """
   use Application
   require Logger
@@ -14,6 +13,9 @@ defmodule Server.Application do
     port = Application.get_env(:server, :port, 4000)
 
     children = [
+      # The DB first: Bandit accepts connections the instant it starts, so a handler could query
+      # immediately — the Repo must already be up.
+      Server.Repo,
       # Live fan-out between connections; both the presence roster and the ~20 Hz state relay ride
       # on it.
       {Phoenix.PubSub, name: Server.PubSub},

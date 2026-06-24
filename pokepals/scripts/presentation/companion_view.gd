@@ -231,18 +231,11 @@ func _ready() -> void:
 	# Its resting look arrives via apply_remote_look. The config is still loaded above, since the
 	# rig (_draw) reads expression/detector/coat tuning from it for everyone.
 	if _is_local:
-		# Carry the companion across sessions: load its saved self if there is one, so
-		# it returns as the same partner the player has been shaping.
-		var saved: Dictionary = SaveStore.load_json(SELF_SAVE_PATH)
-		var existing_self: CompanionSelf = null
-		if not saved.is_empty():
-			existing_self = CompanionSelf.from_dict(saved, _cfg)
-		else:
-			# A brand-new companion: gently randomize its traits so this playthrough's
-			# partner has its own slight leanings (a touch more wander-, prop-, or
-			# follow-inclined) rather than always the exact same temperament.
-			existing_self = CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
-		_brain = CompanionBrain.new(_cfg, 0, existing_self)
+		# The companion's grown self lives on the SERVER now (online-only). Until the server's
+		# 'load' arrives (replace_self), render a fresh placeholder so the world has a body
+		# immediately — and so headless/smoke runs work with no server attached.
+		var placeholder := CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
+		_brain = CompanionBrain.new(_cfg, 0, placeholder)
 	if _style == null:
 		_style = ArtStyle.load_style()
 
@@ -277,12 +270,6 @@ func _process(delta: float) -> void:
 	_decay_animation(delta)
 	queue_redraw()
 
-	# Periodic autosave so a long session (or a mobile app being backgrounded)
-	# never loses much of who the companion is becoming.
-	_autosave_accum += delta
-	if _autosave_accum >= AUTOSAVE_INTERVAL:
-		_autosave_accum = 0.0
-		_save_self()
 
 
 ## A REMOTE puppet: no brain, no save, no collision. We glide toward the latest received position
@@ -337,7 +324,6 @@ func debug_state() -> Dictionary:
 ## so the bond arc can be played again from zero without reinstalling. Replacing the
 ## brain outright also clears every drive's internal timers, so it truly begins anew.
 func reset() -> void:
-	SaveStore.delete_save(SELF_SAVE_PATH)
 	var fresh := CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
 	_brain = CompanionBrain.new(_cfg, 0, fresh)
 	_autosave_accum = 0.0
@@ -346,20 +332,23 @@ func reset() -> void:
 	_look_inited = false
 
 
-## Persist who the companion has become. Cheap and idempotent.
-func _save_self() -> void:
-	# Never persist a remote puppet — it has no brain, and that save belongs to this machine's
-	# own companion, not the friend's.
+## A JSON-ready snapshot of the companion's grown self, for the world to push to the server
+## (the sole save). Empty for a remote puppet (no brain of its own).
+func self_dict() -> Dictionary:
 	if not _is_local or _brain == null:
+		return {}
+	return _brain.get_self().to_dict()
+
+
+## Adopt the server's canonical companion self (grown identity, bond, observations…) — on
+## connect or when hopping worlds. Replacing the brain outright, the same swap reset() does,
+## also re-snaps the resting look so the loaded companion shows its current self immediately.
+func replace_self(data: Dictionary) -> void:
+	if not _is_local or _brain == null or data.is_empty():
 		return
-	SaveStore.save_json(SELF_SAVE_PATH, _brain.get_self().to_dict())
-
-
-## Save on the ways a session can end: window close, app backgrounded on mobile,
-## or this node leaving the tree (scene change / quit).
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
-		_save_self()
+	_brain = CompanionBrain.new(_cfg, 0, CompanionSelf.from_dict(data, _cfg))
+	_autosave_accum = 0.0
+	_look_inited = false
 
 
 func _apply_movement(intent: Dictionary, delta: float) -> void:

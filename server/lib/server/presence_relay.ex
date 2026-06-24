@@ -8,6 +8,8 @@ defmodule Server.PresenceRelay do
       (our id + the current roster from `Presence.list`).
     * `identity` in → `Presence.update` our meta (Presence broadcasts the diff; peers get `identity`).
     * `state` in    → plain PubSub fan-out on a separate topic (transforms aren't presence data).
+    * `hello` in    → identify the player by their token and push back their canonical `load`.
+    * `save` in     → persist the companion/wardrobe under that token (the server is the sole save).
     * presence diff → `welcome`/`join`/`identity`/`leave` frames via `diff_to_frames/4`.
     * on disconnect: nothing to do — Presence removes us automatically (even on a hard crash), which
       is the whole robustness win over the old hand-rolled roster.
@@ -33,7 +35,7 @@ defmodule Server.PresenceRelay do
     peers = current_peers(id)
     known = MapSet.new(peers, & &1.id)
     welcome = Jason.encode!(%{t: "welcome", id: id, peers: peers})
-    {:push, {:text, welcome}, %{id: id, known: known}}
+    {:push, {:text, welcome}, %{id: id, known: known, player_id: nil}}
   end
 
   @impl true
@@ -53,6 +55,21 @@ defmodule Server.PresenceRelay do
         # Transforms are transient, not roster data: stamp our id and fan out over the state topic.
         relay = Jason.encode!(Map.put(msg, "id", state.id))
         Phoenix.PubSub.broadcast(Server.PubSub, @state_topic, {:relay, state.id, relay})
+        {:ok, state}
+
+      {:ok, %{"t" => "hello", "player_id" => player_id}} when is_binary(player_id) ->
+        # Identify this connection's player and return their canonical save (or nulls if new). The
+        # token is point-to-point: stored in our state, never relayed to peers.
+        save = Server.Saves.load(player_id)
+        load = %{t: "load", companion: save && save.companion, appearance: save && save.appearance}
+        {:push, {:text, Jason.encode!(load)}, %{state | player_id: player_id}}
+
+      {:ok, %{"t" => "save"} = msg} ->
+        # The canonical write. Ignored until the client has said hello (no token = no key).
+        if state.player_id do
+          Server.Saves.store(state.player_id, msg["companion"], msg["appearance"])
+        end
+
         {:ok, state}
 
       _ ->

@@ -3,11 +3,11 @@
 A cozy, 2D, companion-centered world game built in **Godot 4.6** with **GDScript**,
 mobile-friendly from the start.
 
-> **Status — Rung 3 complete ✅ · now in Rung 4:** the single-player *companion + world* core
-> (Rungs 1–2) is proven, and first two-player shared presence (Rung 3) proved out — two players
-> see each other *and* each other’s bonded companion move through the same space. We’re now in
-> **Rung 4** (a small persistent shared world); step 1 swaps the transport for WebSockets and
-> stands up a *minimal authoritative* Elixir/Phoenix server. Still a test of FEEL, not features.
+> **Status — Rung 4 in progress:** two players share a space and see each other’s bonded companion
+> (WebSockets + an authoritative Elixir/Phoenix server, with a Phoenix.Presence roster). The
+> companion’s grown self + wardrobe now live **server-side** (PostgreSQL), keyed by a local identity
+> token — so the game is **online-only** (no offline/solo mode; connecting to a server is required).
+> Remaining Rung-4 step: proximity text chat. Still a test of FEEL, not features.
 > See [`CLAUDE.md`](CLAUDE.md) for the full vision and the staged roadmap.
 
 The Godot project lives in the [`pokepals/`](pokepals/) subdirectory. (An earlier
@@ -41,35 +41,33 @@ pokepals/
 
 ## Play it
 
-1. Install [Godot 4.6](https://godotengine.org/download) (standard build, no C#).
-2. Open the project: `godot --path pokepals` (or open `pokepals/project.godot` in
-   the editor) and press **Play**. The main scene is `scenes/world.tscn`.
-3. Wander with **arrow keys / WASD** (or the on-screen thumbstick on touch). Your
-   companion trails behind, idles and glances back when you stop, and perks up to
-   investigate when you press **Space** to examine a prop (the humming stone, the
-   lantern, the wildflowers).
+The game is **online-only**: your companion lives on the server, so you connect to one to play
+(there's no offline/solo mode). For local play that's a one-command server on your own machine.
+
+1. **Start a server** (needs Docker): `cd server && docker compose up -d --build` — this runs the
+   relay on `:4000` plus its PostgreSQL. (Other ways to run it — including no-Docker — are in
+   [`server/DEPLOYMENT.md`](server/DEPLOYMENT.md).)
+2. Install [Godot 4.6](https://godotengine.org/download) (standard build, no C#).
+3. Open the project: `godot --path pokepals` (or open `pokepals/project.godot` in the editor) and
+   press **Play** (main scene `scenes/world.tscn`). At the gate, enter `ws://127.0.0.1:4000/ws`
+   (or a friend's server IP) and press **Connect** — your companion loads from the server.
+4. Wander with **arrow keys / WASD** (or the on-screen thumbstick on touch). Your companion trails
+   behind, idles and glances back when you stop, and perks up to investigate when you press **Space**
+   to examine a prop. A second person who connects to the same server appears beside you, with their
+   own companion.
 
 To play it on a phone (where the touch feel actually lives), see
 [`docs/mobile-testing.md`](docs/mobile-testing.md) — iOS (needs a Mac) and
 Android (no Mac, fastest) walkthroughs. Export presets for both ship in
 [`pokepals/export_presets.cfg`](pokepals/export_presets.cfg).
 
-## Wander together (Rung 4, step 1)
+## The server
 
-To share the space with a friend, run the minimal authoritative server in
-[`server/`](server/) and have both clients **Connect** to it from the launch overlay:
-
-```sh
-cd server && mix deps.get && mix run --no-halt   # listens on :4000
-```
-
-Then in each Godot client type `ws://<server-ip>:4000/ws` (use `127.0.0.1` on the same
-machine) and press **Connect** — or **Wander solo** to play offline, fully intact. The server
-just assigns ids and relays each player's avatar + companion; it runs no game logic. See
-[`server/README.md`](server/README.md) for details. Solo play needs no server.
-
-To host it persistently on a real box (Docker or systemd; includes a Proxmox LXC walkthrough),
-see [`server/DEPLOYMENT.md`](server/DEPLOYMENT.md).
+Everything shared — the roster, presence relay, and the **server-canonical companion + wardrobe**
+(PostgreSQL) — lives in [`server/`](server/), an Elixir/Phoenix app. Each player is keyed by a
+local identity token (`user://player_id.json`); there are no accounts yet. See
+[`server/README.md`](server/README.md) for how it works and [`server/DEPLOYMENT.md`](server/DEPLOYMENT.md)
+to host it persistently on a real box (Docker or systemd; includes a Proxmox LXC walkthrough).
 
 ## Run the tests
 

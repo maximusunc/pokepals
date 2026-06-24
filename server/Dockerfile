@@ -28,8 +28,9 @@ COPY mix.exs ./
 RUN mix deps.get --only prod
 RUN mix deps.compile
 
-# Application sources, then build the release.
+# Application sources, then build the release. priv/ carries the Ecto migrations into the release.
 COPY config config
+COPY priv priv
 COPY lib lib
 RUN mix compile
 RUN mix release
@@ -60,4 +61,7 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -fsS "http://localhost:${PORT}/health" || exit 1
 
-CMD ["/home/app/server/bin/server", "start"]
+# Apply DB migrations, then run the server in the foreground. `eval` is a short-lived node that
+# runs the migration and exits; `&&` aborts the boot if it fails; `exec` makes the BEAM PID 1 for
+# clean signal handling. Needs DATABASE_URL in the environment (compose provides it).
+CMD ["/bin/sh", "-c", "/home/app/server/bin/server eval 'Server.Release.migrate()' && exec /home/app/server/bin/server start"]

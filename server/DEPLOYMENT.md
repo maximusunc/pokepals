@@ -27,12 +27,13 @@ For development and `<10` players, a container with:
 | Resource | Recommended | Bare minimum |
 |----------|-------------|--------------|
 | vCPU     | 1           | 1 (shared)   |
-| RAM      | 512 MB      | 256 MB       |
-| Disk     | 4 GB        | ~1 GB        |
+| RAM      | 768 MB      | 512 MB       |
+| Disk     | 6 GB        | ~2 GB        |
 
-The footprint is dominated by the BEAM runtime baseline, not by your players — it's roughly the
-same at 2 players as at 10. The only future line item worth planning headroom for is **Postgres**,
-which arrives in the *next* Rung-4 step (see [Looking ahead](#looking-ahead)).
+The relay's footprint is dominated by the BEAM runtime baseline, not by your players — roughly the
+same at 2 players as at 10. **PostgreSQL** (now required — it holds the companions) adds ~100–200 MB
+of RAM and the on-disk saves, which is why the figures above are a touch higher than the relay alone;
+still very modest for `<10` players on a ThinkCentre.
 
 ---
 
@@ -44,8 +45,11 @@ Requires only Docker (and the Compose plugin) on the host. From this `server/` d
 docker compose up -d --build
 ```
 
-That builds the image (a self-contained OTP release inside a slim Debian base) and starts it
-detached, published on port **4000**, set to restart unless you stop it. Verify:
+That builds the relay image (a self-contained OTP release inside a slim Debian base) **and** starts a
+PostgreSQL container (with a `pgdata` volume so saves survive restarts). The relay waits for the DB to
+be healthy, applies migrations on boot, then serves. Both are set to restart unless you stop them.
+Companion/wardrobe saves persist in the `pgdata` volume — `docker compose down` keeps it; `down -v`
+wipes it. Verify:
 
 ```sh
 curl localhost:4000/health        # -> ok
@@ -127,9 +131,28 @@ journalctl -u pokepals-relay -f      # follow logs
 The unit (`deploy/pokepals-relay.service`) restarts on crash and starts on boot. To change the
 port, edit `Environment=PORT=...` in the unit and `systemctl daemon-reload && systemctl restart`.
 
-### 4. Upgrade later
+### 4. Provision PostgreSQL (required)
 
-Rebuild the release, rsync it over the old tree, and `sudo systemctl restart pokepals-relay`.
+Install Postgres (`sudo apt install postgresql`), create a database and role, then tell the unit
+where it is. Add to `deploy/pokepals-relay.service` before installing it:
+
+```ini
+Environment=DATABASE_URL=ecto://pokepals:somepassword@localhost/pokepals
+```
+
+Apply migrations once (and after each upgrade) using the release's eval task — no Mix needed:
+
+```sh
+sudo -u pokepals DATABASE_URL=ecto://pokepals:somepassword@localhost/pokepals \
+  /opt/pokepals-relay/bin/server eval "Server.Release.migrate()"
+```
+
+The DB itself must already exist (`createdb pokepals`); the release runs `migrate`, not `ecto.create`.
+
+### 5. Upgrade later
+
+Rebuild the release, rsync it over the old tree, run the `migrate` eval above, and
+`sudo systemctl restart pokepals-relay`.
 
 ---
 
@@ -170,11 +193,15 @@ systemd unit.
 | Variable | Default | Meaning |
 |----------|---------|---------|
 | `PORT`   | `4000`  | TCP port the relay listens on (HTTP upgrade to WebSocket at `/ws`). |
+| `DATABASE_URL` | — (required in prod) | Postgres connection, `ecto://USER:PASS@HOST:PORT/DB`. Compose sets it for you; a bare/systemd deploy must provide it. Dev/test fall back to localhost defaults. |
+| `POOL_SIZE` | `10` | DB connection pool size. |
 
 The relay **binds all interfaces** (`0.0.0.0`) so it's reachable across your LAN and from outside a
-container. There is no other configuration — no database, no secrets, no accounts in this step.
+container. Players are keyed by a client-generated token (no accounts); their companion + wardrobe
+are stored in Postgres. The token is a bearer credential sent over plaintext `ws://` on the LAN —
+fine for a handful of friends; front it with TLS (`wss://`) before exposing it wider (see below).
 
-Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot lobby pre-fills is
+Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills is
 `ws://127.0.0.1:4000/ws`; change the host to your relay's LAN IP for a friend on another machine.
 
 ---
@@ -199,8 +226,7 @@ Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot lobby pre-fill
   trusted network, **don't** open the BEAM port to the internet directly — put a reverse proxy
   (Caddy or Traefik, which do automatic TLS) in front and terminate `wss://` there, forwarding to
   the relay's `:4000`. With Compose, that's an added `caddy`/`traefik` service alongside `relay`.
-- **Postgres (next Rung-4 step):** server-canonical companion/wardrobe persistence will add a
-  database. In a Compose deploy that's a second service (`db:` using the official `postgres` image)
-  plus a volume; on a bare host it's a `postgresql` package. That DB — not this relay — is the part
-  that will actually want some RAM and disk on the ThinkCentre, though still modest for `<10`
-  players. Nothing to do now; just leave the headroom.
+- **Accounts:** identity is a bearer token today (whoever holds it owns that save). Real accounts /
+  auth are a later step; until then, keep the deployment on a trusted network.
+- **Backups:** the companion lives only in Postgres now, so it's worth a periodic `pg_dump` of the
+  `pokepals` DB (or a volume snapshot) once people have companions they'd miss.

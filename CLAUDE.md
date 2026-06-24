@@ -51,9 +51,16 @@ deeper behavioral legibility — pickup-able whenever we deepen the single-playe
 server* (Elixir/Phoenix, Bandit + WebSock) that assigns ids and relays presence. **Step 2 ✅:**
 the roster now runs on **Phoenix.Presence** (a CRDT — robust crash/disconnect detection, multi-node
 ready); the server adapts Presence diffs into the unchanged client wire protocol, so the Godot
-client was untouched. **Remaining Rung-4 steps:** Postgres persistence of the companion/wardrobe
-(needs a stable player id — none exists yet), then proximity text chat. The FEEL-first philosophy
-and the guardrails below still govern.
+client was untouched. **Step 3 ✅ (a deliberate pivot):** the game is now **online-only** — the
+companion's grown self and the wardrobe live **server-side** (PostgreSQL via Ecto), keyed by a local
+identity *token* (`user://player_id.json`); there is **no local game save and no solo/offline mode**.
+Connecting to a server is required to play. **Remaining Rung-4 step:** proximity text chat. The
+FEEL-first philosophy still governs.
+
+> **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
+> the companion a *server-resident* identity you carry across sessions/devices, which means dropping
+> solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as
+> historical — superseded by the online-only model.
 
 ### In scope now (Rung 4, step 1)
 
@@ -64,7 +71,8 @@ and the guardrails below still govern.
   state (avatar + companion transforms, identity/appearance) to the others.
 - Two (or a few) players sharing the same space, seeing each other’s avatar and companion
   move — the shared-presence feel from Rung 3, now over the real client↔server topology.
-- Solo play stays a first-class, untouched path.
+- A **server-canonical companion + wardrobe** (Postgres), loaded on connect and saved back, keyed
+  by a local identity token. The game is **online-only** — no solo/offline path, no local game save.
 
 ### Explicitly OUT of scope now (later Rung-4 steps, or further out)
 
@@ -108,7 +116,9 @@ for 3D/VR worlds — all without a rewrite.
 ## Tech stack
 
 - **Engine / client:** Godot 4.x, **GDScript**. Target mobile + desktop (and web later).
-- **Persistence (client):** local save as JSON in `user://` (companion self + player appearance).
+- **Persistence:** **server-canonical** — the companion self + wardrobe live in **PostgreSQL** (Ecto,
+  jsonb), keyed by a client-generated identity token. The only thing in `user://` is that token
+  (`player_id.json`); there is no local game save. (Rungs 1–2 used local `user://` saves — now retired.)
 - **Networking (current — Rung 4):**
   - First shared-presence tests used Godot built-in multiplayer (ENet) — **done at Rung 3.**
   - **Now:** raw WebSockets + JSON between the client and a **minimal authoritative
@@ -167,9 +177,10 @@ for 3D/VR worlds — all without a rewrite.
    subtly evolves to reflect the player, local save.
 1. **[DONE ✅]** Two players sharing a space for the first time — seeing each other and each
    other’s companions (Godot ENet, behind a swappable transport seam).
-1. **[IN PROGRESS — current rung]** A small persistent shared world. Step 1 (current):
-   WebSockets + a minimal authoritative Elixir/Phoenix server (id assignment + presence
-   relay). Then: Phoenix Presence, Postgres persistence, proximity text chat.
+1. **[IN PROGRESS — current rung]** A small persistent shared world. Done: WebSockets + a minimal
+   authoritative Elixir/Phoenix server (step 1), Phoenix.Presence roster (step 2), and Postgres
+   persistence of a now **server-resident companion** — which made the game **online-only** (step 3).
+   Remaining: proximity text chat.
 1. World-building / UGC tools, and only much later, other presentations (3D/VR). The
    “world-of-worlds” north star.
 
