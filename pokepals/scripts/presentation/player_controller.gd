@@ -108,17 +108,10 @@ func _ready() -> void:
 	# wears the base set), then resolve the worn loadout into drawable layers once. Mirrors how
 	# CompanionView loads its saved self — appearance is the player's portable, persisted self.
 	_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
-	# Only the LOCAL avatar reads (and later writes) the on-disk look. A remote puppet starts on
-	# the default look and is overwritten the instant the friend's identity packet arrives, so it
-	# never touches — or is confused by — this machine's save.
-	if _is_local:
-		var saved: Dictionary = SaveStore.load_json(APPEARANCE_SAVE_PATH)
-		if saved.is_empty():
-			_appearance = PlayerAppearance.make_default(_catalog)
-		else:
-			_appearance = PlayerAppearance.from_dict(saved, _catalog)
-	else:
-		_appearance = PlayerAppearance.make_default(_catalog)
+	# The worn look lives on the SERVER now (online-only). Start on the default; the local
+	# avatar adopts the server's wardrobe via apply_appearance once it loads, and a remote
+	# puppet is overwritten by the friend's identity packet — so neither reads a local save.
+	_appearance = PlayerAppearance.make_default(_catalog)
 	_refresh_avatar()
 
 
@@ -138,20 +131,16 @@ func set_style(style: ArtStyle) -> void:
 	_style = style
 
 
-## Persist the player's look. Cheap and idempotent; there's no runtime way to change the
-## loadout yet (the wardrobe UI is a later rung), so this currently just keeps the save in
-## step — but the round-trip is wired so equips persist the moment that UI lands.
-func _save_appearance() -> void:
-	# Never persist a remote puppet — its look belongs to the friend's machine, not this save.
-	if _is_local and _appearance != null:
-		SaveStore.save_json(APPEARANCE_SAVE_PATH, _appearance.to_dict())
-
-
-## Save on the ways a session can end: window close, app backgrounded on mobile, or this
-## node leaving the tree — the same moments CompanionView persists its self.
-func _notification(what: int) -> void:
-	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
-		_save_appearance()
+## Adopt the server's canonical wardrobe on the LOCAL avatar (on connect / world hop). The
+## mirror of apply_identity, which does the same for a remote puppet: rebuild from the
+## (untrusted) dict against the catalog and re-composite the worn layers.
+func apply_appearance(appearance: Dictionary) -> void:
+	if appearance.is_empty():
+		return
+	if _catalog == null:
+		_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+	_appearance = PlayerAppearance.from_dict(appearance, _catalog)
+	_refresh_avatar()
 
 
 func _process(delta: float) -> void:

@@ -1,0 +1,18 @@
+# Keep the build context tiny and the image clean. Sources are COPY'd explicitly in the Dockerfile.
+_build/
+deps/
+cover/
+doc/
+.elixir_ls/
+.git/
+.gitignore
+.formatter.exs
+test/
+*.md
+Dockerfile
+.dockerignore
+docker-compose.yml
+Makefile
+deploy/
+erl_crash.dump
+*.ez

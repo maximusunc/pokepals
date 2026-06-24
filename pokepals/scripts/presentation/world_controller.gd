@@ -18,6 +18,7 @@ const PORTAL_ARM_BUFFER := 18.0
 # Shared presence (Rung 3): how often we broadcast our own pair's transforms to peers. ~20 Hz is
 # plenty for a cozy walk-around — remote puppets interpolate between samples (see PlayerView).
 const NET_SEND_INTERVAL := 1.0 / 20.0
+const SAVE_INTERVAL := 15.0  # how often to push the companion/wardrobe to the server (sole save)
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
@@ -32,6 +33,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 @onready var _call_button: Button = $UI/CallButton
 @onready var _pet_button: Button = $UI/PetButton
 @onready var _reset_button: Button = $UI/ResetButton
+@onready var _leave_button: Button = $UI/LeaveButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
 @onready var _day_tint: CanvasModulate = $DayTint
@@ -68,6 +70,7 @@ var _transitioning := false  # true once a portal transition's fade has begun
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
+var _leave_shown := false  # whether the "leave" button is currently faded in (only while connected)
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 var _style: ArtStyle
 var _day_enabled := false
@@ -84,6 +87,7 @@ var _remote_pairs: Dictionary = {}
 var _pending_identity: Dictionary = {}
 var _bounds_rect := Rect2()  # the world's walkable bounds, kept to CLAMP untrusted remote positions
 var _net_accum := 0.0        # accumulates toward the next NET_SEND_INTERVAL broadcast
+var _save_accum := 0.0       # accumulates toward the next server SAVE_INTERVAL push
 
 
 func _ready() -> void:
@@ -162,6 +166,12 @@ func _ready() -> void:
 	# Top-right "start over" button: only revealed once fully bonded (see _process).
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_joystick.add_exclusion(_reset_button)
+
+	# Top-right "Leave" button: the player-initiated way out of a session. Faded in only while
+	# connected (see _process), so it never shows in the solo/disconnected gate state. Keep its
+	# taps off the movement thumbstick underneath.
+	_leave_button.pressed.connect(_on_leave_pressed)
+	_joystick.add_exclusion(_leave_button)
 
 	# Dev-only companion/bond readout. On by default; the DBG button (and F3 on
 	# desktop) toggles it. Exclude its taps from the movement thumbstick underneath.
@@ -409,12 +419,16 @@ func _process(delta: float) -> void:
 	# Reveal the "new companion" button only once the bond is full.
 	_set_reset_visible(_companion.is_fully_bonded())
 
+	# Offer the way out only while we're actually in a session.
+	_set_leave_visible(Net.is_active())
+
 	# Walk-through portals, and the companion's occasional subtle glance toward a hidden salamander.
 	_update_portals(delta)
 	_update_hints(delta)
 
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
 	_broadcast_presence(delta)
+	_push_save_periodic(delta)
 
 
 ## Gently fade the touch Examine button in or out as the player nears a prop, so
@@ -457,6 +471,30 @@ func _set_reset_visible(show_button: bool) -> void:
 	tween.tween_property(_reset_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
 	if not show_button:
 		tween.tween_callback(func() -> void: _reset_button.visible = false)
+
+
+## Gently fade the "Leave" button in while connected, out otherwise — mirrors the other
+## contextual buttons so the screen stays uncluttered, and so it's absent the moment there's
+## no session to leave.
+func _set_leave_visible(show_button: bool) -> void:
+	if show_button == _leave_shown:
+		return
+	_leave_shown = show_button
+	if show_button:
+		_leave_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_leave_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _leave_button.visible = false)
+
+
+## Leave the session on purpose. Persist the companion one last time (the graceful close in
+## Net.leave flushes it), then drop the link — which surfaces as disconnected() and brings the
+## lobby gate back up, ready to reconnect. The remote puppets are cleaned up by _on_disconnected.
+func _on_leave_pressed() -> void:
+	if Net.is_active():
+		_push_save()
+	Net.leave()
 
 
 ## Start a fresh companion (immediate, no confirm — the button only appears once you
@@ -732,6 +770,13 @@ func _setup_net() -> void:
 	Net.peer_left.connect(_on_peer_left)
 	Net.identity_received.connect(_on_identity_received)
 	Net.state_received.connect(_on_state_received)
+	Net.save_loaded.connect(_on_save_loaded)
+	Net.disconnected.connect(_on_disconnected)
+	# Hopping between worlds reloads this scene with a fresh placeholder companion; if we're
+	# already connected, re-dress it from the in-session save the server already gave us.
+	if Net.has_session_save():
+		var s := Net.session_save()
+		_apply_server_save(s.get("companion"), s.get("appearance"))
 
 
 ## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
@@ -745,9 +790,9 @@ func _local_identity() -> Dictionary:
 	}
 
 
-## Stream our local pair's transforms to peers at ~20 Hz. Vector2s ride the RPC natively, so the
-## packet stays tiny: our player's position+facing and our companion's position+attention. A no-op
-## until connected (Net.broadcast_state guards it), so this is harmless to run every frame offline.
+## Stream our local pair's transforms to peers at ~20 Hz. The packet stays tiny: our player's
+## position+facing and our companion's position+attention (the Net seam marshals the Vector2s for
+## the wire). A no-op until connected (Net.broadcast_state guards it), so it's harmless offline.
 func _broadcast_presence(delta: float) -> void:
 	if not Net.is_active():
 		return
@@ -761,6 +806,52 @@ func _broadcast_presence(delta: float) -> void:
 		"c": _companion.position,
 		"cl": _companion.look_dir(),
 	})
+
+
+## Periodically push our companion + wardrobe to the server (the sole save). A no-op until
+## connected; the world calls it every frame.
+func _push_save_periodic(delta: float) -> void:
+	if not Net.is_active():
+		return
+	_save_accum += delta
+	if _save_accum < SAVE_INTERVAL:
+		return
+	_save_accum = 0.0
+	_push_save()
+
+
+## Send the current companion self + worn wardrobe up as the canonical save.
+func _push_save() -> void:
+	Net.push_save(_companion.self_dict(), _player.appearance_dict())
+
+
+## Our canonical save arrived from the server (or nulls for a brand-new player).
+func _on_save_loaded(companion, appearance) -> void:
+	_apply_server_save(companion, appearance)
+
+
+## Adopt a loaded save; if we're a brand-new player (no stored save), seed the server with the
+## placeholder companion + default look we started with, so next time it loads.
+func _apply_server_save(companion, appearance) -> void:
+	var had_save := false
+	if companion is Dictionary and not (companion as Dictionary).is_empty():
+		_companion.replace_self(companion)
+		had_save = true
+	if appearance is Dictionary and not (appearance as Dictionary).is_empty():
+		_player.apply_appearance(appearance)
+		had_save = true
+	if not had_save:
+		_push_save()
+	# Our relayed presentation identity may have changed (loaded look) — refresh it for peers.
+	Net.set_local_identity(_local_identity())
+
+
+## Persist on the ways a session can end — now pushed to the server instead of disk: window
+## close, app backgrounded, or this node leaving the tree (world hop / quit).
+func _notification(what: int) -> void:
+	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
+		if Net.is_active():
+			_push_save()
 
 
 ## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery
@@ -800,6 +891,19 @@ func _on_peer_left(peer_id: int) -> void:
 		(pair["companion"] as Node).queue_free()
 		_remote_pairs.erase(peer_id)
 	_pending_identity.erase(peer_id)
+
+
+## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
+## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
+## reconnect, which hands out fresh peer ids, doesn't leave the old ghosts behind). The lobby gate
+## reappears on its own (it also listens for disconnected()); our own player + companion stay put.
+func _on_disconnected() -> void:
+	for peer_id in _remote_pairs.keys():
+		var pair: Dictionary = _remote_pairs[peer_id]
+		(pair["player"] as Node).queue_free()
+		(pair["companion"] as Node).queue_free()
+	_remote_pairs.clear()
+	_pending_identity.clear()
 
 
 ## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they

@@ -1,96 +1,67 @@
 extends Control
-## The LAN lobby overlay: Host, or Join by IP. It only drives the Net seam (Net.host / Net.join)
-## and reflects connection status, then gets out of the way the moment a friend is actually here.
-## Pure presentation — gameplay is wired to Net's signals by the world, not here.
-##
-## This is intentionally the whole "connection UX" for this rung: one device Hosts and reads its
-## LAN IP out loud; the other types it and Joins. Later transports (WebSockets, a real server)
-## replace what Host/Join do under the hood without changing this screen's shape.
+## The connection gate. The game is ONLINE-ONLY: there is no solo/offline mode and no local save —
+## your companion lives on the server — so entering the world REQUIRES connecting. This overlay
+## takes a server URL, drives the Net seam (Net.connect_to), reflects status, and steps aside once
+## the server has handed back your companion (save_loaded). Pure presentation.
 
-@onready var _host_button: Button = $Box/HostButton
-@onready var _ip_edit: LineEdit = $Box/JoinRow/IpEdit
-@onready var _join_button: Button = $Box/JoinRow/JoinButton
-@onready var _solo_button: Button = $Box/SoloButton
+@onready var _url_edit: LineEdit = $Box/UrlRow/UrlEdit
+@onready var _connect_button: Button = $Box/UrlRow/ConnectButton
 @onready var _status: Label = $Box/Status
 
 
 func _ready() -> void:
-	_host_button.pressed.connect(_on_host)
-	_join_button.pressed.connect(_on_join)
-	_solo_button.pressed.connect(_on_solo)
+	_url_edit.text = Net.DEFAULT_SERVER_URL
+	_connect_button.pressed.connect(_on_connect)
 	Net.connected.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
 	Net.disconnected.connect(_on_disconnected)
-	Net.peer_joined.connect(_on_peer_joined)
-	Net.peer_left.connect(_on_peer_left)
-	# The lobby is the world-ENTRY gate, meant to greet the player ONCE on a fresh launch.
-	# Travelling between worlds reloads this whole scene (WorldRouter.go_to → change_scene_to_file),
-	# which would otherwise pop the lobby back up on every hop — and again on the way back. Two
-	# conditions mean "we're already in the world, don't greet again": arriving via a portal
+	Net.save_loaded.connect(_on_save_loaded)
+	# The lobby is the world-ENTRY gate. Travelling between worlds reloads this whole scene
+	# (WorldRouter.go_to → change_scene_to_file), which would otherwise pop the gate back up on every
+	# hop. Two conditions mean "we're already in the world, don't gate again": arriving via a portal
 	# (WorldRouter.pending_transition is still set here, since children _ready before the world root
-	# consumes it), or an active multiplayer session. Either way, stay out of the way.
+	# consumes it), or an already-active session. Either way, stay out of the way.
 	if WorldRouter.pending_transition or Net.is_active():
 		visible = false
 		return
-	_status.text = "Wander together on your local network."
+	_status.text = "Connect to a server to play with your companion."
 
 
-func _on_host() -> void:
-	var err := Net.host()
-	if err != OK:
-		_status.text = "Couldn't host (error %d). Is the port already in use?" % err
+func _on_connect() -> void:
+	var url := _url_edit.text.strip_edges()
+	if url == "":
+		_status.text = "Type the server's address first."
 		return
-	var ips := Net.local_ip_addresses()
-	var ip_text := ", ".join(ips) if not ips.is_empty() else "(unknown — check your network)"
-	_status.text = "Hosting. Have your friend Join at:\n%s" % ip_text
+	var err := Net.connect_to(url)
+	if err != OK:
+		_status.text = "Couldn't start connecting (error %d). Check the address." % err
+		return
+	_status.text = "Connecting to %s…" % url
 	_set_controls_enabled(false)
 
 
-func _on_join() -> void:
-	var ip := _ip_edit.text.strip_edges()
-	if ip == "":
-		_status.text = "Type the host's IP first."
-		return
-	var err := Net.join(ip)
-	if err != OK:
-		_status.text = "Couldn't start joining (error %d)." % err
-		return
-	_status.text = "Connecting to %s…" % ip
-	_set_controls_enabled(false)
-
-
-## Just wander offline — the existing single-player experience, one tap away and fully intact.
-## The whole Net layer stays dormant (nothing is ever sent or spawned) until a session is started.
-func _on_solo() -> void:
-	visible = false
-
-
-## Host went live, or this client linked to the host. We hold the panel until a PEER actually
-## arrives (peer_joined) — so the host keeps seeing its IP to read out while it waits.
+## The server accepted us; our companion is on its way. Hold the gate until it actually arrives
+## (save_loaded), so the world doesn't flash a placeholder before the real companion loads.
 func _on_connected() -> void:
-	if not Net.is_host():
-		_status.text = "Connected! Looking for your friend…"
+	_status.text = "Connected! Loading your companion…"
 
 
-func _on_connection_failed() -> void:
-	_status.text = "Couldn't reach that host. Check the IP, and that they're hosting."
-	_set_controls_enabled(true)
-
-
-func _on_disconnected() -> void:
-	_status.text = "Disconnected."
-	_reshow()
-
-
-## A friend is really here — fade the lobby away and let the two of you just be in the world.
-func _on_peer_joined(_id: int) -> void:
+## Our companion + wardrobe are here (or we're a brand-new player). Fade the gate away and let the
+## player be in the world — connected-and-alone is the normal way to play.
+func _on_save_loaded(_companion, _appearance) -> void:
 	var tw := create_tween()
 	tw.tween_property(self, "modulate:a", 0.0, 0.4)
 	tw.tween_callback(func() -> void: visible = false)
 
 
-func _on_peer_left(_id: int) -> void:
-	_status.text = "Your friend left."
+func _on_connection_failed() -> void:
+	_status.text = "Couldn't reach that server. Check the address, and that it's running."
+	_set_controls_enabled(true)
+
+
+## The link dropped. With no offline mode, the player returns to the gate to reconnect.
+func _on_disconnected() -> void:
+	_status.text = "Disconnected from the server. Reconnect to keep playing."
 	_reshow()
 
 
@@ -101,6 +72,5 @@ func _reshow() -> void:
 
 
 func _set_controls_enabled(on: bool) -> void:
-	_host_button.disabled = not on
-	_join_button.disabled = not on
-	_ip_edit.editable = on
+	_connect_button.disabled = not on
+	_url_edit.editable = on

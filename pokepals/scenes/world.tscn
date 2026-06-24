@@ -141,15 +141,27 @@ offset_bottom = -106.0
 theme_override_font_sizes/font_size = 24
 text = "Pet"
 
+[node name="LeaveButton" type="Button" parent="UI"]
+visible = false
+modulate = Color(1, 1, 1, 0)
+anchor_left = 1.0
+anchor_right = 1.0
+offset_left = -120.0
+offset_top = 10.0
+offset_right = -12.0
+offset_bottom = 44.0
+theme_override_font_sizes/font_size = 18
+text = "Leave"
+
 [node name="ResetButton" type="Button" parent="UI"]
 visible = false
 modulate = Color(1, 1, 1, 0)
 anchor_left = 1.0
 anchor_right = 1.0
 offset_left = -228.0
-offset_top = 28.0
+offset_top = 56.0
 offset_right = -28.0
-offset_bottom = 92.0
+offset_bottom = 120.0
 theme_override_font_sizes/font_size = 24
 text = "New Companion"
 
@@ -191,26 +203,17 @@ theme_override_font_sizes/font_size = 22
 horizontal_alignment = 1
 text = "Wander Together"
 
-[node name="HostButton" type="Button" parent="UI/Lobby/Box"]
-theme_override_font_sizes/font_size = 20
-text = "Host a session"
-
-[node name="JoinRow" type="HBoxContainer" parent="UI/Lobby/Box"]
+[node name="UrlRow" type="HBoxContainer" parent="UI/Lobby/Box"]
 theme_override_constants/separation = 8
 
-[node name="IpEdit" type="LineEdit" parent="UI/Lobby/Box/JoinRow"]
+[node name="UrlEdit" type="LineEdit" parent="UI/Lobby/Box/UrlRow"]
 custom_minimum_size = Vector2(230, 0)
 size_flags_horizontal = 3
-placeholder_text = "host IP, e.g. 192.168.1.5"
+placeholder_text = "ws://192.168.1.5:4000/ws"
 
-[node name="JoinButton" type="Button" parent="UI/Lobby/Box/JoinRow"]
+[node name="ConnectButton" type="Button" parent="UI/Lobby/Box/UrlRow"]
 theme_override_font_sizes/font_size = 20
-text = "Join"
-
-[node name="SoloButton" type="Button" parent="UI/Lobby/Box"]
-modulate = Color(1, 1, 1, 0.8)
-theme_override_font_sizes/font_size = 16
-text = "Wander solo"
+text = "Connect"
 
 [node name="Status" type="Label" parent="UI/Lobby/Box"]
 custom_minimum_size = Vector2(0, 48)
