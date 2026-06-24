@@ -33,6 +33,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 @onready var _call_button: Button = $UI/CallButton
 @onready var _pet_button: Button = $UI/PetButton
 @onready var _reset_button: Button = $UI/ResetButton
+@onready var _leave_button: Button = $UI/LeaveButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
 @onready var _day_tint: CanvasModulate = $DayTint
@@ -69,6 +70,7 @@ var _transitioning := false  # true once a portal transition's fade has begun
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
+var _leave_shown := false  # whether the "leave" button is currently faded in (only while connected)
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 var _style: ArtStyle
 var _day_enabled := false
@@ -164,6 +166,12 @@ func _ready() -> void:
 	# Top-right "start over" button: only revealed once fully bonded (see _process).
 	_reset_button.pressed.connect(_on_reset_pressed)
 	_joystick.add_exclusion(_reset_button)
+
+	# Top-right "Leave" button: the player-initiated way out of a session. Faded in only while
+	# connected (see _process), so it never shows in the solo/disconnected gate state. Keep its
+	# taps off the movement thumbstick underneath.
+	_leave_button.pressed.connect(_on_leave_pressed)
+	_joystick.add_exclusion(_leave_button)
 
 	# Dev-only companion/bond readout. On by default; the DBG button (and F3 on
 	# desktop) toggles it. Exclude its taps from the movement thumbstick underneath.
@@ -411,6 +419,9 @@ func _process(delta: float) -> void:
 	# Reveal the "new companion" button only once the bond is full.
 	_set_reset_visible(_companion.is_fully_bonded())
 
+	# Offer the way out only while we're actually in a session.
+	_set_leave_visible(Net.is_active())
+
 	# Walk-through portals, and the companion's occasional subtle glance toward a hidden salamander.
 	_update_portals(delta)
 	_update_hints(delta)
@@ -460,6 +471,30 @@ func _set_reset_visible(show_button: bool) -> void:
 	tween.tween_property(_reset_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
 	if not show_button:
 		tween.tween_callback(func() -> void: _reset_button.visible = false)
+
+
+## Gently fade the "Leave" button in while connected, out otherwise — mirrors the other
+## contextual buttons so the screen stays uncluttered, and so it's absent the moment there's
+## no session to leave.
+func _set_leave_visible(show_button: bool) -> void:
+	if show_button == _leave_shown:
+		return
+	_leave_shown = show_button
+	if show_button:
+		_leave_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_leave_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _leave_button.visible = false)
+
+
+## Leave the session on purpose. Persist the companion one last time (the graceful close in
+## Net.leave flushes it), then drop the link — which surfaces as disconnected() and brings the
+## lobby gate back up, ready to reconnect. The remote puppets are cleaned up by _on_disconnected.
+func _on_leave_pressed() -> void:
+	if Net.is_active():
+		_push_save()
+	Net.leave()
 
 
 ## Start a fresh companion (immediate, no confirm — the button only appears once you
@@ -736,6 +771,7 @@ func _setup_net() -> void:
 	Net.identity_received.connect(_on_identity_received)
 	Net.state_received.connect(_on_state_received)
 	Net.save_loaded.connect(_on_save_loaded)
+	Net.disconnected.connect(_on_disconnected)
 	# Hopping between worlds reloads this scene with a fresh placeholder companion; if we're
 	# already connected, re-dress it from the in-session save the server already gave us.
 	if Net.has_session_save():
@@ -855,6 +891,19 @@ func _on_peer_left(peer_id: int) -> void:
 		(pair["companion"] as Node).queue_free()
 		_remote_pairs.erase(peer_id)
 	_pending_identity.erase(peer_id)
+
+
+## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
+## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
+## reconnect, which hands out fresh peer ids, doesn't leave the old ghosts behind). The lobby gate
+## reappears on its own (it also listens for disconnected()); our own player + companion stay put.
+func _on_disconnected() -> void:
+	for peer_id in _remote_pairs.keys():
+		var pair: Dictionary = _remote_pairs[peer_id]
+		(pair["player"] as Node).queue_free()
+		(pair["companion"] as Node).queue_free()
+	_remote_pairs.clear()
+	_pending_identity.clear()
 
 
 ## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they

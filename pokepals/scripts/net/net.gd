@@ -102,11 +102,20 @@ func connect_to(url: String = DEFAULT_SERVER_URL) -> int:
 	return OK
 
 
-## Tear the link down (and reset), e.g. on leaving. Safe to call when not connected.
+## Tear the link down, e.g. the player pressing "Leave". Safe to call when not connected.
+##
+## If the link is OPEN we close it GRACEFULLY: we keep the socket so _process keeps polling
+## until it reaches STATE_CLOSED, which both flushes any final frame (e.g. a last save the world
+## queued just before leaving) AND surfaces the drop through the normal path — _on_socket_closed
+## emits disconnected(), exactly as a server-side drop would, so the lobby gate reappears. If we
+## were only mid-connect (never OPEN), there's nothing to flush, so we just drop it now.
 func leave() -> void:
-	if _socket != null:
+	if _socket == null:
+		return
+	if _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
 		_socket.close()
-	_reset_socket()
+	else:
+		_reset_socket()
 
 
 ## The LAN addresses this device is reachable at — informational, so whoever runs the server can
