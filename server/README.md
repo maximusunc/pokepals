@@ -59,8 +59,10 @@ mix test
 Covers token→user_id resolution (`Accounts`), the `Saves` store/load round-trip keyed by user_id,
 the Presence diff→frame adapter (`PresenceFrames`), the world process (`World`: store/snapshot/forget
 + fan-out), and the full channel flow (`WorldChannel` via `Phoenix.ChannelTest`: connect auth,
-welcome+load on join, save persistence, presence join/leave/identity, state relay + snapshot replay).
-The `test` alias creates + migrates a `pokepals_test` DB first.
+welcome+load on join, save persistence, presence join/leave/identity, state relay + snapshot replay),
+plus the economy: `Economy` (grant/sink, the ledger==balance invariant, equip), `Trade` (atomic swap
+with one correlation_id, roll-back on insufficient funds, re-verify prevents a double-spend), and
+`TradeSession` (offer/confirm → execute). The `test` alias creates + migrates a `pokepals_test` DB first.
 End-to-end behaviour is verified by running Godot clients against the server (see the repo `CLAUDE.md`).
 
 ## Shape
@@ -80,8 +82,13 @@ lib/server/
   companion.ex       schema for companions (companion_id PK, user_id UNIQUE, opaque data jsonb)
   appearance.ex      schema for player_appearances (user_id PK, opaque data jsonb)
   saves.ex           load/store a player's blobs by user_id (the persistence boundary)
+  economy.ex         the §0 WALL: sole gateway for currency/items, ledger-in-same-txn, equip, trade
+  trade_session.ex   short-lived coordination GenServer (offer/confirm → Economy.execute_trade)
+  item_definition.ex / player_currency.ex / inventory_item.ex / equipped_item.ex /
+  wardrobe.ex / companion_inventory.ex / ledger_entry.ex   the typed economy schemas
   repo.ex            the Ecto/Postgres repo;  release.ex  runs migrations in the packaged release
-priv/repo/migrations accounts + companions + player_appearances
+priv/repo/migrations accounts + companions + player_appearances + economy tables
+priv/repo/seeds.exs  item definitions + a demo account (mix run priv/repo/seeds.exs)
 ```
 
 The roster lives in `Presence`, so a peer's leave is detected even on a hard crash/disconnect (the
@@ -99,6 +106,25 @@ supervisor restarts it empty and clients re-sync on the next tick (no player is 
 persistence of transient state (Oban), one world process per `world_id` (DynamicSupervisor +
 registry; cluster-aware Horde beyond that), and any Redis. These land when a real need arises, not
 before.
+
+## Economy (the §0 wall)
+
+`Server.Economy` is the SOLE gateway for mutating currency, inventory, equipped items, and the
+wardrobe — strict, typed, transactional Postgres tables that creator/UGC code may never touch. It
+guarantees two things: every currency/item **movement** writes its `economy_ledger` row(s) inside the
+same transaction (the append-only audit trail; one `correlation_id` per event), and a **trade** is a
+single transaction that locks the affected rows in a deterministic order (lower `user_id` first) and
+**re-verifies** ownership/balances under those locks — so a stale offer can never dupe an asset.
+Money is `BIGINT`, never floats; Postgres is always the source of truth. `Server.TradeSession` is the
+(non-authoritative) coordination layer that collects offers/confirms and then calls
+`Economy.execute_trade/1`.
+
+These tables exist as the destination the game grows into when it introduces money/items; they aren't
+wired to the client yet (no economy UI), and the channel handlers that would drive them come then.
+
+**Deferred (scale/abuse) seams — flagged in `Server.Economy`:** a per-node ETS cache for item
+definitions (Cachex), and rate-limiting trade confirms / mints (Hammer). The anti-dupe guarantee is
+structural and does NOT depend on either; both are added when read volume or an abuse surface is real.
 
 ## Wire protocol (Phoenix Channels, v2 serializer)
 
