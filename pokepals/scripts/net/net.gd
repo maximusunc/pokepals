@@ -3,13 +3,14 @@ extends Node
 ##
 ## This is the one place that touches networking. Everything above it (the world, the avatars)
 ## talks to Net in plain dictionaries and never sees the socket, the wire protocol, or peer ids
-## beyond an opaque int. The TRANSPORT is a WebSocket to an AUTHORITATIVE Elixir/Phoenix server,
+## beyond an opaque string. The TRANSPORT is a WebSocket to an AUTHORITATIVE Elixir/Phoenix server,
 ## now over **Phoenix Channels** (the Phoenix v2 serializer) rather than a raw JSON relay.
 ##
 ## TOPOLOGY: every client opens one WebSocket to the server and joins the single "world" channel.
-## The server assigns each client an id, tracks the roster (Phoenix.Presence), RELAYS presentation
-## between clients, and is the SOLE store of each player's companion + wardrobe (Postgres), keyed by
-## the player's identity token (PlayerIdentity). The game is online-only: there is no local game save.
+## Each player is identified to peers by their stable user_id (resolved from the token at connect),
+## which is also the server's Phoenix.Presence roster key. The server tracks the roster, RELAYS
+## presentation between clients, and is the SOLE store of each player's companion + wardrobe
+## (Postgres). The game is online-only: there is no local game save.
 ##
 ## AUTH happens once, at connect: the identity token is sent as a connect param in the socket URL,
 ## and the server resolves it to an internal account before the channel is ever joined. There is no
@@ -37,13 +38,14 @@ extends Node
 ## the world clamps/validates and may ONLY move the SENDER's puppet. The identity token is a bearer
 ## credential, sent only to the server (in the connect URL) and never relayed.
 
-## A peer connected / disconnected. The world spawns or frees that peer's puppet pair.
-signal peer_joined(peer_id: int)
-signal peer_left(peer_id: int)
+## A peer connected / disconnected. The world spawns or frees that peer's puppet pair. The peer id is
+## the player's stable user_id (a string), the server's Presence roster key.
+signal peer_joined(peer_id: String)
+signal peer_left(peer_id: String)
 ## A peer's identity packet arrived (re-emitted, id stamped by the server). { name, appearance, companion_look }.
-signal identity_received(peer_id: int, payload: Dictionary)
+signal identity_received(peer_id: String, payload: Dictionary)
 ## A peer's high-rate transform packet arrived (re-emitted, id stamped by the server).
-signal state_received(peer_id: int, payload: Dictionary)
+signal state_received(peer_id: String, payload: Dictionary)
 ## Connection lifecycle, for the lobby to reflect status.
 signal connected()           # the server accepted us (our 'welcome' arrived with our id)
 signal connection_failed()   # we never reached the server (bad URL / refused / unreachable / join rejected)
@@ -63,8 +65,9 @@ const TOPIC := "world"
 const HEARTBEAT_INTERVAL := 25.0
 
 var _socket: WebSocketPeer = null
-# Our server-assigned id, from the 'welcome' frame. 0 until the server accepts us.
-var _my_id: int = 0
+# Our id, from the 'welcome' frame: our stable user_id (the Presence roster key). Empty until the
+# server accepts us.
+var _my_id: String = ""
 # True once the socket has reached STATE_OPEN at least once this session — lets us tell a
 # never-connected failure apart from a dropped established link when the socket closes.
 var _was_open: bool = false
@@ -112,8 +115,8 @@ func is_active() -> bool:
 	return _socket != null and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN
 
 
-## Our server-assigned id (0 before 'welcome'). There is no host concept anymore.
-func local_id() -> int:
+## Our id — our user_id (empty before 'welcome'). There is no host concept anymore.
+func local_id() -> String:
 	return _my_id
 
 
@@ -235,7 +238,7 @@ func _pump_heartbeat(delta: float) -> void:
 
 func _reset_socket() -> void:
 	_socket = null
-	_my_id = 0
+	_my_id = ""
 	_was_open = false
 	_joined = false
 	_ref = 0
@@ -281,7 +284,7 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 		"welcome":
 			# The server has accepted us into the world: adopt our id, learn who's already here, and
 			# (now that we're joined) flush our identity.
-			_my_id = int(payload.get("id", 0))
+			_my_id = String(payload.get("id", ""))
 			_joined = true
 			connected.emit()
 			_flush_identity()
@@ -290,28 +293,28 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 				for peer in peers:
 					if not (peer is Dictionary):
 						continue
-					var pid := int(peer.get("id", 0))
-					if pid == 0:
+					var pid := String(peer.get("id", ""))
+					if pid == "":
 						continue
 					peer_joined.emit(pid)
 					var ident: Variant = peer.get("identity", {})
 					if ident is Dictionary and not (ident as Dictionary).is_empty():
 						identity_received.emit(pid, ident)
 		"join":
-			var jid := int(payload.get("id", 0))
-			if jid != 0:
+			var jid := String(payload.get("id", ""))
+			if jid != "":
 				peer_joined.emit(jid)
 		"leave":
-			var lid := int(payload.get("id", 0))
-			if lid != 0:
+			var lid := String(payload.get("id", ""))
+			if lid != "":
 				peer_left.emit(lid)
 		"identity":
-			var iid := int(payload.get("id", 0))
-			if iid != 0:
+			var iid := String(payload.get("id", ""))
+			if iid != "":
 				identity_received.emit(iid, _strip_id(payload))
 		"state":
-			var sid := int(payload.get("id", 0))
-			if sid != 0:
+			var sid := String(payload.get("id", ""))
+			if sid != "":
 				state_received.emit(sid, _decode_state(_strip_id(payload)))
 		"load":
 			# Our canonical save (either field null for a brand-new player). Mirror it for world

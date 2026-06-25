@@ -33,11 +33,12 @@ defmodule Server.WorldChannelTest do
   end
 
   describe "join: welcome + load" do
-    test "a brand-new player gets a welcome (with our id) and a null load" do
-      _socket = join_world("join-new")
+    test "a brand-new player gets a welcome (id == our user_id) and a null load" do
+      socket = join_world("join-new")
 
       assert_push "welcome", %{id: id, peers: peers}
-      assert is_integer(id)
+      # The wire id IS the player's user_id (the Presence roster key).
+      assert id == socket.assigns.user_id
       # `peers` is the roster snapshot (a list); we don't assert it's empty — Presence cleanup from
       # other tests is asynchronous, and our own id is never in it regardless.
       assert is_list(peers)

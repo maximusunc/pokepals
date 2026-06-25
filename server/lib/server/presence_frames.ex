@@ -9,11 +9,11 @@ defmodule Server.PresenceFrames do
   each returned `{event, payload}` to the client; it uses `identity_from_metas/1` and `peers/2` to
   build the one-shot `welcome` roster.
 
-  Roster keys are the per-connection integer id (minted by `Server.Hub`) stringified — that integer
-  is the peer id on the wire, so the presentation layer (which formats peer ids with `%d`) is
-  untouched. The owning `user_id` rides in each meta but never reaches a peer.
+  Roster keys are the player's `user_id` (the Presence key), which is also the peer id on the wire —
+  so each player is one roster entry and the client identifies peers by a stable id across reconnects.
   """
 
+  @type id :: String.t()
   @type frame :: {event :: String.t(), payload :: map()}
 
   @doc """
@@ -25,15 +25,13 @@ defmodule Server.PresenceFrames do
   leaves; keys in joins-only are real joins (and may already be `known` if a peer's join raced our
   `welcome` snapshot — then we send only its identity, never a second join).
   """
-  @spec diff_to_frames(integer(), MapSet.t(), map(), map()) :: {[frame()], MapSet.t()}
+  @spec diff_to_frames(id(), MapSet.t(), map(), map()) :: {[frame()], MapSet.t()}
   def diff_to_frames(my_id, known, joins, leaves) do
     updated = MapSet.intersection(MapSet.new(Map.keys(joins)), MapSet.new(Map.keys(leaves)))
 
     {leave_frames, known} =
       keys_minus(leaves, updated)
-      |> Enum.reduce({[], known}, fn key, {frames, known} ->
-        id = String.to_integer(key)
-
+      |> Enum.reduce({[], known}, fn id, {frames, known} ->
         if id != my_id and MapSet.member?(known, id) do
           {[{"leave", %{id: id}} | frames], MapSet.delete(known, id)}
         else
@@ -43,29 +41,25 @@ defmodule Server.PresenceFrames do
 
     {join_frames, known} =
       keys_minus(joins, updated)
-      |> Enum.reduce({[], known}, fn key, {frames, known} ->
-        id = String.to_integer(key)
-
+      |> Enum.reduce({[], known}, fn id, {frames, known} ->
         cond do
           id == my_id ->
             {frames, known}
 
           MapSet.member?(known, id) ->
             # Already announced (welcome/diff race) — only (re)send identity if present.
-            {identity_frames(id, joins[key]) ++ frames, known}
+            {identity_frames(id, joins[id]) ++ frames, known}
 
           true ->
-            {[{"join", %{id: id}} | identity_frames(id, joins[key])] ++ frames,
+            {[{"join", %{id: id}} | identity_frames(id, joins[id])] ++ frames,
              MapSet.put(known, id)}
         end
       end)
 
     {update_frames, known} =
-      Enum.reduce(updated, {[], known}, fn key, {frames, known} ->
-        id = String.to_integer(key)
-
+      Enum.reduce(updated, {[], known}, fn id, {frames, known} ->
         if id != my_id do
-          {identity_frames(id, joins[key]) ++ frames, MapSet.put(known, id)}
+          {identity_frames(id, joins[id]) ++ frames, MapSet.put(known, id)}
         else
           {frames, known}
         end
@@ -78,12 +72,12 @@ defmodule Server.PresenceFrames do
   Shape a `Phoenix.Presence.list/1` result into the `welcome` roster (peers other than `my_id`),
   each `%{id: integer, identity: map}`.
   """
-  @spec peers(map(), integer()) :: [map()]
+  @spec peers(map(), id()) :: [map()]
   def peers(presence_list, my_id) do
     presence_list
-    |> Enum.reject(fn {key, _} -> String.to_integer(key) == my_id end)
+    |> Enum.reject(fn {key, _} -> key == my_id end)
     |> Enum.map(fn {key, %{metas: metas}} ->
-      %{id: String.to_integer(key), identity: identity_from_metas(metas)}
+      %{id: key, identity: identity_from_metas(metas)}
     end)
   end
 

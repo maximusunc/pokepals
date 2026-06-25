@@ -80,7 +80,7 @@ var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sort
 var _day_time := 0.0
 
 # --- Shared presence (Rung 3) -----------------------------------------------------------------
-# Each connected peer's PUPPET pair, keyed by Net peer id: { peer_id: { player, companion } }.
+# Each connected peer's PUPPET pair, keyed by Net peer id (the player's user_id): { peer_id: { player, companion } }.
 # Spawned on peer_joined, freed on peer_left, and driven entirely by transforms arriving over Net.
 # An identity packet that lands before its pair exists is stashed and applied the moment it spawns.
 var _remote_pairs: Dictionary = {}
@@ -857,15 +857,15 @@ func _notification(what: int) -> void:
 ## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery
 ## layer so they depth-sort with us and the trees. They're flagged remote BEFORE entering the tree
 ## (set_remote → no input, no brain, no save). Any identity that beat them here is applied at once.
-func _on_peer_joined(peer_id: int) -> void:
+func _on_peer_joined(peer_id: String) -> void:
 	if _remote_pairs.has(peer_id):
 		return
 	var rp := PLAYER_SCENE.instantiate() as PlayerView
 	rp.set_remote()
-	rp.name = "RemotePlayer_%d" % peer_id
+	rp.name = "RemotePlayer_%s" % peer_id
 	var rc := COMPANION_SCENE.instantiate() as CompanionView
 	rc.set_remote()
-	rc.name = "RemoteCompanion_%d" % peer_id
+	rc.name = "RemoteCompanion_%s" % peer_id
 	rp.set_style(_style)
 	rc.set_style(_style)
 	_scenery.add_child(rp)
@@ -884,7 +884,7 @@ func _on_peer_joined(peer_id: int) -> void:
 
 ## A peer left: free its puppet pair and forget it. Clean despawn so a friend quitting simply
 ## vanishes rather than freezing in place.
-func _on_peer_left(peer_id: int) -> void:
+func _on_peer_left(peer_id: String) -> void:
 	if _remote_pairs.has(peer_id):
 		var pair: Dictionary = _remote_pairs[peer_id]
 		(pair["player"] as Node).queue_free()
@@ -895,7 +895,7 @@ func _on_peer_left(peer_id: int) -> void:
 
 ## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
 ## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
-## reconnect, which hands out fresh peer ids, doesn't leave the old ghosts behind). The lobby gate
+## reconnect doesn't leave the old ghosts behind). The lobby gate
 ## reappears on its own (it also listens for disconnected()); our own player + companion stay put.
 func _on_disconnected() -> void:
 	for peer_id in _remote_pairs.keys():
@@ -908,14 +908,14 @@ func _on_disconnected() -> void:
 
 ## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they
 ## spawn (the packet can race ahead of peer_joined). Untrusted input — validated by the appliers.
-func _on_identity_received(peer_id: int, payload: Dictionary) -> void:
+func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
 	if _remote_pairs.has(peer_id):
 		_apply_remote_identity(peer_id, payload)
 	else:
 		_pending_identity[peer_id] = payload
 
 
-func _apply_remote_identity(peer_id: int, payload: Dictionary) -> void:
+func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
 	var pair: Dictionary = _remote_pairs[peer_id]
 	var appearance: Variant = payload.get("appearance", {})
 	if appearance is Dictionary:
@@ -928,7 +928,7 @@ func _apply_remote_identity(peer_id: int, payload: Dictionary) -> void:
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped
 ## to the world bounds, non-Vector2 junk is ignored, and the data can only move THIS peer's puppet —
 ## never our avatar, never the save. The puppets interpolate toward it for smooth motion.
-func _on_state_received(peer_id: int, payload: Dictionary) -> void:
+func _on_state_received(peer_id: String, payload: Dictionary) -> void:
 	if not _remote_pairs.has(peer_id):
 		return
 	var pair: Dictionary = _remote_pairs[peer_id]

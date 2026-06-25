@@ -1,7 +1,7 @@
 # pokepals relay — Rung 4 / MMO foundation (P1)
 
 The **authoritative server** for the shared world. It authenticates each connection by its identity
-token (resolving it to an internal `user_id`), assigns a per-connection id, tracks the roster with
+token (resolving it to an internal `user_id`, which is also the peer id), tracks the roster with
 **Phoenix.Presence**, relays presentation state (avatar + companion transforms and identity) between
 clients, and is the **sole store** of each player's companion + wardrobe (**PostgreSQL** via Ecto),
 keyed by `user_id`. The game is online-only: there is no local game save.
@@ -66,14 +66,13 @@ End-to-end behaviour is verified by running Godot clients against the server (se
 
 ```
 lib/server/
-  application.ex     supervision tree: Repo + PubSub + Presence + Hub + Endpoint
+  application.ex     supervision tree: Repo + PubSub + Presence + Endpoint
   endpoint.ex        Phoenix endpoint: UserSocket at /ws (over Bandit) + /health router
   user_socket.ex     connect/3 — resolves the token → user_id into the socket assigns
   world_channel.ex   the "world" channel: join/welcome/load, identity/state/save, presence diffs
   presence_frames.ex pure presence-diff → wire-frame translation (unit-tested)
   router.ex          Plug router for /health + 404 (the socket handles /ws)
-  presence.ex        the roster, as a Phoenix.Presence (CRDT over PubSub)
-  hub.ex             monotonic id counter (the per-connection / wire peer id)
+  presence.ex        the roster, as a Phoenix.Presence (CRDT over PubSub), keyed by user_id
   accounts.ex        resolve a token → account (the token → user_id indirection)
   account.ex         schema for accounts (user_id PK, token UNIQUE, nullable claim cols)
   companion.ex       schema for companions (companion_id PK, user_id UNIQUE, opaque data jsonb)
@@ -91,14 +90,15 @@ channel process is monitored). `WorldChannel` translates Presence diffs into the
 
 Every frame is a JSON array `[join_ref, ref, topic, event, payload]` on the `"world"` topic. Auth is
 done once via the `token` connect param (in the socket URL), so there's no `hello` round-trip. The
-server stamps the sender id onto every relayed frame — clients never send their own id.
+server stamps the sender id onto every relayed frame — clients never send their own id. The `id` is
+the player's `user_id` (a UUID string, the Presence roster key) — stable across reconnects.
 
 Presentation (relayed to peers), `event` + `payload`:
 
 - client→server `identity` `{"name":..,"appearance":{..},"companion_look":{..}}` — on join / change
 - client→server `state` `{"p":[x,y],"pf":[x,y],"c":[x,y],"cl":[x,y]}` — ~20 Hz
-- server→client `welcome` `{"id":N,"peers":[{"id":M,"identity":{..}}, ...]}`
-- server→client `join` `{"id":M}` · `identity` `{"id":M,..}` · `state` `{"id":M,..}` · `leave` `{"id":M}`
+- server→client `welcome` `{"id":"<our user_id>","peers":[{"id":"<user_id>","identity":{..}}, ...]}`
+- server→client `join` `{"id":"<user_id>"}` · `identity` `{"id":"<user_id>",..}` · `state` `{"id":"<user_id>",..}` · `leave` `{"id":"<user_id>"}`
 
 Persistence (point-to-point with the server; never relayed — the token is a bearer credential):
 
