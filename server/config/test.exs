@@ -6,4 +6,7 @@ config :server, Server.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
+# No HTTP listener under test — `Phoenix.ChannelTest` drives the socket/channel in-process.
+config :server, Server.Endpoint, server: false
+
 config :logger, level: :warning

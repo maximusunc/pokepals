@@ -5,7 +5,7 @@ defmodule Server.Release do
   Run from the release root / inside the container:
 
       bin/server eval "Server.Release.migrate()"
-      bin/server eval "Server.Release.rollback(Server.Repo, 20260624000000)"
+      bin/server eval "Server.Release.rollback(Server.Repo, 20260625000000)"
   """
   @app :server
 

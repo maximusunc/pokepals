@@ -1,18 +1,13 @@
 defmodule Server.Router do
   @moduledoc """
-  The whole HTTP surface: a health check and the WebSocket upgrade. Every client connects to
-  `GET /ws`, which hands the socket to `Server.PresenceRelay` (one handler process per client).
+  The non-socket HTTP surface, plugged as the endpoint's fallback after the `/ws` socket: just a
+  liveness check and a 404. The WebSocket upgrade is handled by `Server.UserSocket` (mounted at
+  `/ws` by `Server.Endpoint`), not here.
   """
   use Plug.Router
 
   plug :match
   plug :dispatch
-
-  get "/ws" do
-    conn
-    |> WebSockAdapter.upgrade(Server.PresenceRelay, [], timeout: 60_000)
-    |> halt()
-  end
 
   get "/health" do
     send_resp(conn, 200, "ok")

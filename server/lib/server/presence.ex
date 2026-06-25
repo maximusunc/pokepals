@@ -5,9 +5,9 @@ defmodule Server.Presence do
   the metadata. It auto-detects disconnects (it monitors the tracked process, so even a hard crash
   produces a clean leave), dedupes, and is multi-node ready.
 
-  We use Presence WITHOUT a Phoenix.Endpoint — it only needs a `pubsub_server`. `Server.PresenceRelay`
-  translates Presence's join/leave/update diffs into the client's existing wire frames, so the Godot
-  client never learns the roster changed implementation.
+  `Server.WorldChannel` translates Presence's join/leave/update diffs into the client's wire frames
+  (via `Server.PresenceFrames`) in `handle_out("presence_diff", ...)`, so the client never learns the
+  roster's implementation.
   """
   use Phoenix.Presence,
     otp_app: :server,
