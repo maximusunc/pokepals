@@ -27,8 +27,9 @@ Requires [Elixir](https://elixir-lang.org/install.html) (1.15+), Erlang/OTP, and
 ```sh
 cd server
 mix deps.get
-mix ecto.setup           # create + migrate the dev DB (once)
-mix run --no-halt        # start the server
+mix ecto.setup                    # create + migrate the dev DB (once)
+mix run priv/repo/seeds.exs       # seed the worlds (the client can't enter a world that isn't in the catalog)
+mix run --no-halt                 # start the server
 # …or, for an interactive shell you can poke at:
 iex -S mix
 ```
@@ -57,29 +58,32 @@ mix test
 ```
 
 Covers token→user_id resolution (`Accounts`), the `Saves` store/load round-trip keyed by user_id,
-the Presence diff→frame adapter (`PresenceFrames`), the world process (`World`: store/snapshot/forget
-+ fan-out), and the full channel flow (`WorldChannel` via `Phoenix.ChannelTest`: connect auth,
-welcome+load on join, save persistence, presence join/leave/identity, state relay + snapshot replay),
-plus the economy: `Economy` (grant/sink, the ledger==balance invariant, equip), `Trade` (atomic swap
-with one correlation_id, roll-back on insufficient funds, re-verify prevents a double-spend), and
-`TradeSession` (offer/confirm → execute); plus the UGC sandbox (`World.Sandbox`: KV round-trips,
-optimistic-version conflict, atomic increment, schema validation, per-value/byte/key quotas, list
-pagination, and the §10 cross-world isolation invariant). The `test` alias creates + migrates a
-`pokepals_test` DB first.
+the Presence diff→frame adapter (`PresenceFrames`), the world catalog (`Worlds`: upsert/get/list +
+display-type filter), the per-world process (`World`: store/snapshot/forget/fan-out, one per world_id,
+isolated), and the full channel flow (`WorldChannel` via `Phoenix.ChannelTest`: per-world join with
+spec delivery + `known_version` skip, welcome+load, save persistence, and per-world scoping of
+presence and state — same world sees each other, different worlds don't); plus the economy: `Economy`
+(grant/sink, the ledger==balance invariant, equip), `Trade` (atomic swap with one correlation_id,
+roll-back on insufficient funds, re-verify prevents a double-spend), and `TradeSession`
+(offer/confirm → execute); plus the UGC sandbox (`World.Sandbox`: KV round-trips, optimistic-version
+conflict, atomic increment, schema validation, per-value/byte/key quotas, list pagination, and the
+§10 cross-world isolation invariant). The `test` alias creates + migrates a `pokepals_test` DB first.
 End-to-end behaviour is verified by running Godot clients against the server (see the repo `CLAUDE.md`).
 
 ## Shape
 
 ```
 lib/server/
-  application.ex     supervision tree: Repo + PubSub + Presence + World + Endpoint
-  endpoint.ex        Phoenix endpoint: UserSocket at /ws (over Bandit) + /health router
-  user_socket.ex     connect/3 — resolves the token → user_id into the socket assigns
-  world_channel.ex   the "world" channel: join/welcome/load, identity/state/save, presence diffs
-  world.ex           the shared world as a process: owns live transforms, fans them out + snapshot
+  application.ex     supervision tree: Repo + PubSub + Presence + World{Registry,Supervisor} + Endpoint
+  endpoint.ex        Phoenix endpoint: UserSocket at /ws (over Bandit) + /health + /worlds router
+  user_socket.ex     connect/3 — resolves the token → user_id; channel "world:*" (one per world)
+  world_channel.ex   per-world channel "world:"<>id: spec delivery, welcome/load, identity/state/save
+  world.ex           ONE live process per world_id (registry-addressed): live transforms + snapshot
+  worlds.ex          the world CATALOG boundary: get/list/upsert world definitions (specs)
+  world_definition.ex schema for world_definitions (world_id PK, slug, display_types, version, spec)
   presence_frames.ex pure presence-diff → wire-frame translation (unit-tested)
-  router.ex          Plug router for /health + 404 (the socket handles /ws)
-  presence.ex        the roster, as a Phoenix.Presence (CRDT over PubSub), keyed by user_id
+  router.ex          Plug router: /health + the world catalog (GET /worlds, /worlds/:id) + 404
+  presence.ex        the roster, as a Phoenix.Presence (CRDT over PubSub), per-world topic, keyed by user_id
   accounts.ex        resolve a token → account (the token → user_id indirection)
   account.ex         schema for accounts (user_id PK, token UNIQUE, nullable claim cols)
   companion.ex       schema for companions (companion_id PK, user_id UNIQUE, opaque data jsonb)
@@ -94,25 +98,39 @@ lib/server/
   world/api.ex       the creator-facing World.{Player,Global,Entity,List,Leaderboard} facade (§7)
   world_data.ex / world_quota.ex / world_schema.ex / world_list_item.ex   the sandbox schemas
   repo.ex            the Ecto/Postgres repo;  release.ex  runs migrations in the packaged release
-priv/repo/migrations accounts + companions + player_appearances + economy + UGC sandbox tables
-priv/repo/seeds.exs  item definitions + a demo account (mix run priv/repo/seeds.exs)
+priv/repo/migrations accounts + companions + player_appearances + economy + UGC sandbox + world_definitions
+priv/repo/seeds.exs  item definitions + a demo account + the seed worlds (mix run priv/repo/seeds.exs)
+priv/world_seeds/    canonical content for the seed worlds (vale.json, riverbank.json)
 ```
+
+## Multi-world (catalog + per-world routing)
+
+A "world" is three separate things: its **definition** (authored spec — `Server.Worlds` /
+`world_definitions`), its **runtime data** (the P4 `world_data` sandbox), and its **live session**
+(`Server.World`). Multi-world is built on all three:
+
+- **Catalog.** World specs are server-hosted and versioned. The spec is display-AGNOSTIC —
+  `%{"core" => <semantic logic>, "profiles" => %{"2d" => <presentation>}}` — so a world can gain a
+  3D/VR profile later without re-authoring its core. Clients fetch a world's spec on join and cache
+  it by `version` (sending `known_version` so an unchanged spec isn't re-sent), which is what lets the
+  catalog grow to (eventually millions of) worlds without baking them into the client. The seed worlds
+  (Vale, Riverbank) now live in the catalog; the Godot client ships their JSON only as an offline
+  first-paint fallback.
+- **Routing.** Each world is its own channel topic `"world:" <> world_id` with its own
+  `Server.World` process (one per `world_id`, started on demand under a `DynamicSupervisor` + a
+  `Registry`). Presence (the roster) and the live-transform fan-out (`world:<id>:state`) are scoped
+  per world — players in different worlds don't see each other. Live state is transient/in-memory: a
+  world crash restarts it empty and its players re-sync next tick.
+
+**Deferred (scale) seams — flagged in code, NOT built:** the `Registry` + `DynamicSupervisor` are
+NODE-LOCAL — going multi-node needs a cluster-aware registry (**Horde**) + **libcluster** so each
+`world_id` owns one process cluster-wide. Spec docs/assets are Postgres jsonb now; an **object store +
+CDN** (and a client disk cache) is the seam for large specs/assets. Plus the earlier Oban / Redis
+seams. None are built until a real need arises.
 
 The roster lives in `Presence`, so a peer's leave is detected even on a hard crash/disconnect (the
 channel process is monitored). `WorldChannel` translates Presence diffs into the client's frames in
 `handle_out("presence_diff", ...)`.
-
-Live transforms flow through **`Server.World`**, a single supervised process that owns "where is
-everyone right now": a channel `cast`s each `state` frame to it; it stores the latest and fans it out
-over PubSub (`world:state`) to every channel, which pushes to its client (dropping its own echo). On
-join, the world's `snapshot` is replayed to the newcomer so existing peers appear at their real
-positions immediately. The state is transient and in-memory — if the world process crashes, the
-supervisor restarts it empty and clients re-sync on the next tick (no player is harmed).
-
-**Deferred (scale) seams — intentionally NOT built yet, flagged in `Server.World`:** write-behind
-persistence of transient state (Oban), one world process per `world_id` (DynamicSupervisor +
-registry; cluster-aware Horde beyond that), and any Redis. These land when a real need arises, not
-before.
 
 ## Economy (the §0 wall)
 
@@ -153,19 +171,26 @@ when richer schemas are required. Neither is built now; both are flagged at thei
 
 ## Wire protocol (Phoenix Channels, v2 serializer)
 
-Every frame is a JSON array `[join_ref, ref, topic, event, payload]` on the `"world"` topic. Auth is
-done once via the `token` connect param (in the socket URL), so there's no `hello` round-trip. The
-server stamps the sender id onto every relayed frame — clients never send their own id. The `id` is
-the player's `user_id` (a UUID string, the Presence roster key) — stable across reconnects.
+Every frame is a JSON array `[join_ref, ref, topic, event, payload]`. There's ONE socket per client
+(auth once via the `token` connect param — no `hello` round-trip), but the player joins ONE WORLD
+channel at a time: `topic = "world:" <> world_id`. Travelling = leave the old world channel, join the
+new one. The server stamps the sender id (the player's `user_id`, a UUID string, stable across
+reconnects) onto every relayed frame — clients never send their own id.
 
-Presentation (relayed to peers), `event` + `payload`:
+World spec (server → us, on join):
+
+- client→server (in the `phx_join` payload) `{"known_version": <int>}` — the spec version we already cached
+- server→client `world_spec` `{"world_id":..,"slug":..,"name":..,"display_types":[..],"version":N,"spec":{"core":{..},"profiles":{"2d":{..}}}}`
+- server→client `world_spec_unchanged` `{"world_id":..,"version":N}` — our cache is current, spec omitted
+
+Presentation (relayed to peers IN THE SAME WORLD), `event` + `payload`:
 
 - client→server `identity` `{"name":..,"appearance":{..},"companion_look":{..}}` — on join / change
 - client→server `state` `{"p":[x,y],"pf":[x,y],"c":[x,y],"cl":[x,y]}` — ~20 Hz
 - server→client `welcome` `{"id":"<our user_id>","peers":[{"id":"<user_id>","identity":{..}}, ...]}`
 - server→client `join` `{"id":"<user_id>"}` · `identity` `{"id":"<user_id>",..}` · `state` `{"id":"<user_id>",..}` · `leave` `{"id":"<user_id>"}`
 
-Persistence (point-to-point with the server; never relayed — the token is a bearer credential):
+Persistence (point-to-point with the server; per-USER, same in every world; token is a bearer credential):
 
 - server→client `load` `{"companion":{..}|null,"appearance":{..}|null}` — the canonical save on join (nulls = new player)
 - client→server `save` `{"companion":{..},"appearance":{..}}` — periodic + on exit (the canonical write)

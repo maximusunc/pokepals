@@ -1,9 +1,9 @@
 defmodule Server.Application do
   @moduledoc """
   Boots the authoritative server: the Postgres Repo, the PubSub hub for fan-out, the Presence roster,
-  the shared World process (live transforms), and the Phoenix Endpoint (a `UserSocket` over WebSocket
-  at `/ws`, plus the `/health` check). The transport is Phoenix Channels; Bandit serves HTTP under the
-  endpoint.
+  the per-world process infrastructure (a Registry + DynamicSupervisor that host one `Server.World`
+  per world_id), and the Phoenix Endpoint (a `UserSocket` over WebSocket at `/ws`, plus `/health` and
+  the world-catalog routes). The transport is Phoenix Channels; Bandit serves HTTP under the endpoint.
   """
   use Application
   require Logger
@@ -19,9 +19,10 @@ defmodule Server.Application do
       {Phoenix.PubSub, name: Server.PubSub},
       # The roster, as a CRDT (must start after PubSub, which it broadcasts diffs over).
       Server.Presence,
-      # The shared world as a process: owns live transforms, fans them out over PubSub. One global
-      # instance for now (becomes per-world later — see Server.World's deferred seams).
-      Server.World,
+      # Multi-world: one Server.World process per world_id, started on demand under this
+      # DynamicSupervisor and addressed through this (node-local) Registry.
+      {Registry, keys: :unique, name: Server.WorldRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Server.WorldSupervisor},
       # The HTTP/WebSocket listener (Phoenix Channels over Bandit). Bind/port come from config.
       Server.Endpoint
     ]

@@ -8,7 +8,8 @@ defmodule Server.UserSocket do
   """
   use Phoenix.Socket
 
-  channel "world", Server.WorldChannel
+  # One channel topic per world: "world:" <> world_id (multi-world routing).
+  channel "world:*", Server.WorldChannel
 
   @impl true
   def connect(%{"token" => token}, socket, _connect_info) when is_binary(token) and token != "" do

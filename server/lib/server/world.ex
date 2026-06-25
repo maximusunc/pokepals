@@ -1,77 +1,78 @@
 defmodule Server.World do
   @moduledoc """
-  The shared world as a SUPERVISED PROCESS — the live, authoritative owner of every connected
-  player's latest transform (their + their companion's position/facing). This is the seam the rest of
-  Rung 4+ builds on: instead of channels blindly relaying transforms to each other, one process holds
-  "where is everyone right now" in memory, so a late-joiner can be shown everyone's current positions
-  the instant they arrive (the `snapshot/1`), and so future server-side world logic has a single
-  place to live.
+  A shared world as a SUPERVISED PROCESS — now ONE process per `world_id` (multi-world). Each holds
+  the live transforms of the players currently in *that* world and fans updates out on that world's
+  own PubSub topic, so presence and motion are scoped per world: players in the Vale never see players
+  in the Riverbank.
 
-  Flow (the ~20 Hz hot path):
+  Processes are started on demand (`ensure_started/1`) under a `DynamicSupervisor` and addressed
+  through a `Registry` keyed by `world_id`. State is transient/in-memory — a crash restarts the world
+  empty and its players re-sync on the next ~20 Hz tick (no player is harmed).
 
-      PlayerChannel handle_in("state") --cast--> World (stores latest in memory)
-      World --PubSub.broadcast on state_topic--> every channel --push("state")--> clients
+  Flow (per world):
 
-  State is intentionally TRANSIENT and in-memory. If this process crashes, the supervisor restarts it
-  empty and players re-sync on their next ~20 Hz tick — acceptable by design, because no player is
-  harmed (positions aren't money or items). There is exactly ONE world right now (a single named
-  instance); it is not yet per-world or distributed.
+      PlayerChannel handle_in("state") --cast--> World(world_id)  (stores latest)
+      World(world_id) --PubSub.broadcast on state_topic(world_id)--> that world's channels --push-->
 
-  ── DEFERRED SEAMS (do NOT build until the need is real) ──────────────────────────────────────────
-    * WRITE-BEHIND PERSISTENCE: the spec flushes transient state to Postgres every ~30 s (via Oban).
-      There is nothing here worth persisting yet — the canonical save (companion + appearance) already
-      goes through `Server.Saves` on its own frame, and positions are ephemeral. When some transient
-      state genuinely must survive a restart, add the periodic flush + Oban THEN. (No Oban dep now.)
-    * MULTI-WORLD: today this is one global named process. Becoming one process per `world_id` (a
-      `DynamicSupervisor` + a registry) is a later step — and a cluster-aware registry (Horde) is a
-      SCALE concern beyond that. Keep the single instance until a second world actually exists.
-    * CROSS-NODE: Phoenix.PubSub already spans a cluster; nothing Redis is needed here, and won't be
-      unless/until the nodes can't cluster over distributed Erlang. Not now.
-  ──────────────────────────────────────────────────────────────────────────────────────────────────
+  ── DEFERRED SEAMS (scale — NOT built; flagged):
+    * WRITE-BEHIND PERSISTENCE of transient state (Oban) — nothing here is worth persisting yet.
+    * CLUSTER-AWARE registry: today `Registry` + `DynamicSupervisor` are NODE-LOCAL, so a given
+      `world_id` resolves to a process on THIS node only. Going multi-node means a cluster-aware
+      registry (Horde) + libcluster so each `world_id` has one owner cluster-wide — that's the scale
+      step, intentionally deferred. PubSub already spans a cluster if one exists.
+  ──
   """
   use GenServer
 
-  @state_topic "world:state"
+  @registry Server.WorldRegistry
+  @supervisor Server.WorldSupervisor
 
   # --- client API ---
 
-  def start_link(opts) do
-    name = Keyword.get(opts, :name, __MODULE__)
-    GenServer.start_link(__MODULE__, :ok, name: name)
+  def start_link(world_id) when is_binary(world_id) do
+    GenServer.start_link(__MODULE__, world_id, name: via(world_id))
   end
 
-  @doc "The PubSub topic the world broadcasts live transforms on. Channels subscribe to it."
-  @spec state_topic() :: String.t()
-  def state_topic, do: @state_topic
-
-  @doc "Record a player's latest transform and fan it out to the world. Fire-and-forget."
-  @spec update_transform(GenServer.server(), String.t(), map()) :: :ok
-  def update_transform(world \\ __MODULE__, user_id, transform) do
-    GenServer.cast(world, {:update, user_id, transform})
+  @doc "Start the process for `world_id` if it isn't running yet; returns `world_id`."
+  @spec ensure_started(String.t()) :: String.t()
+  def ensure_started(world_id) when is_binary(world_id) do
+    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, world_id}) do
+      {:ok, _pid} -> world_id
+      {:error, {:already_started, _pid}} -> world_id
+    end
   end
 
-  @doc "Drop a player's transform when they leave, so it isn't shown to future joiners."
-  @spec forget(GenServer.server(), String.t()) :: :ok
-  def forget(world \\ __MODULE__, user_id) do
-    GenServer.cast(world, {:forget, user_id})
+  @doc "The PubSub topic this world broadcasts live transforms on."
+  @spec state_topic(String.t()) :: String.t()
+  def state_topic(world_id), do: "world:#{world_id}:state"
+
+  @doc "Record a player's latest transform in `world_id` and fan it out. Fire-and-forget."
+  @spec update_transform(String.t(), String.t(), map()) :: :ok
+  def update_transform(world_id, user_id, transform) do
+    GenServer.cast(via(world_id), {:update, user_id, transform})
   end
 
-  @doc "Everyone's latest transform right now, as `%{user_id => transform}`. For late-joiner sync."
-  @spec snapshot(GenServer.server()) :: %{optional(String.t()) => map()}
-  def snapshot(world \\ __MODULE__) do
-    GenServer.call(world, :snapshot)
+  @doc "Drop a player's transform from `world_id` when they leave."
+  @spec forget(String.t(), String.t()) :: :ok
+  def forget(world_id, user_id) do
+    GenServer.cast(via(world_id), {:forget, user_id})
+  end
+
+  @doc "Everyone's latest transform in `world_id` right now (`%{user_id => transform}`)."
+  @spec snapshot(String.t()) :: %{optional(String.t()) => map()}
+  def snapshot(world_id) do
+    GenServer.call(via(world_id), :snapshot)
   end
 
   # --- server callbacks ---
 
   @impl true
-  def init(:ok), do: {:ok, %{transforms: %{}}}
+  def init(world_id), do: {:ok, %{world_id: world_id, transforms: %{}}}
 
   @impl true
   def handle_cast({:update, user_id, transform}, state) do
     state = put_in(state.transforms[user_id], transform)
-    # Broadcast to all subscribed channels (including the sender's — its channel drops its own echo).
-    Phoenix.PubSub.broadcast(Server.PubSub, @state_topic, {:world_state, user_id, transform})
+    Phoenix.PubSub.broadcast(Server.PubSub, state_topic(state.world_id), {:world_state, user_id, transform})
     {:noreply, state}
   end
 
@@ -80,7 +81,9 @@ defmodule Server.World do
   end
 
   @impl true
-  def handle_call(:snapshot, _from, state) do
-    {:reply, state.transforms, state}
-  end
+  def handle_call(:snapshot, _from, state), do: {:reply, state.transforms, state}
+
+  # --- internals ---
+
+  defp via(world_id), do: {:via, Registry, {@registry, world_id}}
 end

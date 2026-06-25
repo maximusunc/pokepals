@@ -1,39 +1,57 @@
 defmodule Server.WorldTest do
   @moduledoc """
-  Unit tests for the world process: it stores each player's latest transform, fans updates out over
-  PubSub, replays a snapshot, and forgets a player on leave. Each test starts its own isolated World
-  instance (the app already runs the global `Server.World`, so we name ours uniquely) and asserts
-  against the shared `world:state` topic.
+  The per-world live process: it stores each player's latest transform, fans updates out on its OWN
+  PubSub topic, and is isolated from other worlds. Each test uses a unique world_id (a fresh process
+  under the app's registry/supervisor), so no DB is involved.
   """
-  use ExUnit.Case, async: false
+  use ExUnit.Case, async: true
   alias Server.World
 
-  setup do
-    name = :"world_test_#{System.unique_integer([:positive])}"
-    world = start_supervised!({World, name: name})
-    %{world: world}
+  defp wid, do: "world-test-#{System.unique_integer([:positive])}"
+
+  test "ensure_started is idempotent" do
+    w = wid()
+    assert World.ensure_started(w) == w
+    assert World.ensure_started(w) == w
   end
 
-  test "update_transform stores the latest, snapshot returns it", %{world: world} do
-    World.update_transform(world, "u1", %{"p" => [1, 2]})
-    World.update_transform(world, "u2", %{"p" => [3, 4]})
-    # Newest wins for a given player.
-    World.update_transform(world, "u1", %{"p" => [5, 6]})
+  test "stores the latest transform per player and snapshots them" do
+    w = wid()
+    World.ensure_started(w)
+    World.update_transform(w, "u1", %{"p" => [1, 2]})
+    World.update_transform(w, "u2", %{"p" => [3, 4]})
+    World.update_transform(w, "u1", %{"p" => [5, 6]})
 
-    assert World.snapshot(world) == %{"u1" => %{"p" => [5, 6]}, "u2" => %{"p" => [3, 4]}}
+    assert World.snapshot(w) == %{"u1" => %{"p" => [5, 6]}, "u2" => %{"p" => [3, 4]}}
   end
 
-  test "forget drops a player's transform", %{world: world} do
-    World.update_transform(world, "u1", %{"p" => [1, 2]})
-    World.forget(world, "u1")
+  test "forget drops a player's transform" do
+    w = wid()
+    World.ensure_started(w)
+    World.update_transform(w, "u1", %{"p" => [1, 2]})
+    World.forget(w, "u1")
 
-    assert World.snapshot(world) == %{}
+    assert World.snapshot(w) == %{}
   end
 
-  test "an update is broadcast on the state topic", %{world: world} do
-    Phoenix.PubSub.subscribe(Server.PubSub, World.state_topic())
+  test "worlds are isolated: one world's transforms never appear in another" do
+    a = wid()
+    b = wid()
+    World.ensure_started(a)
+    World.ensure_started(b)
+    World.update_transform(a, "ua", %{"p" => [1, 1]})
+    World.update_transform(b, "ub", %{"p" => [2, 2]})
 
-    World.update_transform(world, "u9", %{"p" => [7, 8]})
+    assert World.snapshot(a) == %{"ua" => %{"p" => [1, 1]}}
+    assert World.snapshot(b) == %{"ub" => %{"p" => [2, 2]}}
+  end
+
+  test "an update broadcasts on that world's own state topic" do
+    w = wid()
+    World.ensure_started(w)
+    Phoenix.PubSub.subscribe(Server.PubSub, World.state_topic(w))
+
+    World.update_transform(w, "u9", %{"p" => [7, 8]})
 
     assert_receive {:world_state, "u9", %{"p" => [7, 8]}}
   end

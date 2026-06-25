@@ -1,0 +1,83 @@
+{
+	"_comment": "A larger hand-placed cozy world: a central clearing that opens onto a berry grove to the north, a flowered meadow and stone basin to the southwest, a lantern-lit rest spot to the east, and a crystal hollow with a second pond to the northeast. Coordinates are world-space pixels. Colors are [r,g,b] 0..1. world_art draws it; world_controller uses 'interactables' for proximity. Each interactable's 'type' picks how it's drawn (see world_art). Edit freely to reshape the place.",
+	"world_id": "vale",
+	"_regions_comment": "Named AREAS for new-area discovery (a bond source). The companion's bond deepens the first time it reaches each region (novelty-gated, so re-entering pays nothing). An area's id is world_id:region_id; a position in no region is just the world_id (the open 'wilds'). Because ids are world-namespaced and the companion remembers across sessions/worlds, this scales from sub-regions of one big world to entirely separate worlds. Rectangles in world space; first match wins; gaps fall through to the world default area.",
+	"regions": [
+		{ "id": "clearing", "min": [0, 100], "max": [760, 640] },
+		{ "id": "berry_grove", "min": [-120, -560], "max": [760, 80], "tint": [0.86, 0.46, 0.40] },
+		{ "id": "meadow", "min": [-700, 80], "max": [0, 800], "tint": [0.78, 0.86, 0.46] },
+		{ "id": "east_glade", "min": [760, -120], "max": [1000, 400], "tint": [0.95, 0.74, 0.44] },
+		{ "id": "crystal_hollow", "min": [1000, 160], "max": [1520, 640], "tint": [0.46, 0.66, 0.95] }
+	],
+	"bounds": { "min": [-700, -560], "max": [1520, 1120] },
+	"_border_comment": "A procedural, jittered treeline just inside the bounds so the world feels enclosed rather than ending at the void. Presentation-only (world_art builds it); seeded, so it's identical every run.",
+	"border": { "ring": true, "spacing": 132, "inset": 18, "jitter": 34, "rows": 2, "row_gap": 62 },
+	"_collision_comment": "Barriers. tree_radius/great_tree_radius are the blocking circles for trees and landmark great-trees; pond_blocks makes water solid; body_radius is how big the player/companion are for collision; margin stops them a touch short of things. Tall props (bench, signpost, lantern, crystal, log, berry_bush) block by default — any interactable can override with its own \"solid\": true/false and \"collision_radius\".",
+	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
+	"_landmarks_comment": "Oversized, beckoning features (a great tree) you can spot from afar — anchors that pull you to explore. Presentation-only; drawn by world_art._draw_landmark.",
+	"landmarks": [
+		{ "type": "great_tree", "position": [300, -340] },
+		{ "type": "great_tree", "position": [-520, 420] }
+	],
+	"ground_color": [0.43, 0.58, 0.36],
+	"_atmosphere_comment": "Presentation-only mood knobs — none of this touches game logic. Tune freely and 'go play it'. day_tint is a global warm color-wash (CanvasModulate); vignette darkens the screen edges; wind drives the gentle sway of flowers/canopies/grass; ground_noise mottles the flat ground; pollen is the count of drifting motes that follow the camera; glow.pulse_speed breathes the lantern/crystal light.",
+	"atmosphere": {
+		"day_tint": [1.04, 0.99, 0.90],
+		"vignette": { "strength": 0.34, "color": [0.06, 0.05, 0.10] },
+		"wind": { "strength": 2.6, "speed": 1.15 },
+		"ground_noise": { "contrast": 0.12, "tint": [0.30, 0.42, 0.26] },
+		"pollen": { "amount": 34, "color": [1.0, 0.96, 0.74] },
+		"glow": { "pulse_speed": 1.4 }
+	},
+	"player_spawn": [320, 220],
+	"companion_spawn": [260, 250],
+	"pond": { "center": [640, 470], "radius": 120, "color": [0.34, 0.52, 0.62] },
+	"ponds": [
+		{ "center": [1180, 240], "radius": 96, "color": [0.32, 0.50, 0.60] },
+		{ "center": [-420, 540], "radius": 70, "color": [0.36, 0.54, 0.62] }
+	],
+	"paths": [
+		{ "from": [320, 220], "to": [640, 360], "color": [0.62, 0.56, 0.42] },
+		{ "from": [640, 360], "to": [180, 480], "color": [0.62, 0.56, 0.42] },
+		{ "from": [320, 220], "to": [140, -100], "color": [0.62, 0.56, 0.42] },
+		{ "from": [640, 360], "to": [900, 160], "color": [0.62, 0.56, 0.42] },
+		{ "from": [900, 160], "to": [1160, 320], "color": [0.62, 0.56, 0.42] },
+		{ "from": [180, 480], "to": [-360, 500], "color": [0.62, 0.56, 0.42] },
+		{ "from": [140, -100], "to": [520, -160], "color": [0.62, 0.56, 0.42] }
+	],
+	"trees": [
+		[40, 60], [560, 90], [900, 180], [120, 520], [840, 540], [760, 20], [-60, 300],
+		[-260, -80], [-480, 120], [-540, 360], [-300, 460], [-180, -260], [120, -360],
+		[420, -340], [680, -260], [340, -60], [1000, -80], [1240, 40], [1360, 360],
+		[1300, 620], [1040, 700], [700, 720], [380, 760], [60, 760], [-200, 680],
+		[-560, -200], [1180, -200], [1420, 760]
+	],
+	"flowers": [
+		[280, 300, 0.92, 0.62, 0.30], [360, 180, 0.86, 0.40, 0.55], [500, 420, 0.95, 0.85, 0.40],
+		[210, 410, 0.70, 0.55, 0.85], [700, 300, 0.92, 0.62, 0.30], [430, 520, 0.86, 0.40, 0.55],
+		[150, 180, 0.95, 0.85, 0.40], [600, 200, 0.70, 0.55, 0.85],
+		[-360, 360, 0.92, 0.62, 0.30], [-300, 300, 0.86, 0.40, 0.55], [-420, 320, 0.95, 0.85, 0.40],
+		[-260, 380, 0.70, 0.55, 0.85], [-340, 260, 0.92, 0.62, 0.30], [-200, 340, 0.95, 0.85, 0.40],
+		[60, -160, 0.86, 0.40, 0.55], [180, -200, 0.70, 0.55, 0.85], [260, -120, 0.95, 0.85, 0.40],
+		[420, -120, 0.92, 0.62, 0.30], [980, 360, 0.86, 0.40, 0.55], [1040, 440, 0.95, 0.85, 0.40],
+		[1100, 380, 0.70, 0.55, 0.85], [880, 300, 0.92, 0.62, 0.30],
+		[120, 620, 0.86, 0.40, 0.55], [240, 660, 0.95, 0.85, 0.40], [360, 600, 0.70, 0.55, 0.85]
+	],
+	"_interactables_comment": "Each has a stable 'id' — the companion keys its habituation/memory off it, so editing a prop's position or label keeps its identity (and the bond it earned). Keep ids unique and stable across edits. 'tags' are NEUTRAL descriptors of the thing; the companion's appraisal (see companion.json 'appraisal') decides how it feels about them — author tags freely without thinking about psychology.",
+	"interactables": [
+		{ "id": "chime_stone", "type": "chime_stone", "position": [470, 300], "color": [0.66, 0.70, 0.78], "label": "a humming stone", "tags": ["sound", "stone"] },
+		{ "id": "lantern", "type": "lantern", "position": [780, 380], "color": [0.95, 0.78, 0.42], "label": "an old lantern", "tags": ["light", "made"] },
+		{ "id": "wildflowers", "type": "wildflowers", "position": [220, 470], "color": [0.88, 0.46, 0.58], "label": "a patch of wildflowers", "tags": ["flower", "fragrant"] },
+		{ "id": "mushrooms", "type": "mushrooms", "position": [-180, 120], "color": [0.86, 0.34, 0.32], "label": "a ring of red mushrooms", "tags": ["fungus", "odd"] },
+		{ "id": "berry_bush", "type": "berry_bush", "position": [120, -120], "color": [0.30, 0.46, 0.30], "label": "a bush heavy with berries", "tags": ["food", "plant"] },
+		{ "id": "bench", "type": "bench", "position": [900, 120], "color": [0.55, 0.40, 0.28], "label": "a weathered bench", "tags": ["made", "rest"] },
+		{ "id": "signpost", "type": "signpost", "position": [40, 360], "color": [0.58, 0.43, 0.30], "label": "a leaning signpost", "tags": ["made"] },
+		{ "id": "crystal", "type": "crystal", "position": [1180, 420], "color": [0.62, 0.78, 0.86], "label": "a glimmering crystal", "tags": ["shiny", "light"] },
+		{ "id": "log", "type": "log", "position": [520, -120], "color": [0.46, 0.34, 0.26], "label": "a mossy fallen log", "tags": ["wood", "rest"] },
+		{ "id": "basin", "type": "basin", "position": [-360, 480], "color": [0.70, 0.74, 0.80], "label": "a quiet stone basin", "tags": ["water", "still"] }
+	],
+	"_portals_comment": "Doorways to other worlds — walk through one to travel. world_controller renders them (via world_art's 'portal' type) and watches for the player stepping into them; WorldRouter performs the scene swap and the arriving world sets you down beside its matching 'target_portal'. This one opens onto the Riverbank.",
+	"portals": [
+		{ "id": "vale_portal", "type": "portal", "position": [560, 250], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "22222222-2222-2222-2222-222222222222", "target_portal": "riverbank_entry" }
+	]
+}
