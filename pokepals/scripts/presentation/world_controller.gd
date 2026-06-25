@@ -22,6 +22,18 @@ const SAVE_INTERVAL := 15.0  # how often to push the companion/wardrobe to the s
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
+# The world SPEC is server-hosted now: Net fetches it on join and caches it by version. These bundled
+# JSONs are only an offline / first-paint FALLBACK for the seed worlds (keyed by their platform
+# world_id) — worlds the client doesn't bundle (UGC worlds) come purely from the server's cache.
+# DEFERRED SEAM: rendering a never-bundled world whose spec is still in flight (async build) is the
+# next client step; for now the two seed worlds always have a local fallback to build from instantly.
+# Keys are the seed worlds' platform ids (literals here so this stays a compile-time constant; they
+# match WorldRouter.VALE_ID / RIVERBANK_ID and the server's world_definitions seeds).
+const SEED_FALLBACK := {
+	"11111111-1111-1111-1111-111111111111": "res://data/world.json",
+	"22222222-2222-2222-2222-222222222222": "res://data/riverbank.json",
+}
+
 @onready var _world_art: WorldArt = $WorldArt
 @onready var _scenery: Scenery = $Scenery
 @onready var _player: PlayerView = $Scenery/Player
@@ -91,9 +103,11 @@ var _save_accum := 0.0       # accumulates toward the next server SAVE_INTERVAL 
 
 
 func _ready() -> void:
-	# Which world to load is owned by WorldRouter (defaults to the Vale on a fresh boot); the
-	# arrival portal id, if set, says which portal we stepped out of so we can spawn beside it.
-	var data := WorldData.load_json(WorldRouter.current_world)
+	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a
+	# fresh boot). The spec comes from the server (Net's cache); we fall back to the bundled seed JSON
+	# for first paint / offline. The arrival portal id, if set, says which portal we stepped out of.
+	var world_id := WorldRouter.current_world
+	var data := _resolve_spec_core(world_id)
 	var arrival_id := WorldRouter.arrival_portal_id
 
 	# Shared art direction (palette + light): the one place the whole look is tuned.
@@ -772,11 +786,29 @@ func _setup_net() -> void:
 	Net.state_received.connect(_on_state_received)
 	Net.save_loaded.connect(_on_save_loaded)
 	Net.disconnected.connect(_on_disconnected)
+	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
+	# server sends back its canonical spec (cached by Net for next time). Queued until the socket is
+	# open, so this is safe at boot before the player has connected, and on every world hop.
+	Net.enter_world(WorldRouter.current_world)
 	# Hopping between worlds reloads this scene with a fresh placeholder companion; if we're
 	# already connected, re-dress it from the in-session save the server already gave us.
 	if Net.has_session_save():
 		var s := Net.session_save()
 		_apply_server_save(s.get("companion"), s.get("appearance"))
+
+
+## Resolve a world_id to its display-agnostic spec CORE (regions, interactables, portals, spawns…) —
+## the structure world_controller builds from. Prefer the server's cached spec (the canonical,
+## versioned source); fall back to the bundled seed JSON for first paint / offline. An unknown,
+## never-bundled world yields {} until its spec arrives (see SEED_FALLBACK's deferred-seam note).
+func _resolve_spec_core(world_id: String) -> Dictionary:
+	var core := Net.cached_spec_core(world_id)
+	if not core.is_empty():
+		return core
+	var fallback := String(SEED_FALLBACK.get(world_id, ""))
+	if fallback != "":
+		return WorldData.load_json(fallback)
+	return {}
 
 
 ## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —

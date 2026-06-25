@@ -78,6 +78,6 @@
 	],
 	"_portals_comment": "Doorways to other worlds — walk through one to travel. world_controller renders them (via world_art's 'portal' type) and watches for the player stepping into them; WorldRouter performs the scene swap and the arriving world sets you down beside its matching 'target_portal'. This one opens onto the Riverbank.",
 	"portals": [
-		{ "id": "vale_portal", "type": "portal", "position": [560, 250], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "res://data/riverbank.json", "target_portal": "riverbank_entry" }
+		{ "id": "vale_portal", "type": "portal", "position": [560, 250], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "22222222-2222-2222-2222-222222222222", "target_portal": "riverbank_entry" }
 	]
 }
