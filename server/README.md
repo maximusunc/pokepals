@@ -62,7 +62,10 @@ the Presence diff→frame adapter (`PresenceFrames`), the world process (`World`
 welcome+load on join, save persistence, presence join/leave/identity, state relay + snapshot replay),
 plus the economy: `Economy` (grant/sink, the ledger==balance invariant, equip), `Trade` (atomic swap
 with one correlation_id, roll-back on insufficient funds, re-verify prevents a double-spend), and
-`TradeSession` (offer/confirm → execute). The `test` alias creates + migrates a `pokepals_test` DB first.
+`TradeSession` (offer/confirm → execute); plus the UGC sandbox (`World.Sandbox`: KV round-trips,
+optimistic-version conflict, atomic increment, schema validation, per-value/byte/key quotas, list
+pagination, and the §10 cross-world isolation invariant). The `test` alias creates + migrates a
+`pokepals_test` DB first.
 End-to-end behaviour is verified by running Godot clients against the server (see the repo `CLAUDE.md`).
 
 ## Shape
@@ -86,8 +89,12 @@ lib/server/
   trade_session.ex   short-lived coordination GenServer (offer/confirm → Economy.execute_trade)
   item_definition.ex / player_currency.ex / inventory_item.ex / equipped_item.ex /
   wardrobe.ex / companion_inventory.ex / ledger_entry.ex   the typed economy schemas
+  world/context.ex   the runtime-bound world_id handed to creator code (the isolation anchor)
+  world/sandbox.ex   the fenced UGC data-access layer: KV + quota + schema + version + lists
+  world/api.ex       the creator-facing World.{Player,Global,Entity,List,Leaderboard} facade (§7)
+  world_data.ex / world_quota.ex / world_schema.ex / world_list_item.ex   the sandbox schemas
   repo.ex            the Ecto/Postgres repo;  release.ex  runs migrations in the packaged release
-priv/repo/migrations accounts + companions + player_appearances + economy tables
+priv/repo/migrations accounts + companions + player_appearances + economy + UGC sandbox tables
 priv/repo/seeds.exs  item definitions + a demo account (mix run priv/repo/seeds.exs)
 ```
 
@@ -125,6 +132,24 @@ wired to the client yet (no economy UI), and the channel handlers that would dri
 **Deferred (scale/abuse) seams — flagged in `Server.Economy`:** a per-node ETS cache for item
 definitions (Cachex), and rate-limiting trade confirms / mints (Hammer). The anti-dupe guarantee is
 structural and does NOT depend on either; both are added when read volume or an abuse surface is real.
+
+## UGC sandbox (the fence)
+
+Creator-world data lives in a FENCED store, separate from the platform's typed tables. Creator code
+only ever sees `Server.World.{Player,Global,Entity,List,Leaderboard}` (§7), each call taking a
+runtime-bound `Server.World.Context` whose `world_id` it can't supply or forge — so a cross-world
+query is unconstructable (§10). `Server.World.Sandbox` injects that `world_id` and, in the same
+transaction as each write, enforces: per-value (256 KiB) + per-world byte + key-count **quotas**
+(under a locked `world_quota` row), optional **schema validation** (a small JSON-Schema subset when a
+`world_schemas` row exists for the key), and **optimistic concurrency** via a `version` column — plus
+atomic `increment` and list `append` so creators never read-modify-write and clobber. Values are JSON
+objects; the only query surfaces are these KV ops and bounded list pagination — never raw JSONB
+queries. The economy wall holds: sandbox code reaches none of the §2/§3 tables.
+
+**Deferred seams:** **leaderboards** (`World.Leaderboard.*`) are spec'd on Redis ZSETs — not built
+yet (the facade returns `{:error, :not_implemented}`), to be wired to Redix when ranking is actually
+needed. **Full JSON Schema** validation (an ex_json_schema-style lib) replaces the current subset
+when richer schemas are required. Neither is built now; both are flagged at their call sites.
 
 ## Wire protocol (Phoenix Channels, v2 serializer)
 
