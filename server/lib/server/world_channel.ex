@@ -15,15 +15,20 @@ defmodule Server.WorldChannel do
   Thereafter:
 
     * `identity` in  → `Presence.update` our meta; the resulting diff carries it to peers.
-    * `state` in     → `broadcast_from` the transform (id-stamped) to the rest of the world.
+    * `state` in     → cast our transform to `Server.World`, which stores it and fans it out over
+      PubSub; we push peers' transforms (skipping our own echo) via `handle_info`.
     * `save` in      → persist the companion/appearance under our `user_id` (the canonical write).
     * `presence_diff` → translated by `PresenceFrames` into `join`/`identity`/`leave` pushes.
+
+  Live transforms now flow through `Server.World` (the world-as-a-process seam) rather than a direct
+  channel broadcast, so the world holds an authoritative snapshot. On join we replay that snapshot to
+  the newcomer, so existing peers appear at their real positions immediately instead of popping in.
 
   The server stamps the sender id on every relayed frame; clients never send their own id, so a peer
   can't impersonate another. Incoming payloads are untrusted — the world clamps/validates them.
   """
   use Phoenix.Channel
-  alias Server.{Presence, PresenceFrames, Saves}
+  alias Server.{Presence, PresenceFrames, Saves, World}
 
   @topic "world"
 
@@ -40,6 +45,8 @@ defmodule Server.WorldChannel do
   def handle_info(:after_join, socket) do
     user_id = socket.assigns.user_id
 
+    # Subscribe to the world's live-transform fan-out, then track ourselves in the roster.
+    Phoenix.PubSub.subscribe(Server.PubSub, World.state_topic())
     {:ok, _ref} = Presence.track(socket, user_id, %{identity: %{}})
 
     peers = PresenceFrames.peers(Presence.list(@topic), user_id)
@@ -49,11 +56,40 @@ defmodule Server.WorldChannel do
     save = Saves.load(user_id)
     push(socket, "load", %{companion: save.companion, appearance: save.appearance})
 
+    # Replay the current world snapshot so existing peers appear at their real positions at once
+    # (their puppets, spawned from the roster above, get an immediate `state` rather than waiting for
+    # the next ~20 Hz tick). Our own entry is skipped.
+    for {peer_id, transform} <- World.snapshot(), peer_id != user_id do
+      push(socket, "state", Map.put(transform, "id", peer_id))
+    end
+
     {:noreply, assign(socket, :known, known)}
+  end
+
+  # A live transform from the world: push it to our client unless it's our own echo.
+  def handle_info({:world_state, from_user, transform}, socket) do
+    if from_user == socket.assigns.user_id do
+      {:noreply, socket}
+    else
+      push(socket, "state", Map.put(transform, "id", from_user))
+      {:noreply, socket}
+    end
   end
 
   # Anything else that reaches the channel process (stray PubSub, etc.) is ignored.
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  @impl true
+  def terminate(_reason, socket) do
+    # Drop our transform from the world so we aren't shown to future joiners. (Presence handles the
+    # roster leave on its own.) The socket may not have a user_id if connect/join never completed.
+    case socket.assigns do
+      %{user_id: user_id} -> World.forget(user_id)
+      _ -> :ok
+    end
+
+    :ok
+  end
 
   @impl true
   def handle_in("identity", payload, socket) do
@@ -69,9 +105,9 @@ defmodule Server.WorldChannel do
   end
 
   def handle_in("state", payload, socket) do
-    # Transforms are transient, not roster data: stamp our id and fan out to the rest of the world
-    # (broadcast_from excludes us, so there's no echo to drop client-side).
-    broadcast_from!(socket, "state", Map.put(payload, "id", socket.assigns.user_id))
+    # Transforms are transient, not roster data: hand ours to the world process, which stores it and
+    # fans it out over PubSub to every channel (each drops its own echo in handle_info).
+    World.update_transform(socket.assigns.user_id, payload)
     {:noreply, socket}
   end
 

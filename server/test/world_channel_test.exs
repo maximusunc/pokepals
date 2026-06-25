@@ -106,7 +106,7 @@ defmodule Server.WorldChannelTest do
       assert_push "identity", %{"name" => "Brindle", id: ^id2}
     end
 
-    test "a state frame is relayed to other peers, id-stamped, but not echoed to the sender" do
+    test "a state frame is relayed to other peers (via the world process), id-stamped, not echoed" do
       s1 = join_world("state-1")
       assert_push "welcome", %{id: id1}
       assert_push "load", %{}
@@ -121,6 +121,25 @@ defmodule Server.WorldChannelTest do
       # s2 (same test process transport) receives it with s1's id stamped on. The state payload is
       # the client's passthrough (string keys), so the stamped id is the string "id".
       assert_push "state", %{"p" => [12, -3], "id" => ^id1}
+    end
+
+    test "a joiner is replayed the world snapshot, so a peer already moving appears at once" do
+      s1 = join_world("snap-1")
+      assert_push "welcome", %{id: id1}
+      assert_push "load", %{}
+
+      push(s1, "state", %{"p" => [5, 6]})
+      # Make the move land in the world before s2 joins: first drain s1's channel (so its handle_in
+      # has issued the cast), then sync the world process (so the cast is applied).
+      _ = :sys.get_state(s1.channel_pid)
+      _ = Server.World.snapshot()
+
+      _s2 = join_world("snap-2")
+      assert_push "welcome", %{id: _id2}
+      assert_push "load", %{}
+
+      # The snapshot replay positions s1's puppet for the newcomer immediately.
+      assert_push "state", %{"p" => [5, 6], "id" => ^id1}
     end
   end
 end

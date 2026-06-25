@@ -57,19 +57,21 @@ mix test
 ```
 
 Covers token→user_id resolution (`Accounts`), the `Saves` store/load round-trip keyed by user_id,
-the Presence diff→frame adapter (`PresenceFrames`), the id counter, and the full channel flow
-(`WorldChannel` via `Phoenix.ChannelTest`: connect auth, welcome+load on join, save persistence,
-presence join/leave/identity). The `test` alias creates + migrates a `pokepals_test` DB first.
+the Presence diff→frame adapter (`PresenceFrames`), the world process (`World`: store/snapshot/forget
++ fan-out), and the full channel flow (`WorldChannel` via `Phoenix.ChannelTest`: connect auth,
+welcome+load on join, save persistence, presence join/leave/identity, state relay + snapshot replay).
+The `test` alias creates + migrates a `pokepals_test` DB first.
 End-to-end behaviour is verified by running Godot clients against the server (see the repo `CLAUDE.md`).
 
 ## Shape
 
 ```
 lib/server/
-  application.ex     supervision tree: Repo + PubSub + Presence + Endpoint
+  application.ex     supervision tree: Repo + PubSub + Presence + World + Endpoint
   endpoint.ex        Phoenix endpoint: UserSocket at /ws (over Bandit) + /health router
   user_socket.ex     connect/3 — resolves the token → user_id into the socket assigns
   world_channel.ex   the "world" channel: join/welcome/load, identity/state/save, presence diffs
+  world.ex           the shared world as a process: owns live transforms, fans them out + snapshot
   presence_frames.ex pure presence-diff → wire-frame translation (unit-tested)
   router.ex          Plug router for /health + 404 (the socket handles /ws)
   presence.ex        the roster, as a Phoenix.Presence (CRDT over PubSub), keyed by user_id
@@ -84,7 +86,19 @@ priv/repo/migrations accounts + companions + player_appearances
 
 The roster lives in `Presence`, so a peer's leave is detected even on a hard crash/disconnect (the
 channel process is monitored). `WorldChannel` translates Presence diffs into the client's frames in
-`handle_out("presence_diff", ...)`; the high-rate `state` relay rides the channel's own broadcast.
+`handle_out("presence_diff", ...)`.
+
+Live transforms flow through **`Server.World`**, a single supervised process that owns "where is
+everyone right now": a channel `cast`s each `state` frame to it; it stores the latest and fans it out
+over PubSub (`world:state`) to every channel, which pushes to its client (dropping its own echo). On
+join, the world's `snapshot` is replayed to the newcomer so existing peers appear at their real
+positions immediately. The state is transient and in-memory — if the world process crashes, the
+supervisor restarts it empty and clients re-sync on the next tick (no player is harmed).
+
+**Deferred (scale) seams — intentionally NOT built yet, flagged in `Server.World`:** write-behind
+persistence of transient state (Oban), one world process per `world_id` (DynamicSupervisor +
+registry; cluster-aware Horde beyond that), and any Redis. These land when a real need arises, not
+before.
 
 ## Wire protocol (Phoenix Channels, v2 serializer)
 
