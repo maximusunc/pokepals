@@ -19,6 +19,7 @@ defmodule Server.WorldChannel do
   server-stamped (the player's user_id); clients never send their own id.
   """
   use Phoenix.Channel
+  require Logger
   alias Server.{Presence, PresenceFrames, Saves, World, Worlds}
 
   intercept ["presence_diff"]
@@ -27,6 +28,7 @@ defmodule Server.WorldChannel do
   def join("world:" <> world_id, payload, socket) when world_id != "" do
     case Worlds.get(world_id) do
       nil ->
+        Logger.warning("rejected join for unknown world #{inspect(world_id)} — is the catalog seeded? (mix run priv/repo/seeds.exs)")
         {:error, %{reason: "unknown_world"}}
 
       definition ->

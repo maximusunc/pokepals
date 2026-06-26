@@ -49,6 +49,10 @@ signal save_loaded(companion, appearance)
 ## A world's spec arrived (and was cached): the display-agnostic core + presentation profiles. The
 ## world layer may build/refresh from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
 signal world_spec_received(world_id: String, version: int, spec: Dictionary)
+## We reached the server but it REFUSED our world-channel join (e.g. the world isn't in the catalog —
+## reason "unknown_world"; usually the server hasn't been seeded). The lobby surfaces this instead of
+## hanging on "loading".
+signal world_join_failed(reason: String)
 
 ## Where a client connects by default — the channel mount point. Net rewrites this into the full
 ## Phoenix socket URL (…/websocket?vsn=2.0.0&token=…) in connect_to().
@@ -295,15 +299,30 @@ func _handle_frame(text: String) -> void:
 	var payload: Variant = arr[4]
 	if not (payload is Dictionary):
 		payload = {}
-	_dispatch(event, payload)
+	if event == "phx_reply":
+		_handle_reply(arr, payload)
+	else:
+		_dispatch(event, payload)
+
+
+## A reply to one of our sent frames: [join_ref, ref, topic, "phx_reply", { status, response }]. We
+## only act on a FAILED join of our current world channel (its ref is our world join_ref), so a hang
+## becomes a visible error rather than an endless "loading".
+func _handle_reply(arr: Array, payload: Dictionary) -> void:
+	if String(payload.get("status", "")) != "error":
+		return
+	if String(arr[1]) != _world_join_ref:
+		return
+	var response: Variant = payload.get("response", {})
+	var reason := "join_failed"
+	if response is Dictionary:
+		reason = String((response as Dictionary).get("reason", reason))
+	_joined = false
+	world_join_failed.emit(reason)
 
 
 func _dispatch(event: String, payload: Dictionary) -> void:
 	match event:
-		"phx_reply":
-			# Reply to our phx_join/leave/heartbeat. A join error (e.g. unknown world) leaves us
-			# unjoined; we surface nothing special here (the default world is always present).
-			pass
 		"world_spec":
 			var wid := String(payload.get("world_id", ""))
 			var version := int(payload.get("version", 0))
