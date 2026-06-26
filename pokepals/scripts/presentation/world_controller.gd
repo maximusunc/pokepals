@@ -637,27 +637,13 @@ func _update_portals(_delta: float) -> void:
 		return
 	for p in _portals:
 		var d := _player.position.distance_to(p["pos"])
-		# Walking clearly away resets the "already told them" latch so the hint greets each
-		# fresh approach. This must live OUTSIDE the arm check below: in a connected session
-		# we never transition, so `armed` stays true after the first approach and that branch
-		# would otherwise never run again — leaving the hint stuck after showing it once.
-		if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
-			p["blocked_hint_shown"] = false
 		if not bool(p["armed"]):
 			if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
 				p["armed"] = true
 		elif d <= PORTAL_RANGE:
-			# Connected play stays together in the open Vale. A portal would carry only
-			# the local player away into the riverbank — whose salamander hunt is local
-			# and unsynced, and where multiplayer wouldn't survive the world swap. So
-			# while a session is active we hold travel and say why, once per approach,
-			# so it reads as intentional rather than a broken portal. Solo play (Net
-			# dormant) is untouched: portals work exactly as before.
-			if Net.is_active():
-				if not bool(p.get("blocked_hint_shown", false)):
-					_show_hint("You're wandering together — the riverbank waits for another day.")
-					p["blocked_hint_shown"] = true
-				return
+			# Travel works whether solo or connected: each world is its own channel, so the world
+			# swap leaves this world's roster and joins the destination's (see Net.enter_world in
+			# _setup_net). Players in different worlds simply don't see each other.
 			_begin_transition(p)
 			return
 
