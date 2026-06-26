@@ -25,11 +25,7 @@ services:
       db:
         condition: service_healthy
     ports:
-      # Bind ALL host interfaces explicitly (the "0.0.0.0:" prefix), so the relay is reachable from
-      # other devices on the LAN — not just localhost. Some Docker setups default `-p 4000:4000` to
-      # loopback only (a daemon.json "ip" default), which makes the host's own LAN IP refuse the
-      # connection; the explicit prefix overrides that.
-      - "0.0.0.0:4000:4000"
+      - "4000:4000"
     environment:
       PORT: "4000"
       # Host `db` is the compose service name (Docker's internal DNS). The relay runs migrations on
