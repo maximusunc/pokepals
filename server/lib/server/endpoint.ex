@@ -7,8 +7,12 @@ defmodule Server.Endpoint do
   """
   use Phoenix.Endpoint, otp_app: :server
 
+  # `max_frame_size` is an abuse guard: it bounds how big any single client frame may be (state
+  # transforms are tiny; the largest legit frame is a `save` blob). Without it a frame is unbounded,
+  # so one socket could ship a multi-MB frame and force the BEAM to buffer it. 128 KB is the outer
+  # cap; `Server.WorldChannel` enforces a tighter, app-level limit on `save` specifically.
   socket "/ws", Server.UserSocket,
-    websocket: true,
+    websocket: [max_frame_size: 128 * 1024],
     longpoll: false
 
   plug Server.Router

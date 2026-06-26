@@ -39,14 +39,22 @@ still very modest for `<10` players on a ThinkCentre.
 
 ## Option A — Docker (recommended)
 
-Requires only Docker (and the Compose plugin) on the host. From this `server/` directory:
+Requires only Docker (and the Compose plugin) on the host. First create your secrets file (it's
+gitignored), then bring the stack up. From this `server/` directory:
 
 ```sh
+cp .env.example .env
+# edit .env: set POSTGRES_PASSWORD, SECRET_KEY_BASE, and SITE_ADDRESS (see the file's comments)
 docker compose up -d --build
 ```
 
-That builds the relay image (a self-contained OTP release inside a slim Debian base) **and** starts a
-PostgreSQL container (with a `pgdata` volume so saves survive restarts). The relay waits for the DB to
+Compose refuses to start if any required secret is unset, so there's no way to accidentally ship the
+old placeholders. See [Exposing to the internet safely](#exposing-to-the-internet-safely) for what
+each value should be.
+
+That builds the relay image (a self-contained OTP release inside a slim Debian base), a **Caddy**
+edge that terminates TLS and rate-limits, **and** a PostgreSQL container (with a `pgdata` volume so
+saves survive restarts). The relay waits for the DB to
 be healthy, applies migrations **and seeds the world catalog** on boot (idempotent — the seed worlds
 are required for clients to have somewhere to enter), then serves. Both restart unless you stop them.
 
@@ -58,11 +66,15 @@ Companion/wardrobe saves persist in the `pgdata` volume — `docker compose down
 wipes it. Verify:
 
 ```sh
-curl localhost:4000/health        # -> ok
+curl localhost:4000/health        # -> ok (relay, bound to localhost on the host)
+curl https://<your-domain>/health # -> ok (through Caddy + TLS)
 docker compose logs -f relay      # watch the "Running Server.Endpoint ... at 0.0.0.0:4000" line
+docker compose logs -f caddy      # watch cert issuance / proxying
 ```
 
-Then point Godot clients at `ws://<this-host-ip>:4000/ws` (use `127.0.0.1` from the same machine).
+Then point Godot clients at `wss://<your-domain>/ws` — traffic goes through Caddy's TLS edge, not
+the relay's port directly. (On a trusted LAN with no domain you can still reach the relay over plain
+`ws://<host>:4000/ws`, but only expose that beyond the LAN behind the Caddy edge.)
 
 Common commands:
 
@@ -89,6 +101,11 @@ docker run -d --restart unless-stopped -p 5000:5000 -e PORT=5000 --name pokepals
 
 For a host or LXC where you'd rather not run Docker. You build a self-contained release (no Elixir
 needed on the *target*, only on the *build* machine) and run it under systemd.
+
+> This path serves plain `ws://` with no TLS edge — it's for a trusted LAN. To expose it to the
+> internet, put a TLS reverse proxy in front of `:4000` yourself (Caddy/Traefik/nginx) and apply the
+> firewall + secret guidance in [Exposing to the internet safely](#exposing-to-the-internet-safely);
+> the Docker path (Option A) bundles that Caddy edge for you.
 
 ### 1. Build a release
 
@@ -200,16 +217,22 @@ systemd unit.
 |----------|---------|---------|
 | `PORT`   | `4000`  | TCP port the server listens on (WebSocket endpoint mounted at `/ws`). |
 | `DATABASE_URL` | — (required in prod) | Postgres connection, `ecto://USER:PASS@HOST:PORT/DB`. Compose sets it for you; a bare/systemd deploy must provide it. Dev/test fall back to localhost defaults. |
-| `SECRET_KEY_BASE` | — (required in prod) | Phoenix endpoint signing key — a long, stable secret. Generate with `mix phx.gen.secret` (or `bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) \|> Base.encode64())"`). Compose ships a placeholder you must replace; dev/test use a built-in default. |
+| `SECRET_KEY_BASE` | — (required in prod) | Phoenix endpoint signing key — a long, stable secret. Generate with `mix phx.gen.secret` (or `bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) \|> Base.encode64())"`). With Compose, set it in `.env`; dev/test use a built-in default. |
 | `POOL_SIZE` | `10` | DB connection pool size. |
 
-The relay **binds all interfaces** (`0.0.0.0`) so it's reachable across your LAN and from outside a
-container. Players are keyed by a client-generated token (no accounts); their companion + wardrobe
-are stored in Postgres. The token is a bearer credential sent over plaintext `ws://` on the LAN —
-fine for a handful of friends; front it with TLS (`wss://`) before exposing it wider (see below).
+With Compose, `DATABASE_URL` / `SECRET_KEY_BASE` (plus `POSTGRES_PASSWORD`, `SITE_ADDRESS`, and the
+optional `ACME_EMAIL`) come from a gitignored **`.env`** file — copy `.env.example` and fill it in.
+See [Exposing to the internet safely](#exposing-to-the-internet-safely) below.
 
-Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills is
-`ws://127.0.0.1:4000/ws`; change the host to your relay's LAN IP for a friend on another machine.
+The relay itself **binds all interfaces** (`0.0.0.0`) inside its container, but Compose only publishes
+it to `127.0.0.1:4000` on the host — public traffic arrives through the Caddy TLS edge, not the BEAM
+port. Players are keyed by a client-generated token (no accounts); their companion + wardrobe are
+stored in Postgres. The token is a bearer credential, so it must travel over `wss://` (TLS) once
+strangers can reach the server — that's what Caddy is for.
+
+Clients connect to `wss://<your-domain>/ws` in a public deploy. On a trusted LAN the Godot gate's
+pre-filled `ws://127.0.0.1:4000/ws` (change the host to the relay's LAN IP for a friend on another
+machine) still works for plain-`ws://` local play.
 
 ---
 
@@ -227,13 +250,50 @@ Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills
 
 ---
 
+## Exposing to the internet safely
+
+The relay is honest about its scope: anyone who can reach it can play, and identity is just a bearer
+token. That's fine on a trusted LAN, but before you expose it to the open internet, the Compose stack
+now does the important hardening for you — here's what it does and what you still need to set.
+
+**What the stack does:**
+
+- **TLS at the edge (Caddy).** The internet reaches only Caddy (ports 80/443); it terminates TLS and
+  proxies to the relay over the internal Docker network. The BEAM port is published only to
+  `127.0.0.1` on the host, so the token never crosses the network in plaintext and the relay isn't
+  directly reachable. Caddy gets a real Let's Encrypt cert automatically when `SITE_ADDRESS` is a
+  hostname whose DNS points at the host.
+- **Per-IP rate limiting (Caddy).** `caddy/Caddyfile` caps requests per client IP (default 60/min).
+  This blunts the cheapest abuse: because an unknown token auto-creates an account, a script opening
+  connections with fresh tokens would otherwise mint unbounded DB rows. Tune `events`/`window` there.
+- **Abuse guards on the socket (relay).** A websocket `max_frame_size` (128 KB, in
+  `lib/server/endpoint.ex`) bounds any single frame, and the `save` handler
+  (`lib/server/world_channel.ex`) enforces a per-save size cap (64 KB) and a minimum interval (1 s)
+  so one client can't spam huge or rapid writes into Postgres.
+
+**What you must set (in `.env`):**
+
+- `POSTGRES_PASSWORD` — a strong value (`openssl rand -hex 24`). Postgres isn't published outside the
+  Compose network, but don't ship a default.
+- `SECRET_KEY_BASE` — the Phoenix signing key; generate a fresh one (see `.env.example`). Never reuse
+  the old committed placeholder.
+- `SITE_ADDRESS` — your hostname (e.g. `pokepals.example.com`) for automatic public TLS, or `:443`
+  for a self-signed cert to test without a domain.
+
+**Also worth doing on the host:**
+
+- **Firewall:** allow inbound **443** (and 80, which Caddy uses for the ACME challenge and redirects)
+  plus your SSH port; block everything else, including 4000.
+- **Keep the host patched** and let the containers auto-restart (`restart: unless-stopped`, already
+  set). The relay already runs as a non-root `app` user inside its image.
+
 ## Looking ahead (not built yet)
 
-- **TLS / `wss://`:** this step serves plain `ws://` for LAN use. When you expose the relay beyond a
-  trusted network, **don't** open the BEAM port to the internet directly — put a reverse proxy
-  (Caddy or Traefik, which do automatic TLS) in front and terminate `wss://` there, forwarding to
-  the relay's `:4000`. With Compose, that's an added `caddy`/`traefik` service alongside `relay`.
 - **Accounts:** identity is a bearer token today (whoever holds it owns that save). Real accounts /
-  auth are a later step; until then, keep the deployment on a trusted network.
+  auth are a later step; the rate limit and TLS above reduce the blast radius until then, but a
+  shared/public deployment still trusts whoever holds a token.
 - **Backups:** the companion lives only in Postgres now, so it's worth a periodic `pg_dump` of the
   `pokepals` DB (or a volume snapshot) once people have companions they'd miss.
+- **Payload validation:** `state` / `identity` / `save` blobs are still stored/relayed mostly as-is
+  (bounded in size, not in shape). Range/length validation on the fields is a sensible next hardening
+  step if you open up further.

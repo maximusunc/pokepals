@@ -80,6 +80,35 @@ defmodule Server.WorldChannelTest do
 
       assert Saves.load(uid) == %{companion: %{"bond" => 0.3}, appearance: %{}}
     end
+
+    test "a second save within the interval is rate-limited (first one stands)" do
+      w = seed_world()
+      {:ok, socket} = connect(UserSocket, %{"token" => "u-spammer"})
+      uid = socket.assigns.user_id
+      {:ok, _reply, socket} = subscribe_and_join(socket, "world:" <> w, %{})
+      assert_push "load", %{}
+
+      push(socket, "save", %{"companion" => %{"bond" => 0.1}, "appearance" => %{}})
+      ref = push(socket, "save", %{"companion" => %{"bond" => 0.9}, "appearance" => %{}})
+      assert_reply ref, :error, %{reason: "rate_limited"}
+
+      # The rejected save did not overwrite the accepted one.
+      assert Saves.load(uid) == %{companion: %{"bond" => 0.1}, appearance: %{}}
+    end
+
+    test "an over-sized save is rejected and not persisted" do
+      w = seed_world()
+      {:ok, socket} = connect(UserSocket, %{"token" => "u-bloat"})
+      uid = socket.assigns.user_id
+      {:ok, _reply, socket} = subscribe_and_join(socket, "world:" <> w, %{})
+      assert_push "load", %{}
+
+      huge = String.duplicate("x", 70 * 1024)
+      ref = push(socket, "save", %{"companion" => %{"blob" => huge}, "appearance" => %{}})
+      assert_reply ref, :error, %{reason: "too_large"}
+
+      assert Saves.load(uid) == %{companion: nil, appearance: nil}
+    end
   end
 
   describe "presence is per world" do

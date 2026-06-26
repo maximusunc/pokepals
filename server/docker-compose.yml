@@ -1,12 +1,19 @@
-# One-command spin-up:  docker compose up -d --build
-# Then point Godot clients at  ws://<this-host-ip>:4000/ws  (127.0.0.1 if on the same machine).
+# One-command spin-up:  cp .env.example .env  (then fill it in),  docker compose up -d --build
+#
+# Topology: the internet reaches ONLY Caddy (80/443). Caddy terminates TLS and proxies to the relay
+# over the internal Docker network; the relay's BEAM port is bound to localhost on the host (for
+# `curl localhost:4000/health` debugging) and is NOT internet-reachable. Postgres is not published at
+# all. Point Godot clients at  wss://<your-domain>/ws.
+#
+# Secrets (POSTGRES_PASSWORD, SECRET_KEY_BASE, SITE_ADDRESS) come from a gitignored .env file — see
+# .env.example. The `${VAR:?message}` form makes compose refuse to start if one is unset.
 services:
   db:
     image: postgres:16-alpine
     container_name: pokepals-db
     environment:
       POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}
       POSTGRES_DB: pokepals
     volumes:
       - pgdata:/var/lib/postgresql/data
@@ -24,17 +31,17 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # Bound to 127.0.0.1 on purpose: reachable for local health checks, but NOT from the internet.
+    # Public traffic arrives via Caddy over the internal network (host `relay`), not this mapping.
     ports:
-      - "4000:4000"
+      - "127.0.0.1:4000:4000"
     environment:
       PORT: "4000"
       # Host `db` is the compose service name (Docker's internal DNS). The relay runs migrations on
       # boot (see the Dockerfile CMD), then serves.
-      DATABASE_URL: "ecto://postgres:postgres@db/pokepals"
-      # Phoenix endpoint signing key. REQUIRED in prod — generate your own and replace this:
-      #   docker run --rm pokepals-relay:latest bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) |> Base.encode64())"
-      # (or `mix phx.gen.secret` in a dev checkout). It only needs to be a long, stable secret.
-      SECRET_KEY_BASE: "REPLACE_ME_with_a_64_byte_secret_generated_as_described_above_xxxxxxxx"
+      DATABASE_URL: "ecto://postgres:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in .env}@db/pokepals"
+      # Phoenix endpoint signing key — REQUIRED. Generate one (see .env.example) and put it in .env.
+      SECRET_KEY_BASE: ${SECRET_KEY_BASE:?set SECRET_KEY_BASE in .env}
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-fsS", "http://localhost:4000/health"]
@@ -43,5 +50,28 @@ services:
       retries: 3
       start_period: 5s
 
+  # The public TLS edge: automatic Let's Encrypt certs + a per-IP rate limit, proxying to the relay.
+  # Custom-built (caddy/Dockerfile) because the rate-limit module isn't in the stock Caddy binary.
+  caddy:
+    build: ./caddy
+    image: pokepals-caddy:latest
+    container_name: pokepals-caddy
+    depends_on:
+      - relay
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp" # HTTP/3
+    environment:
+      SITE_ADDRESS: ${SITE_ADDRESS:?set SITE_ADDRESS in .env (a hostname for public TLS, or :443 to test)}
+      ACME_EMAIL: ${ACME_EMAIL:-}
+    volumes:
+      - ./caddy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data # persisted certs — keep this so you don't re-issue on every restart
+      - caddy_config:/config
+    restart: unless-stopped
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:

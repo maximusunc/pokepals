@@ -46,7 +46,8 @@ or a systemd-managed OTP release — see **[DEPLOYMENT.md](DEPLOYMENT.md)**. Qui
 with Docker:
 
 ```sh
-docker compose up -d --build     # builds + runs, published on :4000
+cp .env.example .env             # set POSTGRES_PASSWORD, SECRET_KEY_BASE, SITE_ADDRESS first
+docker compose up -d --build     # relay + Postgres + a Caddy TLS edge (clients use wss://<host>/ws)
 ```
 
 Common actions are also wrapped in the `Makefile` (`make release`, `make compose-up`, …; `make help`).

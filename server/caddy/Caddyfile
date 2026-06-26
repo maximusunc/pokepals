@@ -1,0 +1,31 @@
+# The public edge. Caddy terminates TLS and reverse-proxies to the relay over the internal Docker
+# network — the BEAM port is never exposed to the internet. The relay speaks plain HTTP/ws here;
+# clients speak https/wss to Caddy.
+
+{
+	# ACME contact for Let's Encrypt (cert-expiry notices). Optional but recommended.
+	email {$ACME_EMAIL}
+	# rate_limit is a non-standard directive, so place it explicitly in the handler chain.
+	order rate_limit before reverse_proxy
+}
+
+# SITE_ADDRESS selects the TLS mode:
+#   a hostname (pokepals.example.com) -> automatic, publicly-trusted Let's Encrypt cert
+#   :443                              -> a local self-signed cert (testing without a domain;
+#                                        clients must opt to trust it)
+{$SITE_ADDRESS} {
+	# Per-client-IP request rate limit. The Godot client opens ONE long-lived WebSocket and makes a
+	# handful of catalog requests, so a real human never trips this. What it stops: a script opening
+	# connections with fresh tokens in a loop — each new token mints a DB account, so unbounded
+	# connects are an unbounded-rows / resource-exhaustion vector. Tune events/window to taste.
+	rate_limit {
+		zone per_ip {
+			key {remote_host}
+			events 60
+			window 1m
+		}
+	}
+
+	# reverse_proxy upgrades WebSocket connections automatically, so wss://<host>/ws just works.
+	reverse_proxy relay:4000
+}

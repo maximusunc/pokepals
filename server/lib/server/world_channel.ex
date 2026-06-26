@@ -24,6 +24,13 @@ defmodule Server.WorldChannel do
 
   intercept ["presence_diff"]
 
+  # Abuse guards on `save`. The client persists OPAQUE blobs straight to Postgres, so bound both how
+  # OFTEN (a write — and a DB connection — per frame) and how BIG (jsonb bloat) one socket can spend.
+  # A normal client saves on meaningful change, nowhere near once a second. The socket-level
+  # `max_frame_size` (see `Server.Endpoint`) is the coarse outer bound; this is the tight one.
+  @save_min_interval_ms 1_000
+  @save_max_bytes 64 * 1024
+
   @impl true
   def join("world:" <> world_id, payload, socket) when world_id != "" do
     case Worlds.get(world_id) do
@@ -118,8 +125,20 @@ defmodule Server.WorldChannel do
   end
 
   def handle_in("save", payload, socket) do
-    Saves.store(socket.assigns.user_id, payload["companion"], payload["appearance"])
-    {:noreply, socket}
+    now = System.monotonic_time(:millisecond)
+    last = socket.assigns[:last_save_ms]
+
+    cond do
+      is_integer(last) and now - last < @save_min_interval_ms ->
+        {:reply, {:error, %{reason: "rate_limited"}}, socket}
+
+      save_too_big?(payload) ->
+        {:reply, {:error, %{reason: "too_large"}}, socket}
+
+      true ->
+        Saves.store(socket.assigns.user_id, payload["companion"], payload["appearance"])
+        {:noreply, assign(socket, :last_save_ms, now)}
+    end
   end
 
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
@@ -129,5 +148,15 @@ defmodule Server.WorldChannel do
     {frames, known} = PresenceFrames.diff_to_frames(socket.assigns.user_id, socket.assigns.known, joins, leaves)
     Enum.each(frames, fn {event, payload} -> push(socket, event, payload) end)
     {:noreply, assign(socket, :known, known)}
+  end
+
+  # True if the two blobs a save would persist exceed the per-save byte cap. We measure the encoded
+  # JSON size of exactly what gets stored; anything we can't encode is treated as too big (rejected).
+  defp save_too_big?(payload) do
+    companion = Map.get(payload, "companion") || %{}
+    appearance = Map.get(payload, "appearance") || %{}
+    byte_size(Jason.encode!(companion)) + byte_size(Jason.encode!(appearance)) > @save_max_bytes
+  rescue
+    _ -> true
   end
 end

@@ -9,3 +9,6 @@ erl_crash.dump
 *.beam
 /config/*.secret.exs
 .elixir_ls/
+
+# Local secrets for docker compose (POSTGRES_PASSWORD, SECRET_KEY_BASE, SITE_ADDRESS). Never commit.
+.env
