@@ -46,6 +46,14 @@ signal disconnected()        # an established link dropped (server quit / we lef
 ## Our server-canonical save arrived after joining a world: our companion + wardrobe to adopt. Either
 ## value is null for a brand-new player. Untyped so null passes.
 signal save_loaded(companion, appearance)
+## The economy snapshot arrived after joining a world (per-user, same in every world): our wallet and
+## the shop's color stock, each color flagged owned. currency is the spend currency's name (e.g.
+## "petals"); colors is an Array of { item_def_id, name, color_slot, ramp, swatch, price, owned }.
+signal economy_loaded(currency: String, balance: int, colors: Array)
+## A shop purchase resolved. On success: the bought color's id + our new balance (the color is now
+## owned). On failure: the id we tried + a short reason string (insufficient_funds, already_owned, …).
+signal purchase_succeeded(item_def_id: int, balance: int)
+signal purchase_failed(item_def_id: int, reason: String)
 ## A world's spec arrived (and was cached): the display-agnostic core + presentation profiles. The
 ## world layer may build/refresh from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
 signal world_spec_received(world_id: String, version: int, spec: Dictionary)
@@ -204,6 +212,15 @@ func push_save(companion: Dictionary, appearance: Dictionary) -> void:
 	if not _can_send():
 		return
 	_push_event("save", { "companion": companion, "appearance": appearance })
+
+
+## Ask the server to BUY a color from the shop. The purchase is server-authoritative (it sinks the
+## price and grants the color atomically); the outcome arrives back as purchase_succeeded /
+## purchase_failed. A no-op until we've joined a world (the server stamps our id from the socket).
+func buy_color(item_def_id: int) -> void:
+	if not _can_send():
+		return
+	_push_event("buy", { "item_def_id": item_def_id })
 
 
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
@@ -374,6 +391,16 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			if appearance is Dictionary:
 				_session_save["appearance"] = appearance
 			save_loaded.emit(companion, appearance)
+		"economy":
+			var colors: Variant = payload.get("colors", [])
+			economy_loaded.emit(
+				String(payload.get("currency", "")),
+				int(payload.get("balance", 0)),
+				colors if colors is Array else [])
+		"bought":
+			purchase_succeeded.emit(int(payload.get("item_def_id", 0)), int(payload.get("balance", 0)))
+		"buy_failed":
+			purchase_failed.emit(int(payload.get("item_def_id", 0)), String(payload.get("reason", "")))
 
 
 ## Send one of OUR channel events on the current world topic (stable join_ref, fresh ref).
