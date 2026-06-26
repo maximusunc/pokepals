@@ -1,34 +1,39 @@
 defmodule Server.Application do
   @moduledoc """
-  Boots the authoritative server: the Postgres Repo, a PubSub hub for fan-out, the Presence roster,
-  the id Hub, and a Bandit HTTP server that upgrades `GET /ws` to a WebSocket per client.
+  Boots the authoritative server: the Postgres Repo, the PubSub hub for fan-out, the Presence roster,
+  the per-world process infrastructure (a Registry + DynamicSupervisor that host one `Server.World`
+  per world_id), and the Phoenix Endpoint (a `UserSocket` over WebSocket at `/ws`, plus `/health` and
+  the world-catalog routes). The transport is Phoenix Channels; Bandit serves HTTP under the endpoint.
   """
   use Application
   require Logger
 
   @impl true
   def start(_type, _args) do
-    # Port comes from runtime.exs (driven by $PORT); default covers a bare `iex -S mix` with no
-    # config loaded.
-    port = Application.get_env(:server, :port, 4000)
-
     children = [
-      # The DB first: Bandit accepts connections the instant it starts, so a handler could query
-      # immediately — the Repo must already be up.
+      # The DB first: the endpoint accepts connections the instant it starts, so a channel could
+      # query immediately — the Repo must already be up.
       Server.Repo,
       # Live fan-out between connections; both the presence roster and the ~20 Hz state relay ride
       # on it.
       {Phoenix.PubSub, name: Server.PubSub},
       # The roster, as a CRDT (must start after PubSub, which it broadcasts diffs over).
       Server.Presence,
-      # Hands out unique per-connection ids (the roster key).
-      Server.Hub,
-      # The HTTP/WebSocket listener. Bind ALL interfaces ({0,0,0,0}) so clients on other machines
-      # (and from outside a container) can reach it — not just loopback.
-      {Bandit, plug: Server.Router, scheme: :http, ip: {0, 0, 0, 0}, port: port}
+      # Multi-world: one Server.World process per world_id, started on demand under this
+      # DynamicSupervisor and addressed through this (node-local) Registry.
+      {Registry, keys: :unique, name: Server.WorldRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: Server.WorldSupervisor},
+      # The HTTP/WebSocket listener (Phoenix Channels over Bandit). Bind/port come from config.
+      Server.Endpoint
     ]
 
-    Logger.info("pokepals relay listening on ws://0.0.0.0:#{port}/ws")
     Supervisor.start_link(children, strategy: :one_for_one, name: Server.Supervisor)
+  end
+
+  # Tell Phoenix to refresh the endpoint config on a hot code upgrade.
+  @impl true
+  def config_change(changed, _new, removed) do
+    Server.Endpoint.config_change(changed, removed)
+    :ok
   end
 end

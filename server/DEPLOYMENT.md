@@ -47,13 +47,19 @@ docker compose up -d --build
 
 That builds the relay image (a self-contained OTP release inside a slim Debian base) **and** starts a
 PostgreSQL container (with a `pgdata` volume so saves survive restarts). The relay waits for the DB to
-be healthy, applies migrations on boot, then serves. Both are set to restart unless you stop them.
+be healthy, applies migrations **and seeds the world catalog** on boot (idempotent — the seed worlds
+are required for clients to have somewhere to enter), then serves. Both restart unless you stop them.
+
+> Upgrading an already-running stack from before multi-world? Rebuild so the new boot step runs:
+> `docker compose up -d --build`. To (re-)seed manually without a restart:
+> `docker compose exec relay /home/app/server/bin/server eval 'Server.Release.seed()'`. Verify with
+> `curl localhost:4000/worlds` — you should see "The Vale" and "The Riverbank".
 Companion/wardrobe saves persist in the `pgdata` volume — `docker compose down` keeps it; `down -v`
 wipes it. Verify:
 
 ```sh
 curl localhost:4000/health        # -> ok
-docker compose logs -f relay      # watch the "listening on ws://0.0.0.0:4000/ws" line
+docker compose logs -f relay      # watch the "Running Server.Endpoint ... at 0.0.0.0:4000" line
 ```
 
 Then point Godot clients at `ws://<this-host-ip>:4000/ws` (use `127.0.0.1` from the same machine).
@@ -192,8 +198,9 @@ systemd unit.
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `PORT`   | `4000`  | TCP port the relay listens on (HTTP upgrade to WebSocket at `/ws`). |
+| `PORT`   | `4000`  | TCP port the server listens on (WebSocket endpoint mounted at `/ws`). |
 | `DATABASE_URL` | — (required in prod) | Postgres connection, `ecto://USER:PASS@HOST:PORT/DB`. Compose sets it for you; a bare/systemd deploy must provide it. Dev/test fall back to localhost defaults. |
+| `SECRET_KEY_BASE` | — (required in prod) | Phoenix endpoint signing key — a long, stable secret. Generate with `mix phx.gen.secret` (or `bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) \|> Base.encode64())"`). Compose ships a placeholder you must replace; dev/test use a built-in default. |
 | `POOL_SIZE` | `10` | DB connection pool size. |
 
 The relay **binds all interfaces** (`0.0.0.0`) so it's reachable across your LAN and from outside a

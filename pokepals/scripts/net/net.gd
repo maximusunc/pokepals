@@ -2,66 +2,93 @@ extends Node
 ## Net — the transport-agnostic SYNC SEAM (the "pipe"), registered as an autoload.
 ##
 ## This is the one place that touches networking. Everything above it (the world, the avatars)
-## talks to Net in plain dictionaries and never sees the socket, JSON, or peer ids beyond an
-## opaque int. The TRANSPORT is a raw WebSocket to an AUTHORITATIVE Elixir/Phoenix server.
+## talks to Net in plain dictionaries and never sees the socket, the wire protocol, or peer ids
+## beyond an opaque string. The TRANSPORT is a WebSocket to an AUTHORITATIVE Elixir/Phoenix server,
+## over **Phoenix Channels** (the Phoenix v2 serializer).
 ##
-## TOPOLOGY: every client opens one WebSocket to the server. The server assigns each client an id,
-## tracks the roster (Phoenix.Presence), RELAYS presentation between clients, and — as of the
-## persistence step — is the SOLE store of each player's companion + wardrobe (Postgres), keyed by
-## a local identity token (PlayerIdentity). The game is online-only: there is no local game save.
+## MULTI-WORLD: there is ONE socket per client (authenticated once, at connect, by the identity
+## token), but the player is in ONE WORLD AT A TIME, and each world is its own Phoenix channel topic
+## "world:<world_id>". Net joins the world the player is in and re-joins (leave + join) when they
+## travel. Presence (who's here) and live transforms are scoped to that world's channel by the
+## server, so players in different worlds don't see each other.
 ##
-## What crosses the wire, as JSON text frames:
-##   • PRESENTATION (relayed to peers):
-##       - identity (on connect / on change): appearance + companion resting-look, so a peer can
-##         render *who you are*.
-##       - state (~20 Hz): the live transforms of your player+companion, newest wins. Godot has no
-##         JSON Vector2, so each is marshalled to a [x, y] array at this seam (and back), so the
-##         dict handed up to the world stays Vector2-valued.
-##   • PERSISTENCE (point-to-point with the server; NEVER relayed to peers):
-##       - hello (on connect): our identity token, so the server can find our save.
-##       - load (server → us): our canonical companion + wardrobe (or nulls for a new player).
-##       - save (us → server, periodic + on exit): the canonical write.
+## WORLD SPECS come from the SERVER: on joining a world, the server sends that world's spec
+## (display-agnostic core + presentation profiles), which Net caches by version. The client sends the
+## version it already has (known_version) so an unchanged spec isn't re-sent. This is what lets the
+## catalog grow to many worlds without baking them all into the client.
 ##
-## TRUST MODEL: the SERVER stamps the sender id onto every relayed frame — clients never send their
-## own id, so a peer can't impersonate another. Incoming presentation payloads are untrusted input
-## the world clamps/validates and may ONLY move the SENDER's puppet. The identity token is a bearer
-## credential, kept point-to-point and never relayed.
+## What crosses the wire, as Phoenix channel events on the current "world:<world_id>" topic:
+##   • PRESENTATION (relayed to peers in the same world):
+##       - identity (on join / change): appearance + companion resting-look.
+##       - state (~20 Hz): live transforms of your player+companion (Vector2s marshalled to [x,y]).
+##   • WORLD SPEC (server -> us, on join): world_spec / world_spec_unchanged.
+##   • PERSISTENCE (point-to-point with the server; per-USER, same in every world):
+##       - load (server -> us, on join): our canonical companion + wardrobe (or nulls for a new player).
+##       - save (us -> server): the canonical write.
+##
+## TRUST MODEL: the SERVER stamps the sender id (the player's user_id) onto every relayed frame —
+## clients never send their own id, so a peer can't impersonate another. Incoming presentation
+## payloads are untrusted input the world clamps/validates. The token is a bearer credential, sent
+## only to the server (in the connect URL) and never relayed.
 
-## A peer connected / disconnected. The world spawns or frees that peer's puppet pair.
-signal peer_joined(peer_id: int)
-signal peer_left(peer_id: int)
+## A peer connected / disconnected (within our current world). The peer id is the player's stable
+## user_id (a string). The world spawns or frees that peer's puppet pair.
+signal peer_joined(peer_id: String)
+signal peer_left(peer_id: String)
 ## A peer's identity packet arrived (re-emitted, id stamped by the server). { name, appearance, companion_look }.
-signal identity_received(peer_id: int, payload: Dictionary)
+signal identity_received(peer_id: String, payload: Dictionary)
 ## A peer's high-rate transform packet arrived (re-emitted, id stamped by the server).
-signal state_received(peer_id: int, payload: Dictionary)
+signal state_received(peer_id: String, payload: Dictionary)
 ## Connection lifecycle, for the lobby to reflect status.
-signal connected()           # the server accepted us (our 'welcome' arrived with our id)
+signal connected()           # the socket is open (the server accepted our token)
 signal connection_failed()   # we never reached the server (bad URL / refused / unreachable)
 signal disconnected()        # an established link dropped (server quit / we left)
-## Our server-canonical save arrived after connecting: our companion + wardrobe to adopt. Either
-## value is null for a brand-new player (the world then seeds the server). Untyped so null passes.
+## Our server-canonical save arrived after joining a world: our companion + wardrobe to adopt. Either
+## value is null for a brand-new player. Untyped so null passes.
 signal save_loaded(companion, appearance)
+## A world's spec arrived (and was cached): the display-agnostic core + presentation profiles. The
+## world layer may build/refresh from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
+signal world_spec_received(world_id: String, version: int, spec: Dictionary)
+## We reached the server but it REFUSED our world-channel join (e.g. the world isn't in the catalog —
+## reason "unknown_world"; usually the server hasn't been seeded). The lobby surfaces this instead of
+## hanging on "loading".
+signal world_join_failed(reason: String)
 
-## Where a client connects by default. The server listens on :4000 and upgrades GET /ws.
+## Where a client connects by default — the channel mount point. Net rewrites this into the full
+## Phoenix socket URL (…/websocket?vsn=2.0.0&token=…) in connect_to().
 const DEFAULT_SERVER_URL := "ws://127.0.0.1:4000/ws"
 
+## Phoenix closes a socket that goes silent; send a heartbeat well inside that window.
+const HEARTBEAT_INTERVAL := 25.0
+
 var _socket: WebSocketPeer = null
-# Our server-assigned id, from the 'welcome' frame. 0 until the server accepts us.
-var _my_id: int = 0
-# True once the socket has reached STATE_OPEN at least once this session — lets us tell a
-# never-connected failure apart from a dropped established link when the socket closes.
+# Our id, from a world's 'welcome' frame: our stable user_id. Empty until we've joined a world.
+var _my_id: String = ""
+# True once the socket has reached STATE_OPEN at least once this session.
 var _was_open: bool = false
-# Our own identity packet, stashed so we can (re)send it the moment the socket is open, without
-# the world caring about connect timing. Set by the world via set_local_identity().
+# True once we've joined our CURRENT world channel (its 'welcome' arrived).
+var _joined: bool = false
+# Monotonic message ref for the Phoenix protocol.
+var _ref: int = 0
+# The join_ref of our current world channel (reused as join_ref on its frames, phoenix.js-style).
+var _world_join_ref: String = ""
+# The world we WANT to be in (persists across a reconnect so we rejoin it) and the one we're CURRENTLY
+# joined to. Both are world_ids (strings). "" = none.
+var _desired_world: String = ""
+var _desired_known_version: int = 0
+var _current_world: String = ""
+var _heartbeat_accum: float = 0.0
+# Our own identity packet, stashed so we can (re)send it the moment we've joined a world.
 var _local_identity: Dictionary = {}
-# The in-session mirror of our server-canonical save ({ "companion": {...}, "appearance": {...} }).
-# Set from the server's 'load' and from every push_save. NOT written to disk — it just survives
-# world-scene reloads (Net is an autoload), so hopping between worlds carries the companion without
-# a server round-trip. Cleared on disconnect, so a reconnect reloads fresh from the server.
+# In-session mirror of our server-canonical save; survives world-scene reloads (Net is an autoload).
 var _session_save: Dictionary = {}
+# Cached world specs by world_id: { world_id: { "version": int, "spec": Dictionary } }. Kept across
+# world hops (and reconnects) so revisits skip the download via known_version. In-memory only —
+# DEFERRED SEAM: a disk cache (and CDN-fetched assets) belong here when worlds/assets get large.
+var _world_specs: Dictionary = {}
 
 
-func _process(_delta: float) -> void:
+func _process(delta: float) -> void:
 	if _socket == null:
 		return
 	_socket.poll()
@@ -69,46 +96,41 @@ func _process(_delta: float) -> void:
 		WebSocketPeer.STATE_OPEN:
 			if not _was_open:
 				_was_open = true
-				# The link is up: identify ourselves (so the server can load our save), then
-				# push whatever presentation identity we've been handed.
-				_send_hello()
-				_flush_identity()
+				connected.emit()
+				# Join whatever world the world layer asked for (queued before we were open).
+				_switch_to_world()
+			_pump_heartbeat(delta)
 			while _socket.get_available_packet_count() > 0:
 				_handle_frame(_socket.get_packet().get_string_from_utf8())
 		WebSocketPeer.STATE_CLOSED:
 			_on_socket_closed()
 
 
-## True while the socket is open. broadcast_state()/push_save() no-op when false, so the world can
-## call them every frame and they simply do nothing until we're connected.
+## True while the socket is open. Sends no-op when false.
 func is_active() -> bool:
 	return _socket != null and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN
 
 
-## Our server-assigned id (0 before 'welcome'). There is no host concept anymore.
-func local_id() -> int:
+## Our id — our user_id (empty before our first world 'welcome').
+func local_id() -> String:
 	return _my_id
 
 
-## CONNECT to the server at `url`. Returns OK or a Godot error code the lobby can surface.
-## Success of the handshake arrives later via connected()/connection_failed().
-func connect_to(url: String = DEFAULT_SERVER_URL) -> int:
+## CONNECT to the server at `base_url` (host:port, optionally with the "/ws" mount). Net rewrites it
+## into the full Phoenix socket URL with the v2 serializer and our identity token. Returns OK or a
+## Godot error code; handshake result arrives via connected()/connection_failed().
+func connect_to(base_url: String = DEFAULT_SERVER_URL) -> int:
 	_reset_socket()
 	_socket = WebSocketPeer.new()
-	var err := _socket.connect_to_url(url)
+	var err := _socket.connect_to_url(_phoenix_url(base_url))
 	if err != OK:
 		_socket = null
 		return err
 	return OK
 
 
-## Tear the link down, e.g. the player pressing "Leave". Safe to call when not connected.
-##
-## If the link is OPEN we close it GRACEFULLY: we keep the socket so _process keeps polling
-## until it reaches STATE_CLOSED, which both flushes any final frame (e.g. a last save the world
-## queued just before leaving) AND surfaces the drop through the normal path — _on_socket_closed
-## emits disconnected(), exactly as a server-side drop would, so the lobby gate reappears. If we
-## were only mid-connect (never OPEN), there's nothing to flush, so we just drop it now.
+## Tear the whole link down (e.g. "Leave"). Graceful close if open, so a final queued frame flushes
+## and the drop surfaces through disconnected() exactly like a server-side drop.
 func leave() -> void:
 	if _socket == null:
 		return
@@ -118,8 +140,42 @@ func leave() -> void:
 		_reset_socket()
 
 
-## The LAN addresses this device is reachable at — informational, so whoever runs the server can
-## read one out to a friend. IPv4 only and minus loopback.
+## Enter a world: join its channel (or queue the join until the socket is open). On travel, call this
+## with the new world_id — Net leaves the old world channel and joins the new one. Sends our cached
+## version so the server skips re-sending an unchanged spec.
+func enter_world(world_id: String, known_version: int = -1) -> void:
+	_desired_world = world_id
+	_desired_known_version = known_version if known_version >= 0 else cached_version(world_id)
+	if is_active():
+		_switch_to_world()
+
+
+## Leave the current world without dropping the socket (rarely needed directly; travel uses enter_world).
+func leave_world() -> void:
+	if _current_world != "":
+		_send_raw([_world_join_ref, _next_ref(), _world_topic(_current_world), "phx_leave", {}])
+	_current_world = ""
+	_desired_world = ""
+	_joined = false
+
+
+## The cached spec for a world (its { core, profiles }), or {} if we haven't fetched it this session.
+func cached_spec(world_id: String) -> Dictionary:
+	var entry: Dictionary = _world_specs.get(world_id, {})
+	return entry.get("spec", {})
+
+
+## The display-agnostic CORE of a cached world spec (what the world layer builds from), or {}.
+func cached_spec_core(world_id: String) -> Dictionary:
+	return cached_spec(world_id).get("core", {})
+
+
+## The version of the cached spec for a world, or 0 if we don't have it.
+func cached_version(world_id: String) -> int:
+	return int(_world_specs.get(world_id, {}).get("version", 0))
+
+
+## The LAN addresses this device is reachable at — informational. IPv4 only, minus loopback.
 func local_ip_addresses() -> Array:
 	var out: Array = []
 	for addr in IP.get_local_addresses():
@@ -129,35 +185,29 @@ func local_ip_addresses() -> Array:
 	return out
 
 
-## Hand Net our local identity packet. Net stashes it and sends it as soon as the socket is open
-## (and again whenever it changes, e.g. a bond milestone) — so the world sets it once and never
-## worries about connect timing. The server relays it, id-stamped, to every other client.
+## Hand Net our local identity packet; sent as soon as we've joined a world (and on every change).
 func set_local_identity(payload: Dictionary) -> void:
 	_local_identity = payload.duplicate(true)
 	_flush_identity()
 
 
-## Broadcast our live transform packet (newest wins; a dropped frame doesn't matter). A no-op
-## until connected, so it's safe to call unconditionally every frame.
+## Broadcast our live transform packet to the current world (newest wins). No-op until joined.
 func broadcast_state(payload: Dictionary) -> void:
-	if not is_active():
+	if not _can_send():
 		return
-	var msg := _encode_state(payload)
-	msg["t"] = "state"
-	_socket.send_text(JSON.stringify(msg))
+	_push_event("state", _encode_state(payload))
 
 
-## Persist our companion + wardrobe to the server (the SOLE save). Also updates the in-session
-## mirror, so a world hop carries the companion even before the next send. A no-op until connected.
+## Persist our companion + wardrobe to the server (per-user, the SOLE save). Mirrors in-session too.
 func push_save(companion: Dictionary, appearance: Dictionary) -> void:
 	_session_save = { "companion": companion, "appearance": appearance }
-	if not is_active():
+	if not _can_send():
 		return
-	_socket.send_text(JSON.stringify({ "t": "save", "companion": companion, "appearance": appearance }))
+	_push_event("save", { "companion": companion, "appearance": appearance })
 
 
-## The in-session mirror of our server save (set by 'load' and push_save), so a freshly-loaded world
-## scene can dress its companion without a round-trip. Empty until our first load/save this session.
+## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
+## without a round-trip. Empty until our first load/save this session.
 func session_save() -> Dictionary:
 	return _session_save
 
@@ -168,30 +218,69 @@ func has_session_save() -> bool:
 
 # --- internals -------------------------------------------------------------------------
 
-func _send_hello() -> void:
-	if not is_active():
+func _phoenix_url(base_url: String) -> String:
+	var url := base_url.strip_edges()
+	while url.ends_with("/"):
+		url = url.substr(0, url.length() - 1)
+	if not url.ends_with("/websocket"):
+		url += "/websocket"
+	var token := PlayerIdentity.id().uri_encode()
+	return "%s?vsn=2.0.0&token=%s" % [url, token]
+
+
+func _world_topic(world_id: String) -> String:
+	return "world:" + world_id
+
+
+func _can_send() -> bool:
+	return is_active() and _joined and _current_world != ""
+
+
+## Join the desired world channel (leaving the current one first, if different). A no-op if we're
+## already in the desired world, or if there's no desired world / the socket isn't open yet.
+func _switch_to_world() -> void:
+	var wid := _desired_world
+	if wid == "" or not is_active():
 		return
-	_socket.send_text(JSON.stringify({ "t": "hello", "player_id": PlayerIdentity.id() }))
+	if _current_world == wid and _joined:
+		return
+	# Leave the old world channel (using ITS join_ref) before switching.
+	if _current_world != "" and _current_world != wid:
+		_send_raw([_world_join_ref, _next_ref(), _world_topic(_current_world), "phx_leave", {}])
+	_current_world = wid
+	_joined = false
+	_world_join_ref = _next_ref()
+	_send_raw([_world_join_ref, _world_join_ref, _world_topic(wid), "phx_join", { "known_version": _desired_known_version }])
 
 
 func _flush_identity() -> void:
-	if not is_active() or _local_identity.is_empty():
+	if not _can_send() or _local_identity.is_empty():
 		return
-	var msg := _local_identity.duplicate(true)
-	msg["t"] = "identity"
-	_socket.send_text(JSON.stringify(msg))
+	_push_event("identity", _local_identity)
+
+
+func _pump_heartbeat(delta: float) -> void:
+	_heartbeat_accum += delta
+	if _heartbeat_accum >= HEARTBEAT_INTERVAL:
+		_heartbeat_accum = 0.0
+		_send_raw([null, _next_ref(), "phoenix", "heartbeat", {}])
 
 
 func _reset_socket() -> void:
 	_socket = null
-	_my_id = 0
+	_my_id = ""
 	_was_open = false
-	# A new session reloads from the server; don't carry a stale companion across a reconnect.
+	_joined = false
+	_ref = 0
+	_world_join_ref = ""
+	_current_world = ""
+	_heartbeat_accum = 0.0
+	# A new session reloads the companion from the server; don't carry it across a reconnect.
 	_session_save = {}
+	# Keep _desired_world (so a reconnect rejoins the same world), _local_identity, and _world_specs.
 
 
 func _on_socket_closed() -> void:
-	# Distinguish "never reached the server" from "an established link dropped".
 	var was_up := _was_open
 	_reset_socket()
 	if was_up:
@@ -200,48 +289,86 @@ func _on_socket_closed() -> void:
 		connection_failed.emit()
 
 
+## Decode one Phoenix v2 frame: [join_ref, ref, topic, event, payload]. Dispatch on the event name.
 func _handle_frame(text: String) -> void:
 	var data: Variant = JSON.parse_string(text)
-	if not (data is Dictionary):
-		return  # malformed frame: ignore rather than crash
-	match String(data.get("t", "")):
+	if not (data is Array) or (data as Array).size() != 5:
+		return
+	var arr := data as Array
+	var event := String(arr[3])
+	var payload: Variant = arr[4]
+	if not (payload is Dictionary):
+		payload = {}
+	if event == "phx_reply":
+		_handle_reply(arr, payload)
+	else:
+		_dispatch(event, payload)
+
+
+## A reply to one of our sent frames: [join_ref, ref, topic, "phx_reply", { status, response }]. We
+## only act on a FAILED join of our current world channel (its ref is our world join_ref), so a hang
+## becomes a visible error rather than an endless "loading".
+func _handle_reply(arr: Array, payload: Dictionary) -> void:
+	if String(payload.get("status", "")) != "error":
+		return
+	if String(arr[1]) != _world_join_ref:
+		return
+	var response: Variant = payload.get("response", {})
+	var reason := "join_failed"
+	if response is Dictionary:
+		reason = String((response as Dictionary).get("reason", reason))
+	_joined = false
+	world_join_failed.emit(reason)
+
+
+func _dispatch(event: String, payload: Dictionary) -> void:
+	match event:
+		"world_spec":
+			var wid := String(payload.get("world_id", ""))
+			var version := int(payload.get("version", 0))
+			var spec: Variant = payload.get("spec", {})
+			if wid != "" and spec is Dictionary:
+				_world_specs[wid] = { "version": version, "spec": spec }
+				world_spec_received.emit(wid, version, spec)
+		"world_spec_unchanged":
+			# Our cached spec is current; nothing to do (the world layer already has it).
+			pass
 		"welcome":
-			# The server has accepted us: adopt our id and learn who's already here.
-			_my_id = int(data.get("id", 0))
-			connected.emit()
-			var peers: Variant = data.get("peers", [])
+			# We're in the world: adopt our id, mark joined, flush identity, learn who's here.
+			_my_id = String(payload.get("id", ""))
+			_joined = true
+			_flush_identity()
+			var peers: Variant = payload.get("peers", [])
 			if peers is Array:
 				for peer in peers:
 					if not (peer is Dictionary):
 						continue
-					var pid := int(peer.get("id", 0))
-					if pid == 0:
+					var pid := String(peer.get("id", ""))
+					if pid == "":
 						continue
 					peer_joined.emit(pid)
 					var ident: Variant = peer.get("identity", {})
 					if ident is Dictionary and not (ident as Dictionary).is_empty():
 						identity_received.emit(pid, ident)
 		"join":
-			var jid := int(data.get("id", 0))
-			if jid != 0:
+			var jid := String(payload.get("id", ""))
+			if jid != "":
 				peer_joined.emit(jid)
 		"leave":
-			var lid := int(data.get("id", 0))
-			if lid != 0:
+			var lid := String(payload.get("id", ""))
+			if lid != "":
 				peer_left.emit(lid)
 		"identity":
-			var iid := int(data.get("id", 0))
-			if iid != 0:
-				identity_received.emit(iid, _strip_envelope(data))
+			var iid := String(payload.get("id", ""))
+			if iid != "":
+				identity_received.emit(iid, _strip_id(payload))
 		"state":
-			var sid := int(data.get("id", 0))
-			if sid != 0:
-				state_received.emit(sid, _decode_state(_strip_envelope(data)))
+			var sid := String(payload.get("id", ""))
+			if sid != "":
+				state_received.emit(sid, _decode_state(_strip_id(payload)))
 		"load":
-			# Our canonical save (either field null for a brand-new player). Mirror it for world
-			# hops, then hand it up so the world adopts (or seeds) it.
-			var companion: Variant = data.get("companion")
-			var appearance: Variant = data.get("appearance")
+			var companion: Variant = payload.get("companion")
+			var appearance: Variant = payload.get("appearance")
 			if companion is Dictionary:
 				_session_save["companion"] = companion
 			if appearance is Dictionary:
@@ -249,17 +376,30 @@ func _handle_frame(text: String) -> void:
 			save_loaded.emit(companion, appearance)
 
 
-## Drop the routing envelope ("t" and the server-stamped "id") so what's emitted upward is the
-## bare presentation payload the world expects.
-func _strip_envelope(data: Dictionary) -> Dictionary:
-	var out := data.duplicate(true)
-	out.erase("t")
+## Send one of OUR channel events on the current world topic (stable join_ref, fresh ref).
+func _push_event(event: String, payload: Dictionary) -> void:
+	_send_raw([_world_join_ref, _next_ref(), _world_topic(_current_world), event, payload])
+
+
+func _send_raw(frame: Array) -> void:
+	if _socket == null:
+		return
+	_socket.send_text(JSON.stringify(frame))
+
+
+func _next_ref() -> String:
+	_ref += 1
+	return str(_ref)
+
+
+## Drop the server-stamped "id" so what's emitted upward is the bare presentation payload.
+func _strip_id(payload: Dictionary) -> Dictionary:
+	var out := payload.duplicate(true)
 	out.erase("id")
 	return out
 
 
-## Vector2 → [x, y] for every Vector2-valued field (JSON has no Vector2). Pure + static so it's
-## unit-testable and portable. Non-Vector2 fields pass through untouched.
+## Vector2 → [x, y] for every Vector2-valued field (JSON has no Vector2). Pure + static, unit-testable.
 static func _encode_state(payload: Dictionary) -> Dictionary:
 	var out: Dictionary = {}
 	for k in payload:
@@ -268,9 +408,7 @@ static func _encode_state(payload: Dictionary) -> Dictionary:
 	return out
 
 
-## [x, y] → Vector2 for every 2-number array (the inverse of _encode_state). This is load-bearing:
-## the world's _as_vec2() returns ZERO for anything that isn't already a Vector2, so handing
-## Vector2-valued dicts up state_received is exactly what lets the world layer stay untouched.
+## [x, y] → Vector2 for every 2-number array (the inverse of _encode_state).
 static func _decode_state(payload: Dictionary) -> Dictionary:
 	var out: Dictionary = {}
 	for k in payload:

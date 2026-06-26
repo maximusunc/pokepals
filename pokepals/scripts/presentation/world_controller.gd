@@ -22,6 +22,18 @@ const SAVE_INTERVAL := 15.0  # how often to push the companion/wardrobe to the s
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
+# The world SPEC is server-hosted now: Net fetches it on join and caches it by version. These bundled
+# JSONs are only an offline / first-paint FALLBACK for the seed worlds (keyed by their platform
+# world_id) — worlds the client doesn't bundle (UGC worlds) come purely from the server's cache.
+# DEFERRED SEAM: rendering a never-bundled world whose spec is still in flight (async build) is the
+# next client step; for now the two seed worlds always have a local fallback to build from instantly.
+# Keys are the seed worlds' platform ids (literals here so this stays a compile-time constant; they
+# match WorldRouter.VALE_ID / RIVERBANK_ID and the server's world_definitions seeds).
+const SEED_FALLBACK := {
+	"11111111-1111-1111-1111-111111111111": "res://data/world.json",
+	"22222222-2222-2222-2222-222222222222": "res://data/riverbank.json",
+}
+
 @onready var _world_art: WorldArt = $WorldArt
 @onready var _scenery: Scenery = $Scenery
 @onready var _player: PlayerView = $Scenery/Player
@@ -80,7 +92,7 @@ var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sort
 var _day_time := 0.0
 
 # --- Shared presence (Rung 3) -----------------------------------------------------------------
-# Each connected peer's PUPPET pair, keyed by Net peer id: { peer_id: { player, companion } }.
+# Each connected peer's PUPPET pair, keyed by Net peer id (the player's user_id): { peer_id: { player, companion } }.
 # Spawned on peer_joined, freed on peer_left, and driven entirely by transforms arriving over Net.
 # An identity packet that lands before its pair exists is stashed and applied the moment it spawns.
 var _remote_pairs: Dictionary = {}
@@ -91,9 +103,11 @@ var _save_accum := 0.0       # accumulates toward the next server SAVE_INTERVAL 
 
 
 func _ready() -> void:
-	# Which world to load is owned by WorldRouter (defaults to the Vale on a fresh boot); the
-	# arrival portal id, if set, says which portal we stepped out of so we can spawn beside it.
-	var data := WorldData.load_json(WorldRouter.current_world)
+	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a
+	# fresh boot). The spec comes from the server (Net's cache); we fall back to the bundled seed JSON
+	# for first paint / offline. The arrival portal id, if set, says which portal we stepped out of.
+	var world_id := WorldRouter.current_world
+	var data := _resolve_spec_core(world_id)
 	var arrival_id := WorldRouter.arrival_portal_id
 
 	# Shared art direction (palette + light): the one place the whole look is tuned.
@@ -623,27 +637,13 @@ func _update_portals(_delta: float) -> void:
 		return
 	for p in _portals:
 		var d := _player.position.distance_to(p["pos"])
-		# Walking clearly away resets the "already told them" latch so the hint greets each
-		# fresh approach. This must live OUTSIDE the arm check below: in a connected session
-		# we never transition, so `armed` stays true after the first approach and that branch
-		# would otherwise never run again — leaving the hint stuck after showing it once.
-		if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
-			p["blocked_hint_shown"] = false
 		if not bool(p["armed"]):
 			if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
 				p["armed"] = true
 		elif d <= PORTAL_RANGE:
-			# Connected play stays together in the open Vale. A portal would carry only
-			# the local player away into the riverbank — whose salamander hunt is local
-			# and unsynced, and where multiplayer wouldn't survive the world swap. So
-			# while a session is active we hold travel and say why, once per approach,
-			# so it reads as intentional rather than a broken portal. Solo play (Net
-			# dormant) is untouched: portals work exactly as before.
-			if Net.is_active():
-				if not bool(p.get("blocked_hint_shown", false)):
-					_show_hint("You're wandering together — the riverbank waits for another day.")
-					p["blocked_hint_shown"] = true
-				return
+			# Travel works whether solo or connected: each world is its own channel, so the world
+			# swap leaves this world's roster and joins the destination's (see Net.enter_world in
+			# _setup_net). Players in different worlds simply don't see each other.
 			_begin_transition(p)
 			return
 
@@ -772,11 +772,29 @@ func _setup_net() -> void:
 	Net.state_received.connect(_on_state_received)
 	Net.save_loaded.connect(_on_save_loaded)
 	Net.disconnected.connect(_on_disconnected)
+	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
+	# server sends back its canonical spec (cached by Net for next time). Queued until the socket is
+	# open, so this is safe at boot before the player has connected, and on every world hop.
+	Net.enter_world(WorldRouter.current_world)
 	# Hopping between worlds reloads this scene with a fresh placeholder companion; if we're
 	# already connected, re-dress it from the in-session save the server already gave us.
 	if Net.has_session_save():
 		var s := Net.session_save()
 		_apply_server_save(s.get("companion"), s.get("appearance"))
+
+
+## Resolve a world_id to its display-agnostic spec CORE (regions, interactables, portals, spawns…) —
+## the structure world_controller builds from. Prefer the server's cached spec (the canonical,
+## versioned source); fall back to the bundled seed JSON for first paint / offline. An unknown,
+## never-bundled world yields {} until its spec arrives (see SEED_FALLBACK's deferred-seam note).
+func _resolve_spec_core(world_id: String) -> Dictionary:
+	var core := Net.cached_spec_core(world_id)
+	if not core.is_empty():
+		return core
+	var fallback := String(SEED_FALLBACK.get(world_id, ""))
+	if fallback != "":
+		return WorldData.load_json(fallback)
+	return {}
 
 
 ## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
@@ -857,15 +875,15 @@ func _notification(what: int) -> void:
 ## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery
 ## layer so they depth-sort with us and the trees. They're flagged remote BEFORE entering the tree
 ## (set_remote → no input, no brain, no save). Any identity that beat them here is applied at once.
-func _on_peer_joined(peer_id: int) -> void:
+func _on_peer_joined(peer_id: String) -> void:
 	if _remote_pairs.has(peer_id):
 		return
 	var rp := PLAYER_SCENE.instantiate() as PlayerView
 	rp.set_remote()
-	rp.name = "RemotePlayer_%d" % peer_id
+	rp.name = "RemotePlayer_%s" % peer_id
 	var rc := COMPANION_SCENE.instantiate() as CompanionView
 	rc.set_remote()
-	rc.name = "RemoteCompanion_%d" % peer_id
+	rc.name = "RemoteCompanion_%s" % peer_id
 	rp.set_style(_style)
 	rc.set_style(_style)
 	_scenery.add_child(rp)
@@ -884,7 +902,7 @@ func _on_peer_joined(peer_id: int) -> void:
 
 ## A peer left: free its puppet pair and forget it. Clean despawn so a friend quitting simply
 ## vanishes rather than freezing in place.
-func _on_peer_left(peer_id: int) -> void:
+func _on_peer_left(peer_id: String) -> void:
 	if _remote_pairs.has(peer_id):
 		var pair: Dictionary = _remote_pairs[peer_id]
 		(pair["player"] as Node).queue_free()
@@ -895,7 +913,7 @@ func _on_peer_left(peer_id: int) -> void:
 
 ## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
 ## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
-## reconnect, which hands out fresh peer ids, doesn't leave the old ghosts behind). The lobby gate
+## reconnect doesn't leave the old ghosts behind). The lobby gate
 ## reappears on its own (it also listens for disconnected()); our own player + companion stay put.
 func _on_disconnected() -> void:
 	for peer_id in _remote_pairs.keys():
@@ -908,14 +926,14 @@ func _on_disconnected() -> void:
 
 ## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they
 ## spawn (the packet can race ahead of peer_joined). Untrusted input — validated by the appliers.
-func _on_identity_received(peer_id: int, payload: Dictionary) -> void:
+func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
 	if _remote_pairs.has(peer_id):
 		_apply_remote_identity(peer_id, payload)
 	else:
 		_pending_identity[peer_id] = payload
 
 
-func _apply_remote_identity(peer_id: int, payload: Dictionary) -> void:
+func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
 	var pair: Dictionary = _remote_pairs[peer_id]
 	var appearance: Variant = payload.get("appearance", {})
 	if appearance is Dictionary:
@@ -928,7 +946,7 @@ func _apply_remote_identity(peer_id: int, payload: Dictionary) -> void:
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped
 ## to the world bounds, non-Vector2 junk is ignored, and the data can only move THIS peer's puppet —
 ## never our avatar, never the save. The puppets interpolate toward it for smooth motion.
-func _on_state_received(peer_id: int, payload: Dictionary) -> void:
+func _on_state_received(peer_id: String, payload: Dictionary) -> void:
 	if not _remote_pairs.has(peer_id):
 		return
 	var pair: Dictionary = _remote_pairs[peer_id]

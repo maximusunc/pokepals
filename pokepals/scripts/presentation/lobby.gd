@@ -16,6 +16,7 @@ func _ready() -> void:
 	Net.connection_failed.connect(_on_connection_failed)
 	Net.disconnected.connect(_on_disconnected)
 	Net.save_loaded.connect(_on_save_loaded)
+	Net.world_join_failed.connect(_on_world_join_failed)
 	# The lobby is the world-ENTRY gate. Travelling between worlds reloads this whole scene
 	# (WorldRouter.go_to → change_scene_to_file), which would otherwise pop the gate back up on every
 	# hop. Two conditions mean "we're already in the world, don't gate again": arriving via a portal
@@ -56,6 +57,16 @@ func _on_save_loaded(_companion, _appearance) -> void:
 
 func _on_connection_failed() -> void:
 	_status.text = "Couldn't reach that server. Check the address, and that it's running."
+	_set_controls_enabled(true)
+
+
+## We reached the server but it refused to let us into the world — almost always because the server's
+## world catalog is empty (run its seeds). Surface it instead of hanging on "loading".
+func _on_world_join_failed(reason: String) -> void:
+	if reason == "unknown_world":
+		_status.text = "The server has no world to enter yet. Seed it: mix run priv/repo/seeds.exs"
+	else:
+		_status.text = "The server refused entry to the world (%s)." % reason
 	_set_controls_enabled(true)
 
 

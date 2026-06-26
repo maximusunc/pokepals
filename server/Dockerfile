@@ -61,7 +61,8 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \
   CMD curl -fsS "http://localhost:${PORT}/health" || exit 1
 
-# Apply DB migrations, then run the server in the foreground. `eval` is a short-lived node that
-# runs the migration and exits; `&&` aborts the boot if it fails; `exec` makes the BEAM PID 1 for
-# clean signal handling. Needs DATABASE_URL in the environment (compose provides it).
-CMD ["/bin/sh", "-c", "/home/app/server/bin/server eval 'Server.Release.migrate()' && exec /home/app/server/bin/server start"]
+# Apply DB migrations, seed the catalog (idempotent — most importantly the seed worlds, without which
+# the client has nowhere to enter), then run the server in the foreground. Each `eval` is a
+# short-lived node that runs and exits; `&&` aborts the boot if a step fails; `exec` makes the BEAM
+# PID 1 for clean signal handling. Needs DATABASE_URL in the environment (compose provides it).
+CMD ["/bin/sh", "-c", "/home/app/server/bin/server eval 'Server.Release.migrate()' && /home/app/server/bin/server eval 'Server.Release.seed()' && exec /home/app/server/bin/server start"]

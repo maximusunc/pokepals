@@ -5,7 +5,8 @@ defmodule Server.Release do
   Run from the release root / inside the container:
 
       bin/server eval "Server.Release.migrate()"
-      bin/server eval "Server.Release.rollback(Server.Repo, 20260624000000)"
+      bin/server eval "Server.Release.seed()"
+      bin/server eval "Server.Release.rollback(Server.Repo, 20260625000000)"
   """
   @app :server
 
@@ -15,6 +16,15 @@ defmodule Server.Release do
     for repo <- repos() do
       {:ok, _, _} = Ecto.Migrator.with_repo(repo, &Ecto.Migrator.run(&1, :up, all: true))
     end
+  end
+
+  @doc """
+  Run the (idempotent) seeds — most importantly the catalog's seed worlds, without which the client
+  has nowhere to enter. Starts the Repo just for the duration, like `migrate/0`.
+  """
+  def seed do
+    load_app()
+    {:ok, _, _} = Ecto.Migrator.with_repo(Server.Repo, fn _repo -> IO.puts(Server.Seeds.run()) end)
   end
 
   def rollback(repo, version) do

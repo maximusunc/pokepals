@@ -23,7 +23,10 @@ func _process(_delta: float) -> bool:
 	# is registered.)
 	if _world == null:
 		var router := root.get_node("/root/WorldRouter")
-		router.current_world = "res://data/riverbank.json"
+		# World ids are platform UUIDs now; the controller resolves them to a spec (here, headless and
+		# server-less, via the bundled seed fallback). Point at the Riverbank as if we'd just stepped
+		# through the Vale's portal.
+		router.current_world = router.RIVERBANK_ID
 		router.arrival_portal_id = "riverbank_entry"
 		router.pending_transition = true
 		var scene: PackedScene = load("res://scenes/world.tscn")
@@ -69,7 +72,8 @@ func _process(_delta: float) -> bool:
 	var done_portal := _find_portal("riverbank_exit_complete")
 	fails += _check(not done_portal.is_empty(), "a completion portal opened on the last salamander")
 	if not done_portal.is_empty():
-		fails += _check(String(done_portal["target_world"]).ends_with("world.json"), "the completion portal leads back to the Vale")
+		var router2 := root.get_node("/root/WorldRouter")
+		fails += _check(String(done_portal["target_world"]) == String(router2.VALE_ID), "the completion portal leads back to the Vale")
 
 	if fails == 0:
 		print("ALL RIVERBANK SMOKE CHECKS PASSED")

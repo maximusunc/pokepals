@@ -1,18 +1,23 @@
 extends Node
 ## Tracks which world to load and where to arrive, and performs the actual scene swap.
-## Both worlds share the same scenes/world.tscn — only the data (and the arrival portal)
+## All worlds share the same scenes/world.tscn — only the spec (and the arrival portal)
 ## differ — so "travelling" is just: remember the target, then reload that one scene.
 ##
-## This is the world layer's tiny bit of cross-scene state. It holds no game rules and no
-## presentation; world_controller reads it on _ready() to decide which world.json to load
-## and where to set the player down. Kept deliberately small: when there are many worlds
-## (and, far later, a server), this is the seam that grows — not world_controller.
+## A world is identified by its platform WORLD_ID (a server-canonical UUID). The spec itself comes
+## from the server (fetched + cached by Net); world_controller resolves the id to a spec on _ready().
+## Portals carry their target world's id. Kept deliberately small: this is the seam that grows as the
+## world catalog does — not world_controller.
 ##
 ## No class_name: it's an autoload (singleton) named WorldRouter, matching the SaveStore
 ## convention so the global name and a class name can't clash.
 
-## The world the next (or current) load should read. Defaults to the Vale for a fresh boot.
-var current_world := "res://data/world.json"
+## The seed worlds' fixed ids (must match the server's world_definitions seeds). Brand-new boots start
+## in the Vale.
+const VALE_ID := "11111111-1111-1111-1111-111111111111"
+const RIVERBANK_ID := "22222222-2222-2222-2222-222222222222"
+
+## The world the next (or current) load should enter. Defaults to the Vale for a fresh boot.
+var current_world := VALE_ID
 
 ## On arrival, set the player down beside the portal with this id (so you step OUT of the
 ## portal you travelled to, not back into the one you came from). Empty = use the world's
@@ -24,10 +29,10 @@ var arrival_portal_id := ""
 var pending_transition := false
 
 
-## Travel to another world: remember the destination + which portal to arrive at, then
-## reload the shared world scene. world_controller._ready() does the rest.
-func go_to(world_path: String, portal_id: String) -> void:
-	current_world = world_path
+## Travel to another world: remember the destination (its world_id) + which portal to arrive at,
+## then reload the shared world scene. world_controller._ready() does the rest.
+func go_to(world_id: String, portal_id: String) -> void:
+	current_world = world_id
 	arrival_portal_id = portal_id
 	pending_transition = true
 	get_tree().change_scene_to_file("res://scenes/world.tscn")
