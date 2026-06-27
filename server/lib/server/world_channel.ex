@@ -8,8 +8,8 @@ defmodule Server.WorldChannel do
   On join we resolve the world's definition (catalog), ensure its live `Server.World` process exists,
   and on `:after_join`:
 
-    * deliver the world SPEC — `world_spec` with the catalog's spec+version, UNLESS the client passed a
-      matching `known_version` (then `world_spec_unchanged`, so cached specs aren't re-sent),
+    * deliver the world SPEC — `world_spec` with the catalog's spec + content `etag`, UNLESS the client
+      passed a matching `known_etag` (then `world_spec_unchanged`, so cached specs aren't re-sent),
     * `Presence.track` ourselves on this world's topic and push `welcome` (this world's roster),
     * push `load` (our canonical companion + appearance — a per-USER concern, same in every world),
     * replay the world's transform `snapshot` so peers already moving appear at once.
@@ -36,14 +36,14 @@ defmodule Server.WorldChannel do
 
       definition ->
         World.ensure_started(world_id)
-        known_version = Map.get(payload, "known_version", 0)
+        known_etag = Map.get(payload, "known_etag", "")
         send(self(), :after_join)
 
         {:ok,
          assign(socket, %{
            world_id: world_id,
            definition: definition,
-           known_version: known_version,
+           known_etag: known_etag,
            known: MapSet.new()
          })}
     end
@@ -53,12 +53,16 @@ defmodule Server.WorldChannel do
 
   @impl true
   def handle_info(:after_join, socket) do
-    %{world_id: world_id, user_id: user_id, definition: definition, known_version: known_version} =
+    %{world_id: world_id, user_id: user_id, definition: definition, known_etag: known_etag} =
       socket.assigns
 
-    # Deliver the spec (or confirm the client's cache is current).
-    if definition.version == known_version do
-      push(socket, "world_spec_unchanged", %{world_id: world_id, version: definition.version})
+    # Deliver the spec (or confirm the client's cache is current). The cache validator is a content
+    # ETAG (Worlds.etag/1), so any back-end edit to a world invalidates the client's cache on its
+    # own — there is no version to remember to bump and no new client build to ship for a world edit.
+    etag = Worlds.etag(definition)
+
+    if etag == known_etag do
+      push(socket, "world_spec_unchanged", %{world_id: world_id, version: definition.version, etag: etag})
     else
       push(socket, "world_spec", Worlds.client_view(definition))
     end

@@ -12,10 +12,13 @@ extends Node
 ## travel. Presence (who's here) and live transforms are scoped to that world's channel by the
 ## server, so players in different worlds don't see each other.
 ##
-## WORLD SPECS come from the SERVER: on joining a world, the server sends that world's spec
-## (display-agnostic core + presentation profiles), which Net caches by version. The client sends the
-## version it already has (known_version) so an unchanged spec isn't re-sent. This is what lets the
-## catalog grow to many worlds without baking them all into the client.
+## WORLD SPECS come from the SERVER — the client bundles NO world specs. On joining a world, the
+## server sends that world's spec (display-agnostic core + presentation profiles), which Net caches
+## by a content ETAG (in memory AND on disk, under user://world_cache). The client sends the etag it
+## already has (known_etag) so an unchanged spec isn't re-sent; because the etag is derived from the
+## spec's content, ANY back-end edit to a world invalidates the cache on its own — no version to bump,
+## no new client build to ship for a world change. This is also what lets the catalog grow to many
+## worlds without baking any of them into the client.
 ##
 ## What crosses the wire, as Phoenix channel events on the current "world:<world_id>" topic:
 ##   • PRESENTATION (relayed to peers in the same world):
@@ -54,8 +57,9 @@ signal economy_loaded(currency: String, balance: int, colors: Array)
 ## owned). On failure: the id we tried + a short reason string (insufficient_funds, already_owned, …).
 signal purchase_succeeded(item_def_id: int, balance: int)
 signal purchase_failed(item_def_id: int, reason: String)
-## A world's spec arrived (and was cached): the display-agnostic core + presentation profiles. The
-## world layer may build/refresh from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
+## A world's spec arrived (and was cached, in memory + on disk): the display-agnostic core +
+## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
+## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
 signal world_spec_received(world_id: String, version: int, spec: Dictionary)
 ## We reached the server but it REFUSED our world-channel join (e.g. the world isn't in the catalog —
 ## reason "unknown_world"; usually the server hasn't been seeded). The lobby surfaces this instead of
@@ -68,6 +72,10 @@ const DEFAULT_SERVER_URL := "ws://192.168.86.38:4000/ws"
 
 ## Phoenix closes a socket that goes silent; send a heartbeat well inside that window.
 const HEARTBEAT_INTERVAL := 25.0
+
+## Where fetched world specs are cached on disk (one JSON per world_id), so revisits across SESSIONS
+## skip the download — the client confirms freshness by sending the cached etag on join.
+const CACHE_DIR := "user://world_cache"
 
 var _socket: WebSocketPeer = null
 # Our id, from a world's 'welcome' frame: our stable user_id. Empty until we've joined a world.
@@ -83,17 +91,24 @@ var _world_join_ref: String = ""
 # The world we WANT to be in (persists across a reconnect so we rejoin it) and the one we're CURRENTLY
 # joined to. Both are world_ids (strings). "" = none.
 var _desired_world: String = ""
-var _desired_known_version: int = 0
+var _desired_known_etag: String = ""
 var _current_world: String = ""
 var _heartbeat_accum: float = 0.0
 # Our own identity packet, stashed so we can (re)send it the moment we've joined a world.
 var _local_identity: Dictionary = {}
 # In-session mirror of our server-canonical save; survives world-scene reloads (Net is an autoload).
 var _session_save: Dictionary = {}
-# Cached world specs by world_id: { world_id: { "version": int, "spec": Dictionary } }. Kept across
-# world hops (and reconnects) so revisits skip the download via known_version. In-memory only —
-# DEFERRED SEAM: a disk cache (and CDN-fetched assets) belong here when worlds/assets get large.
+# Cached world specs by world_id: { world_id: { "etag": String, "version": int, "spec": Dictionary } }.
+# Kept across world hops and reconnects (and, via the on-disk mirror in CACHE_DIR, across sessions) so
+# revisits skip the download — the server is asked only to confirm the cached etag is still current.
+# DEFERRED SEAM: CDN-fetched heavy assets (textures/audio) belong alongside this when worlds get large.
 var _world_specs: Dictionary = {}
+
+
+func _ready() -> void:
+	# Warm the in-memory cache from disk so a returning player's worlds paint instantly (and we can send
+	# their etags on join to skip the download). A changed world still re-ships — the etag won't match.
+	_load_disk_cache()
 
 
 func _process(delta: float) -> void:
@@ -150,10 +165,10 @@ func leave() -> void:
 
 ## Enter a world: join its channel (or queue the join until the socket is open). On travel, call this
 ## with the new world_id — Net leaves the old world channel and joins the new one. Sends our cached
-## version so the server skips re-sending an unchanged spec.
-func enter_world(world_id: String, known_version: int = -1) -> void:
+## content etag so the server skips re-sending an unchanged spec (and ships a fresh one if it changed).
+func enter_world(world_id: String, known_etag: String = "") -> void:
 	_desired_world = world_id
-	_desired_known_version = known_version if known_version >= 0 else cached_version(world_id)
+	_desired_known_etag = known_etag if known_etag != "" else cached_etag(world_id)
 	if is_active():
 		_switch_to_world()
 
@@ -178,7 +193,20 @@ func cached_spec_core(world_id: String) -> Dictionary:
 	return cached_spec(world_id).get("core", {})
 
 
-## The version of the cached spec for a world, or 0 if we don't have it.
+## The content etag of the cached spec for a world, or "" if we don't have it. This is the cache
+## validator we echo back on join (known_etag) so an unchanged world isn't re-downloaded.
+func cached_etag(world_id: String) -> String:
+	return String(_world_specs.get(world_id, {}).get("etag", ""))
+
+
+## TEST-ONLY: seed the in-memory spec cache directly (no socket), so headless smoke tests can build a
+## world server-less. Wraps the display-agnostic CORE in the { core, profiles } envelope the world
+## layer expects; does NOT touch the disk cache. Not used by the running game (which always fetches).
+func prime_world_spec(world_id: String, core: Dictionary) -> void:
+	_world_specs[world_id] = { "etag": "primed", "version": 0, "spec": { "core": core, "profiles": {} } }
+
+
+## The version of the cached spec for a world, or 0 if we don't have it (author-facing metadata).
 func cached_version(world_id: String) -> int:
 	return int(_world_specs.get(world_id, {}).get("version", 0))
 
@@ -267,7 +295,7 @@ func _switch_to_world() -> void:
 	_current_world = wid
 	_joined = false
 	_world_join_ref = _next_ref()
-	_send_raw([_world_join_ref, _world_join_ref, _world_topic(wid), "phx_join", { "known_version": _desired_known_version }])
+	_send_raw([_world_join_ref, _world_join_ref, _world_topic(wid), "phx_join", { "known_etag": _desired_known_etag }])
 
 
 func _flush_identity() -> void:
@@ -343,9 +371,12 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 		"world_spec":
 			var wid := String(payload.get("world_id", ""))
 			var version := int(payload.get("version", 0))
+			var etag := String(payload.get("etag", ""))
 			var spec: Variant = payload.get("spec", {})
 			if wid != "" and spec is Dictionary:
-				_world_specs[wid] = { "version": version, "spec": spec }
+				var entry := { "etag": etag, "version": version, "spec": spec }
+				_world_specs[wid] = entry
+				_persist_spec(wid, entry)
 				world_spec_received.emit(wid, version, spec)
 		"world_spec_unchanged":
 			# Our cached spec is current; nothing to do (the world layer already has it).
@@ -417,6 +448,47 @@ func _send_raw(frame: Array) -> void:
 func _next_ref() -> String:
 	_ref += 1
 	return str(_ref)
+
+
+# --- world-spec disk cache ------------------------------------------------------------------
+# One JSON file per world under CACHE_DIR ({ etag, version, spec }), so a returning player's worlds
+# paint without a download. Freshness is the etag's job: on join we send the cached etag, and the
+# server re-ships only if the world has changed. Best-effort — any I/O failure just means a refetch.
+
+## Load every cached world spec from disk into the in-memory map (called once, on _ready).
+func _load_disk_cache() -> void:
+	var dir := DirAccess.open(CACHE_DIR)
+	if dir == null:
+		return  # no cache yet (first run) — nothing to warm
+	dir.list_dir_begin()
+	var fname := dir.get_next()
+	while fname != "":
+		if not dir.current_is_dir() and fname.ends_with(".json"):
+			var wid := fname.substr(0, fname.length() - 5)
+			var parsed: Variant = JSON.parse_string(FileAccess.get_file_as_string(CACHE_DIR + "/" + fname))
+			if parsed is Dictionary and (parsed as Dictionary).get("spec") is Dictionary:
+				var p := parsed as Dictionary
+				_world_specs[wid] = {
+					"etag": String(p.get("etag", "")),
+					"version": int(p.get("version", 0)),
+					"spec": p.get("spec", {}),
+				}
+		fname = dir.get_next()
+	dir.list_dir_end()
+
+
+## Mirror one world's cache entry to disk. world_id is a server UUID (used as the filename); guard
+## against path-y ids just in case so a malformed id can never escape CACHE_DIR.
+func _persist_spec(world_id: String, entry: Dictionary) -> void:
+	if world_id == "" or world_id.contains("/") or world_id.contains("\\") or world_id.contains(".."):
+		return
+	if not DirAccess.dir_exists_absolute(CACHE_DIR):
+		DirAccess.make_dir_recursive_absolute(CACHE_DIR)
+	var f := FileAccess.open(CACHE_DIR + "/" + world_id + ".json", FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(entry))
+	f.close()
 
 
 ## Drop the server-stamped "id" so what's emitted upward is the bare presentation payload.

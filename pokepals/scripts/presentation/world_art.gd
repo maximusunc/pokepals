@@ -1,6 +1,6 @@
 class_name WorldArt
 extends Node2D
-## Draws the hand-placed cozy world from world.json: a mottled ground, worn paths,
+## Draws the hand-placed cozy world from the world spec: a mottled ground, worn paths,
 ## ponds that shimmer, scattered grass, flowers and tree canopies that sway in the
 ## wind, soft contact shadows for depth, and the interactable props (with a warm
 ## breathing glow on the lit ones). Pure presentation — it reads world data and the
@@ -18,7 +18,7 @@ var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, c
 var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
-# --- atmosphere (presentation-only mood, from world.json "atmosphere") ---
+# --- atmosphere (presentation-only mood, from the world spec's "atmosphere") ---
 var _time := 0.0
 var _wind_strength := 2.6
 var _wind_speed := 1.15
