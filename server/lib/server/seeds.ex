@@ -17,11 +17,11 @@ defmodule Server.Seeds do
   ]
 
   # The currency the bazaar shop charges in.
-  @color_price_currency "petals"
+  @color_price_currency "coins"
 
   # The shop's stock: COLOR cosmetics the bazaar shopkeeper sells. category "color" is what marks a def
   # purchasable (Economy.purchase refuses anything else); base_attributes carries the color_slot it
-  # recolors, the named ramp, a display swatch [r,g,b], and the price (in "petals"). Buying grants the
+  # recolors, the named ramp, a display swatch [r,g,b], and the price (in "coins"). Buying grants the
   # def into the player's wardrobe — the "stored choice". (The recolor render itself is still deferred.)
   @item_defs [
     %{item_def_id: 1, name: "Straw Hat", category: "cosmetic", slot: "head", stackable: false},
@@ -29,15 +29,15 @@ defmodule Server.Seeds do
     %{item_def_id: 3, name: "River Pebble", category: "trinket", slot: nil, stackable: true},
     %{item_def_id: 4, name: "Lantern", category: "tool", slot: "hand", stackable: false},
     %{item_def_id: 100, name: "Rose Blush", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "skin_tone", "ramp" => "rose", "swatch" => [0.96, 0.74, 0.74], "price" => 30, "currency" => "petals"}},
+      base_attributes: %{"color_slot" => "skin_tone", "ramp" => "rose", "swatch" => [0.96, 0.74, 0.74], "price" => 30, "currency" => "coins"}},
     %{item_def_id: 101, name: "River Teal", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "hair_color", "ramp" => "teal", "swatch" => [0.30, 0.66, 0.66], "price" => 45, "currency" => "petals"}},
+      base_attributes: %{"color_slot" => "hair_color", "ramp" => "teal", "swatch" => [0.30, 0.66, 0.66], "price" => 45, "currency" => "coins"}},
     %{item_def_id: 102, name: "Marigold", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "hair_color", "ramp" => "marigold", "swatch" => [0.96, 0.74, 0.30], "price" => 45, "currency" => "petals"}},
+      base_attributes: %{"color_slot" => "hair_color", "ramp" => "marigold", "swatch" => [0.96, 0.74, 0.30], "price" => 45, "currency" => "coins"}},
     %{item_def_id: 103, name: "Plum", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "hair_color", "ramp" => "plum", "swatch" => [0.55, 0.35, 0.62], "price" => 60, "currency" => "petals"}},
+      base_attributes: %{"color_slot" => "hair_color", "ramp" => "plum", "swatch" => [0.55, 0.35, 0.62], "price" => 60, "currency" => "coins"}},
     %{item_def_id: 104, name: "Slate", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "skin_tone", "ramp" => "slate", "swatch" => [0.55, 0.60, 0.66], "price" => 60, "currency" => "petals"}}
+      base_attributes: %{"color_slot" => "skin_tone", "ramp" => "slate", "swatch" => [0.55, 0.60, 0.66], "price" => 60, "currency" => "coins"}}
   ]
 
   @doc "Run all seeds (idempotent). Returns a short summary string."

@@ -9,7 +9,7 @@ defmodule Server.Accounts do
   # A brand-new player is seeded with a little spending money so the shop (its first sink) has
   # something to spend the very first time they wander into the bazaar. Granted once, on account
   # creation — never on a returning login — so it's a welcome gift, not a refillable faucet.
-  @starting_petals 120
+  @starting_coins 120
 
   @doc """
   Resolve a token to its account, creating one on first sight (a brand-new player just plays — no
@@ -33,7 +33,7 @@ defmodule Server.Accounts do
     |> case do
       {:ok, account} ->
         # Best-effort welcome gift; a currency hiccup must never cost the player their account.
-        Economy.grant_currency(account.user_id, "petals", @starting_petals)
+        Economy.grant_currency(account.user_id, "coins", @starting_coins)
         {:ok, account}
 
       {:error, _changeset} ->

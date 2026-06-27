@@ -24,6 +24,26 @@ defmodule Server.WorldChannelTest do
     world_id
   end
 
+  # A world whose spec carries the salamander hunt, so reward claims in it are honoured.
+  defp seed_hunt_world do
+    world_id = Ecto.UUID.generate()
+
+    {:ok, _} =
+      Worlds.upsert(%{
+        world_id: world_id,
+        slug: "hunt-#{System.unique_integer([:positive])}",
+        name: "Riverbank",
+        display_types: ["2d"],
+        version: 1,
+        spec: %{
+          "core" => %{"goal" => %{"type" => "find_salamanders", "count" => 10}},
+          "profiles" => %{"2d" => %{}}
+        }
+      })
+
+    world_id
+  end
+
   defp join_world(token, world_id, params \\ %{}) do
     {:ok, socket} = connect(UserSocket, %{"token" => token})
     {:ok, _reply, socket} = subscribe_and_join(socket, "world:" <> world_id, params)
@@ -116,7 +136,7 @@ defmodule Server.WorldChannelTest do
       item_def_id: id,
       name: name,
       category: "color",
-      base_attributes: %{"ramp" => ramp, "price" => price, "currency" => "petals"}
+      base_attributes: %{"ramp" => ramp, "price" => price, "currency" => "coins"}
     })
     |> Repo.insert!()
   end
@@ -132,13 +152,13 @@ defmodule Server.WorldChannelTest do
       w = seed_world()
       _socket = join_world("u-shop", w)
 
-      assert_push "economy", %{currency: "petals", balance: balance, colors: colors}
-      # A brand-new account is gifted starting petals on creation.
+      assert_push "economy", %{currency: "coins", balance: balance, colors: colors}
+      # A brand-new account is gifted starting coins on creation.
       assert balance >= 120
       assert Enum.any?(colors, &(&1.item_def_id == 100 and &1.owned == false))
     end
 
-    test "buying a color sinks petals and confirms with the new balance" do
+    test "buying a color sinks coins and confirms with the new balance" do
       w = seed_world()
       socket = join_world("u-buyer", w)
       assert_push "economy", %{balance: start}
@@ -159,6 +179,42 @@ defmodule Server.WorldChannelTest do
       push(socket, "buy", %{"item_def_id" => 100})
       assert_push "bought", %{balance: balance}
       assert balance == start - 30
+    end
+  end
+
+  describe "salamander hunt reward" do
+    test "finishing the hunt mints coins by how many were found, crediting the wallet" do
+      w = seed_hunt_world()
+      socket = join_world("u-hunter", w)
+      assert_push "economy", %{balance: start}
+
+      push(socket, "hunt_complete", %{"found" => 10})
+      assert_push "hunt_reward", %{found: 10, amount: 10, balance: balance, currency: "coins"}
+      assert balance == start + 10
+    end
+
+    test "a partial hunt earns the lower tier; fewer than six earns nothing" do
+      w = seed_hunt_world()
+      socket = join_world("u-hunter-partial", w)
+      assert_push "economy", %{balance: start}
+
+      push(socket, "hunt_complete", %{"found" => 7})
+      assert_push "hunt_reward", %{found: 7, amount: 2, balance: b7}
+      assert b7 == start + 2
+
+      push(socket, "hunt_complete", %{"found" => 5})
+      assert_push "hunt_reward", %{found: 5, amount: 0, balance: b5}
+      assert b5 == start + 2
+    end
+
+    test "the reward can't be claimed from a world without the hunt" do
+      w = seed_world()
+      socket = join_world("u-nohunt", w)
+      assert_push "economy", %{balance: start}
+
+      push(socket, "hunt_complete", %{"found" => 10})
+      assert_push "hunt_reward", %{found: 10, amount: 0, balance: balance}
+      assert balance == start
     end
   end
 

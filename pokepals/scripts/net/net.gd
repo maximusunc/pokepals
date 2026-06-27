@@ -48,12 +48,15 @@ signal disconnected()        # an established link dropped (server quit / we lef
 signal save_loaded(companion, appearance)
 ## The economy snapshot arrived after joining a world (per-user, same in every world): our wallet and
 ## the shop's color stock, each color flagged owned. currency is the spend currency's name (e.g.
-## "petals"); colors is an Array of { item_def_id, name, color_slot, ramp, swatch, price, owned }.
+## "coins"); colors is an Array of { item_def_id, name, color_slot, ramp, swatch, price, owned }.
 signal economy_loaded(currency: String, balance: int, colors: Array)
 ## A shop purchase resolved. On success: the bought color's id + our new balance (the color is now
 ## owned). On failure: the id we tried + a short reason string (insufficient_funds, already_owned, …).
 signal purchase_succeeded(item_def_id: int, balance: int)
 signal purchase_failed(item_def_id: int, reason: String)
+## The server resolved a salamander-hunt reward claim: how many we found, the coins it paid out (the
+## SERVER decides the amount; 0 below the reward threshold), and our new wallet balance.
+signal hunt_reward(found: int, amount: int, balance: int)
 ## A world's spec arrived (and was cached): the display-agnostic core + presentation profiles. The
 ## world layer may build/refresh from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
 signal world_spec_received(world_id: String, version: int, spec: Dictionary)
@@ -221,6 +224,15 @@ func buy_color(item_def_id: int) -> void:
 	if not _can_send():
 		return
 	_push_event("buy", { "item_def_id": item_def_id })
+
+
+## Tell the server we finished the salamander hunt, reporting how many of the ten we found. The reward
+## is decided + minted server-side; the outcome arrives back as hunt_reward. A no-op until we've
+## joined a world (so a hunt completed before the link is up simply pays nothing — online-only).
+func claim_hunt_reward(found: int) -> void:
+	if not _can_send():
+		return
+	_push_event("hunt_complete", { "found": found })
 
 
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
@@ -401,6 +413,11 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			purchase_succeeded.emit(int(payload.get("item_def_id", 0)), int(payload.get("balance", 0)))
 		"buy_failed":
 			purchase_failed.emit(int(payload.get("item_def_id", 0)), String(payload.get("reason", "")))
+		"hunt_reward":
+			hunt_reward.emit(
+				int(payload.get("found", 0)),
+				int(payload.get("amount", 0)),
+				int(payload.get("balance", 0)))
 
 
 ## Send one of OUR channel events on the current world topic (stable join_ref, fresh ref).

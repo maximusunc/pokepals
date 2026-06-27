@@ -20,7 +20,7 @@ signal closed()
 @onready var _list: VBoxContainer = $Panel/Box/Scroll/List
 @onready var _close_button: Button = $Panel/Box/CloseButton
 
-var _currency := "petals"
+var _currency := "coins"
 var _balance := 0
 # item_def_id -> { price:int, owned:bool, button:Button, status:Label }
 var _rows: Dictionary = {}
@@ -37,7 +37,7 @@ func is_open() -> bool:
 
 ## Open the shop with the current stock + wallet, rebuilding the color list.
 func open(colors: Array, balance: int, currency: String) -> void:
-	_currency = currency if currency != "" else "petals"
+	_currency = currency if currency != "" else "coins"
 	_balance = balance
 	_rebuild(colors)
 	_update_balance_label()
