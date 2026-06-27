@@ -47,6 +47,21 @@ defmodule Server.WorldsTest do
     assert view.world_id == a.world_id
     assert view.version == 1
     assert view.spec == %{"core" => %{}, "profiles" => %{"2d" => %{}}}
+    assert view.etag == Worlds.etag(view.spec)
+  end
+
+  test "etag is content-derived: stable for the same spec, changes when the spec changes" do
+    a = attrs()
+    {:ok, _} = Worlds.upsert(a)
+    e1 = Worlds.etag(Worlds.get(a.world_id))
+
+    assert is_binary(e1)
+    # Re-deriving from identical content (any key order) yields the same token.
+    assert Worlds.etag(%{"profiles" => %{"2d" => %{}}, "core" => %{}}) == e1
+
+    # Editing the spec changes the etag — no version bump needed for the cache to invalidate.
+    {:ok, _} = Worlds.upsert(%{a | spec: %{"core" => %{"x" => 1}, "profiles" => %{}}})
+    assert Worlds.etag(Worlds.get(a.world_id)) != e1
   end
 
   test "list can filter by display type" do

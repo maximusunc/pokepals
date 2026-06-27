@@ -61,7 +61,7 @@ Covers token→user_id resolution (`Accounts`), the `Saves` store/load round-tri
 the Presence diff→frame adapter (`PresenceFrames`), the world catalog (`Worlds`: upsert/get/list +
 display-type filter), the per-world process (`World`: store/snapshot/forget/fan-out, one per world_id,
 isolated), and the full channel flow (`WorldChannel` via `Phoenix.ChannelTest`: per-world join with
-spec delivery + `known_version` skip, welcome+load, save persistence, and per-world scoping of
+spec delivery + content-`etag` cache skip, welcome+load, save persistence, and per-world scoping of
 presence and state — same world sees each other, different worlds don't); plus the economy: `Economy`
 (grant/sink, the ledger==balance invariant, equip), `Trade` (atomic swap with one correlation_id,
 roll-back on insufficient funds, re-verify prevents a double-spend), and `TradeSession`
@@ -109,13 +109,16 @@ A "world" is three separate things: its **definition** (authored spec — `Serve
 `world_definitions`), its **runtime data** (the P4 `world_data` sandbox), and its **live session**
 (`Server.World`). Multi-world is built on all three:
 
-- **Catalog.** World specs are server-hosted and versioned. The spec is display-AGNOSTIC —
-  `%{"core" => <semantic logic>, "profiles" => %{"2d" => <presentation>}}` — so a world can gain a
-  3D/VR profile later without re-authoring its core. Clients fetch a world's spec on join and cache
-  it by `version` (sending `known_version` so an unchanged spec isn't re-sent), which is what lets the
-  catalog grow to (eventually millions of) worlds without baking them into the client. The seed worlds
-  (Vale, Riverbank) now live in the catalog; the Godot client ships their JSON only as an offline
-  first-paint fallback.
+- **Catalog.** World specs are server-hosted; the client bundles NONE of them. The spec is
+  display-AGNOSTIC — `%{"core" => <semantic logic>, "profiles" => %{"2d" => <presentation>}}` — so a
+  world can gain a 3D/VR profile later without re-authoring its core. Clients fetch a world's spec on
+  join and cache it (in memory + on disk) by a content **etag** (`Worlds.etag/1`), sending
+  `known_etag` so an unchanged spec isn't re-sent. Because the etag is derived from the spec's
+  content, ANY back-end edit to a world invalidates every client's cache on its own — no `version` to
+  remember to bump and no new client build to ship. (`version` remains as author-facing metadata.)
+  This is what lets the catalog grow to (eventually millions of) worlds without baking any into the
+  client. **Dev loop:** edit `priv/world_seeds/<world>.json`, re-run `mix run priv/repo/seeds.exs`,
+  and clients pick up the change on their next join — no client rebuild.
 - **Routing.** Each world is its own channel topic `"world:" <> world_id` with its own
   `Server.World` process (one per `world_id`, started on demand under a `DynamicSupervisor` + a
   `Registry`). Presence (the roster) and the live-transform fan-out (`world:<id>:state`) are scoped
@@ -179,9 +182,9 @@ reconnects) onto every relayed frame — clients never send their own id.
 
 World spec (server → us, on join):
 
-- client→server (in the `phx_join` payload) `{"known_version": <int>}` — the spec version we already cached
-- server→client `world_spec` `{"world_id":..,"slug":..,"name":..,"display_types":[..],"version":N,"spec":{"core":{..},"profiles":{"2d":{..}}}}`
-- server→client `world_spec_unchanged` `{"world_id":..,"version":N}` — our cache is current, spec omitted
+- client→server (in the `phx_join` payload) `{"known_etag": "<etag>"}` — the content etag we already cached ("" if none)
+- server→client `world_spec` `{"world_id":..,"slug":..,"name":..,"display_types":[..],"version":N,"etag":"<etag>","spec":{"core":{..},"profiles":{"2d":{..}}}}`
+- server→client `world_spec_unchanged` `{"world_id":..,"version":N,"etag":"<etag>"}` — our cache is current, spec omitted
 
 Presentation (relayed to peers IN THE SAME WORLD), `event` + `payload`:
 

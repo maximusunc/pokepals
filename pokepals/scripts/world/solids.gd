@@ -9,7 +9,7 @@ extends RefCounted
 
 ## Built-in "solid" prop types and their blocking radii. Tall things block; flat,
 ## walk-over things (flowers, mushrooms, chime_stone, basin) are simply absent here.
-## A prop can override via "solid"/"collision_radius" in world.json.
+## A prop can override via "solid"/"collision_radius" in the world spec.
 const SOLID_TYPES := {
 	"bench": 11.0,
 	"signpost": 7.0,
@@ -57,7 +57,7 @@ static func _jitter(base: Vector2, jitter: float, rng: RandomNumberGenerator) ->
 
 ## Build the full list of solid circles [{ center: Vector2, radius: float }] from the
 ## world data: hand-placed trees + the border ring, great-tree landmarks, the tall
-## props, and (optionally) ponds. cfg is world.json's "collision" block.
+## props, and (optionally) ponds. cfg is the world spec's "collision" block.
 static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) -> Array:
 	var solids: Array = []
 	var tree_r := float(cfg.get("tree_radius", 7.0))
