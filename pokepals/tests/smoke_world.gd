@@ -16,6 +16,12 @@ var _phase_frame := 0
 
 
 func _initialize() -> void:
+	# The world spec is server-hosted now (the client bundles none). Headless and server-less, we prime
+	# Net's spec cache from a test fixture so world_controller builds the Vale synchronously, exactly as
+	# it would from a cached server spec. (Fixture mirrors the server's priv/world_seeds/vale.json.)
+	var router := root.get_node("/root/WorldRouter")
+	var net := root.get_node("/root/Net")
+	net.prime_world_spec(router.VALE_ID, WorldData.load_json("res://tests/world_fixtures/vale.json"))
 	var scene: PackedScene = load("res://scenes/world.tscn")
 	_world = scene.instantiate()
 	root.add_child(_world)

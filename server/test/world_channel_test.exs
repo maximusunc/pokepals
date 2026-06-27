@@ -68,12 +68,21 @@ defmodule Server.WorldChannelTest do
       assert_push "load", %{companion: nil, appearance: nil}
     end
 
-    test "a matching known_version skips the spec body" do
+    test "a matching known etag skips the spec body" do
       w = seed_world(3)
-      _socket = join_world("u-cached", w, %{"known_version" => 3})
+      etag = Worlds.etag(Worlds.get(w))
+      _socket = join_world("u-cached", w, %{"known_etag" => etag})
 
-      assert_push "world_spec_unchanged", %{world_id: ^w, version: 3}
+      assert_push "world_spec_unchanged", %{world_id: ^w, version: 3, etag: ^etag}
       refute_push "world_spec", %{}
+    end
+
+    test "a stale known etag re-ships the full spec" do
+      w = seed_world(3)
+      _socket = join_world("u-stale", w, %{"known_etag" => "deadbeef"})
+
+      assert_push "world_spec", %{world_id: ^w, version: 3, etag: etag}
+      assert etag == Worlds.etag(Worlds.get(w))
     end
 
     test "a returning player's load carries their stored save (per-user, any world)" do

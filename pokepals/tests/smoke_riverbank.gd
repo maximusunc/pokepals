@@ -23,9 +23,12 @@ func _process(_delta: float) -> bool:
 	# is registered.)
 	if _world == null:
 		var router := root.get_node("/root/WorldRouter")
-		# World ids are platform UUIDs now; the controller resolves them to a spec (here, headless and
-		# server-less, via the bundled seed fallback). Point at the Riverbank as if we'd just stepped
-		# through the Vale's portal.
+		# World ids are platform UUIDs now; the spec is server-hosted (the client bundles none). Headless
+		# and server-less, we prime Net's cache from a test fixture so the controller builds the Riverbank
+		# synchronously, as it would from a cached server spec. (Mirrors server priv/world_seeds/riverbank.json.)
+		var net := root.get_node("/root/Net")
+		net.prime_world_spec(router.RIVERBANK_ID, WorldData.load_json("res://tests/world_fixtures/riverbank.json"))
+		# Point at the Riverbank as if we'd just stepped through the Vale's portal.
 		router.current_world = router.RIVERBANK_ID
 		router.arrival_portal_id = "riverbank_entry"
 		router.pending_transition = true

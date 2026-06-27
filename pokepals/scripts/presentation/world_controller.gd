@@ -22,18 +22,11 @@ const SAVE_INTERVAL := 15.0  # how often to push the companion/wardrobe to the s
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
 const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
-# The world SPEC is server-hosted now: Net fetches it on join and caches it by version. These bundled
-# JSONs are only an offline / first-paint FALLBACK for the seed worlds (keyed by their platform
-# world_id) — worlds the client doesn't bundle (UGC worlds) come purely from the server's cache.
-# DEFERRED SEAM: rendering a never-bundled world whose spec is still in flight (async build) is the
-# next client step; for now the two seed worlds always have a local fallback to build from instantly.
-# Keys are the seed worlds' platform ids (literals here so this stays a compile-time constant; they
-# match WorldRouter.VALE_ID / RIVERBANK_ID and the server's world_definitions seeds).
-const SEED_FALLBACK := {
-	"11111111-1111-1111-1111-111111111111": "res://data/world.json",
-	"22222222-2222-2222-2222-222222222222": "res://data/riverbank.json",
-	"33333333-3333-3333-3333-333333333333": "res://data/bazaar.json",
-}
+# The world SPEC is fully SERVER-HOSTED: the client bundles NO world specs. Net fetches a world's spec
+# on join and caches it (in memory + on disk, keyed by a content etag); we build from that. A cold
+# first visit (nothing cached yet) shows a brief loading screen and builds the moment the spec arrives;
+# a revisit paints instantly from the cache. Because the cache is content-keyed, a back-end world edit
+# is picked up with no new client build — see _on_world_spec_arrived.
 
 @onready var _world_art: WorldArt = $WorldArt
 @onready var _scenery: Scenery = $Scenery
@@ -82,6 +75,10 @@ var _point_cd_left := 0.0        # seconds until the next point may fire
 var _point_target := Vector2.ZERO  # world pos the companion is pointing at
 var _point_target_hi := -1       # hunt_index of the pointed rock (to end early if it gets flipped)
 var _transitioning := false  # true once a portal transition's fade has begun
+# The content etag of the spec we actually BUILT this scene from (Net.cached_etag at build time), or
+# "" if we haven't built yet (still on the loading screen). Lets _on_world_spec_arrived tell "first
+# paint" and "the world changed under us" apart from "the spec we already built just got reconfirmed".
+var _built_etag := ""
 # The bazaar shop: the merchant's stationary companion (a puppet), and the economy snapshot the
 # server pushes on join (our wallet + the color stock). Empty/absent in worlds without a shopkeeper.
 var _npc_companion: CompanionView = null
@@ -112,11 +109,26 @@ var _save_accum := 0.0       # accumulates toward the next server SAVE_INTERVAL 
 
 
 func _ready() -> void:
-	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a
-	# fresh boot). The spec comes from the server (Net's cache); we fall back to the bundled seed JSON
-	# for first paint / offline. The arrival portal id, if set, says which portal we stepped out of.
+	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a fresh
+	# boot). The spec is SERVER-CANONICAL — there is no bundled copy — so we either build now from Net's
+	# cache (revisit / warm disk cache) or, on a cold first visit, show a loading screen and build the
+	# moment the spec arrives. We also stay subscribed so a world that changes on the server while we're
+	# standing in it rebuilds itself, no new client build required (see _on_world_spec_arrived).
 	var world_id := WorldRouter.current_world
-	var data := _resolve_spec_core(world_id)
+	Net.world_spec_received.connect(_on_world_spec_arrived)
+	var data := Net.cached_spec_core(world_id)
+	if data.is_empty():
+		_show_loading()
+		Net.enter_world(world_id)  # fetch; _build_world runs from _on_world_spec_arrived when it lands
+		return
+	_built_etag = Net.cached_etag(world_id)
+	_build_world(data)
+
+
+## Build the whole world from its (server-provided) spec CORE: lay out contents, place the player and
+## companion, draw it, wire collisions, regions, the UI buttons, and shared presence. Called straight
+## from _ready when the spec is already cached, or from _on_world_spec_arrived on a cold first visit.
+func _build_world(data: Dictionary) -> void:
 	var arrival_id := WorldRouter.arrival_portal_id
 
 	# Shared art direction (palette + light): the one place the whole look is tuned.
@@ -371,7 +383,7 @@ func _show_hint(text: String) -> void:
 
 ## Push the world's presentation-only mood knobs into the scene nodes that render
 ## them: the global warm color-wash (CanvasModulate), the screen-edge vignette, and
-## the drifting pollen. All data-driven from world.json's "atmosphere" block, with
+## the drifting pollen. All data-driven from the world spec's "atmosphere" block, with
 ## defaults so a world without the block still looks right.
 func _apply_atmosphere(atmo: Dictionary) -> void:
 	if atmo.has("day_tint"):
@@ -863,18 +875,39 @@ func _setup_net() -> void:
 		_apply_server_save(s.get("companion"), s.get("appearance"))
 
 
-## Resolve a world_id to its display-agnostic spec CORE (regions, interactables, portals, spawns…) —
-## the structure world_controller builds from. Prefer the server's cached spec (the canonical,
-## versioned source); fall back to the bundled seed JSON for first paint / offline. An unknown,
-## never-bundled world yields {} until its spec arrives (see SEED_FALLBACK's deferred-seam note).
-func _resolve_spec_core(world_id: String) -> Dictionary:
-	var core := Net.cached_spec_core(world_id)
-	if not core.is_empty():
-		return core
-	var fallback := String(SEED_FALLBACK.get(world_id, ""))
-	if fallback != "":
-		return WorldData.load_json(fallback)
-	return {}
+## Cover the not-yet-built scene with the black fade and a gentle word while we wait for the server's
+## spec on a cold first visit. (On portal travel the fade is already black; this also covers a fresh
+## boot, where the lobby gate sits on top until you connect.) Built into the scene's existing Fade.
+func _show_loading() -> void:
+	var c := _fade.color
+	c.a = 1.0
+	_fade.color = c
+	_hint.text = "Entering the world…"
+	_hint.modulate.a = 1.0
+
+
+## The server delivered (or re-delivered) a world's spec. Three cases, decided by comparing the just-
+## cached etag to the one we built from (_built_etag):
+##   • not our current world → ignore.
+##   • same etag we already built → a reconfirm; nothing to do.
+##   • different (we hadn't built yet → first paint; or our cached copy was stale and the server sent a
+##     newer one → the world changed under us) → (re)build from the now-cached fresh spec.
+## A live change rebuilds via a scene reload (the clean way to tear down the old world); a first paint
+## builds in place so the loading screen flows straight into the world.
+func _on_world_spec_arrived(world_id: String, _version: int, _spec: Dictionary) -> void:
+	if world_id != WorldRouter.current_world:
+		return
+	var etag := Net.cached_etag(world_id)
+	if etag == _built_etag:
+		return
+	if _built_etag == "":
+		_built_etag = etag
+		_build_world(Net.cached_spec_core(world_id))
+	else:
+		# The world changed on the server while we were standing in it. Rejoin cleanly (so the fresh
+		# roster re-arrives after the rebuild) and reload the scene to rebuild from the now-cached spec.
+		Net.leave_world()
+		get_tree().reload_current_scene()
 
 
 ## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
