@@ -1,4 +1,4 @@
-[gd_scene load_steps=11 format=3 uid="uid://kithboundworld"]
+[gd_scene load_steps=12 format=3 uid="uid://kithboundworld"]
 
 [ext_resource type="Script" path="res://scripts/presentation/world_controller.gd" id="1"]
 [ext_resource type="Script" path="res://scripts/presentation/world_art.gd" id="2"]
@@ -10,6 +10,7 @@
 [ext_resource type="Shader" path="res://assets/vignette.gdshader" id="8"]
 [ext_resource type="Script" path="res://scripts/presentation/scenery.gd" id="9"]
 [ext_resource type="Script" path="res://scripts/presentation/lobby.gd" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/shop_panel.tscn" id="11"]
 
 [sub_resource type="ShaderMaterial" id="ShaderMaterial_vignette"]
 shader = ExtResource("8")
@@ -222,6 +223,9 @@ theme_override_font_sizes/font_size = 14
 horizontal_alignment = 1
 autowrap_mode = 2
 text = ""
+
+[node name="ShopPanel" parent="UI" instance=ExtResource("11")]
+visible = false
 
 [node name="Fade" type="CanvasLayer" parent="."]
 layer = 100

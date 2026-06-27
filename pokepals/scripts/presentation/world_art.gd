@@ -372,6 +372,39 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 2), 12.0, color)
 			draw_circle(p + Vector2(0, 0), 8.0, Color(0.40, 0.56, 0.64))
 			draw_arc(p + Vector2(0, 0), 8.0, 0.0, TAU, 20, Color(0.85, 0.92, 0.95, 0.6), 1.0)
+		"stall":
+			# a market stall: a timber counter under a striped, slightly billowing awning on two posts
+			var stall_awning := color
+			var stall_awning_alt := color.lightened(0.25)
+			var stall_sway := _sway(_phase_for(p), 0.35)
+			# posts
+			draw_rect(Rect2(p + Vector2(-20, -8), Vector2(3, 24)), Color(0.34, 0.26, 0.18))
+			draw_rect(Rect2(p + Vector2(17, -8), Vector2(3, 24)), Color(0.34, 0.26, 0.18))
+			# counter
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 10)), Color(0.52, 0.40, 0.28))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 3)), Color(0.62, 0.49, 0.34))
+			# striped awning (a shallow slanted roof of alternating bands), nodding in the breeze
+			for stripe in 4:
+				var x0 := -22.0 + float(stripe) * 11.0
+				var band := PackedVector2Array([
+					p + Vector2(x0, -10), p + Vector2(x0 + 11.0, -10),
+					p + Vector2(x0 + 11.0 + stall_sway, -22), p + Vector2(x0 + stall_sway, -22)])
+				draw_colored_polygon(band, stall_awning if stripe % 2 == 0 else stall_awning_alt)
+			draw_line(p + Vector2(-22, -10), p + Vector2(22, -10), color.darkened(0.25), 1.5)
+		"shopkeeper":
+			# a friendly standing figure behind the counter: an apron-coloured body, a warm head, a
+			# little idle sway so they read as alive rather than a prop
+			var keeper_skin := Color(0.92, 0.76, 0.62)
+			var keeper_bob := sin(_time * 1.6 + _phase_for(p)) * 1.0
+			# body (apron/robe)
+			var keeper_body := PackedVector2Array([
+				p + Vector2(-7, 8), p + Vector2(7, 8), p + Vector2(5, -8 + keeper_bob), p + Vector2(-5, -8 + keeper_bob)])
+			draw_colored_polygon(keeper_body, color)
+			draw_line(p + Vector2(0, -6 + keeper_bob), p + Vector2(0, 6), color.darkened(0.2), 1.0)
+			# head
+			draw_circle(p + Vector2(0, -14 + keeper_bob), 5.0, keeper_skin)
+			# a little hood/cap of the apron colour
+			draw_arc(p + Vector2(0, -14 + keeper_bob), 5.0, PI, TAU, 12, color.darkened(0.1), 3.0)
 		"portal":
 			# an upright shimmering oval doorway, gently breathing, with sparks circling its rim
 			var sway := 0.9 + 0.1 * sin(_time * 2.0)

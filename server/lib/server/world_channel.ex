@@ -20,7 +20,10 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Presence, PresenceFrames, Saves, World, Worlds}
+  alias Server.{Economy, Presence, PresenceFrames, Saves, World, Worlds}
+
+  # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
+  @shop_currency "petals"
 
   intercept ["presence_diff"]
 
@@ -70,6 +73,10 @@ defmodule Server.WorldChannel do
 
     save = Saves.load(user_id)
     push(socket, "load", %{companion: save.companion, appearance: save.appearance})
+
+    # The economy snapshot — our wallet + the shop's color stock, each flagged owned. A per-USER
+    # concern (same in every world); the bazaar's shop reads it, every other world just ignores it.
+    push(socket, "economy", economy_snapshot(user_id))
 
     for {peer_id, transform} <- World.snapshot(world_id), peer_id != user_id do
       push(socket, "state", Map.put(transform, "id", peer_id))
@@ -122,7 +129,64 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Buy a color from the shop. The purchase is server-authoritative (sink + grant, atomic, ledgered);
+  # we just relay the outcome. On success the client updates its wallet + marks the color owned; on
+  # failure it surfaces the reason. `item_def_id` may arrive as a number or a string (JSON).
+  def handle_in("buy", %{"item_def_id" => raw_id}, socket) do
+    user_id = socket.assigns.user_id
+
+    case parse_item_def_id(raw_id) do
+      :error ->
+        push(socket, "buy_failed", %{item_def_id: raw_id, reason: "bad_item"})
+
+      {:ok, item_def_id} ->
+        case Economy.purchase(user_id, item_def_id) do
+          {:ok, %{balance: balance}} ->
+            push(socket, "bought", %{item_def_id: item_def_id, balance: balance, currency: @shop_currency})
+
+          {:error, reason} ->
+            push(socket, "buy_failed", %{item_def_id: item_def_id, reason: to_string(reason)})
+        end
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  # The wallet + shop stock for a user: balance of the shop currency, and every color definition with
+  # an `owned` flag, flattened from its `base_attributes` into the flat shape the client renders.
+  defp economy_snapshot(user_id) do
+    owned = MapSet.new(Economy.wardrobe_def_ids(user_id))
+
+    colors =
+      for d <- Economy.color_catalog() do
+        attrs = d.base_attributes || %{}
+
+        %{
+          item_def_id: d.item_def_id,
+          name: d.name,
+          color_slot: Map.get(attrs, "color_slot"),
+          ramp: Map.get(attrs, "ramp"),
+          swatch: Map.get(attrs, "swatch"),
+          price: Map.get(attrs, "price"),
+          owned: MapSet.member?(owned, d.item_def_id)
+        }
+      end
+
+    %{currency: @shop_currency, balance: Economy.balance(user_id, @shop_currency), colors: colors}
+  end
+
+  defp parse_item_def_id(id) when is_integer(id), do: {:ok, id}
+
+  defp parse_item_def_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} -> {:ok, n}
+      _ -> :error
+    end
+  end
+
+  defp parse_item_def_id(_), do: :error
 
   @impl true
   def handle_out("presence_diff", %{joins: joins, leaves: leaves}, socket) do

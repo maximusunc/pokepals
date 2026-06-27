@@ -15,6 +15,7 @@ extends Node
 ## in the Vale.
 const VALE_ID := "11111111-1111-1111-1111-111111111111"
 const RIVERBANK_ID := "22222222-2222-2222-2222-222222222222"
+const BAZAAR_ID := "33333333-3333-3333-3333-333333333333"
 
 ## The world the next (or current) load should enter. Defaults to the Vale for a fresh boot.
 var current_world := VALE_ID

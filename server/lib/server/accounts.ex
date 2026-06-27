@@ -4,7 +4,12 @@ defmodule Server.Accounts do
   that the rest of the system keys on. This is the token → user_id indirection — the one place that
   knows tokens exist. Everything downstream (saves, presence, and later the economy) speaks `user_id`.
   """
-  alias Server.{Account, Repo}
+  alias Server.{Account, Economy, Repo}
+
+  # A brand-new player is seeded with a little spending money so the shop (its first sink) has
+  # something to spend the very first time they wander into the bazaar. Granted once, on account
+  # creation — never on a returning login — so it's a welcome gift, not a refillable faucet.
+  @starting_petals 120
 
   @doc """
   Resolve a token to its account, creating one on first sight (a brand-new player just plays — no
@@ -26,8 +31,13 @@ defmodule Server.Accounts do
     |> Account.changeset(%{token: token})
     |> Repo.insert()
     |> case do
-      {:ok, account} -> {:ok, account}
-      {:error, _changeset} -> {:ok, Repo.get_by!(Account, token: token)}
+      {:ok, account} ->
+        # Best-effort welcome gift; a currency hiccup must never cost the player their account.
+        Economy.grant_currency(account.user_id, "petals", @starting_petals)
+        {:ok, account}
+
+      {:error, _changeset} ->
+        {:ok, Repo.get_by!(Account, token: token)}
     end
   end
 end

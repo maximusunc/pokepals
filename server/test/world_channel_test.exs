@@ -6,7 +6,7 @@ defmodule Server.WorldChannelTest do
   own world(s) with unique ids, so the on-demand `Server.World` processes are fresh.
   """
   use Server.ChannelCase, async: false
-  alias Server.{Saves, UserSocket, Worlds}
+  alias Server.{ItemDefinition, Repo, Saves, UserSocket, Worlds}
 
   defp seed_world(version \\ 1) do
     world_id = Ecto.UUID.generate()
@@ -107,6 +107,58 @@ defmodule Server.WorldChannelTest do
 
       # No cross-world join frame is ever delivered.
       refute_push "join", %{}
+    end
+  end
+
+  defp insert_color(id, name, ramp, price) do
+    %ItemDefinition{}
+    |> ItemDefinition.changeset(%{
+      item_def_id: id,
+      name: name,
+      category: "color",
+      base_attributes: %{"ramp" => ramp, "price" => price, "currency" => "petals"}
+    })
+    |> Repo.insert!()
+  end
+
+  describe "shop economy" do
+    setup do
+      insert_color(100, "Rose Blush", "rose", 30)
+      insert_color(101, "Dear Plum", "plum", 100_000)
+      :ok
+    end
+
+    test "joining pushes the economy snapshot — wallet plus the color stock, flagged owned" do
+      w = seed_world()
+      _socket = join_world("u-shop", w)
+
+      assert_push "economy", %{currency: "petals", balance: balance, colors: colors}
+      # A brand-new account is gifted starting petals on creation.
+      assert balance >= 120
+      assert Enum.any?(colors, &(&1.item_def_id == 100 and &1.owned == false))
+    end
+
+    test "buying a color sinks petals and confirms with the new balance" do
+      w = seed_world()
+      socket = join_world("u-buyer", w)
+      assert_push "economy", %{balance: start}
+
+      push(socket, "buy", %{"item_def_id" => 100})
+      assert_push "bought", %{item_def_id: 100, balance: balance}
+      assert balance == start - 30
+    end
+
+    test "an unaffordable color fails cleanly, nothing spent" do
+      w = seed_world()
+      socket = join_world("u-broke", w)
+      assert_push "economy", %{balance: start}
+
+      push(socket, "buy", %{"item_def_id" => 101})
+      assert_push "buy_failed", %{item_def_id: 101, reason: "insufficient_funds"}
+
+      push(socket, "buy", %{"item_def_id" => 100})
+      assert_push "bought", %{balance: balance}
+      assert balance == start - 30
     end
   end
 

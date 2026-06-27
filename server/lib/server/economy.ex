@@ -34,7 +34,8 @@ defmodule Server.Economy do
     ItemDefinition,
     LedgerEntry,
     PlayerCurrency,
-    Repo
+    Repo,
+    Wardrobe
   }
 
   @type uuid :: Ecto.UUID.t()
@@ -83,6 +84,18 @@ defmodule Server.Economy do
   """
   @spec item_definition(integer()) :: ItemDefinition.t() | nil
   def item_definition(item_def_id), do: Repo.get(ItemDefinition, item_def_id)
+
+  @doc "The item_def_ids of the cosmetics a user owns by definition (their wardrobe unlocks)."
+  @spec wardrobe_def_ids(uuid()) :: [integer()]
+  def wardrobe_def_ids(user_id) do
+    Repo.all(from(w in Wardrobe, where: w.user_id == ^user_id, select: w.item_def_id))
+  end
+
+  @doc "Every purchasable color definition (category `\"color\"`), ordered by id — the shop's stock."
+  @spec color_catalog() :: [ItemDefinition.t()]
+  def color_catalog do
+    Repo.all(from(d in ItemDefinition, where: d.category == "color", order_by: d.item_def_id))
+  end
 
   @doc """
   The balance for a user/currency RECONSTRUCTED from the ledger (credits to − debits from). Equals
@@ -179,6 +192,80 @@ defmodule Server.Economy do
       })
 
       item
+    end)
+  end
+
+  # ── Purchase (shop): sink price + grant the wardrobe unlock, atomically, ledger-logged ───────────
+
+  @doc """
+  BUY a catalog cosmetic from the platform shop: in ONE transaction, sink its price and grant it into
+  the player's `wardrobe` (owned-by-definition), writing the matching ledger rows under one
+  `correlation_id`. Funds and ownership move together or not at all — the same ledger-or-nothing
+  discipline as the mints/sinks above, just composed.
+
+  The price + currency live in the definition's `base_attributes` (`"price"`, `"currency"`). Rolls
+  back on an unknown/priceless def, a def that isn't for sale (only `category: "color"` today), a
+  cosmetic already owned, or insufficient funds. Returns `{:ok, %{item_def_id, balance}}` (the new
+  balance of the spent currency) or `{:error, reason}` with nothing moved.
+  """
+  @spec purchase(uuid(), integer()) ::
+          {:ok, %{item_def_id: integer(), balance: integer()}} | {:error, term()}
+  def purchase(user_id, item_def_id) do
+    correlation_id = Ecto.UUID.generate()
+
+    Repo.transaction(fn ->
+      definition = item_definition(item_def_id)
+
+      cond do
+        is_nil(definition) -> Repo.rollback(:no_definition)
+        definition.category != "color" -> Repo.rollback(:not_for_sale)
+        true -> :ok
+      end
+
+      attrs = definition.base_attributes || %{}
+      price = Map.get(attrs, "price")
+      currency = Map.get(attrs, "currency", "petals")
+      if not is_integer(price) or price < 0, do: Repo.rollback(:not_for_sale)
+
+      if Repo.get_by(Wardrobe, user_id: user_id, item_def_id: item_def_id),
+        do: Repo.rollback(:already_owned)
+
+      # Guard the funds under lock before spending (mirrors sink_currency).
+      ensure_currency_rows!([user_id], [currency])
+      lock_currencies!([user_id], [currency])
+      if balance(user_id, currency) < price, do: Repo.rollback(:insufficient_funds)
+
+      if price > 0 do
+        bump_currency!(user_id, currency, -price)
+
+        write_ledger!(%{
+          txn_type: "purchase",
+          from_user: user_id,
+          to_user: nil,
+          asset_kind: "currency",
+          asset_ref: currency,
+          amount: price,
+          context: %{"item_def_id" => item_def_id},
+          correlation_id: correlation_id
+        })
+      end
+
+      %Wardrobe{}
+      |> Wardrobe.changeset(%{user_id: user_id, item_def_id: item_def_id})
+      |> Repo.insert!()
+
+      write_ledger!(%{
+        txn_type: "purchase",
+        from_user: nil,
+        to_user: user_id,
+        asset_kind: "item",
+        asset_ref: Integer.to_string(item_def_id),
+        amount: 1,
+        context: %{"item_def_id" => item_def_id},
+        correlation_id: correlation_id
+      })
+
+      %{item_def_id: item_def_id, balance: balance(user_id, currency)}
     end)
   end
 
