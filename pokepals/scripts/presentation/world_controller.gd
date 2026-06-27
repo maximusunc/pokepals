@@ -78,6 +78,10 @@ var _transitioning := false  # true once a portal transition's fade has begun
 # "" if we haven't built yet (still on the loading screen). Lets _on_world_spec_arrived tell "first
 # paint" and "the world changed under us" apart from "the spec we already built just got reconfirmed".
 var _built_etag := ""
+# False until _build_world finishes. The per-frame callbacks (_process / _unhandled_input) early-return
+# while it's false, so they never run against a not-yet-built world on a cold first visit (when _ready
+# defers the build until the server's spec arrives).
+var _world_built := false
 # The bazaar shop: the merchant's stationary companion (a puppet), and the economy snapshot the
 # server pushes on join (our wallet + the color stock). Empty/absent in worlds without a shopkeeper.
 var _npc_companion: CompanionView = null
@@ -232,6 +236,11 @@ func _build_world(data: Dictionary) -> void:
 	# Shared presence: hand Net our identity once, and listen for peers arriving/moving/leaving.
 	# Everything here is a no-op until the player actually Hosts/Joins via the lobby.
 	_setup_net()
+
+	# The world is now fully assembled: let the per-frame logic (_process / _unhandled_input) run. Until
+	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
+	# up yet — those callbacks early-return, so they never touch half-built state.
+	_world_built = true
 
 
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
@@ -439,6 +448,11 @@ func _apply_daycycle(u: float) -> void:
 
 
 func _process(delta: float) -> void:
+	# Nothing to drive until the world is built (on a cold first visit we're still waiting on the spec;
+	# the lobby gate is what's on screen). Building wires up the companion, interactables and net.
+	if not _world_built:
+		return
+
 	# Slow ambient day→dusk drift, if enabled, driving the warm wash + vignette.
 	if _day_enabled and _day_stops.size() >= 2:
 		_day_time += delta
@@ -552,6 +566,9 @@ func _on_reset_pressed() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
+	# Input does nothing until the world is built (the lobby owns the screen until then).
+	if not _world_built:
+		return
 	if event.is_action_pressed("ui_accept"):
 		_try_interact()
 	# Desktop convenience keys, matching the project's physical-key convention (no InputMap):
@@ -868,9 +885,14 @@ func _setup_net() -> void:
 
 
 ## Cover the not-yet-built scene with the black fade and a gentle word while we wait for the server's
-## spec on a cold first visit. (On portal travel the fade is already black; this also covers a fresh
-## boot, where the lobby gate sits on top until you connect.) Built into the scene's existing Fade.
+## spec on a cold first visit — but ONLY when the lobby connect-gate isn't up. The Fade is a very high
+## CanvasLayer (above the lobby), so blacking it out on a fresh, disconnected boot would hide the gate
+## itself and you'd be stuck on a black screen with nothing to click. In that case the lobby already
+## provides the "not ready yet" visual, so we leave the fade clear. We only cover the screen when the
+## lobby is hidden: a portal arrival (pending_transition) or an already-connected session.
 func _show_loading() -> void:
+	if not (WorldRouter.pending_transition or Net.is_active()):
+		return
 	var c := _fade.color
 	c.a = 1.0
 	_fade.color = c
