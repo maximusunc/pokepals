@@ -42,7 +42,7 @@ layout_mode = 2
 theme_override_colors/font_color = Color(0.96, 0.86, 0.58, 1)
 theme_override_font_sizes/font_size = 18
 horizontal_alignment = 1
-text = "Your purse:  0 petals"
+text = "Your purse:  0 coins"
 
 [node name="Scroll" type="ScrollContainer" parent="Panel/Box"]
 custom_minimum_size = Vector2(0, 240)

@@ -23,7 +23,12 @@ defmodule Server.WorldChannel do
   alias Server.{Economy, Presence, PresenceFrames, Saves, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
-  @shop_currency "petals"
+  @shop_currency "coins"
+
+  # What the riverbank salamander hunt pays out, keyed by how many of the ten were found. Fewer than
+  # six earns nothing (absent keys default to 0). Server-authoritative: the client reports the count,
+  # the server alone decides the reward, mints it, and ledgers it — UGC/world code never touches this.
+  @hunt_rewards %{10 => 10, 9 => 7, 8 => 5, 7 => 2, 6 => 1}
 
   intercept ["presence_diff"]
 
@@ -156,7 +161,41 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Claim the reward for finishing the riverbank salamander hunt. The client reports how many of the
+  # ten it found; the SERVER decides the payout (see @hunt_rewards), mints it, and confirms the new
+  # balance — the same server-authoritative discipline as `buy`. The grant is honoured only in a world
+  # that actually carries the hunt, so the reward can't be claimed from the Vale or the bazaar.
+  def handle_in("hunt_complete", %{"found" => found}, socket) when is_integer(found) do
+    user_id = socket.assigns.user_id
+    amount = hunt_reward_amount(socket.assigns.definition, found)
+
+    balance =
+      if amount > 0 do
+        case Economy.grant_currency(user_id, @shop_currency, amount,
+               txn_type: "reward",
+               context: %{"source" => "salamander_hunt", "found" => found}) do
+          {:ok, new_balance} -> new_balance
+          {:error, _reason} -> Economy.balance(user_id, @shop_currency)
+        end
+      else
+        Economy.balance(user_id, @shop_currency)
+      end
+
+    push(socket, "hunt_reward", %{found: found, amount: amount, balance: balance, currency: @shop_currency})
+    {:noreply, socket}
+  end
+
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  # The hunt payout for `found`, but only in a world whose spec carries the salamander hunt — elsewhere
+  # there's nothing to reward, so it's always 0.
+  defp hunt_reward_amount(definition, found) do
+    if get_in(definition.spec, ["core", "goal", "type"]) == "find_salamanders" do
+      Map.get(@hunt_rewards, found, 0)
+    else
+      0
+    end
+  end
 
   # The wallet + shop stock for a user: balance of the shop currency, and every color definition with
   # an `owned` flag, flattened from its `base_attributes` into the flat shape the client renders.

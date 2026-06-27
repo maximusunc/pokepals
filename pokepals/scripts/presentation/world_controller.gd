@@ -59,6 +59,7 @@ var _home_portal := ""
 var _flip_budget := 0  # max rocks the player may turn over this hunt (0 = unlimited); from goal.flip_budget
 var _flips_left := 0   # rocks remaining in the budget, shown on the goal label
 var _hunt_over := false  # latched once the hunt ends (won or run out) so it resolves only once
+var _completion_hint := ""  # the hint shown when the hunt ended, so the coin reward can append to it
 # Detector tuning (companion.json "detector"), cached from the companion at setup. When a hidden
 # salamander is within (bond-scaled) sense range and the cooldown has elapsed, the companion stops
 # and points at it for a couple seconds, then cools down — points more often the deeper the bond.
@@ -83,7 +84,7 @@ var _built_etag := ""
 var _npc_companion: CompanionView = null
 var _shop_colors: Array = []     # [ { item_def_id, name, swatch, price, owned, … } ], from Net
 var _shop_balance := 0
-var _shop_currency := "petals"
+var _shop_currency := "coins"
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
@@ -668,31 +669,37 @@ func _examine_rock(entry: Dictionary) -> void:
 	if bool(result["newly_complete"]):
 		_on_hunt_won(entry["pos"], int(result["found"]))
 	elif bool(result["out_of_flips"]):
-		_on_hunt_run_out(entry["pos"])
+		_on_hunt_run_out(entry["pos"], int(result["found"]))
 
 
 ## Won the hunt — all salamanders found. Open a way home and celebrate, with an extra flourish for
 ## a flawless run (every flip a salamander, none wasted) — the reward for trusting your companion.
-func _on_hunt_won(at: Vector2, total: int) -> void:
+## Claim the coin reward from the server; the amount it pays appends to this hint via _on_hunt_reward.
+func _on_hunt_won(at: Vector2, found: int) -> void:
 	_hunt_over = true
 	_open_completion_portal(at)
-	if _flip_budget > 0 and _hunt.flips_used == total:
-		_show_hint("A perfect hunt — every flip a salamander! A portal shimmers open just up the bank.")
+	if _flip_budget > 0 and _hunt.flips_used == found:
+		_completion_hint = "A perfect hunt — every flip a salamander! A portal shimmers open just up the bank."
 	else:
-		_show_hint("All ten salamanders found! A portal shimmers open just up the bank.")
+		_completion_hint = "All ten salamanders found! A portal shimmers open just up the bank."
+	_show_hint(_completion_hint)
+	Net.claim_hunt_reward(found)
 
 
 ## Ran out of flips before finding them all — no hard loss. Flip every rock still face-down so the
 ## player sees what they missed (dimmed), open the way home, and gently invite them back: as the
 ## bond deepens, the companion's tell sharpens and the next visit goes better.
-func _on_hunt_run_out(at: Vector2) -> void:
+func _on_hunt_run_out(at: Vector2, found: int) -> void:
 	_hunt_over = true
 	for r in _rocks:
 		var hi := int(r["hunt_index"])
 		if not _hunt.is_examined(hi):
 			_world_art.reveal_rock(int(r["render_index"]), _hunt.content_kind(hi), true)
 	_open_completion_portal(at)
-	_show_hint("Out of flips. Here's what the river was hiding — come back and let your companion help you find them.")
+	_completion_hint = "Out of flips. Here's what the river was hiding — come back and let your companion help you find them."
+	_show_hint(_completion_hint)
+	# Even a partial hunt can earn a few coins (six or more); the server decides — see _on_hunt_reward.
+	Net.claim_hunt_reward(found)
 
 
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
@@ -855,6 +862,7 @@ func _setup_net() -> void:
 	Net.economy_loaded.connect(_on_economy_loaded)
 	Net.purchase_succeeded.connect(_on_purchase_succeeded)
 	Net.purchase_failed.connect(_on_purchase_failed)
+	Net.hunt_reward.connect(_on_hunt_reward)
 	Net.disconnected.connect(_on_disconnected)
 	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
 	# server sends back its canonical spec (cached by Net for next time). Queued until the socket is
@@ -999,6 +1007,16 @@ func _on_purchase_failed(item_def_id: int, reason: String) -> void:
 	if _shop != null:
 		_shop.apply_failure(item_def_id, reason)
 	_show_hint(_purchase_failure_text(reason))
+
+
+## The server resolved our salamander-hunt reward. Adopt the new wallet balance (so it's current next
+## time we open the shop), and — if it actually paid out — append the earned coins to the completion
+## hint. Below the reward threshold (fewer than six found) the amount is 0 and the hint is left alone.
+func _on_hunt_reward(_found: int, amount: int, balance: int) -> void:
+	_shop_balance = balance
+	if amount > 0 and _completion_hint != "":
+		var coins := "coin" if amount == 1 else "coins"
+		_show_hint("%s  You earned %d %s!" % [_completion_hint, amount, coins])
 
 
 func _purchase_failure_text(reason: String) -> String:

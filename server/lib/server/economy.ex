@@ -224,7 +224,7 @@ defmodule Server.Economy do
 
       attrs = definition.base_attributes || %{}
       price = Map.get(attrs, "price")
-      currency = Map.get(attrs, "currency", "petals")
+      currency = Map.get(attrs, "currency", "coins")
       if not is_integer(price) or price < 0, do: Repo.rollback(:not_for_sale)
 
       if Repo.get_by(Wardrobe, user_id: user_id, item_def_id: item_def_id),
