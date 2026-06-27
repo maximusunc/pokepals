@@ -64,7 +64,7 @@ signal world_join_failed(reason: String)
 
 ## Where a client connects by default — the channel mount point. Net rewrites this into the full
 ## Phoenix socket URL (…/websocket?vsn=2.0.0&token=…) in connect_to().
-const DEFAULT_SERVER_URL := "ws://127.0.0.1:4000/ws"
+const DEFAULT_SERVER_URL := "ws://192.168.86.38:4000/ws"
 
 ## Phoenix closes a socket that goes silent; send a heartbeat well inside that window.
 const HEARTBEAT_INTERVAL := 25.0
