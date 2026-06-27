@@ -17,15 +17,28 @@ func _ready() -> void:
 	Net.disconnected.connect(_on_disconnected)
 	Net.save_loaded.connect(_on_save_loaded)
 	Net.world_join_failed.connect(_on_world_join_failed)
-	# The lobby is the world-ENTRY gate. Travelling between worlds reloads this whole scene
-	# (WorldRouter.go_to → change_scene_to_file), which would otherwise pop the gate back up on every
-	# hop. Two conditions mean "we're already in the world, don't gate again": arriving via a portal
-	# (WorldRouter.pending_transition is still set here, since children _ready before the world root
-	# consumes it), or an already-active session. Either way, stay out of the way.
-	if WorldRouter.pending_transition or Net.is_active():
+	# The lobby is the world-ENTRY gate, and it owns the one switch that decides whether the world is
+	# playable: get_tree().paused. While the gate is up the whole world tree is frozen (Net is the lone
+	# exception — PROCESS_MODE_ALWAYS — so the socket keeps pumping), so nothing can move, no portal can
+	# fire, and a not-yet-joined client never walks around or broadcasts.
+	#
+	# _ready only decides the INITIAL pause state for this freshly-(re)loaded scene. The "officially
+	# joined" guarantee lives elsewhere: the world only ever UNFREEZES in _on_save_loaded, so the window
+	# between socket-open and the companion arriving stays frozen no matter what. So here we only need to
+	# tell two fresh loads apart:
+	#   • a connected world hop (WorldRouter.go_to reloads this scene without dropping the socket): the
+	#     socket is already open → we're mid-session, stay out of the way and leave the world live.
+	#   • a cold boot or a post-disconnect reload (socket not open): show the opaque gate and freeze the
+	#     world until we connect and load in.
+	# We key off Net.is_active() (socket open), NOT the contents of the save — a brand-new player's first
+	# load is empty (no companion blob yet), so a save-contents check would wrongly bounce them to the gate
+	# on their first portal hop.
+	if Net.is_active():
 		visible = false
+		get_tree().paused = false
 		return
 	_status.text = "Connect to a server to play with your companion."
+	get_tree().paused = true
 
 
 func _on_connect() -> void:
@@ -50,6 +63,10 @@ func _on_connected() -> void:
 ## Our companion + wardrobe are here (or we're a brand-new player). Fade the gate away and let the
 ## player be in the world — connected-and-alone is the normal way to play.
 func _on_save_loaded(_companion, _appearance) -> void:
+	# Officially in the world now — this is the ONE place the world becomes playable. Unfreeze before the
+	# fade so the player can move the instant the gate clears. (The fade itself animates while we're
+	# transitioning out of pause because this Control is PROCESS_MODE_ALWAYS.)
+	get_tree().paused = false
 	var tw := create_tween()
 	tw.tween_property(self, "modulate:a", 0.0, 0.4)
 	tw.tween_callback(func() -> void: visible = false)
@@ -77,6 +94,9 @@ func _on_disconnected() -> void:
 
 
 func _reshow() -> void:
+	# Re-freeze the world under the opaque gate: no movement, and no portal can fire to sneak us back
+	# into a disconnected world.
+	get_tree().paused = true
 	visible = true
 	modulate.a = 1.0
 	_set_controls_enabled(true)
