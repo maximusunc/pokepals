@@ -29,18 +29,32 @@ defmodule Server.World do
 
   # --- client API ---
 
-  def start_link(world_id) when is_binary(world_id) do
-    GenServer.start_link(__MODULE__, world_id, name: via(world_id))
+  def start_link({world_id, ward_defs}) when is_binary(world_id) do
+    GenServer.start_link(__MODULE__, {world_id, ward_defs}, name: via(world_id))
   end
 
-  @doc "Start the process for `world_id` if it isn't running yet; returns `world_id`."
-  @spec ensure_started(String.t()) :: String.t()
-  def ensure_started(world_id) when is_binary(world_id) do
-    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, world_id}) do
+  @doc """
+  Start the process for `world_id` if it isn't running yet; returns `world_id`. `ward_defs` (the
+  spec's `ruin.wards`, or `[]`) seed the shared Ruin ward state — only the FIRST starter's defs take;
+  later joiners re-affirm the same server-canonical spec, so passing them every join is safe.
+  """
+  @spec ensure_started(String.t(), [map()]) :: String.t()
+  def ensure_started(world_id, ward_defs \\ []) when is_binary(world_id) do
+    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, {world_id, ward_defs}}) do
       {:ok, _pid} -> world_id
       {:error, {:already_started, _pid}} -> world_id
     end
   end
+
+  @doc "Apply a player's Ruin ward INTENT (`%{\"kind\" => \"uncover\"|\"occupy\", \"ward\" => id, ...}`)."
+  @spec apply_ward(String.t(), String.t(), map()) :: :ok
+  def apply_ward(world_id, user_id, payload) do
+    GenServer.cast(via(world_id), {:ward, user_id, payload})
+  end
+
+  @doc "The current shared ward state for `world_id` as `[%{id, found, open}]` (for the join snapshot)."
+  @spec wards(String.t()) :: [map()]
+  def wards(world_id), do: GenServer.call(via(world_id), :wards)
 
   @doc "The PubSub topic this world broadcasts live transforms on."
   @spec state_topic(String.t()) :: String.t()
@@ -67,7 +81,18 @@ defmodule Server.World do
   # --- server callbacks ---
 
   @impl true
-  def init(world_id), do: {:ok, %{world_id: world_id, transforms: %{}}}
+  def init({world_id, ward_defs}) do
+    {:ok,
+     %{
+       world_id: world_id,
+       transforms: %{},
+       # Shared Ruin state: the pure ward logic + who is currently weighting each plate. occupants is a
+       # MapSet of user_ids per ward, so two pairs can hold two plates and a leaver releases their own.
+       ward_defs: ward_defs,
+       wards: Server.RuinMechanisms.new(ward_defs),
+       occupants: %{}
+     }}
+  end
 
   @impl true
   def handle_cast({:update, user_id, transform}, state) do
@@ -77,13 +102,77 @@ defmodule Server.World do
   end
 
   def handle_cast({:forget, user_id}, state) do
-    {:noreply, update_in(state.transforms, &Map.delete(&1, user_id))}
+    transforms = Map.delete(state.transforms, user_id)
+
+    # Drop this player's weight from every plate (a disconnect mid-puzzle releases what they held).
+    occupants = for {id, set} <- state.occupants, into: %{}, do: {id, MapSet.delete(set, user_id)}
+
+    wards =
+      Enum.reduce(occupants, state.wards, fn {id, set}, w ->
+        Server.RuinMechanisms.set_occupied(w, id, MapSet.size(set) > 0)
+      end)
+
+    state = %{state | transforms: transforms, occupants: occupants, wards: wards}
+
+    # The room emptied: reset the puzzle so the next group finds it fresh (the shared echo of the
+    # solo "resets each visit" feel).
+    state =
+      if map_size(transforms) == 0 do
+        %{state | wards: Server.RuinMechanisms.new(state.ward_defs), occupants: %{}}
+      else
+        state
+      end
+
+    broadcast_wards(state)
+    {:noreply, state}
+  end
+
+  def handle_cast({:ward, user_id, payload}, state) do
+    state = apply_ward_intent(state, user_id, payload)
+    broadcast_wards(state)
+    {:noreply, state}
   end
 
   @impl true
   def handle_call(:snapshot, _from, state), do: {:reply, state.transforms, state}
 
+  def handle_call(:wards, _from, state), do: {:reply, Server.RuinMechanisms.to_list(state.wards), state}
+
   # --- internals ---
+
+  # A player's companion uncovered a plate (its search nosed it out).
+  defp apply_ward_intent(state, _user_id, %{"kind" => "uncover", "ward" => id}) do
+    %{state | wards: Server.RuinMechanisms.uncover(state.wards, to_string(id))}
+  end
+
+  # A player's companion stepped onto / off a plate. occupants is the live set per ward; the ward is
+  # weighted while any companion stands on it.
+  defp apply_ward_intent(state, user_id, %{"kind" => "occupy", "ward" => id} = payload) do
+    id = to_string(id)
+    on = Map.get(payload, "on", false) == true
+    set0 = Map.get(state.occupants, id, MapSet.new())
+    set = if on, do: MapSet.put(set0, user_id), else: MapSet.delete(set0, user_id)
+
+    %{
+      state
+      | occupants: Map.put(state.occupants, id, set),
+        wards: Server.RuinMechanisms.set_occupied(state.wards, id, MapSet.size(set) > 0)
+    }
+  end
+
+  defp apply_ward_intent(state, _user_id, _payload), do: state
+
+  # Fan the shared ward state out to every channel in this world (which push "ward_state" to clients).
+  # No-op in worlds without a Ruin, so the common case costs nothing.
+  defp broadcast_wards(%{ward_defs: []}), do: :ok
+
+  defp broadcast_wards(state) do
+    Phoenix.PubSub.broadcast(
+      Server.PubSub,
+      state_topic(state.world_id),
+      {:world_wards, Server.RuinMechanisms.to_list(state.wards)}
+    )
+  end
 
   defp via(world_id), do: {:via, Registry, {@registry, world_id}}
 end
