@@ -283,6 +283,8 @@ func _draw() -> void:
 				_draw_plate(it["pos"], it["color"])
 			"column":
 				_draw_column(it["pos"], it["color"])
+			"nook":
+				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)))
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -484,6 +486,28 @@ func _draw_column(p: Vector2, color: Color) -> void:
 	# a toppled drum at its base
 	draw_circle(p + Vector2(15, 2), 6.0, color.darkened(0.12))
 	draw_circle(p + Vector2(15, 2), 2.5, color.darkened(0.3))
+
+
+## A gap in the Warren's collapsed rubble — one of several that look alike, so the player can't tell
+## which goes through (only the companion's nose can). CLOSED: a rubble mound around a shallow dark
+## hollow (a dead-end look). OPENED: the rubble has shifted aside into a cleared passage you can see
+## through — the one the companion nosed out and squeezed into.
+func _draw_nook(p: Vector2, color: Color, opened: bool) -> void:
+	# the rubble shoulders either side of the gap
+	draw_circle(p + Vector2(-13, 5), 10.0, color.darkened(0.12))
+	draw_circle(p + Vector2(13, 5), 10.0, color.darkened(0.12))
+	draw_circle(p + Vector2(-9, -4), 8.0, color)
+	draw_circle(p + Vector2(9, -4), 8.0, color)
+	if opened:
+		# cleared: an open mouth with depth you can see into (the way through)
+		draw_rect(Rect2(p + Vector2(-7, -18), Vector2(14, 22)), Color(0.16, 0.22, 0.20, 0.92))
+		draw_arc(p + Vector2(0, -7), 8.5, PI, TAU, 16, color.lightened(0.22), 2.0)
+		# a faint glimmer of the space beyond
+		draw_circle(p + Vector2(0, -10), 2.2, Color(0.70, 0.86, 0.82, 0.7))
+	else:
+		# blocked: a shallow, dead-looking hollow
+		draw_circle(p + Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
+		draw_arc(p + Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its

@@ -676,6 +676,11 @@ func _setup_ruin(data: Dictionary) -> void:
 	_seeking = false
 	for wd in data.get("ruin", {}).get("wards", []):
 		var slab_id := String(wd.get("slab_id", ""))
+		# Decoy points (Warren-style wards): identical-looking gaps where the companion's nose says
+		# "not here". Drive the which-one tell off these vs. the true plate. Empty for a plain ward.
+		var decoys: Array = []
+		for d in wd.get("decoys", []):
+			decoys.append(WorldData.to_vec2(d))
 		_wards.append({
 			"id": String(wd.get("id", "ward")),
 			"plate": WorldData.to_vec2(wd.get("plate", [0, 0])),
@@ -685,6 +690,7 @@ func _setup_ruin(data: Dictionary) -> void:
 			"slab_render_index": _render_index_for_id(slab_id),
 			"plate_render_index": -1,
 			"hint": String(wd.get("hint", "")),
+			"decoys": decoys,
 			# Local mirror of the server's authoritative state + which intents we've already sent.
 			"found": false,
 			"revealed": false,
@@ -718,6 +724,10 @@ func _update_ruin(_delta: float) -> void:
 	for w in _wards:
 		if bool(w["open"]):
 			continue
+		# Warren-style ward (has decoys): drive the which-gap TELL — the companion perks and turns toward
+		# the TRUE gap as it nears it, so the player can read it and trust it over their own eyes.
+		if not w["decoys"].is_empty():
+			_drive_nook_tell(w, cpos)
 		var near := cpos.distance_to(w["plate"])
 		if not bool(w["uncover_sent"]) and _seeking and near <= float(w["uncover_r"]):
 			w["uncover_sent"] = true
@@ -748,6 +758,20 @@ func _on_ward_state(wards: Array) -> void:
 			_open_ward(w)
 
 
+## The Warren's "which gap?" TELL — presentation only. While a search is out, when the companion comes
+## within (bond-scaled) sense range of the TRUE gap it perks and turns toward it (glance_toward) — a read
+## the player can trust over their own eyes. Crucially this uses glance_toward, NOT the salamander point_at:
+## point_at FREEZES the body (it's "stop and point out the rock"), which would strand the companion at
+## sense range and never let it nose in; a glance only redirects the gaze + perks, so it keeps moving in to
+## clear the gap. The decoys get no tell on purpose — its confidence landing on one of several alike gaps
+## IS the moment. Scaled by bond, like every tell. The brain never learns the truth: this feeds only the body.
+func _drive_nook_tell(w: Dictionary, cpos: Vector2) -> void:
+	if not _seeking or bool(w["found"]):
+		return
+	if cpos.distance_to(w["plate"]) <= lerpf(80.0, 150.0, _companion.bond_value()):
+		_companion.glance_toward(w["plate"])
+
+
 ## Reveal a ward's plate: mark it found, draw the uncovered stone (once), and narrate. `mine` tells the
 ## finder's snappy "your companion noses it out" beat from the calmer "a plate lies uncovered" a friend's
 ## search produced. Idempotent on the draw, so the predicted reveal and the server echo never double up.
@@ -756,11 +780,15 @@ func _reveal_plate(w: Dictionary, mine: bool) -> void:
 	if bool(w["revealed"]):
 		return
 	w["revealed"] = true
-	w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
-	if mine:
-		_show_hint("Your companion noses through the moss and uncovers a worn stone plate.")
+	if w["decoys"].is_empty():
+		# A buried plate (Threshold-style): spawn its uncovered stone where the search found it.
+		w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
+		_show_hint("Your companion noses through the moss and uncovers a worn stone plate." if mine
+			else "A worn stone plate lies uncovered nearby.")
 	else:
-		_show_hint("A worn stone plate lies uncovered nearby.")
+		# A Warren nook: the gap is already drawn; the clear (open state) is the reveal, so just narrate.
+		_show_hint("Your companion noses past the look-alike gaps to the one that truly goes through." if mine
+			else "A companion noses out the gap that goes through.")
 
 
 ## A ward opened (server-confirmed): mark it, hoist the slab into a lintel (visual), and DROP its

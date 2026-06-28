@@ -137,11 +137,18 @@ Teaches the entire game in ~90 seconds with **zero deduction**. Textures:
 - **Deliberately saved for the Hall:** the cruel detail that holding a plate *slips*
   when the companion leaves. The Threshold latch just stays. Clean escalation.
 
-### 2. The Warren — trust over your own eyes 🔶
+### 2. The Warren — trust over your own eyes ✅ (built)
 
-Several collapsed nooks look identical; you can't tell which hides the way through.
-*It* can. Send it to search; read its tells as it noses; it clears the true passage.
-First taste of believing your partner against the evidence of your own eyes.
+Beyond the Threshold, the way caved in: a rubble wall with **four near-identical gaps**,
+and only one goes through. You can't tell which; the companion's nose can. Send it to
+look — when it nears the true gap it perks and turns toward it (a `glance_toward` tell,
+deliberately *not* the salamander `point_at`, which freezes the body), and you trust that
+read over your own eyes as it noses in and clears the passage.
+
+**It reused the ward system wholesale — zero server changes.** The true gap is just
+another `ruin.wards` entry (the nook *is* its slab, latched), so the shared/authoritative
+flow handles it identically; the decoys and the which-gap tell are client-only. A clean
+proof that the puzzle foundation generalises.
 
 ### 3. The Cistern — name the need 🔶
 
@@ -250,14 +257,19 @@ copy, not a redesign.
   and renders the server's echo, so two players' companions work the same wards and
   converge on one truth, late joiners see a gate already opened, and the puzzle resets when
   the room empties. Ported pure-rules tests + a `Server.World` ward test cover it.
+- **The Warren** (room 2): a four-gap rubble wall where the companion's nose reads the one
+  true passage (a `glance_toward` tell) and clears it. Built entirely on the existing ward
+  system + a new `nook` art type — **no server change** (the true gap is just another ward).
 
 ## Open / next ⬜
 
-- **Go play the Threshold** and tune the *feel*: sweep reach/pace, uncover radius, how
-  long the search takes, whether reading the companion is satisfying (this is the whole bar).
-- Nail the **Seek** read-out further: a "getting warmer" tell as the companion nears the
-  plate (reuse the detector point), so the search reads as alive, not a wait.
-- Bespoke **slab/plate/column** art (currently simple procedural shapes).
-- Build out the **Warren → Cistern → Paired Hall** rooms on this same ward foundation.
-- Original naming for the ruin, the companion-plates, and the "pairs" mythology.
+- **Go play the Ruin** and tune the *feel*: the Threshold sweep reach/pace and uncover
+  radius; the Warren's tell sense-range and whether reading the companion's nose over four
+  alike gaps is satisfying (this is the whole bar).
+- The Warren's tell is gentle (a glance). If it doesn't read strongly enough, escalate it —
+  e.g. a brief stop-and-sniff at the true gap that releases before it clears (carefully, so
+  the `point_at` freeze can't strand it).
+- Bespoke **slab / plate / column / nook** art (currently simple procedural shapes).
+- Build out the **Cistern → Paired Hall** rooms on this same ward foundation.
+- Original naming for the ruin, the companion-plates, the gaps, and the "pairs" mythology.
 - Decide relay-coop timing relative to proximity chat.

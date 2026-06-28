@@ -1,15 +1,16 @@
 {
-	"_comment": "THE RUIN — Threshold (Rung-5 puzzle world, solo-first slice). An overgrown antechamber built, long ago, to be worked by a person AND their companion together. A heavy stone slab bars the way deeper; its mechanism is a weight-plate buried under the moss that only the companion's search can uncover. See docs/puzzle-world-the-ruin-design.md. Coordinates are world-space pixels; colours are [r,g,b] 0..1. The 'ruin' block (below) describes the pair-operated wards the controller drives via RuinMechanisms; the slab itself is also listed as an interactable so world_art draws it and Solids blocks it. NOTE: the Seek command + the referee that uncovers the plate and raises the slab are the NEXT build step — until then the slab is a real barrier with no opener yet (walk back through the entry portal to leave).",
+	"_comment": "THE RUIN — a companion-as-actor puzzle world (Rung 5). Built long ago to be worked by a person AND their bonded companion together. SOUTH→NORTH you pass three spaces: the THRESHOLD (a heavy slab barred by a buried weight-plate only the companion's search uncovers), the WARREN (the way caved in — four near-identical gaps in the rubble, and only the companion's nose knows which goes through), and the SANCTUM beyond (the way home). See docs/puzzle-world-the-ruin-design.md. Coordinates are world-space pixels; colours are [r,g,b] 0..1. The 'ruin' block describes the pair-operated WARDS; ward state is SERVER-AUTHORITATIVE (shared), so everyone present converges on one truth. Slabs/nooks are also listed as interactables so world_art draws them and Solids blocks them.",
 	"world_id": "the-ruin",
-	"_regions_comment": "Named AREAS for new-area discovery (a bond source). 'threshold' is the antechamber you arrive in; 'inner' is the calm nook beyond the slab.",
+	"_regions_comment": "Named AREAS for new-area discovery (a bond source). threshold (arrival, south) → warren (the caved-in middle) → sanctum (the calm reward, north).",
 	"regions": [
 		{ "id": "threshold", "min": [-360, 80], "max": [360, 400], "tint": [0.50, 0.58, 0.50] },
-		{ "id": "inner", "min": [-360, -600], "max": [360, 40], "tint": [0.46, 0.60, 0.62] }
+		{ "id": "warren", "min": [-360, -300], "max": [360, 80], "tint": [0.44, 0.52, 0.48] },
+		{ "id": "sanctum", "min": [-360, -680], "max": [360, -300], "tint": [0.46, 0.60, 0.62] }
 	],
-	"bounds": { "min": [-420, -640], "max": [420, 440] },
+	"bounds": { "min": [-440, -720], "max": [440, 440] },
 	"_border_comment": "A dense, jittered ring of old trees crowding the ruin's edge, so the place feels enclosed and overgrown rather than ending at the void. Presentation + colliders both come from this (seeded, identical every run).",
-	"border": { "ring": true, "spacing": 78, "inset": 16, "jitter": 18, "rows": 2, "row_gap": 40 },
-	"_collision_comment": "Tall props block by default; the slab and the ruined-wall columns set 'solid' explicitly with their own radii. body_radius/margin are the character size + a small standoff.",
+	"border": { "ring": true, "spacing": 70, "inset": 14, "jitter": 16, "rows": 3, "row_gap": 36 },
+	"_collision_comment": "Tall props block by default; the slab, the ruined-wall columns, and the rubble/nook wall set 'solid' explicitly with their own radii. body_radius/margin are the character size + a small standoff.",
 	"collision": { "tree_radius": 9, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.34, 0.40, 0.32],
 	"_atmosphere_comment": "Dim, cool, mossy and enclosed. day_tint a cool green wash; a strong vignette closes the walls in; sparse pale motes drift like spores in shafts of light; the ground is mottled moss.",
@@ -23,7 +24,7 @@
 	},
 	"player_spawn": [0, 300],
 	"companion_spawn": [-34, 330],
-	"_wall_comment": "The ruined cross-wall: a row of fallen columns (solid) spanning the antechamber, with a single doorway at x=0 barred by the slab. Columns are 60px apart so their blocking circles meet — no sneaking between them — and the border ring closes the ends. Drawn as the fallback prop for now; bespoke 'column' art comes with the opener step.",
+	"_wall_comment": "Two solid cross-walls. THRESHOLD wall (y=40): fallen columns with a single doorway barred by 'threshold_slab'. WARREN wall (y=-300): rubble columns with FOUR 'nook' gaps (warren_nook_a..d), all drawn alike — only warren_nook_c actually goes through (it is the warren_passage ward's 'slab', cleared when the companion noses into it). Props are spaced so their blocking circles meet — no sneaking between — and the border ring closes the ends.",
 	"trees": [],
 	"interactables": [
 		{ "id": "wall_l1", "type": "column", "position": [-300, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
@@ -41,17 +42,35 @@
 		{ "id": "mossy_basin", "type": "basin", "position": [-170, 270], "color": [0.58, 0.64, 0.62], "label": "a cracked stone basin", "tags": ["water", "still"] },
 		{ "id": "crack_flowers", "type": "wildflowers", "position": [110, 250], "color": [0.78, 0.62, 0.74], "label": "flowers in a cracked flagstone", "tags": ["flower", "fragrant"] },
 		{ "id": "ruin_mushrooms", "type": "mushrooms", "position": [-260, 180], "color": [0.74, 0.66, 0.40], "label": "pale mushrooms in the damp", "tags": ["fungus", "odd"] },
-		{ "id": "inner_glimmer", "type": "crystal", "position": [0, -360], "color": [0.62, 0.80, 0.82], "label": "a faint glimmer in the dark", "tags": ["shiny", "light"] }
+
+		{ "id": "rubble_l4", "type": "column", "position": [-360, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_l3", "type": "column", "position": [-300, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_l2", "type": "column", "position": [-240, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "warren_nook_a", "type": "nook", "position": [-180, -300], "color": [0.46, 0.46, 0.44], "label": "a collapsed gap in the rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_l1", "type": "column", "position": [-120, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "warren_nook_b", "type": "nook", "position": [-60, -300], "color": [0.46, 0.46, 0.44], "label": "a collapsed gap in the rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_c", "type": "column", "position": [0, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "warren_nook_c", "type": "nook", "position": [60, -300], "color": [0.46, 0.46, 0.44], "label": "a collapsed gap in the rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_r1", "type": "column", "position": [120, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "warren_nook_d", "type": "nook", "position": [180, -300], "color": [0.46, 0.46, 0.44], "label": "a collapsed gap in the rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_r2", "type": "column", "position": [240, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_r3", "type": "column", "position": [300, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_r4", "type": "column", "position": [360, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+
+		{ "id": "warren_rubble_prop", "type": "log", "position": [-230, -150], "color": [0.40, 0.38, 0.30], "label": "a toppled lintel", "tags": ["stone", "made"] },
+		{ "id": "inner_glimmer", "type": "crystal", "position": [60, -460], "color": [0.62, 0.80, 0.82], "label": "a faint glimmer returning to the dark", "tags": ["shiny", "light"] },
+		{ "id": "sanctum_flowers", "type": "wildflowers", "position": [-90, -430], "color": [0.74, 0.70, 0.86], "label": "flowers blooming where the light fell", "tags": ["flower", "fragrant"] }
 	],
-	"_ruin_comment": "The pair-operated WARDS the controller drives via RuinMechanisms. A ward links a hidden weight-plate to a slab: the companion's Seek search uncovers the plate when it passes within uncover_radius, and the slab raises (and, with latch=true, stays raised — the Threshold doorway) once the companion settles its weight within occupy_radius. The plate has NO interactable entry: it's invisible until the search reveals it (the controller spawns its reveal art then). 'hint' is shown when you near the slab with no idea how to open it.",
+	"_ruin_comment": "The pair-operated WARDS, server-authoritative (shared). A ward links a PLATE (a spot the companion's Seek search uncovers when it noses within uncover_radius) to a SLAB (the barrier that opens once a companion's weight settles within occupy_radius; latch=true keeps it open). threshold_gate is a buried plate → the slab. warren_passage is the TRUE nook (warren_nook_c) → itself: the companion noses among four alike gaps and clears the one that goes through, while the 'decoys' (the other three nooks) are where its nose says 'not here'. The client drives the which-nook TELL off decoys + plate; the server only tracks found/open.",
 	"ruin": {
 		"wards": [
-			{ "id": "threshold_gate", "slab_id": "threshold_slab", "plate": [-120, 220], "uncover_radius": 120, "occupy_radius": 34, "latch": true, "hint": "The slab won't budge. Maybe your companion can find what works it — try sending it to look." }
+			{ "id": "threshold_gate", "slab_id": "threshold_slab", "plate": [-120, 220], "uncover_radius": 120, "occupy_radius": 34, "latch": true, "hint": "The slab won't budge. Maybe your companion can find what works it — try sending it to look." },
+			{ "id": "warren_passage", "slab_id": "warren_nook_c", "plate": [60, -300], "uncover_radius": 42, "occupy_radius": 38, "latch": true, "decoys": [[-180, -300], [-60, -300], [180, -300]], "hint": "Four gaps in the rubble, all alike — you can't tell which goes through. Your companion's nose can. Send it to look, and trust where it leads." }
 		]
 	},
-	"_portals_comment": "ruin_entry is where you arrive from the Vale (and step back through to leave); ruin_exit, in the inner nook beyond the slab, leads home once you've opened the way.",
+	"_portals_comment": "ruin_entry is where you arrive from the Vale (and step back through to leave); ruin_exit, in the sanctum beyond the cleared passage, leads home.",
 	"portals": [
 		{ "id": "ruin_entry", "type": "portal", "position": [0, 380], "color": [0.66, 0.72, 0.62], "label": "the way back out", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" },
-		{ "id": "ruin_exit", "type": "portal", "position": [0, -540], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" }
+		{ "id": "ruin_exit", "type": "portal", "position": [60, -600], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" }
 	]
 }
