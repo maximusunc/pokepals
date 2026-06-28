@@ -1,0 +1,57 @@
+{
+	"_comment": "THE RUIN — Threshold (Rung-5 puzzle world, solo-first slice). An overgrown antechamber built, long ago, to be worked by a person AND their companion together. A heavy stone slab bars the way deeper; its mechanism is a weight-plate buried under the moss that only the companion's search can uncover. See docs/puzzle-world-the-ruin-design.md. Coordinates are world-space pixels; colours are [r,g,b] 0..1. The 'ruin' block (below) describes the pair-operated wards the controller drives via RuinMechanisms; the slab itself is also listed as an interactable so world_art draws it and Solids blocks it. NOTE: the Seek command + the referee that uncovers the plate and raises the slab are the NEXT build step — until then the slab is a real barrier with no opener yet (walk back through the entry portal to leave).",
+	"world_id": "the-ruin",
+	"_regions_comment": "Named AREAS for new-area discovery (a bond source). 'threshold' is the antechamber you arrive in; 'inner' is the calm nook beyond the slab.",
+	"regions": [
+		{ "id": "threshold", "min": [-360, 80], "max": [360, 400], "tint": [0.50, 0.58, 0.50] },
+		{ "id": "inner", "min": [-360, -600], "max": [360, 40], "tint": [0.46, 0.60, 0.62] }
+	],
+	"bounds": { "min": [-420, -640], "max": [420, 440] },
+	"_border_comment": "A dense, jittered ring of old trees crowding the ruin's edge, so the place feels enclosed and overgrown rather than ending at the void. Presentation + colliders both come from this (seeded, identical every run).",
+	"border": { "ring": true, "spacing": 78, "inset": 16, "jitter": 18, "rows": 2, "row_gap": 40 },
+	"_collision_comment": "Tall props block by default; the slab and the ruined-wall columns set 'solid' explicitly with their own radii. body_radius/margin are the character size + a small standoff.",
+	"collision": { "tree_radius": 9, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
+	"ground_color": [0.34, 0.40, 0.32],
+	"_atmosphere_comment": "Dim, cool, mossy and enclosed. day_tint a cool green wash; a strong vignette closes the walls in; sparse pale motes drift like spores in shafts of light; the ground is mottled moss.",
+	"atmosphere": {
+		"day_tint": [0.82, 0.90, 0.84],
+		"vignette": { "strength": 0.52, "color": [0.04, 0.06, 0.05] },
+		"wind": { "strength": 1.4, "speed": 0.8 },
+		"ground_noise": { "contrast": 0.18, "tint": [0.24, 0.34, 0.24] },
+		"pollen": { "amount": 18, "color": [0.80, 0.92, 0.80] },
+		"glow": { "pulse_speed": 1.0 }
+	},
+	"player_spawn": [0, 300],
+	"companion_spawn": [-34, 330],
+	"_wall_comment": "The ruined cross-wall: a row of fallen columns (solid) spanning the antechamber, with a single doorway at x=0 barred by the slab. Columns are 60px apart so their blocking circles meet — no sneaking between them — and the border ring closes the ends. Drawn as the fallback prop for now; bespoke 'column' art comes with the opener step.",
+	"trees": [],
+	"interactables": [
+		{ "id": "wall_l1", "type": "column", "position": [-300, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_l2", "type": "column", "position": [-240, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_l3", "type": "column", "position": [-180, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_l4", "type": "column", "position": [-120, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_l5", "type": "column", "position": [-60, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "threshold_slab", "type": "slab", "position": [0, 40], "color": [0.46, 0.48, 0.46], "label": "a heavy stone slab", "tags": ["stone", "made", "barrier"], "solid": true, "collision_radius": 30 },
+		{ "id": "wall_r5", "type": "column", "position": [60, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_r4", "type": "column", "position": [120, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_r3", "type": "column", "position": [180, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_r2", "type": "column", "position": [240, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "wall_r1", "type": "column", "position": [300, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
+		{ "id": "fallen_log", "type": "log", "position": [210, 200], "color": [0.40, 0.38, 0.30], "label": "a moss-furred fallen beam", "tags": ["wood", "rest"] },
+		{ "id": "mossy_basin", "type": "basin", "position": [-170, 270], "color": [0.58, 0.64, 0.62], "label": "a cracked stone basin", "tags": ["water", "still"] },
+		{ "id": "crack_flowers", "type": "wildflowers", "position": [110, 250], "color": [0.78, 0.62, 0.74], "label": "flowers in a cracked flagstone", "tags": ["flower", "fragrant"] },
+		{ "id": "ruin_mushrooms", "type": "mushrooms", "position": [-260, 180], "color": [0.74, 0.66, 0.40], "label": "pale mushrooms in the damp", "tags": ["fungus", "odd"] },
+		{ "id": "inner_glimmer", "type": "crystal", "position": [0, -360], "color": [0.62, 0.80, 0.82], "label": "a faint glimmer in the dark", "tags": ["shiny", "light"] }
+	],
+	"_ruin_comment": "The pair-operated WARDS the controller drives via RuinMechanisms. A ward links a hidden weight-plate to a slab: the companion's Seek search uncovers the plate when it passes within uncover_radius, and the slab raises (and, with latch=true, stays raised — the Threshold doorway) once the companion settles its weight within occupy_radius. The plate has NO interactable entry: it's invisible until the search reveals it (the controller spawns its reveal art then). 'hint' is shown when you near the slab with no idea how to open it.",
+	"ruin": {
+		"wards": [
+			{ "id": "threshold_gate", "slab_id": "threshold_slab", "plate": [-220, 210], "uncover_radius": 48, "occupy_radius": 34, "latch": true, "hint": "The slab won't budge. Maybe your companion can find what works it — try sending it to look." }
+		]
+	},
+	"_portals_comment": "ruin_entry is where you arrive from the Vale (and step back through to leave); ruin_exit, in the inner nook beyond the slab, leads home once you've opened the way.",
+	"portals": [
+		{ "id": "ruin_entry", "type": "portal", "position": [0, 380], "color": [0.66, 0.72, 0.62], "label": "the way back out", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" },
+		{ "id": "ruin_exit", "type": "portal", "position": [0, -540], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" }
+	]
+}
