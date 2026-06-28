@@ -62,6 +62,13 @@ var _hunt: SalamanderHunt = null  # the riverbank salamander hunt, or null in wo
 var _wards: Array = []  # [ { id, plate, uncover_r, occupy_r, slab_id, slab_render_index, plate_render_index, hint, found, revealed, open, uncover_sent, occupied_sent } ]
 var _seeking := false   # true while a "go look" search is out, so only a delegated sweep uncovers a plate
 var _seek_shown := false  # whether the contextual "Go look" button is currently faded in
+# Cistern gloom: while you stand in the dark chamber with its light-ward unlit, darken the whole scene
+# (the cue that makes you name the need — "this place needs light"). Lifts as the brazier catches.
+const CARRY_REACH := 38.0  # how near the companion must get to "arrive" at the source / the brazier
+var _gloom := 0.0
+var _gloom_rect := Rect2()
+var _gloom_ward: Dictionary = {}
+var _base_day_tint := Color.WHITE
 # Cached so the slab's collider can be removed when a ward opens (rebuild Solids without it).
 var _world_data: Dictionary = {}
 var _border_pts: Array = []
@@ -524,6 +531,7 @@ func _process(delta: float) -> void:
 	_update_portals(delta)
 	_update_hints(delta)
 	_update_ruin(delta)
+	_update_gloom(delta)
 
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
 	_broadcast_presence(delta)
@@ -649,6 +657,18 @@ func _try_interact() -> void:
 		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+	# KINDLE the Cistern ember: examining the dead ember is the deduction — naming that this place needs
+	# light. It wakes the ember (its art) and stands in for the light-ward's 'uncover' (found) on the
+	# server, arming the carry. Idempotent (only the first kindle of an unlit ward does anything).
+	var lw := _light_ward_for_source(String(entry["id"]))
+	if not lw.is_empty() and not bool(lw["open"]) and not bool(lw["kindled"]):
+		lw["kindled"] = true
+		var eri := int(lw["ember_render_index"])
+		if eri >= 0:
+			_world_art.open_slab(eri)
+		Net.send_ward_uncover(String(lw["id"]))
+		_show_hint("You breathe on the old ember — it wakes, and a mote of light lifts free. Now send your companion to carry it.")
+		return
 	# Examining an unsolved Ruin slab nudges you toward the real move — sending your companion.
 	var ward := _ward_for_slab(String(entry["id"]))
 	if not ward.is_empty() and not bool(ward["open"]):
@@ -674,6 +694,9 @@ func _try_interact() -> void:
 func _setup_ruin(data: Dictionary) -> void:
 	_wards.clear()
 	_seeking = false
+	_gloom_rect = Rect2()
+	_gloom_ward = {}
+	_base_day_tint = _day_tint.color
 	for wd in data.get("ruin", {}).get("wards", []):
 		var slab_id := String(wd.get("slab_id", ""))
 		# Decoy points (Warren-style wards): identical-looking gaps where the companion's nose says
@@ -681,7 +704,13 @@ func _setup_ruin(data: Dictionary) -> void:
 		var decoys: Array = []
 		for d in wd.get("decoys", []):
 			decoys.append(WorldData.to_vec2(d))
-		_wards.append({
+		# Light-ward (Cistern): has a 'source' (the ember the player kindles) + a brazier + murals. The
+		# carry is a directed fetch (source → plate), not a search; kindling stands in for 'uncover'.
+		var is_light := wd.has("source")
+		var mural_idx: Array = []
+		for mid in wd.get("murals", []):
+			mural_idx.append(_render_index_for_id(String(mid)))
+		var ward := {
 			"id": String(wd.get("id", "ward")),
 			"plate": WorldData.to_vec2(wd.get("plate", [0, 0])),
 			"uncover_r": float(wd.get("uncover_radius", 120.0)),
@@ -691,13 +720,27 @@ func _setup_ruin(data: Dictionary) -> void:
 			"plate_render_index": -1,
 			"hint": String(wd.get("hint", "")),
 			"decoys": decoys,
+			"is_light": is_light,
+			"source": WorldData.to_vec2(wd.get("source", [0, 0])),
+			"source_id": String(wd.get("source_id", "")),
+			"ember_render_index": _render_index_for_id(String(wd.get("source_id", ""))),
+			"brazier_render_index": _render_index_for_id(String(wd.get("brazier_id", ""))),
+			"mural_render_indices": mural_idx,
+			"region_rect": _region_rect(data, String(wd.get("region", ""))),
+			"kindled": false,
+			"carry_phase": "idle",
 			# Local mirror of the server's authoritative state + which intents we've already sent.
 			"found": false,
 			"revealed": false,
 			"open": false,
 			"uncover_sent": false,
 			"occupied_sent": false,
-		})
+		}
+		_wards.append(ward)
+		# The dark chamber whose gloom we lift on lighting (the light-ward with a region).
+		if is_light and (ward["region_rect"] as Rect2).get_area() > 0.0:
+			_gloom_rect = ward["region_rect"]
+			_gloom_ward = ward
 
 
 ## "Go look": send the companion off to search. _seeking gates the referee so ONLY a delegated
@@ -705,6 +748,16 @@ func _setup_ruin(data: Dictionary) -> void:
 ## the point). The brain (and bond) decide how the sweep actually goes; here we just issue it.
 func _try_seek() -> void:
 	if _wards.is_empty() or not _any_ward_unopened():
+		return
+	# In the Cistern (a dark light-ward chamber), "Go look" is a CARRY, not a search: it can't do anything
+	# until you've named the need and woken the ember. Gated to the chamber so it never hijacks the
+	# Threshold/Warren search elsewhere.
+	var lw := _active_light_ward()
+	if not lw.is_empty():
+		if not bool(lw["kindled"]):
+			_show_hint("Pitch dark — your companion casts about but finds nothing to work. Something here must be lit first.")
+		elif String(lw["carry_phase"]) == "idle":
+			_begin_carry(lw)
 		return
 	_seeking = true
 	_companion.issue_command("seek")
@@ -723,6 +776,10 @@ func _update_ruin(_delta: float) -> void:
 	var cpos: Vector2 = _companion.position
 	for w in _wards:
 		if bool(w["open"]):
+			continue
+		# Light-ward (Cistern): advance the carry instead of the search-uncover detection.
+		if bool(w["is_light"]):
+			_update_carry(w, cpos)
 			continue
 		# Warren-style ward (has decoys): drive the which-gap TELL — the companion perks and turns toward
 		# the TRUE gap as it nears it, so the player can read it and trust it over their own eyes.
@@ -772,6 +829,78 @@ func _drive_nook_tell(w: Dictionary, cpos: Vector2) -> void:
 		_companion.glance_toward(w["plate"])
 
 
+## The active light-ward (Cistern) if you're standing in its dark chamber, else {}. Region-gated so
+## "Go look" only means CARRY when you're actually in the Cistern — elsewhere it stays a search.
+func _active_light_ward() -> Dictionary:
+	for w in _wards:
+		if bool(w["open"]) or not bool(w["is_light"]):
+			continue
+		var rect: Rect2 = w["region_rect"]
+		if rect.get_area() > 0.0 and not rect.has_point(_player.position):
+			continue
+		return w
+	return {}
+
+
+## The light-ward whose ember (source) has this interactable id, or {} — for the kindle.
+func _light_ward_for_source(id: String) -> Dictionary:
+	for w in _wards:
+		if bool(w["is_light"]) and String(w["source_id"]) == id:
+			return w
+	return {}
+
+
+## Start the carry: send the companion to FETCH the woken light from the source. _update_carry takes
+## it from there (source → brazier → deliver). One leg at a time via the Seek action's "settle".
+func _begin_carry(w: Dictionary) -> void:
+	w["carry_phase"] = "to_source"
+	_companion.issue_command("settle", w["source"])
+	_show_hint("Your companion pads off to fetch the light.")
+
+
+## Advance the Cistern carry each frame: once the companion reaches the source it takes up the mote and
+## bears it to the brazier; arriving there is the DELIVERY — reported to the server as the ward's
+## 'occupy', which (with the kindle's 'uncover') opens it for everyone. The brazier lighting, the murals
+## and the dark lifting all follow from the server's open echo (_open_ward → _light_cistern).
+func _update_carry(w: Dictionary, cpos: Vector2) -> void:
+	match String(w["carry_phase"]):
+		"to_source":
+			if cpos.distance_to(w["source"]) <= CARRY_REACH:
+				w["carry_phase"] = "to_brazier"
+				_companion.issue_command("settle", w["plate"])
+				_show_hint("It takes up the mote of light and carries it to the brazier.")
+		"to_brazier":
+			if cpos.distance_to(w["plate"]) <= float(w["occupy_r"]):
+				w["carry_phase"] = "delivered"
+				Net.send_ward_occupy(String(w["id"]), true)
+
+
+## The Cistern lit (server-confirmed open): light the brazier and wake the murals (their clues for the
+## Paired Hall). The sealed door and the dark are handled by _open_ward / the gloom, which key off
+## the ward being open.
+func _light_cistern(w: Dictionary) -> void:
+	var bri := int(w["brazier_render_index"])
+	if bri >= 0:
+		_world_art.open_slab(bri)
+	for mi in w["mural_render_indices"]:
+		if int(mi) >= 0:
+			_world_art.open_slab(int(mi))
+
+
+## Cistern gloom: while you stand in the dark chamber with its light-ward still unlit, darken the whole
+## scene (the CanvasModulate day tint) — the cue that makes you NAME the need. Eases in/out, and lifts
+## the moment the brazier catches (the ward opens). No-op in worlds without a Cistern, and skipped if a
+## daycycle owns the tint.
+func _update_gloom(delta: float) -> void:
+	if _gloom_ward.is_empty() or _day_enabled:
+		return
+	var target := 0.0
+	if _gloom_rect.get_area() > 0.0 and not bool(_gloom_ward["open"]) and _gloom_rect.has_point(_player.position):
+		target = 1.0
+	_gloom = lerpf(_gloom, target, 1.0 - exp(-3.0 * delta))
+	_day_tint.color = _base_day_tint.lerp(Color(0.10, 0.13, 0.12), 0.78 * _gloom)
+
+
 ## Reveal a ward's plate: mark it found, draw the uncovered stone (once), and narrate. `mine` tells the
 ## finder's snappy "your companion noses it out" beat from the calmer "a plate lies uncovered" a friend's
 ## search produced. Idempotent on the draw, so the predicted reveal and the server echo never double up.
@@ -780,6 +909,10 @@ func _reveal_plate(w: Dictionary, mine: bool) -> void:
 	if bool(w["revealed"]):
 		return
 	w["revealed"] = true
+	if bool(w["is_light"]):
+		# A light-ward (Cistern): 'found' comes from kindling the ember (already narrated), and the brazier
+		# is already drawn — there's no buried plate to reveal here.
+		return
 	if w["decoys"].is_empty():
 		# A buried plate (Threshold-style): spawn its uncovered stone where the search found it.
 		w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
@@ -809,7 +942,13 @@ func _open_ward(ward: Dictionary) -> void:
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
 	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_show_hint("Stone grinds on stone — the slab rises, and the way lies open.")
+	if bool(ward.get("is_light", false)):
+		# The Cistern: the carried light catches — the brazier flares, the murals wake, and the dark lifts
+		# (the gloom keys off this ward being open), as the sealed door grinds aside.
+		_light_cistern(ward)
+		_show_hint("The brazier catches — warm light floods the chamber, the old carvings wake, and the sealed door grinds open.")
+	else:
+		_show_hint("Stone grinds on stone — the slab rises, and the way lies open.")
 
 
 ## The render index (in world_art's draw list) of the interactable with this id, or -1. Props keep
@@ -819,6 +958,17 @@ func _render_index_for_id(id: String) -> int:
 		if String(e.get("id", "")) == id:
 			return int(e.get("render_index", -1))
 	return -1
+
+
+## The world-space rect of the named region (for the Cistern gloom), or an empty Rect2 if none.
+func _region_rect(data: Dictionary, name: String) -> Rect2:
+	if name == "":
+		return Rect2()
+	for r in data.get("regions", []):
+		if String(r.get("id", "")) == name:
+			var mn := WorldData.to_vec2(r["min"])
+			return Rect2(mn, WorldData.to_vec2(r["max"]) - mn)
+	return Rect2()
 
 
 ## True if any ward is still shut (per our mirror of the server state) — gates the "Go look" affordance.

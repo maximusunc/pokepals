@@ -285,6 +285,12 @@ func _draw() -> void:
 				_draw_column(it["pos"], it["color"])
 			"nook":
 				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)))
+			"ember":
+				_draw_ember(it["pos"], it["color"], bool(it.get("opened", false)))
+			"brazier":
+				_draw_brazier(it["pos"], it["color"], bool(it.get("opened", false)))
+			"mural":
+				_draw_mural(it["pos"], it["color"], bool(it.get("opened", false)))
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -508,6 +514,68 @@ func _draw_nook(p: Vector2, color: Color, opened: bool) -> void:
 		# blocked: a shallow, dead-looking hollow
 		draw_circle(p + Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
 		draw_arc(p + Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
+
+
+## The Cistern's ember source, in a cracked bowl. DEAD: a dark coal with the faintest red breath (so
+## you can find it in the gloom, but it reads as spent). KINDLED (opened): it wakes into a bright,
+## breathing coal with a mote of light hovering above — the thing the companion can carry.
+func _draw_ember(p: Vector2, color: Color, kindled: bool) -> void:
+	# the cracked bowl
+	draw_arc(p + Vector2(0, 2), 9.0, 0.1, PI - 0.1, 14, Color(0.34, 0.30, 0.26), 3.0)
+	if kindled:
+		var breathe := 0.78 + 0.22 * sin(_time * 3.0)
+		for k in 3:
+			draw_circle(p + Vector2(0, -2), (16.0 - float(k) * 5.0) * breathe, Color(color.r, color.g, color.b, 0.10))
+		draw_circle(p + Vector2(0, -1), 5.5, color)
+		draw_circle(p + Vector2(-1, -2), 2.5, Color(1, 0.95, 0.8))
+		# the carryable mote, hovering
+		var bob := sin(_time * 2.2) * 2.0
+		draw_circle(p + Vector2(0, -16 + bob), 3.0, Color(1.0, 0.92, 0.7, 0.9))
+		draw_circle(p + Vector2(0, -16 + bob), 6.0, Color(1.0, 0.9, 0.6, 0.18))
+	else:
+		draw_circle(p + Vector2(0, -1), 5.0, Color(0.22, 0.16, 0.14))
+		draw_circle(p + Vector2(-1, -2), 1.6, Color(0.55, 0.22, 0.14, 0.7 + 0.2 * sin(_time * 1.5)))
+
+
+## The Cistern's brazier — a bowl on a stand. COLD: dark and dead. LIT (opened): full of warm flame
+## with a breathing glow, the moment the companion's carried light catches and the dark lifts.
+func _draw_brazier(p: Vector2, color: Color, lit: bool) -> void:
+	# stand + bowl
+	draw_rect(Rect2(p + Vector2(-2.5, -2), Vector2(5, 16)), color.darkened(0.25))
+	draw_rect(Rect2(p + Vector2(-9, 12), Vector2(18, 3)), color.darkened(0.2))
+	var bowl := PackedVector2Array([p + Vector2(-11, -8), p + Vector2(11, -8), p + Vector2(7, 0), p + Vector2(-7, 0)])
+	draw_colored_polygon(bowl, color.darkened(0.1))
+	if lit:
+		var warm := Color(1.0, 0.78, 0.40)
+		var breathe := 0.8 + 0.2 * sin(_time * _glow_pulse_speed)
+		for k in 3:
+			draw_circle(p + Vector2(0, -10), (40.0 - float(k) * 11.0) * breathe, Color(warm.r, warm.g, warm.b, 0.08))
+		# a couple of flame tongues
+		var f := sin(_time * 6.0) * 2.0
+		draw_colored_polygon(PackedVector2Array([p + Vector2(-6, -8), p + Vector2(0, -8), p + Vector2(-2 + f, -22)]), Color(1.0, 0.66, 0.28))
+		draw_colored_polygon(PackedVector2Array([p + Vector2(0, -8), p + Vector2(7, -8), p + Vector2(3 + f, -19)]), Color(1.0, 0.80, 0.42))
+		draw_circle(p + Vector2(0, -9), 4.0, Color(1, 0.95, 0.8))
+	else:
+		# cold coals
+		draw_circle(p + Vector2(-3, -7), 2.2, Color(0.18, 0.18, 0.18))
+		draw_circle(p + Vector2(3, -7), 2.2, Color(0.16, 0.16, 0.16))
+
+
+## A wall carving. LOST IN THE DARK: barely-there scratches. REVEALED (opened, once the brazier lights):
+## a legible relief of TWO figures and their companions before a great door — the first foreshadowing of
+## the Paired Hall (a door that "needs more than one"). Examinable for the flavour line in the spec label.
+func _draw_mural(p: Vector2, color: Color, revealed: bool) -> void:
+	var a := 0.9 if revealed else 0.16
+	var c := Color(color.r, color.g, color.b, a)
+	# the stone panel
+	draw_rect(Rect2(p + Vector2(-16, -22), Vector2(32, 40)), Color(0.22, 0.24, 0.24, 0.5 if revealed else 0.18))
+	# two little figures side by side, each with a small companion shape at their feet
+	for sx in [-7, 7]:
+		draw_rect(Rect2(p + Vector2(sx - 2, -12), Vector2(4, 14)), c)        # body
+		draw_circle(p + Vector2(sx, -15), 3.0, c)                            # head
+		draw_circle(p + Vector2(sx + (4 if sx > 0 else -4), 4), 2.4, c)      # companion
+	# the great door arch above/behind them
+	draw_arc(p + Vector2(0, -2), 13.0, PI, TAU, 18, c, 2.0)
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its

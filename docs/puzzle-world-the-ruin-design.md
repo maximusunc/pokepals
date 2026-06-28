@@ -150,12 +150,21 @@ another `ruin.wards` entry (the nook *is* its slab, latched), so the shared/auth
 flow handles it identically; the decoys and the which-gap tell are client-only. A clean
 proof that the puzzle foundation generalises.
 
-### 3. The Cistern — name the need 🔶
+### 3. The Cistern — name the need ✅ (built)
 
-Dark. Nothing tells you what's missing — you must *infer* the place needs light
-(e.g. a cold, unlit sconce; foreshadowing from the Threshold). You deduce it, send
-the companion to find/carry a mote of light, and place what it reveals. The carried
-light begins lighting **murals** — your first clues for the Paired Hall.
+Beyond the Warren, a chamber that goes **dark** the moment you enter (the whole scene
+dims — the cue). Nothing tells you what's wrong; the sealed door's hint only says the
+brazier is cold and the ember dead. You must *infer* it: **this place needs light.**
+You **kindle the dead ember** (examine it — the deduction, which the client treats as
+the ward's `uncover`), then **Go look** sends the companion to *carry* the mote from the
+ember to the cold brazier; arriving there is the `occupy` that lights it — and the
+brazier flares, the **murals wake** (two figures and their companions before a great
+door — the Paired Hall foreshadowed), the dark lifts, and the door grinds open.
+
+This is the **(a→b) hinge**: the first room where the game names nothing and *you* do.
+Built on the ward system (the door is a standard latched slab), so the server was again
+untouched; new client work was the kindle, the two-leg carry (reusing Seek's `settle`,
+now standalone), the `nook`/`ember`/`brazier`/`mural` art, and the region gloom.
 
 ### 4. The Paired Hall — the heart ✅ (design), 🔶 (build staging)
 
@@ -260,16 +269,26 @@ copy, not a redesign.
 - **The Warren** (room 2): a four-gap rubble wall where the companion's nose reads the one
   true passage (a `glance_toward` tell) and clears it. Built entirely on the existing ward
   system + a new `nook` art type — **no server change** (the true gap is just another ward).
+- **The Cistern** (room 3, the a→b hinge): a chamber that darkens on entry; you infer it
+  needs light, kindle the ember (= the ward's `uncover`), and Go look sends the companion to
+  carry the mote to the brazier (= `occupy`), lighting it, waking the Paired-Hall-foreshadow
+  murals, and opening the door. Still a standard ward → **no server change**; new client work
+  is the kindle, the carry, the gloom, and the `ember`/`brazier`/`mural` art.
 
 ## Open / next ⬜
 
-- **Go play the Ruin** and tune the *feel*: the Threshold sweep reach/pace and uncover
-  radius; the Warren's tell sense-range and whether reading the companion's nose over four
-  alike gaps is satisfying (this is the whole bar).
+- **Go play the Ruin** end to end and tune the *feel* (this is the whole bar): the Threshold
+  sweep pace/uncover radius; the Warren tell sense-range; the Cistern's carry pacing, the
+  gloom depth, and whether finding the ember in the dark reads (the door's hint guides it).
 - The Warren's tell is gentle (a glance). If it doesn't read strongly enough, escalate it —
   e.g. a brief stop-and-sniff at the true gap that releases before it clears (carefully, so
   the `point_at` freeze can't strand it).
-- Bespoke **slab / plate / column / nook** art (currently simple procedural shapes).
-- Build out the **Cistern → Paired Hall** rooms on this same ward foundation.
+- The Cistern carry has **no visible travelling mote** yet (the ember shows one, the brazier
+  lights on arrival; the companion's path implies it). Add a mote that rides the companion if
+  the carry doesn't read.
+- Bespoke art (currently simple procedural shapes): slab / plate / column / nook / ember /
+  brazier / mural.
+- Build the **Paired Hall** — the heart — on this same ward foundation. It's the room the
+  shared/authoritative state and the non-latching ward were built for (two pairs, two plates
+  at once); `Server.World`'s per-ward occupant sets already support it.
 - Original naming for the ruin, the companion-plates, the gaps, and the "pairs" mythology.
-- Decide relay-coop timing relative to proximity chat.

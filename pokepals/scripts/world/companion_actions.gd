@@ -929,10 +929,13 @@ class SeekAction extends CompanionAction:
 			_arrived = false
 			_just_triggered = true
 			_target = _pick_sweep(perception, s, cfg, rng)
-		elif command == "settle" and _active:
-			# The search paid off: the controller revealed a plate and points us at it.
+		elif command == "settle":
+			# Go to (and stand on) a specific point: the controller pointing us at a revealed plate after
+			# a search, OR a directed step in the Cistern carry (fetch the light, then bring it to the
+			# brazier). Latches on its own — no prior "seek" needed — so the carry can drive it standalone.
 			var pt: Variant = perception.get("command_point")
 			if pt is Vector2:
+				_active = true
 				_phase = GO
 				_target = pt
 				_arrived = false

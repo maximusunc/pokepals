@@ -1,16 +1,17 @@
 {
-	"_comment": "THE RUIN — a companion-as-actor puzzle world (Rung 5). Built long ago to be worked by a person AND their bonded companion together. SOUTH→NORTH you pass three spaces: the THRESHOLD (a heavy slab barred by a buried weight-plate only the companion's search uncovers), the WARREN (the way caved in — four near-identical gaps in the rubble, and only the companion's nose knows which goes through), and the SANCTUM beyond (the way home). See docs/puzzle-world-the-ruin-design.md. Coordinates are world-space pixels; colours are [r,g,b] 0..1. The 'ruin' block describes the pair-operated WARDS; ward state is SERVER-AUTHORITATIVE (shared), so everyone present converges on one truth. Slabs/nooks are also listed as interactables so world_art draws them and Solids blocks them.",
+	"_comment": "THE RUIN — a companion-as-actor puzzle world (Rung 5). Built long ago to be worked by a person AND their bonded companion together. SOUTH→NORTH you pass: the THRESHOLD (a slab barred by a buried weight-plate only the companion's search uncovers), the WARREN (the way caved in — four alike gaps in the rubble, and only the companion's nose knows which goes through), the CISTERN (a dark chamber — nothing tells you what's wrong; you must infer it needs LIGHT, kindle the dead ember, and send your companion to carry the mote to the cold brazier, which lights the murals and opens the way), and the SANCTUM beyond (the way home). See docs/puzzle-world-the-ruin-design.md. Coordinates are world-space pixels; colours are [r,g,b] 0..1. The 'ruin' block describes the pair-operated WARDS; ward state is SERVER-AUTHORITATIVE (shared). Slabs/nooks/braziers are interactables so world_art draws them and Solids blocks them.",
 	"world_id": "the-ruin",
-	"_regions_comment": "Named AREAS for new-area discovery (a bond source). threshold (arrival, south) → warren (the caved-in middle) → sanctum (the calm reward, north).",
+	"_regions_comment": "Named AREAS for new-area discovery (a bond source). threshold (arrival, south) → warren (the caved-in middle) → cistern (the dark chamber) → sanctum (the calm reward, north). The controller darkens the screen while you're in the 'cistern' region and its light-ward is unlit — the cue that makes you NAME the need.",
 	"regions": [
 		{ "id": "threshold", "min": [-360, 80], "max": [360, 400], "tint": [0.50, 0.58, 0.50] },
 		{ "id": "warren", "min": [-360, -300], "max": [360, 80], "tint": [0.44, 0.52, 0.48] },
-		{ "id": "sanctum", "min": [-360, -680], "max": [360, -300], "tint": [0.46, 0.60, 0.62] }
+		{ "id": "cistern", "min": [-360, -580], "max": [360, -300], "tint": [0.34, 0.40, 0.44] },
+		{ "id": "sanctum", "min": [-360, -860], "max": [360, -580], "tint": [0.46, 0.60, 0.62] }
 	],
-	"bounds": { "min": [-440, -720], "max": [440, 440] },
+	"bounds": { "min": [-440, -900], "max": [440, 440] },
 	"_border_comment": "A dense, jittered ring of old trees crowding the ruin's edge, so the place feels enclosed and overgrown rather than ending at the void. Presentation + colliders both come from this (seeded, identical every run).",
 	"border": { "ring": true, "spacing": 70, "inset": 14, "jitter": 16, "rows": 3, "row_gap": 36 },
-	"_collision_comment": "Tall props block by default; the slab, the ruined-wall columns, and the rubble/nook wall set 'solid' explicitly with their own radii. body_radius/margin are the character size + a small standoff.",
+	"_collision_comment": "Tall props block by default; the slabs, the ruined-wall columns, the rubble/nook wall, and the cistern gate set 'solid' explicitly with their own radii. The brazier, ember and murals are NOT solid (you and the companion move freely among them). body_radius/margin are the character size + a small standoff.",
 	"collision": { "tree_radius": 9, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.34, 0.40, 0.32],
 	"_atmosphere_comment": "Dim, cool, mossy and enclosed. day_tint a cool green wash; a strong vignette closes the walls in; sparse pale motes drift like spores in shafts of light; the ground is mottled moss.",
@@ -24,7 +25,7 @@
 	},
 	"player_spawn": [0, 300],
 	"companion_spawn": [-34, 330],
-	"_wall_comment": "Two solid cross-walls. THRESHOLD wall (y=40): fallen columns with a single doorway barred by 'threshold_slab'. WARREN wall (y=-300): rubble columns with FOUR 'nook' gaps (warren_nook_a..d), all drawn alike — only warren_nook_c actually goes through (it is the warren_passage ward's 'slab', cleared when the companion noses into it). Props are spaced so their blocking circles meet — no sneaking between — and the border ring closes the ends.",
+	"_wall_comment": "Three solid cross-walls. THRESHOLD (y=40): fallen columns with a doorway barred by 'threshold_slab'. WARREN (y=-300): rubble columns with FOUR 'nook' gaps (warren_nook_a..d), all alike — only warren_nook_c goes through (the warren_passage ward's 'slab'). CISTERN (y=-580): a wall with a doorway barred by 'cistern_gate', which opens when the brazier is lit. Props are spaced so their blocking circles meet; the border ring closes the ends.",
 	"trees": [],
 	"interactables": [
 		{ "id": "wall_l1", "type": "column", "position": [-300, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 22 },
@@ -43,7 +44,6 @@
 		{ "id": "crack_flowers", "type": "wildflowers", "position": [110, 250], "color": [0.78, 0.62, 0.74], "label": "flowers in a cracked flagstone", "tags": ["flower", "fragrant"] },
 		{ "id": "ruin_mushrooms", "type": "mushrooms", "position": [-260, 180], "color": [0.74, 0.66, 0.40], "label": "pale mushrooms in the damp", "tags": ["fungus", "odd"] },
 
-		{ "id": "rubble_l4", "type": "column", "position": [-360, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 		{ "id": "rubble_l3", "type": "column", "position": [-300, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 		{ "id": "rubble_l2", "type": "column", "position": [-240, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 		{ "id": "warren_nook_a", "type": "nook", "position": [-180, -300], "color": [0.46, 0.46, 0.44], "label": "a collapsed gap in the rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
@@ -55,22 +55,39 @@
 		{ "id": "warren_nook_d", "type": "nook", "position": [180, -300], "color": [0.46, 0.46, 0.44], "label": "a collapsed gap in the rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 		{ "id": "rubble_r2", "type": "column", "position": [240, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 		{ "id": "rubble_r3", "type": "column", "position": [300, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
-		{ "id": "rubble_r4", "type": "column", "position": [360, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 
-		{ "id": "warren_rubble_prop", "type": "log", "position": [-230, -150], "color": [0.40, 0.38, 0.30], "label": "a toppled lintel", "tags": ["stone", "made"] },
-		{ "id": "inner_glimmer", "type": "crystal", "position": [60, -460], "color": [0.62, 0.80, 0.82], "label": "a faint glimmer returning to the dark", "tags": ["shiny", "light"] },
-		{ "id": "sanctum_flowers", "type": "wildflowers", "position": [-90, -430], "color": [0.74, 0.70, 0.86], "label": "flowers blooming where the light fell", "tags": ["flower", "fragrant"] }
+		{ "id": "cistern_ember", "type": "ember", "position": [-200, -380], "color": [0.95, 0.62, 0.30], "label": "a dead ember in a cracked bowl", "tags": ["light", "made"] },
+		{ "id": "cistern_brazier", "type": "brazier", "position": [0, -440], "color": [0.60, 0.58, 0.52], "label": "a cold, dark brazier", "tags": ["light", "made"] },
+		{ "id": "mural_l", "type": "mural", "position": [-330, -440], "color": [0.56, 0.58, 0.60], "label": "a worn carving, lost in the dark", "tags": ["made", "story"] },
+		{ "id": "mural_r", "type": "mural", "position": [330, -440], "color": [0.56, 0.58, 0.60], "label": "a worn carving, lost in the dark", "tags": ["made", "story"] },
+		{ "id": "mural_gate", "type": "mural", "position": [0, -545], "color": [0.56, 0.58, 0.60], "label": "a worn carving above the door", "tags": ["made", "story"] },
+
+		{ "id": "cwall_l3", "type": "column", "position": [-300, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_l2", "type": "column", "position": [-240, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_l1", "type": "column", "position": [-180, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_l0", "type": "column", "position": [-120, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_lc", "type": "column", "position": [-60, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cistern_gate", "type": "slab", "position": [0, -580], "color": [0.42, 0.44, 0.46], "label": "a sealed stone door", "tags": ["stone", "made", "barrier"], "solid": true, "collision_radius": 30 },
+		{ "id": "cwall_rc", "type": "column", "position": [60, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_r0", "type": "column", "position": [120, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_r1", "type": "column", "position": [180, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_r2", "type": "column", "position": [240, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_r3", "type": "column", "position": [300, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+
+		{ "id": "inner_glimmer", "type": "crystal", "position": [60, -700], "color": [0.62, 0.80, 0.82], "label": "a faint glimmer returning to the dark", "tags": ["shiny", "light"] },
+		{ "id": "sanctum_flowers", "type": "wildflowers", "position": [-90, -680], "color": [0.74, 0.70, 0.86], "label": "flowers blooming where the light fell", "tags": ["flower", "fragrant"] }
 	],
-	"_ruin_comment": "The pair-operated WARDS, server-authoritative (shared). A ward links a PLATE (a spot the companion's Seek search uncovers when it noses within uncover_radius) to a SLAB (the barrier that opens once a companion's weight settles within occupy_radius; latch=true keeps it open). threshold_gate is a buried plate → the slab. warren_passage is the TRUE nook (warren_nook_c) → itself: the companion noses among four alike gaps and clears the one that goes through, while the 'decoys' (the other three nooks) are where its nose says 'not here'. The client drives the which-nook TELL off decoys + plate; the server only tracks found/open.",
+	"_ruin_comment": "The pair-operated WARDS, server-authoritative (shared). A ward links found+occupied → open (latched). threshold_gate: a buried PLATE the search uncovers → the slab. warren_passage: the TRUE nook (its 'slab') among 'decoys' the nose dismisses. cistern_light: a LIGHT-ward — it has a 'source' (the ember) and a 'brazier_id'/'murals'. The client treats KINDLING the ember (examining it) as the ward's 'uncover' (found), then on Go look the companion CARRIES the mote from the source to the plate (the brazier); arriving there is the 'occupy' (delivery) that opens the gate, lights the brazier, reveals the murals, and lifts the dark. The server only tracks found/open; the kindle, carry, murals and gloom are all client-side.",
 	"ruin": {
 		"wards": [
 			{ "id": "threshold_gate", "slab_id": "threshold_slab", "plate": [-120, 220], "uncover_radius": 120, "occupy_radius": 34, "latch": true, "hint": "The slab won't budge. Maybe your companion can find what works it — try sending it to look." },
-			{ "id": "warren_passage", "slab_id": "warren_nook_c", "plate": [60, -300], "uncover_radius": 42, "occupy_radius": 38, "latch": true, "decoys": [[-180, -300], [-60, -300], [180, -300]], "hint": "Four gaps in the rubble, all alike — you can't tell which goes through. Your companion's nose can. Send it to look, and trust where it leads." }
+			{ "id": "warren_passage", "slab_id": "warren_nook_c", "plate": [60, -300], "uncover_radius": 42, "occupy_radius": 38, "latch": true, "decoys": [[-180, -300], [-60, -300], [180, -300]], "hint": "Four gaps in the rubble, all alike — you can't tell which goes through. Your companion's nose can. Send it to look, and trust where it leads." },
+			{ "id": "cistern_light", "slab_id": "cistern_gate", "plate": [0, -440], "occupy_radius": 40, "latch": true, "source": [-200, -380], "source_id": "cistern_ember", "brazier_id": "cistern_brazier", "region": "cistern", "murals": ["mural_l", "mural_r", "mural_gate"], "hint": "Pitch dark, and the door is sealed. Nothing here moves — but the brazier is cold and the ember is dead. This place needs LIGHT. Wake the ember, then send your companion to carry it." }
 		]
 	},
-	"_portals_comment": "ruin_entry is where you arrive from the Vale (and step back through to leave); ruin_exit, in the sanctum beyond the cleared passage, leads home.",
+	"_portals_comment": "ruin_entry is where you arrive from the Vale (and step back through to leave); ruin_exit, in the sanctum beyond the lit gate, leads home.",
 	"portals": [
 		{ "id": "ruin_entry", "type": "portal", "position": [0, 380], "color": [0.66, 0.72, 0.62], "label": "the way back out", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" },
-		{ "id": "ruin_exit", "type": "portal", "position": [60, -600], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" }
+		{ "id": "ruin_exit", "type": "portal", "position": [60, -760], "color": [0.74, 0.66, 0.96], "label": "a shimmering portal", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_ruin_portal" }
 	]
 }
