@@ -109,6 +109,11 @@ var _world_specs: Dictionary = {}
 
 
 func _ready() -> void:
+	# Pump the socket even while the tree is paused. The connect gate freezes the world (get_tree().paused)
+	# until the player is officially loaded in; if Net paused too, the connect/reconnect handshake could
+	# never complete and you'd be stuck on a black gate. As an autoload Net is the one node that must keep
+	# ticking regardless of the gate.
+	process_mode = Node.PROCESS_MODE_ALWAYS
 	# Warm the in-memory cache from disk so a returning player's worlds paint instantly (and we can send
 	# their etags on join to skip the download). A changed world still re-ships — the etag won't match.
 	_load_disk_cache()
