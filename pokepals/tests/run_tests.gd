@@ -24,6 +24,7 @@ func _init() -> void:
 	failures += TestCompanionLook.run_all()
 	failures += TestSolids.run_all()
 	failures += TestSalamanderHunt.run_all()
+	failures += TestRuinMechanisms.run_all()
 	failures += TestNetCodec.run_all()
 
 	print("")
