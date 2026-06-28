@@ -186,6 +186,15 @@ func add_interactable(pos: Vector2, color: Color, type: String) -> int:
 	return _interactables.size() - 1
 
 
+## Raise a Ruin slab: it draws lifted (an open doorway under a hoisted lintel) from here on, with a
+## pulse of acknowledgement. The collider is removed separately by the controller (Solids rebuild) —
+## this is the visual half. Called when a ward's plate is weighted and the slab opens.
+func open_slab(index: int) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["opened"] = true
+		_interactables[index]["pulse"] = 1.0
+
+
 func _process(delta: float) -> void:
 	_time += delta
 	for it in _interactables:
@@ -265,10 +274,17 @@ func _draw() -> void:
 		var pulse: float = it["pulse"]
 		if pulse > 0.0:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
-		if String(it["type"]) == "rock":
-			_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
-		else:
-			_draw_prop(it["type"], it["pos"], it["color"])
+		match String(it["type"]):
+			"rock":
+				_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
+			"slab":
+				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)))
+			"plate":
+				_draw_plate(it["pos"], it["color"])
+			"column":
+				_draw_column(it["pos"], it["color"])
+			_:
+				_draw_prop(it["type"], it["pos"], it["color"])
 
 	# NOTE: trees and landmarks (great trees) are no longer drawn here. They're spawned
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
@@ -421,6 +437,53 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# fallback: the original ringed disc
 			draw_circle(p, 8.0, color)
 			draw_arc(p, 8.0, 0.0, TAU, 20, Color(1, 1, 1, 0.5), 1.5)
+
+
+## A Ruin gate slab. CLOSED: a heavy upright stone filling the doorway, a worn groove down its face.
+## OPENED: it has risen into a lintel up top, leaving a dark, open doorway beneath — the way through.
+func _draw_slab(p: Vector2, color: Color, opened: bool) -> void:
+	var w := 56.0
+	if opened:
+		# the dark doorway gap left behind
+		draw_rect(Rect2(p + Vector2(-w * 0.5 + 4, -64), Vector2(w - 8, 64)), Color(0.06, 0.08, 0.07, 0.85))
+		# the slab, hoisted up into a lintel above the opening
+		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 16)), color.darkened(0.1))
+		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 4)), color.lightened(0.12))
+		# jambs framing the open doorway
+		draw_rect(Rect2(p + Vector2(-w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_rect(Rect2(p + Vector2(w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		return
+	# closed: the lowered slab barring the way
+	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 72)), color.darkened(0.08))
+	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 5)), color.lightened(0.10))
+	draw_line(p + Vector2(0, -62), p + Vector2(0, 0), color.darkened(0.28), 2.0)
+	# a couple of weathered cracks
+	draw_line(p + Vector2(-12, -50), p + Vector2(-8, -20), color.darkened(0.22), 1.0)
+	draw_line(p + Vector2(14, -56), p + Vector2(10, -30), color.darkened(0.22), 1.0)
+
+
+## A companion-plate: a worn round stone set flush in the floor, uncovered by the search. A sunken
+## ring with a faint carved glyph — the kind of thing only a creature nosing the moss would find.
+func _draw_plate(p: Vector2, color: Color) -> void:
+	draw_circle(p + Vector2(0, 1), 15.0, color.darkened(0.25))
+	draw_circle(p, 13.0, color)
+	draw_arc(p, 9.0, 0.0, TAU, 24, color.darkened(0.3), 1.5)
+	draw_arc(p, 4.0, 0.0, TAU, 16, color.lightened(0.15), 1.0)
+
+
+## A fallen/broken column from the ruined cross-wall: a stout stone stump with a broken top and a
+## drum or two toppled beside it. Solid (the wall you can't pass); drawn squat so the slab reads as
+## the doorway between them.
+func _draw_column(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-12, -26), Vector2(24, 30)), color.darkened(0.06))
+	draw_rect(Rect2(p + Vector2(-12, -26), Vector2(24, 4)), color.lightened(0.10))
+	# broken, uneven crown
+	draw_line(p + Vector2(-12, -26), p + Vector2(-4, -32), color.darkened(0.15), 2.0)
+	draw_line(p + Vector2(-4, -32), p + Vector2(6, -24), color.darkened(0.15), 2.0)
+	draw_line(p + Vector2(6, -24), p + Vector2(12, -28), color.darkened(0.15), 2.0)
+	# a toppled drum at its base
+	draw_circle(p + Vector2(15, 2), 6.0, color.darkened(0.12))
+	draw_circle(p + Vector2(15, 2), 2.5, color.darkened(0.3))
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its

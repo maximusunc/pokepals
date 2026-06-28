@@ -46,7 +46,7 @@
 	"_ruin_comment": "The pair-operated WARDS the controller drives via RuinMechanisms. A ward links a hidden weight-plate to a slab: the companion's Seek search uncovers the plate when it passes within uncover_radius, and the slab raises (and, with latch=true, stays raised — the Threshold doorway) once the companion settles its weight within occupy_radius. The plate has NO interactable entry: it's invisible until the search reveals it (the controller spawns its reveal art then). 'hint' is shown when you near the slab with no idea how to open it.",
 	"ruin": {
 		"wards": [
-			{ "id": "threshold_gate", "slab_id": "threshold_slab", "plate": [-220, 210], "uncover_radius": 48, "occupy_radius": 34, "latch": true, "hint": "The slab won't budge. Maybe your companion can find what works it — try sending it to look." }
+			{ "id": "threshold_gate", "slab_id": "threshold_slab", "plate": [-120, 220], "uncover_radius": 120, "occupy_radius": 34, "latch": true, "hint": "The slab won't budge. Maybe your companion can find what works it — try sending it to look." }
 		]
 	},
 	"_portals_comment": "ruin_entry is where you arrive from the Vale (and step back through to leave); ruin_exit, in the inner nook beyond the slab, leads home once you've opened the way.",

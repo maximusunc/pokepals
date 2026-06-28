@@ -230,12 +230,23 @@ whether relay-coop comes before or after chat.
   four rooms.
 - Paired Hall solo route: a **longer, lonelier path** with a muted (vs. full) waking.
 
+## Built so far ✅
+
+- **RuinMechanisms** pure logic + headless tests — the ward (hidden plate → slab, latched).
+- **The Ruin world** (`the-ruin.json`) + catalog registration + a Vale archway into it.
+- **The Threshold is playable solo:** the **Seek** command ("Go look") sends the
+  companion sweeping the antechamber on its own; the `world_controller` referee uncovers
+  the buried plate when the search noses near it, settles the companion onto it, and
+  raises the slab (visual + a Solids rebuild that drops its collider) so the way opens.
+  Seek has its own command-harness tests. Bond flavours how the sweep goes.
+
 ## Open / next ⬜
 
-- Build the **Threshold** solo-first as the first feel-test ("send my partner to
-  search, and watch it come through").
-- Nail the **Seek** command's read-out: how the player *sees* the search is working
-  (getting warmer / found it) via the existing tell system, so it reads as alive, not
-  a loading bar.
+- **Go play the Threshold** and tune the *feel*: sweep reach/pace, uncover radius, how
+  long the search takes, whether reading the companion is satisfying (this is the whole bar).
+- Nail the **Seek** read-out further: a "getting warmer" tell as the companion nears the
+  plate (reuse the detector point), so the search reads as alive, not a wait.
+- Bespoke **slab/plate/column** art (currently simple procedural shapes).
+- Build out the **Warren → Cistern → Paired Hall** rooms on this same ward foundation.
 - Original naming for the ruin, the companion-plates, and the "pairs" mythology.
 - Decide relay-coop timing relative to proximity chat.

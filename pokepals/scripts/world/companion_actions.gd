@@ -47,6 +47,7 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 	return [
 		ComeAction.new(b_command),
 		PetAction.new(b_command),
+		SeekAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
 		LeadAction.new(cfg, b_social),
@@ -884,3 +885,117 @@ class LeadAction extends CompanionAction:
 			"look_at": look_at,
 			"reactions": reactions,
 		}
+
+
+## The player's "GO LOOK" — sending the companion off to SEARCH on its own. The spine of the Ruin:
+## you don't steer it to a spot, you DELEGATE, and it ranges out under its own agency, truth-blind
+## (it never learns where the hidden plate is — the world tells it nothing). The controller is the
+## referee that watches the sweep and, when it brings the companion near a buried plate, uncovers
+## the plate and re-commands "settle" with the now-revealed point. So Seek has two faces caught off
+## the same command channel: "seek" starts the sweep; "settle" (carrying a command_point) turns the
+## sweep into a walk-over-and-stand. On the command band so it preempts autonomous living; a large
+## commitment while underway so a stray urge can't yank it off the search. The sweep is bond-
+## flavoured — a bonded companion ranges wider and with intent, a fresh one mills in tight, fidgety
+## hops — so how well the search goes IS the relationship, the same arc as the salamander tell. It
+## searches OUTWARD FROM THE PLAYER, so where you stand softly biases where it looks (accompaniment,
+## never a leash). Releasing after the settle-hold lets Follow resume; a latched slab stays open.
+class SeekAction extends CompanionAction:
+	enum { SEARCH, GO, HOLD }
+	var _active := false
+	var _phase := SEARCH
+	var _target := Vector2.ZERO   # current sweep waypoint (SEARCH) or the settle point (GO/HOLD)
+	var _dwell := 0.0             # sniff pause at a reached sweep waypoint
+	var _hold_left := 0.0
+	var _just_triggered := false
+	var _arrived := false
+
+	func _init(band_value: int) -> void:
+		id = "seek"
+		band = band_value
+		behavior = "seek"
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
+		var command := String(perception.get("command", ""))
+		if command == "seek":
+			# Start (or restart) the sweep — head off to nose around.
+			_active = true
+			_phase = SEARCH
+			_dwell = 0.0
+			_arrived = false
+			_just_triggered = true
+			_target = _pick_sweep(perception, s, cfg, rng)
+		elif command == "settle" and _active:
+			# The search paid off: the controller revealed a plate and points us at it.
+			var pt: Variant = perception.get("command_point")
+			if pt is Vector2:
+				_phase = GO
+				_target = pt
+				_arrived = false
+		return 1.0 if _active else 0.0
+
+	func act(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var seek: Dictionary = cfg.get("seek", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var reactions: Array = []
+		if _just_triggered:
+			reactions.append("perk")
+			reactions.append("look")
+			_just_triggered = false
+		var stop := float(cfg.get("curiosity_stop_distance", 30.0))
+		match _phase:
+			SEARCH:
+				# Sweep: walk to a waypoint, pause to sniff, pick the next. The controller will
+				# interrupt with "settle" the moment the sweep noses near the hidden plate.
+				if companion_pos.distance_to(_target) > stop:
+					move_target = _target
+					speed = float(cfg["walk_speed"])
+				else:
+					_dwell += delta
+					if _dwell >= float(seek.get("sniff_pause", 0.7)):
+						_dwell = 0.0
+						_target = _pick_sweep(perception, s, cfg, rng)
+						reactions.append("look")
+			GO:
+				# Amble the last bit onto the revealed plate.
+				if companion_pos.distance_to(_target) > stop:
+					move_target = _target
+					speed = float(cfg["walk_speed"])
+				else:
+					_phase = HOLD
+					_hold_left = float(seek.get("hold_seconds", 3.0))
+					if not _arrived:
+						reactions.append("love")  # found it!
+						_arrived = true
+			HOLD:
+				# Settle ON the plate so the referee registers the weight; just stand and breathe,
+				# then release back to its own life (the latched slab stays raised).
+				move_target = _target
+				_hold_left -= delta
+				if _hold_left <= 0.0:
+					_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": _target,
+			"reactions": reactions,
+		}
+
+	# A fresh sweep waypoint: a point out around the PLAYER (so where you stand biases the search),
+	# at a reach that grows with bond — a bonded companion searches wider and with purpose, a fresh
+	# one keeps it tight and fidgety. Pure geometry; it never consults where the plate actually is.
+	func _pick_sweep(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> Vector2:
+		var seek: Dictionary = cfg.get("seek", {})
+		var player_pos: Vector2 = perception["player_pos"]
+		var near := float(seek.get("reach_near", 90.0))
+		var far := lerpf(float(seek.get("reach_low", 180.0)), float(seek.get("reach_high", 300.0)), s.bond)
+		var angle := rng.randf_range(0.0, TAU)
+		var dist := rng.randf_range(near, maxf(near + 1.0, far))
+		return player_pos + Vector2(cos(angle), sin(angle)) * dist

@@ -22,6 +22,8 @@ static func run_all() -> int:
 	fails += _test_pet_only_when_adjacent(cfg)
 	fails += _test_fresh_pet_can_shy_away(cfg)
 	fails += _test_bonded_pet_leans_in(cfg)
+	fails += _test_seek_sweeps_then_settles(cfg)
+	fails += _test_brain_routes_seek(cfg)
 	return fails
 
 
@@ -274,3 +276,52 @@ static func _test_bonded_pet_leans_in(cfg: Dictionary) -> int:
 	fails += _ok(step_x > 0.0, "a welcomed pet makes it lean a step toward the player")
 	fails += _ok(s.bond > b0, "a welcomed pet grows bond")
 	return fails
+
+
+# A perception dict the SeekAction reads: the order (and a point for "settle"), plus positions.
+static func _seek_percept(command: String, companion_pos: Vector2, player_pos: Vector2, point = null) -> Dictionary:
+	return {
+		"command": command,
+		"command_point": point,
+		"companion_pos": companion_pos,
+		"player_pos": player_pos,
+	}
+
+
+# "Go look": the command latches a SEARCH that sweeps the area; when the controller then points the
+# companion at the revealed plate ("settle"), it goes, gives the "found it" beat, holds a moment,
+# then releases so its own life (Follow) can resume.
+static func _test_seek_sweeps_then_settles(cfg: Dictionary) -> int:
+	var seek := CompanionActions.SeekAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var rng := _rng()
+	var fails := 0
+	fails += _ok(seek.score(_seek_percept("seek", Vector2.ZERO, Vector2.ZERO), s, cfg, rng) == 1.0, "issuing 'seek' latches the search")
+	# Sweeping: it ranges out to a waypoint away from where it stands (so it wants to move).
+	var moved := false
+	for _i in 30:
+		if float(seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)["desired_speed"]) > 0.0:
+			moved = true
+			break
+	fails += _ok(moved, "a 'seek' search sweeps the area — the companion ranges out to look")
+	# The controller found the plate and points the companion at it (here, right where it stands).
+	seek.score(_seek_percept("settle", Vector2.ZERO, Vector2.ZERO, Vector2.ZERO), s, cfg, rng)
+	var arrival := seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)
+	fails += _ok("love" in arrival["reactions"], "settling onto the revealed plate gives the 'found it' beat")
+	# It holds a beat on the plate, then releases (score drops to 0 — Follow can take back over).
+	var hold := float(cfg.get("seek", {}).get("hold_seconds", 3.0))
+	for _i in int(hold / 0.05) + 5:
+		seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)
+	fails += _ok(seek.score(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng) == 0.0, "after holding on the plate the search releases")
+	return fails
+
+
+# End-to-end: issue_command('seek') routes through the brain to a search beat (command band wins).
+static func _test_brain_routes_seek(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var brain := CompanionBrain.new(cfg, 1, s)
+	brain.issue_command("seek")
+	var intent := brain.update(_ctx(Vector2(0, 0), Vector2(40, 0)))
+	return _ok(intent["behavior"] == "seek", "issue_command('seek') routes through to a search beat")

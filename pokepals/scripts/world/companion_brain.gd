@@ -43,6 +43,10 @@ var _command_rng := RandomNumberGenerator.new()
 # A one-frame latch for a player order; consumed (and cleared) by update() the next frame, so
 # a command is a single edge the command-band actions can catch, exactly like an interaction.
 var _pending_command := ""
+# Some orders carry a world POINT (e.g. "settle" on a plate the search just revealed). Latched
+# alongside the command and handed to the action via perception["command_point"]; null when the
+# pending order has no point (a bare "come"/"pet"/"seek"). Cleared with the command each frame.
+var _pending_command_point = null
 var _attention := CompanionAttention.new()
 var _self: CompanionSelf
 var _actions: Array
@@ -87,8 +91,9 @@ func get_self() -> CompanionSelf:
 ## into the next frame's perception, where a command-band action may catch it. Whether the
 ## companion actually obeys is up to that action and the bond — issuing a command never forces
 ## the outcome, it just offers one (see ComeAction / PetAction).
-func issue_command(command: String) -> void:
+func issue_command(command: String, point = null) -> void:
 	_pending_command = command
+	_pending_command_point = point
 
 
 ## A snapshot of the last frame's decision for diagnostics: the winning behavior,
@@ -121,9 +126,11 @@ func update(context: Dictionary) -> Dictionary:
 	# frame so the stream advances uniformly whether or not a command is pending — the command
 	# action consumes the current value when it latches.
 	perception["command"] = _pending_command
+	perception["command_point"] = _pending_command_point
 	perception["command_roll"] = _command_rng.randf()
 	perception["pet_roll"] = _command_rng.randf()
 	_pending_command = ""
+	_pending_command_point = null
 
 	# REMEMBER: fold this frame into the persistent self, advance the fast mood (reads the
 	# discovery novelty observe just recorded), then let traits drift slowly toward how the

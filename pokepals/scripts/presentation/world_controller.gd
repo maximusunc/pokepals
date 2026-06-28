@@ -40,6 +40,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 @onready var _pet_button: Button = $UI/PetButton
 @onready var _reset_button: Button = $UI/ResetButton
 @onready var _leave_button: Button = $UI/LeaveButton
+@onready var _seek_button: Button = $UI/SeekButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
 @onready var _day_tint: CanvasModulate = $DayTint
@@ -52,6 +53,18 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
 var _hunt: SalamanderHunt = null  # the riverbank salamander hunt, or null in worlds without a goal
+# THE RUIN (companion-as-actor puzzle): the pure ward logic, plus the per-ward geometry the referee
+# (_update_ruin) drives it with. Null / empty in worlds without a "ruin" spec block.
+var _ruin: RuinMechanisms = null
+var _wards: Array = []  # [ { id, plate: Vector2, uncover_r, occupy_r, slab_id, slab_render_index, plate_render_index, hint } ]
+var _seeking := false   # true while a "go look" search is out, so only a delegated sweep uncovers a plate
+var _seek_shown := false  # whether the contextual "Go look" button is currently faded in
+# Cached so the slab's collider can be removed when a ward opens (rebuild Solids without it).
+var _world_data: Dictionary = {}
+var _border_pts: Array = []
+var _collision_cfg: Dictionary = {}
+var _body_radius := 6.0
+var _collision_margin := 2.0
 var _rocks: Array = []  # [ { pos, hunt_index, render_index } ] — the examinable rocks of the hunt
 var _goal_active := false
 var _home_world := ""  # where this world's portals (incl. the completion one) lead back to
@@ -177,6 +190,17 @@ func _build_world(data: Dictionary) -> void:
 	_player.set_solids(solids, bounds_rect, body_radius, margin)
 	_companion.set_solids(solids, bounds_rect, body_radius, margin)
 
+	# Keep what the Ruin needs to REBUILD collisions when a slab rises (drop the slab's solid and
+	# re-hand the list to both bodies — see _open_ward). Harmless to cache in worlds without a ruin.
+	_world_data = data
+	_border_pts = border_pts
+	_collision_cfg = ccfg
+	_body_radius = body_radius
+	_collision_margin = margin
+
+	# THE RUIN: build the ward logic + geometry from the spec's "ruin" block (no-op elsewhere).
+	_setup_ruin(data)
+
 	# (The examinable interactables, the portals, the hunt and the companion's points of
 	# interest were all assembled in _setup_contents above, before the world was drawn.)
 
@@ -216,6 +240,11 @@ func _build_world(data: Dictionary) -> void:
 	_leave_button.pressed.connect(_on_leave_pressed)
 	_joystick.add_exclusion(_leave_button)
 
+	# "Go look": send the companion off to search (the Ruin's spine). Faded in only in a world with
+	# an unsolved ward (see _process). Keep its taps off the movement thumbstick underneath.
+	_seek_button.pressed.connect(_try_seek)
+	_joystick.add_exclusion(_seek_button)
+
 	# Dev-only companion/bond readout. On by default; the DBG button (and F3 on
 	# desktop) toggles it. Exclude its taps from the movement thumbstick underneath.
 	_debug.setup(_companion, _player)
@@ -228,7 +257,10 @@ func _build_world(data: Dictionary) -> void:
 
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
-	_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
+	if _ruin != null and not _wards.is_empty():
+		_hint.text = "An old slab bars the way deeper.  Tap Go look to send your companion searching."
+	else:
+		_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
 	_hint.modulate.a = 1.0
 	_intro_tween = create_tween()
 	_intro_tween.tween_interval(5.0)
@@ -482,9 +514,13 @@ func _process(delta: float) -> void:
 	# Offer the way out only while we're actually in a session.
 	_set_leave_visible(Net.is_active())
 
-	# Walk-through portals, and the companion's occasional subtle glance toward a hidden salamander.
+	# "Go look" is offered only in a Ruin with a ward still to open.
+	_set_seek_visible(_ruin != null and _any_ward_unopened())
+
+	# Walk-through portals, the companion's subtle salamander glance, and the Ruin's ward referee.
 	_update_portals(delta)
 	_update_hints(delta)
+	_update_ruin(delta)
 
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
 	_broadcast_presence(delta)
@@ -610,7 +646,146 @@ func _try_interact() -> void:
 		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+	# Examining an unsolved Ruin slab nudges you toward the real move — sending your companion.
+	var ward := _ward_for_slab(String(entry["id"]))
+	if not ward.is_empty() and not _ruin.is_open(String(ward["id"])):
+		_show_hint(String(ward.get("hint", "The slab won't budge. Maybe your companion can find what works it.")))
+		return
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
+
+
+# ============================================================================================
+# THE RUIN — the companion-as-actor puzzle (solo-first). The pure ward logic (RuinMechanisms)
+# owns the RULES; this is the REFEREE that drives it from the world: it knows where each hidden
+# plate is, watches the companion's delegated search, uncovers a plate when the sweep noses near
+# it, settles the companion onto the revealed plate, and raises the slab (visual + collision) when
+# the plate is weighted. The companion's brain stays truth-blind throughout — exactly like the
+# salamander detector, the truth lives here, not in the mind.
+# ============================================================================================
+
+## Build the Ruin's wards from the spec's "ruin" block: the pure logic plus the per-ward geometry
+## the referee needs (where the plate hides, how near to uncover/weight it, which slab it raises).
+## Resolves each slab's render index from the interactables laid out in _setup_contents. No-op in
+## worlds without a "ruin" block, so every other world is untouched.
+func _setup_ruin(data: Dictionary) -> void:
+	_ruin = null
+	_wards.clear()
+	_seeking = false
+	var ward_defs: Array = data.get("ruin", {}).get("wards", [])
+	if ward_defs.is_empty():
+		return
+	_ruin = RuinMechanisms.new()
+	for wd in ward_defs:
+		var id := String(wd.get("id", "ward"))
+		_ruin.add_ward(id, bool(wd.get("latch", true)))
+		var slab_id := String(wd.get("slab_id", ""))
+		_wards.append({
+			"id": id,
+			"plate": WorldData.to_vec2(wd.get("plate", [0, 0])),
+			"uncover_r": float(wd.get("uncover_radius", 120.0)),
+			"occupy_r": float(wd.get("occupy_radius", 34.0)),
+			"slab_id": slab_id,
+			"slab_render_index": _render_index_for_id(slab_id),
+			"plate_render_index": -1,
+			"hint": String(wd.get("hint", "")),
+		})
+
+
+## "Go look": send the companion off to search. _seeking gates the referee so ONLY a delegated
+## sweep uncovers a plate — the companion merely trailing you past it does nothing (the search is
+## the point). The brain (and bond) decide how the sweep actually goes; here we just issue it.
+func _try_seek() -> void:
+	if _ruin == null or not _any_ward_unopened():
+		return
+	_seeking = true
+	_companion.issue_command("seek")
+	_show_hint("You send your companion off to search.")
+
+
+## The ward referee, run every frame. For each unsolved ward: while a search is out, uncover the
+## plate once the companion's sweep noses within uncover range (reveal it, and re-command the
+## companion to settle ON it). Once found, track whether the companion's weight is on the plate and
+## raise the slab the moment it engages. Truth (plate positions) lives only here.
+func _update_ruin(_delta: float) -> void:
+	if _ruin == null:
+		return
+	var cpos: Vector2 = _companion.position
+	for w in _wards:
+		var id := String(w["id"])
+		if not _ruin.is_found(id):
+			if _seeking and cpos.distance_to(w["plate"]) <= float(w["uncover_r"]):
+				_ruin.uncover(id)
+				w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
+				_companion.issue_command("settle", w["plate"])
+				_show_hint("Your companion noses through the moss and uncovers a worn stone plate.")
+		else:
+			var res: Dictionary = _ruin.set_occupied(id, cpos.distance_to(w["plate"]) <= float(w["occupy_r"]))
+			if bool(res["newly_open"]):
+				_open_ward(w)
+
+
+## A ward just opened: hoist the slab into a lintel (visual) and DROP its collider by rebuilding the
+## solids without it, then re-hand the list to both bodies so the doorway is truly walkable. The slab
+## was a real barrier via Solids' "solid" override, so opening it is just flipping that flag and
+## rebuilding — the same pure builder the world was made with.
+func _open_ward(ward: Dictionary) -> void:
+	_seeking = false
+	var sri := int(ward.get("slab_render_index", -1))
+	if sri >= 0:
+		_world_art.open_slab(sri)
+	# Drop the slab's collider WITHOUT mutating the (shared, cached) spec: rebuild solids from a deep
+	# copy with the slab marked non-solid, then re-hand the list to both bodies. Keeping the cache
+	# untouched is what lets the Ruin reset closed on a later revisit (like the hunt reshuffling).
+	var data_copy: Dictionary = _world_data.duplicate(true)
+	var slab_id := String(ward.get("slab_id", ""))
+	for it in data_copy.get("interactables", []):
+		if String(it.get("id", "")) == slab_id:
+			it["solid"] = false
+	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
+	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+	_show_hint("The plate sinks under your companion's weight — with a grind of old stone, the slab rises. The way lies open.")
+
+
+## The render index (in world_art's draw list) of the interactable with this id, or -1. Props keep
+## their original index there, so this resolves a ward's slab to the thing world_art draws.
+func _render_index_for_id(id: String) -> int:
+	for e in _interactables:
+		if String(e.get("id", "")) == id:
+			return int(e.get("render_index", -1))
+	return -1
+
+
+## True if any ward is still shut — gates the "Go look" affordance and the search.
+func _any_ward_unopened() -> bool:
+	if _ruin == null:
+		return false
+	for w in _wards:
+		if not _ruin.is_open(String(w["id"])):
+			return true
+	return false
+
+
+## The ward whose slab has this id (empty dict if none) — for the examine-the-slab nudge.
+func _ward_for_slab(slab_id: String) -> Dictionary:
+	for w in _wards:
+		if String(w["slab_id"]) == slab_id:
+			return w
+	return {}
+
+
+## Fade the "Go look" button in while a Ruin ward is unsolved, out otherwise — mirrors the other
+## contextual buttons so the screen stays uncluttered and it's absent everywhere but the Ruin.
+func _set_seek_visible(show_button: bool) -> void:
+	if show_button == _seek_shown:
+		return
+	_seek_shown = show_button
+	if show_button:
+		_seek_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_seek_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _seek_button.visible = false)
 
 
 ## Spawn the merchant's bonded companion as a STATIONARY puppet beside them: a CompanionView flagged
