@@ -195,25 +195,32 @@ Solo-first, this is entirely in-architecture today.
   the mechanism's reported state via `WorldArt`/`Scenery`. The brain never sees the
   scene tree.
 
-### Co-op build staging ✅ (honest about scope)
+### Co-op build staging — now AUTHORITATIVE ✅ (shared state shipped)
 
-Co-op puzzles need **shared world state**, which is *server-side world mutation* —
-explicitly out of scope this rung per CLAUDE.md ("beyond id assignment + relay"), and
-the stated next step is proximity chat with shared *presence* landing first. So:
+Co-op puzzles need **shared world state**. We evaluated relay vs. authoritative and
+chose **authoritative** (the right long-term shape, and the only one that handles the
+Paired Hall's "two pairs at once" beat correctly). It rests on groundwork that was
+already in place:
 
-1. **Now (in-architecture):** the whole ruin + all verbs, **every puzzle solvable
-   solo**, single-player. The right way to find out if "send my partner to search" is
-   as warm as we hope, before any netcode.
-2. **Medium (relay, not authority):** make co-op state shared by *relaying puzzle
-   events through the existing `world:<id>` channel* — the same seam as presence
-   relay, not new server simulation. Honest cost: no persistence, late-joiners see
-   partial state, it trusts the client. Fine for cozy; the world resets when empty
-   (like the hunt reshuffles).
-3. **Later (authority):** if it sings, move puzzle state server-side for real
-   consistency/persistence. The out-of-scope-now step.
+- **`Server.World`** (the per-world GenServer) now holds the shared ward state and
+  resets it when the room empties — the shared echo of the solo "resets each visit."
+- **`Server.RuinMechanisms`** is the Elixir port of the pure rules; the **server is
+  the authority**, so the client's copy was retired (the logic lives with the truth).
+- The **client became a thin view**: it detects only its *own* companion's actions and
+  reports abstract intents (`uncover`, `occupy on/off`) over the `world:<id>` channel;
+  the server combines everyone's intents and echoes one ward state back, which every
+  client renders (plate reveal, slab raise). Late joiners get current ward state in the
+  join snapshot.
 
-**Recommended order:** build solo-first, prove the verbs feel good, *then* decide
-whether relay-coop comes before or after chat.
+> This deliberately crosses the "no server simulation" line CLAUDE.md drew for the
+> earlier rung — a conscious decision to make the Ruin a genuinely shared world. The
+> server still does *only* the abstract ward state machine (ids + flags), not spatial
+> simulation: all geometry/detection stays client-side.
+
+**Why it was cheap:** the server already had the per-world process, the world spec
+(with the `ruin` block), and — though we didn't even need them — every companion's
+position. The pure `RuinMechanisms` was built node-free precisely so this port was a
+copy, not a redesign.
 
 ---
 
@@ -221,8 +228,9 @@ whether relay-coop comes before or after chat.
 
 - Puzzle spine: **companion-as-actor**, expressed as **delegated autonomous search**
   ("go look," no directing).
-- Co-op: **cozy co-op** (solvable alone, better together) — built **solo-first**,
-  co-op via **relay** later, authority last.
+- Co-op: **cozy co-op** (solvable alone, better together) — built **solo-first**, then
+  made **shared/authoritative** (server-owned ward state; relay was evaluated and rejected
+  because it can't do the Paired Hall's two-pairs-at-once beat).
 - Theme: **overgrown quiet ruin**, with the "built for bonded pairs" fiction.
 - Player agency: **division of labor** (companion = nose + small body; player = head
   + hands + deduction).
@@ -232,13 +240,16 @@ whether relay-coop comes before or after chat.
 
 ## Built so far ✅
 
-- **RuinMechanisms** pure logic + headless tests — the ward (hidden plate → slab, latched).
 - **The Ruin world** (`the-ruin.json`) + catalog registration + a Vale archway into it.
-- **The Threshold is playable solo:** the **Seek** command ("Go look") sends the
-  companion sweeping the antechamber on its own; the `world_controller` referee uncovers
-  the buried plate when the search noses near it, settles the companion onto it, and
-  raises the slab (visual + a Solids rebuild that drops its collider) so the way opens.
-  Seek has its own command-harness tests. Bond flavours how the sweep goes.
+- **The Threshold puzzle:** the **Seek** command ("Go look") sends the companion sweeping
+  the antechamber on its own; it noses out the buried plate, settles onto it, and the slab
+  raises (visual + a Solids rebuild that drops its collider) so the way opens. Seek has its
+  own command-harness tests. Bond flavours how the sweep goes.
+- **Shared / authoritative ward state:** the rules live server-side
+  (`Server.RuinMechanisms`, held per world in `Server.World`); the client reports intents
+  and renders the server's echo, so two players' companions work the same wards and
+  converge on one truth, late joiners see a gate already opened, and the puzzle resets when
+  the room empties. Ported pure-rules tests + a `Server.World` ward test cover it.
 
 ## Open / next ⬜
 

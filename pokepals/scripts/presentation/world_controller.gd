@@ -53,10 +53,13 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
 var _hunt: SalamanderHunt = null  # the riverbank salamander hunt, or null in worlds without a goal
-# THE RUIN (companion-as-actor puzzle): the pure ward logic, plus the per-ward geometry the referee
-# (_update_ruin) drives it with. Null / empty in worlds without a "ruin" spec block.
-var _ruin: RuinMechanisms = null
-var _wards: Array = []  # [ { id, plate: Vector2, uncover_r, occupy_r, slab_id, slab_render_index, plate_render_index, hint } ]
+# THE RUIN (companion-as-actor puzzle): ward state is now SERVER-AUTHORITATIVE (shared across everyone
+# in the world). This client DETECTS its own companion's actions and reports abstract intents (uncover /
+# occupy) to the server, then RENDERS whatever ward state the server echoes back (Net.ward_state_received)
+# — so two players' companions can work the same wards and converge on one truth. Each ward dict carries
+# the per-ward geometry for detection plus local flags mirroring the server (found/open) and which
+# intents we've already sent. Empty in worlds without a "ruin" spec block.
+var _wards: Array = []  # [ { id, plate, uncover_r, occupy_r, slab_id, slab_render_index, plate_render_index, hint, found, revealed, open, uncover_sent, occupied_sent } ]
 var _seeking := false   # true while a "go look" search is out, so only a delegated sweep uncovers a plate
 var _seek_shown := false  # whether the contextual "Go look" button is currently faded in
 # Cached so the slab's collider can be removed when a ward opens (rebuild Solids without it).
@@ -257,7 +260,7 @@ func _build_world(data: Dictionary) -> void:
 
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
-	if _ruin != null and not _wards.is_empty():
+	if not _wards.is_empty():
 		_hint.text = "An old slab bars the way deeper.  Tap Go look to send your companion searching."
 	else:
 		_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
@@ -515,7 +518,7 @@ func _process(delta: float) -> void:
 	_set_leave_visible(Net.is_active())
 
 	# "Go look" is offered only in a Ruin with a ward still to open.
-	_set_seek_visible(_ruin != null and _any_ward_unopened())
+	_set_seek_visible(not _wards.is_empty() and _any_ward_unopened())
 
 	# Walk-through portals, the companion's subtle salamander glance, and the Ruin's ward referee.
 	_update_portals(delta)
@@ -648,39 +651,33 @@ func _try_interact() -> void:
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
 	# Examining an unsolved Ruin slab nudges you toward the real move — sending your companion.
 	var ward := _ward_for_slab(String(entry["id"]))
-	if not ward.is_empty() and not _ruin.is_open(String(ward["id"])):
+	if not ward.is_empty() and not bool(ward["open"]):
 		_show_hint(String(ward.get("hint", "The slab won't budge. Maybe your companion can find what works it.")))
 		return
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
 
 
 # ============================================================================================
-# THE RUIN — the companion-as-actor puzzle (solo-first). The pure ward logic (RuinMechanisms)
-# owns the RULES; this is the REFEREE that drives it from the world: it knows where each hidden
-# plate is, watches the companion's delegated search, uncovers a plate when the sweep noses near
-# it, settles the companion onto the revealed plate, and raises the slab (visual + collision) when
-# the plate is weighted. The companion's brain stays truth-blind throughout — exactly like the
-# salamander detector, the truth lives here, not in the mind.
+# THE RUIN — the companion-as-actor puzzle, SHARED. The authoritative ward state now lives on the
+# SERVER (Server.RuinMechanisms, per world), so everyone present converges on one truth. This client
+# only: DETECTS what its OWN companion does (search nosing near a plate; weight stepping on/off) and
+# reports abstract intents to the server, then RENDERS whatever ward state the server echoes back
+# (reveal the plate, raise the slab). The companion's brain stays truth-blind throughout — it never
+# learns where a plate is; the local detection feeds only the intent stream and the body, never the mind.
 # ============================================================================================
 
-## Build the Ruin's wards from the spec's "ruin" block: the pure logic plus the per-ward geometry
-## the referee needs (where the plate hides, how near to uncover/weight it, which slab it raises).
-## Resolves each slab's render index from the interactables laid out in _setup_contents. No-op in
+## Build the Ruin's wards from the spec's "ruin" block: the per-ward geometry this client needs to
+## DETECT its companion's actions (where the plate hides, how near to uncover/weight it, which slab it
+## raises), plus local flags mirroring the server's authoritative found/open. Resolves each slab's
+## render index from the interactables laid out in _setup_contents. No-op in
 ## worlds without a "ruin" block, so every other world is untouched.
 func _setup_ruin(data: Dictionary) -> void:
-	_ruin = null
 	_wards.clear()
 	_seeking = false
-	var ward_defs: Array = data.get("ruin", {}).get("wards", [])
-	if ward_defs.is_empty():
-		return
-	_ruin = RuinMechanisms.new()
-	for wd in ward_defs:
-		var id := String(wd.get("id", "ward"))
-		_ruin.add_ward(id, bool(wd.get("latch", true)))
+	for wd in data.get("ruin", {}).get("wards", []):
 		var slab_id := String(wd.get("slab_id", ""))
 		_wards.append({
-			"id": id,
+			"id": String(wd.get("id", "ward")),
 			"plate": WorldData.to_vec2(wd.get("plate", [0, 0])),
 			"uncover_r": float(wd.get("uncover_radius", 120.0)),
 			"occupy_r": float(wd.get("occupy_radius", 34.0)),
@@ -688,6 +685,12 @@ func _setup_ruin(data: Dictionary) -> void:
 			"slab_render_index": _render_index_for_id(slab_id),
 			"plate_render_index": -1,
 			"hint": String(wd.get("hint", "")),
+			# Local mirror of the server's authoritative state + which intents we've already sent.
+			"found": false,
+			"revealed": false,
+			"open": false,
+			"uncover_sent": false,
+			"occupied_sent": false,
 		})
 
 
@@ -695,47 +698,81 @@ func _setup_ruin(data: Dictionary) -> void:
 ## sweep uncovers a plate — the companion merely trailing you past it does nothing (the search is
 ## the point). The brain (and bond) decide how the sweep actually goes; here we just issue it.
 func _try_seek() -> void:
-	if _ruin == null or not _any_ward_unopened():
+	if _wards.is_empty() or not _any_ward_unopened():
 		return
 	_seeking = true
 	_companion.issue_command("seek")
 	_show_hint("You send your companion off to search.")
 
 
-## The ward referee, run every frame. For each unsolved ward: while a search is out, uncover the
-## plate once the companion's sweep noses within uncover range (reveal it, and re-command the
-## companion to settle ON it). Once found, track whether the companion's weight is on the plate and
-## raise the slab the moment it engages. Truth (plate positions) lives only here.
+## Run every frame: DETECT what OUR companion is doing and report abstract intents to the server (which
+## holds the authoritative shared ward state). Opening is NOT decided here — it arrives via the server's
+## echo (_on_ward_state), so every player sees the same gate open. For each not-yet-open ward:
+##   • UNCOVER — while a search is out, once our companion's sweep noses within uncover range, predict
+##     the reveal locally (so the find feels instant), send our companion to settle, and tell the server.
+##   • OCCUPY — once the plate is revealed, report (edge-triggered) our companion stepping on / off it.
 func _update_ruin(_delta: float) -> void:
-	if _ruin == null:
+	if _wards.is_empty():
 		return
 	var cpos: Vector2 = _companion.position
 	for w in _wards:
-		var id := String(w["id"])
-		if not _ruin.is_found(id):
-			if _seeking and cpos.distance_to(w["plate"]) <= float(w["uncover_r"]):
-				_ruin.uncover(id)
-				w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
-				_companion.issue_command("settle", w["plate"])
-				_show_hint("Your companion noses through the moss and uncovers a worn stone plate.")
-		else:
-			var res: Dictionary = _ruin.set_occupied(id, cpos.distance_to(w["plate"]) <= float(w["occupy_r"]))
-			if bool(res["newly_open"]):
-				_open_ward(w)
+		if bool(w["open"]):
+			continue
+		var near := cpos.distance_to(w["plate"])
+		if not bool(w["uncover_sent"]) and _seeking and near <= float(w["uncover_r"]):
+			w["uncover_sent"] = true
+			_reveal_plate(w, true)                       # local prediction; server echo confirms
+			_companion.issue_command("settle", w["plate"])
+			Net.send_ward_uncover(String(w["id"]))
+		if bool(w["revealed"]):
+			var on := near <= float(w["occupy_r"])
+			if on != bool(w["occupied_sent"]):
+				w["occupied_sent"] = on
+				Net.send_ward_occupy(String(w["id"]), on)
 
 
-## A ward just opened: hoist the slab into a lintel (visual) and DROP its collider by rebuilding the
-## solids without it, then re-hand the list to both bodies so the doorway is truly walkable. The slab
-## was a real barrier via Solids' "solid" override, so opening it is just flipping that flag and
-## rebuilding — the same pure builder the world was made with.
+## The server's authoritative ward state arrived (on join, or whenever anyone's companion acts): adopt
+## it. A ward newly FOUND reveals its plate (so you see one a friend's companion uncovered); a ward newly
+## OPEN raises the slab for everyone. Idempotent — our own predicted reveal is already in, so this won't
+## double it.
+func _on_ward_state(wards: Array) -> void:
+	for entry in wards:
+		if not (entry is Dictionary):
+			continue
+		var w := _ward_by_id(String(entry.get("id", "")))
+		if w.is_empty():
+			continue
+		if bool(entry.get("found", false)) and not bool(w["found"]):
+			_reveal_plate(w, false)
+		if bool(entry.get("open", false)) and not bool(w["open"]):
+			_open_ward(w)
+
+
+## Reveal a ward's plate: mark it found, draw the uncovered stone (once), and narrate. `mine` tells the
+## finder's snappy "your companion noses it out" beat from the calmer "a plate lies uncovered" a friend's
+## search produced. Idempotent on the draw, so the predicted reveal and the server echo never double up.
+func _reveal_plate(w: Dictionary, mine: bool) -> void:
+	w["found"] = true
+	if bool(w["revealed"]):
+		return
+	w["revealed"] = true
+	w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
+	if mine:
+		_show_hint("Your companion noses through the moss and uncovers a worn stone plate.")
+	else:
+		_show_hint("A worn stone plate lies uncovered nearby.")
+
+
+## A ward opened (server-confirmed): mark it, hoist the slab into a lintel (visual), and DROP its
+## collider by rebuilding the solids without it, then re-hand the list to both bodies so the doorway is
+## truly walkable — for everyone present, whoever's companion opened it. Rebuilt from a deep copy so the
+## (shared, cached) spec stays untouched, which is what lets the Ruin reset closed on a later revisit.
 func _open_ward(ward: Dictionary) -> void:
+	ward["open"] = true
 	_seeking = false
 	var sri := int(ward.get("slab_render_index", -1))
 	if sri >= 0:
 		_world_art.open_slab(sri)
-	# Drop the slab's collider WITHOUT mutating the (shared, cached) spec: rebuild solids from a deep
-	# copy with the slab marked non-solid, then re-hand the list to both bodies. Keeping the cache
-	# untouched is what lets the Ruin reset closed on a later revisit (like the hunt reshuffling).
 	var data_copy: Dictionary = _world_data.duplicate(true)
 	var slab_id := String(ward.get("slab_id", ""))
 	for it in data_copy.get("interactables", []):
@@ -744,7 +781,7 @@ func _open_ward(ward: Dictionary) -> void:
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
 	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_show_hint("The plate sinks under your companion's weight — with a grind of old stone, the slab rises. The way lies open.")
+	_show_hint("Stone grinds on stone — the slab rises, and the way lies open.")
 
 
 ## The render index (in world_art's draw list) of the interactable with this id, or -1. Props keep
@@ -756,12 +793,10 @@ func _render_index_for_id(id: String) -> int:
 	return -1
 
 
-## True if any ward is still shut — gates the "Go look" affordance and the search.
+## True if any ward is still shut (per our mirror of the server state) — gates the "Go look" affordance.
 func _any_ward_unopened() -> bool:
-	if _ruin == null:
-		return false
 	for w in _wards:
-		if not _ruin.is_open(String(w["id"])):
+		if not bool(w["open"]):
 			return true
 	return false
 
@@ -770,6 +805,14 @@ func _any_ward_unopened() -> bool:
 func _ward_for_slab(slab_id: String) -> Dictionary:
 	for w in _wards:
 		if String(w["slab_id"]) == slab_id:
+			return w
+	return {}
+
+
+## The ward with this id (empty dict if none) — for applying server ward-state echoes.
+func _ward_by_id(id: String) -> Dictionary:
+	for w in _wards:
+		if String(w["id"]) == id:
 			return w
 	return {}
 
@@ -1055,6 +1098,7 @@ func _setup_net() -> void:
 	Net.purchase_succeeded.connect(_on_purchase_succeeded)
 	Net.purchase_failed.connect(_on_purchase_failed)
 	Net.hunt_reward.connect(_on_hunt_reward)
+	Net.ward_state_received.connect(_on_ward_state)
 	Net.disconnected.connect(_on_disconnected)
 	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
 	# server sends back its canonical spec (cached by Net for next time). Queued until the socket is
