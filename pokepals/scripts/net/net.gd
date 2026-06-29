@@ -60,6 +60,10 @@ signal purchase_failed(item_def_id: int, reason: String)
 ## The server resolved a salamander-hunt reward claim: how many we found, the coins it paid out (the
 ## SERVER decides the amount; 0 below the reward threshold), and our new wallet balance.
 signal hunt_reward(found: int, amount: int, balance: int)
+## The SHARED Ruin ward state for our current world arrived (on join, and whenever anyone's companion
+## uncovers/weights a plate): an Array of { id, found, open }. The world layer renders the reveal /
+## slab-raise from it — the server is the authority, so two players' companions converge on one truth.
+signal ward_state_received(wards: Array)
 ## A world's spec arrived (and was cached, in memory + on disk): the display-agnostic core +
 ## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
 ## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
@@ -268,6 +272,23 @@ func claim_hunt_reward(found: int) -> void:
 	_push_event("hunt_complete", { "found": found })
 
 
+## Report that OUR companion's search uncovered a Ruin plate. The server marks the shared ward found
+## and echoes the new ward state to everyone in the world (ward_state_received). A no-op until joined.
+func send_ward_uncover(ward_id: String) -> void:
+	if not _can_send():
+		return
+	_push_event("ward", { "kind": "uncover", "ward": ward_id })
+
+
+## Report OUR companion (or a wedge) stepping onto (`on`) or off a Ruin plate. `plate` selects which
+## plate of a PAIRED ward (the Paired Hall: "a"/"b"); "" for a single-plate ward. The server combines
+## everyone's weight per plate and opens the slab/door when the rule is met. A no-op until joined.
+func send_ward_occupy(ward_id: String, on: bool, plate: String = "") -> void:
+	if not _can_send():
+		return
+	_push_event("ward", { "kind": "occupy", "ward": ward_id, "on": on, "plate": plate })
+
+
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
 ## without a round-trip. Empty until our first load/save this session.
 func session_save() -> Dictionary:
@@ -454,6 +475,9 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 				int(payload.get("found", 0)),
 				int(payload.get("amount", 0)),
 				int(payload.get("balance", 0)))
+		"ward_state":
+			var wards: Variant = payload.get("wards", [])
+			ward_state_received.emit(wards if wards is Array else [])
 
 
 ## Send one of OUR channel events on the current world topic (stable join_ref, fresh ref).

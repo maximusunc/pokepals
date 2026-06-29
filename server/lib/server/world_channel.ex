@@ -40,7 +40,7 @@ defmodule Server.WorldChannel do
         {:error, %{reason: "unknown_world"}}
 
       definition ->
-        World.ensure_started(world_id)
+        World.ensure_started(world_id, ward_defs(definition))
         known_etag = Map.get(payload, "known_etag", "")
         send(self(), :after_join)
 
@@ -91,6 +91,13 @@ defmodule Server.WorldChannel do
       push(socket, "state", Map.put(transform, "id", peer_id))
     end
 
+    # The shared Ruin ward state, so a late joiner sees a gate someone already opened (and the slab
+    # already raised). Empty in worlds without a Ruin, so we skip the push there.
+    case World.wards(world_id) do
+      [] -> :ok
+      wards -> push(socket, "ward_state", %{wards: wards})
+    end
+
     {:noreply, assign(socket, :known, known)}
   end
 
@@ -102,6 +109,13 @@ defmodule Server.WorldChannel do
       push(socket, "state", Map.put(transform, "id", from_user))
       {:noreply, socket}
     end
+  end
+
+  # The shared Ruin ward state changed (someone's companion uncovered/weighted a plate): relay it to
+  # our client, which renders the reveal / slab-raise. Everyone in the world converges on this truth.
+  def handle_info({:world_wards, wards}, socket) do
+    push(socket, "ward_state", %{wards: wards})
+    {:noreply, socket}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
@@ -130,6 +144,15 @@ defmodule Server.WorldChannel do
 
   def handle_in("state", payload, socket) do
     World.update_transform(socket.assigns.world_id, socket.assigns.user_id, payload)
+    {:noreply, socket}
+  end
+
+  # A shared-world Ruin ward INTENT from this player's companion: "uncover" (its search nosed out a
+  # plate) or "occupy" (it stepped onto / off a plate). The world process holds the authoritative ward
+  # state, combines everyone's intents, and broadcasts the result back (handle_info {:world_wards}).
+  # Server-stamped user_id, exactly like every other relayed action; unknown wards are ignored there.
+  def handle_in("ward", payload, socket) do
+    World.apply_ward(socket.assigns.world_id, socket.assigns.user_id, payload)
     {:noreply, socket}
   end
 
@@ -186,6 +209,12 @@ defmodule Server.WorldChannel do
   end
 
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  # The Ruin's ward defs from a world's spec (`ruin.wards`), or `[]` if it has no Ruin — what seeds the
+  # shared ward state when the world process starts.
+  defp ward_defs(definition) do
+    get_in(definition.spec, ["core", "ruin", "wards"]) || []
+  end
 
   # The hunt payout for `found`, but only in a world whose spec carries the salamander hunt — elsewhere
   # there's nothing to reward, so it's always 0.

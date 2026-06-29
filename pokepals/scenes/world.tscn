@@ -142,6 +142,20 @@ offset_bottom = -106.0
 theme_override_font_sizes/font_size = 24
 text = "Pet"
 
+[node name="SeekButton" type="Button" parent="UI"]
+visible = false
+modulate = Color(1, 1, 1, 0)
+anchor_left = 1.0
+anchor_top = 1.0
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = -376.0
+offset_top = -170.0
+offset_right = -216.0
+offset_bottom = -106.0
+theme_override_font_sizes/font_size = 24
+text = "Go look"
+
 [node name="LeaveButton" type="Button" parent="UI"]
 visible = false
 modulate = Color(1, 1, 1, 0)

@@ -186,6 +186,24 @@ func add_interactable(pos: Vector2, color: Color, type: String) -> int:
 	return _interactables.size() - 1
 
 
+## Raise a Ruin slab: it draws lifted (an open doorway under a hoisted lintel) from here on, with a
+## pulse of acknowledgement. The collider is removed separately by the controller (Solids rebuild) —
+## this is the visual half. Called when a ward's plate is weighted and the slab opens.
+func open_slab(index: int) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["opened"] = true
+		_interactables[index]["pulse"] = 1.0
+
+
+## Toggle an interactable's lit/held state (the Paired Hall plate glow, which comes and goes as weight
+## lands and lifts — unlike open_slab, which only ever turns ON). Pulses on the rising edge.
+func set_lit(index: int, on: bool) -> void:
+	if index >= 0 and index < _interactables.size():
+		if on and not bool(_interactables[index].get("opened", false)):
+			_interactables[index]["pulse"] = 1.0
+		_interactables[index]["opened"] = on
+
+
 func _process(delta: float) -> void:
 	_time += delta
 	for it in _interactables:
@@ -265,10 +283,27 @@ func _draw() -> void:
 		var pulse: float = it["pulse"]
 		if pulse > 0.0:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
-		if String(it["type"]) == "rock":
-			_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
-		else:
-			_draw_prop(it["type"], it["pos"], it["color"])
+		match String(it["type"]):
+			"rock":
+				_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
+			"slab":
+				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)))
+			"plate":
+				_draw_plate(it["pos"], it["color"], bool(it.get("opened", false)))
+			"wedge":
+				_draw_wedge(it["pos"], it["color"])
+			"column":
+				_draw_column(it["pos"], it["color"])
+			"nook":
+				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)))
+			"ember":
+				_draw_ember(it["pos"], it["color"], bool(it.get("opened", false)))
+			"brazier":
+				_draw_brazier(it["pos"], it["color"], bool(it.get("opened", false)))
+			"mural":
+				_draw_mural(it["pos"], it["color"], bool(it.get("opened", false)))
+			_:
+				_draw_prop(it["type"], it["pos"], it["color"])
 
 	# NOTE: trees and landmarks (great trees) are no longer drawn here. They're spawned
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
@@ -421,6 +456,150 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# fallback: the original ringed disc
 			draw_circle(p, 8.0, color)
 			draw_arc(p, 8.0, 0.0, TAU, 20, Color(1, 1, 1, 0.5), 1.5)
+
+
+## A Ruin gate slab. CLOSED: a heavy upright stone filling the doorway, a worn groove down its face.
+## OPENED: it has risen into a lintel up top, leaving a dark, open doorway beneath — the way through.
+func _draw_slab(p: Vector2, color: Color, opened: bool) -> void:
+	var w := 56.0
+	if opened:
+		# the dark doorway gap left behind
+		draw_rect(Rect2(p + Vector2(-w * 0.5 + 4, -64), Vector2(w - 8, 64)), Color(0.06, 0.08, 0.07, 0.85))
+		# the slab, hoisted up into a lintel above the opening
+		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 16)), color.darkened(0.1))
+		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 4)), color.lightened(0.12))
+		# jambs framing the open doorway
+		draw_rect(Rect2(p + Vector2(-w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_rect(Rect2(p + Vector2(w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		return
+	# closed: the lowered slab barring the way
+	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 72)), color.darkened(0.08))
+	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 5)), color.lightened(0.10))
+	draw_line(p + Vector2(0, -62), p + Vector2(0, 0), color.darkened(0.28), 2.0)
+	# a couple of weathered cracks
+	draw_line(p + Vector2(-12, -50), p + Vector2(-8, -20), color.darkened(0.22), 1.0)
+	draw_line(p + Vector2(14, -56), p + Vector2(10, -30), color.darkened(0.22), 1.0)
+
+
+## A companion-plate: a worn round stone set flush in the floor. HELD (a companion's or a wedge's
+## weight on it — `held`): it sinks a touch and lights with a warm glow, so you can read at a glance
+## which plates are bearing weight (the Paired Hall feedback). Idle: a quiet sunken ring with a glyph.
+func _draw_plate(p: Vector2, color: Color, held: bool = false) -> void:
+	if held:
+		var breathe := 0.8 + 0.2 * sin(_time * 2.4)
+		for k in 3:
+			draw_circle(p + Vector2(0, -2), (26.0 - float(k) * 7.0) * breathe, Color(1.0, 0.86, 0.5, 0.10))
+	draw_circle(p + Vector2(0, 1), 15.0, color.darkened(0.25))
+	draw_circle(p, 13.0, color if not held else color.lightened(0.15))
+	draw_arc(p, 9.0, 0.0, TAU, 24, (color.darkened(0.3) if not held else Color(1.0, 0.84, 0.5)), 1.5)
+	draw_arc(p, 4.0, 0.0, TAU, 16, color.lightened(0.15), 1.0)
+
+
+## A wedge stone — the lonely workaround in the Paired Hall: a carved chock you can jam onto a plate
+## to hold it while your companion bears the other. A blocky stone with a tapered edge.
+func _draw_wedge(p: Vector2, color: Color) -> void:
+	_draw_shadow(p + Vector2(0, 5), 8.0, 0.14)
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-8, 4), p + Vector2(8, 4), p + Vector2(6, -6), p + Vector2(-6, -2)]), color)
+	draw_line(p + Vector2(-6, -2), p + Vector2(6, -6), color.lightened(0.18), 1.5)
+
+
+## A fallen/broken column from the ruined cross-wall: a stout stone stump with a broken top and a
+## drum or two toppled beside it. Solid (the wall you can't pass); drawn squat so the slab reads as
+## the doorway between them.
+func _draw_column(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-12, -26), Vector2(24, 30)), color.darkened(0.06))
+	draw_rect(Rect2(p + Vector2(-12, -26), Vector2(24, 4)), color.lightened(0.10))
+	# broken, uneven crown
+	draw_line(p + Vector2(-12, -26), p + Vector2(-4, -32), color.darkened(0.15), 2.0)
+	draw_line(p + Vector2(-4, -32), p + Vector2(6, -24), color.darkened(0.15), 2.0)
+	draw_line(p + Vector2(6, -24), p + Vector2(12, -28), color.darkened(0.15), 2.0)
+	# a toppled drum at its base
+	draw_circle(p + Vector2(15, 2), 6.0, color.darkened(0.12))
+	draw_circle(p + Vector2(15, 2), 2.5, color.darkened(0.3))
+
+
+## A gap in the Warren's collapsed rubble — one of several that look alike, so the player can't tell
+## which goes through (only the companion's nose can). CLOSED: a rubble mound around a shallow dark
+## hollow (a dead-end look). OPENED: the rubble has shifted aside into a cleared passage you can see
+## through — the one the companion nosed out and squeezed into.
+func _draw_nook(p: Vector2, color: Color, opened: bool) -> void:
+	# the rubble shoulders either side of the gap
+	draw_circle(p + Vector2(-13, 5), 10.0, color.darkened(0.12))
+	draw_circle(p + Vector2(13, 5), 10.0, color.darkened(0.12))
+	draw_circle(p + Vector2(-9, -4), 8.0, color)
+	draw_circle(p + Vector2(9, -4), 8.0, color)
+	if opened:
+		# cleared: an open mouth with depth you can see into (the way through)
+		draw_rect(Rect2(p + Vector2(-7, -18), Vector2(14, 22)), Color(0.16, 0.22, 0.20, 0.92))
+		draw_arc(p + Vector2(0, -7), 8.5, PI, TAU, 16, color.lightened(0.22), 2.0)
+		# a faint glimmer of the space beyond
+		draw_circle(p + Vector2(0, -10), 2.2, Color(0.70, 0.86, 0.82, 0.7))
+	else:
+		# blocked: a shallow, dead-looking hollow
+		draw_circle(p + Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
+		draw_arc(p + Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
+
+
+## The Cistern's ember source, in a cracked bowl. DEAD: a dark coal with the faintest red breath (so
+## you can find it in the gloom, but it reads as spent). KINDLED (opened): it wakes into a bright,
+## breathing coal with a mote of light hovering above — the thing the companion can carry.
+func _draw_ember(p: Vector2, color: Color, kindled: bool) -> void:
+	# the cracked bowl
+	draw_arc(p + Vector2(0, 2), 9.0, 0.1, PI - 0.1, 14, Color(0.34, 0.30, 0.26), 3.0)
+	if kindled:
+		var breathe := 0.78 + 0.22 * sin(_time * 3.0)
+		for k in 3:
+			draw_circle(p + Vector2(0, -2), (16.0 - float(k) * 5.0) * breathe, Color(color.r, color.g, color.b, 0.10))
+		draw_circle(p + Vector2(0, -1), 5.5, color)
+		draw_circle(p + Vector2(-1, -2), 2.5, Color(1, 0.95, 0.8))
+		# the carryable mote, hovering
+		var bob := sin(_time * 2.2) * 2.0
+		draw_circle(p + Vector2(0, -16 + bob), 3.0, Color(1.0, 0.92, 0.7, 0.9))
+		draw_circle(p + Vector2(0, -16 + bob), 6.0, Color(1.0, 0.9, 0.6, 0.18))
+	else:
+		draw_circle(p + Vector2(0, -1), 5.0, Color(0.22, 0.16, 0.14))
+		draw_circle(p + Vector2(-1, -2), 1.6, Color(0.55, 0.22, 0.14, 0.7 + 0.2 * sin(_time * 1.5)))
+
+
+## The Cistern's brazier — a bowl on a stand. COLD: dark and dead. LIT (opened): full of warm flame
+## with a breathing glow, the moment the companion's carried light catches and the dark lifts.
+func _draw_brazier(p: Vector2, color: Color, lit: bool) -> void:
+	# stand + bowl
+	draw_rect(Rect2(p + Vector2(-2.5, -2), Vector2(5, 16)), color.darkened(0.25))
+	draw_rect(Rect2(p + Vector2(-9, 12), Vector2(18, 3)), color.darkened(0.2))
+	var bowl := PackedVector2Array([p + Vector2(-11, -8), p + Vector2(11, -8), p + Vector2(7, 0), p + Vector2(-7, 0)])
+	draw_colored_polygon(bowl, color.darkened(0.1))
+	if lit:
+		var warm := Color(1.0, 0.78, 0.40)
+		var breathe := 0.8 + 0.2 * sin(_time * _glow_pulse_speed)
+		for k in 3:
+			draw_circle(p + Vector2(0, -10), (40.0 - float(k) * 11.0) * breathe, Color(warm.r, warm.g, warm.b, 0.08))
+		# a couple of flame tongues
+		var f := sin(_time * 6.0) * 2.0
+		draw_colored_polygon(PackedVector2Array([p + Vector2(-6, -8), p + Vector2(0, -8), p + Vector2(-2 + f, -22)]), Color(1.0, 0.66, 0.28))
+		draw_colored_polygon(PackedVector2Array([p + Vector2(0, -8), p + Vector2(7, -8), p + Vector2(3 + f, -19)]), Color(1.0, 0.80, 0.42))
+		draw_circle(p + Vector2(0, -9), 4.0, Color(1, 0.95, 0.8))
+	else:
+		# cold coals
+		draw_circle(p + Vector2(-3, -7), 2.2, Color(0.18, 0.18, 0.18))
+		draw_circle(p + Vector2(3, -7), 2.2, Color(0.16, 0.16, 0.16))
+
+
+## A wall carving. LOST IN THE DARK: barely-there scratches. REVEALED (opened, once the brazier lights):
+## a legible relief of TWO figures and their companions before a great door — the first foreshadowing of
+## the Paired Hall (a door that "needs more than one"). Examinable for the flavour line in the spec label.
+func _draw_mural(p: Vector2, color: Color, revealed: bool) -> void:
+	var a := 0.9 if revealed else 0.16
+	var c := Color(color.r, color.g, color.b, a)
+	# the stone panel
+	draw_rect(Rect2(p + Vector2(-16, -22), Vector2(32, 40)), Color(0.22, 0.24, 0.24, 0.5 if revealed else 0.18))
+	# two little figures side by side, each with a small companion shape at their feet
+	for sx in [-7, 7]:
+		draw_rect(Rect2(p + Vector2(sx - 2, -12), Vector2(4, 14)), c)        # body
+		draw_circle(p + Vector2(sx, -15), 3.0, c)                            # head
+		draw_circle(p + Vector2(sx + (4 if sx > 0 else -4), 4), 2.4, c)      # companion
+	# the great door arch above/behind them
+	draw_arc(p + Vector2(0, -2), 13.0, PI, TAU, 18, c, 2.0)
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its
