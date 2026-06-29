@@ -65,6 +65,7 @@ var _seek_shown := false  # whether the contextual "Go look" button is currently
 # Cistern gloom: while you stand in the dark chamber with its light-ward unlit, darken the whole scene
 # (the cue that makes you name the need — "this place needs light"). Lifts as the brazier catches.
 const CARRY_REACH := 38.0  # how near the companion must get to "arrive" at the source / the brazier
+const HALL_REFRESH := 1.0   # seconds between re-issuing a Paired-Hall plate hold (before its hold lapses)
 var _gloom := 0.0
 var _gloom_rect := Rect2()
 var _gloom_ward: Dictionary = {}
@@ -669,6 +670,16 @@ func _try_interact() -> void:
 		Net.send_ward_uncover(String(lw["id"]))
 		_show_hint("You breathe on the old ember — it wakes, and a mote of light lifts free. Now send your companion to carry it.")
 		return
+	# Jam the WEDGE onto a plate (the lonely Paired-Hall workaround): examining the wedge holds the plate
+	# nearest it, so your one companion is free to stand the other. _update_hall keeps the wedge's weight
+	# reported even after the companion leaves.
+	var hw := _paired_ward_for_wedge(String(entry["id"]))
+	if not hw.is_empty() and not bool(hw["open"]):
+		var key := _nearest_plate_key(hw, entry["pos"])
+		if key != "":
+			hw["wedged"] = key
+			_show_hint("Your companion drags the wedge onto the near plate — it settles, and the stone holds it down. Now send it to stand the other.")
+		return
 	# Examining an unsolved Ruin slab nudges you toward the real move — sending your companion.
 	var ward := _ward_for_slab(String(entry["id"]))
 	if not ward.is_empty() and not bool(ward["open"]):
@@ -710,6 +721,19 @@ func _setup_ruin(data: Dictionary) -> void:
 		var mural_idx: Array = []
 		for mid in wd.get("murals", []):
 			mural_idx.append(_render_index_for_id(String(mid)))
+		# Paired ward (the Paired Hall): two plates that must bear weight AT ONCE. Build the plate list
+		# (key → world pos + render index) for the hold logic and the per-plate glow feedback.
+		var is_paired := wd.has("plates")
+		var plates: Array = []
+		var occ_sent := {}
+		for pkey in wd.get("plates", []):
+			var k := String(pkey)
+			plates.append({
+				"key": k,
+				"pos": WorldData.to_vec2(wd.get("plate_" + k, [0, 0])),
+				"render": _render_index_for_id(String(wd.get("plate_" + k + "_id", ""))),
+			})
+			occ_sent[k] = false
 		var ward := {
 			"id": String(wd.get("id", "ward")),
 			"plate": WorldData.to_vec2(wd.get("plate", [0, 0])),
@@ -729,6 +753,15 @@ func _setup_ruin(data: Dictionary) -> void:
 			"region_rect": _region_rect(data, String(wd.get("region", ""))),
 			"kindled": false,
 			"carry_phase": "idle",
+			# Paired Hall: the two plates, which plate our companion is assigned to hold, which (if any)
+			# we've wedged, the occupy we've reported per plate, and the hold-refresh timer.
+			"is_paired": is_paired,
+			"plates": plates,
+			"wedge_id": String(wd.get("wedge_id", "")),
+			"assigned": "",
+			"wedged": "",
+			"occ_sent": occ_sent,
+			"refresh": 0.0,
 			# Local mirror of the server's authoritative state + which intents we've already sent.
 			"found": false,
 			"revealed": false,
@@ -759,6 +792,19 @@ func _try_seek() -> void:
 		elif String(lw["carry_phase"]) == "idle":
 			_begin_carry(lw)
 		return
+	# In the Paired Hall, "Go look" sends the companion to STAND a plate (and hold it): the nearest one
+	# not already wedged, so after jamming the wedge on one you naturally send it to the other.
+	var hw := _active_paired_ward()
+	if not hw.is_empty():
+		var key := _nearest_plate_key(hw, _player.position, true)
+		if key == "":
+			_show_hint("Both plates are spoken for — the door should be giving way.")
+		else:
+			hw["assigned"] = key
+			hw["refresh"] = 0.0
+			_companion.issue_command("settle", _plate_pos(hw, key))
+			_show_hint("Your companion crosses to a plate and sets its weight on it. Now the other must be held too.")
+		return
 	_seeking = true
 	_companion.issue_command("seek")
 	_show_hint("You send your companion off to search.")
@@ -770,12 +816,16 @@ func _try_seek() -> void:
 ##   • UNCOVER — while a search is out, once our companion's sweep noses within uncover range, predict
 ##     the reveal locally (so the find feels instant), send our companion to settle, and tell the server.
 ##   • OCCUPY — once the plate is revealed, report (edge-triggered) our companion stepping on / off it.
-func _update_ruin(_delta: float) -> void:
+func _update_ruin(delta: float) -> void:
 	if _wards.is_empty():
 		return
 	var cpos: Vector2 = _companion.position
 	for w in _wards:
 		if bool(w["open"]):
+			continue
+		# Paired ward (Paired Hall): keep our companion on its plate and report our weight per plate.
+		if bool(w["is_paired"]):
+			_update_hall(w, cpos, delta)
 			continue
 		# Light-ward (Cistern): advance the carry instead of the search-uncover detection.
 		if bool(w["is_light"]):
@@ -808,6 +858,16 @@ func _on_ward_state(wards: Array) -> void:
 			continue
 		var w := _ward_by_id(String(entry.get("id", "")))
 		if w.is_empty():
+			continue
+		# Paired ward (Paired Hall): light each plate that's bearing weight (the glow everyone sees), and
+		# open the door once the server says both hold. No buried plate to reveal.
+		if bool(w["is_paired"]):
+			var plates_state: Variant = entry.get("plates", {})
+			if plates_state is Dictionary:
+				for p in w["plates"]:
+					_world_art.set_lit(int(p["render"]), bool((plates_state as Dictionary).get(String(p["key"]), false)))
+			if bool(entry.get("open", false)) and not bool(w["open"]):
+				_open_ward(w)
 			continue
 		if bool(entry.get("found", false)) and not bool(w["found"]):
 			_reveal_plate(w, false)
@@ -873,6 +933,83 @@ func _update_carry(w: Dictionary, cpos: Vector2) -> void:
 			if cpos.distance_to(w["plate"]) <= float(w["occupy_r"]):
 				w["carry_phase"] = "delivered"
 				Net.send_ward_occupy(String(w["id"]), true)
+
+
+# ── The Paired Hall: a door that yields only while BOTH plates bear weight at once. Each client holds
+# its OWN companion on a plate (or jams a wedge) and reports its weight PER PLATE; the server combines
+# everyone's and opens when all plates hold (see Server.RuinMechanisms paired wards). Two pairs → a
+# companion to each; alone → a wedge on one plate, your companion on the other. ──
+
+## Run every frame for the hall: keep our assigned companion standing on its plate (refresh the settle
+## before its hold lapses, so a brief lapse can't drop the door), and report our weight on each plate —
+## our companion standing on it, OR a wedge we've jammed (which holds even when the companion leaves).
+func _update_hall(w: Dictionary, cpos: Vector2, delta: float) -> void:
+	if String(w["assigned"]) != "":
+		w["refresh"] = float(w["refresh"]) - delta
+		if float(w["refresh"]) <= 0.0:
+			w["refresh"] = HALL_REFRESH
+			_companion.issue_command("settle", _plate_pos(w, String(w["assigned"])))
+	for p in w["plates"]:
+		var key := String(p["key"])
+		var on := cpos.distance_to(p["pos"]) <= float(w["occupy_r"]) or String(w["wedged"]) == key
+		if on != bool(w["occ_sent"][key]):
+			w["occ_sent"][key] = on
+			Net.send_ward_occupy(String(w["id"]), on, key)
+
+
+## The unopened paired ward whose chamber you're standing in, else {} (region-gated like the Cistern,
+## so "Go look" only means "stand a plate" inside the Paired Hall).
+func _active_paired_ward() -> Dictionary:
+	for w in _wards:
+		if bool(w["open"]) or not bool(w["is_paired"]):
+			continue
+		var rect: Rect2 = w["region_rect"]
+		if rect.get_area() > 0.0 and not rect.has_point(_player.position):
+			continue
+		return w
+	return {}
+
+
+## The paired ward whose wedge has this interactable id, or {} — for the wedge examine.
+func _paired_ward_for_wedge(id: String) -> Dictionary:
+	for w in _wards:
+		if bool(w["is_paired"]) and String(w["wedge_id"]) == id:
+			return w
+	return {}
+
+
+## The world pos / render index of a paired ward's plate by key.
+func _plate_pos(w: Dictionary, key: String) -> Vector2:
+	for p in w["plates"]:
+		if String(p["key"]) == key:
+			return p["pos"]
+	return Vector2.ZERO
+
+
+## The key of the plate nearest the player (any), or the nearest one NOT already wedged, or "" if none.
+func _nearest_plate_key(w: Dictionary, from: Vector2, skip_wedged := false) -> String:
+	var best := ""
+	var best_d := INF
+	for p in w["plates"]:
+		if skip_wedged and String(w["wedged"]) == String(p["key"]):
+			continue
+		var d := from.distance_to(p["pos"])
+		if d < best_d:
+			best_d = d
+			best = String(p["key"])
+	return best
+
+
+## The light-flooding payoff when the great door opens — TIERED by who's present. Solo (you wedged one
+## plate, your companion held the other): a muted waking, real but a little lonely. With a second pair
+## (≥2 players here): the full waking — the old two glimpsed for a moment. The hint carries it; the door
+## itself is opened by _open_ward.
+func _wake_paired_hall(_w: Dictionary) -> void:
+	var present := 1 + _remote_pairs.size()
+	if present >= 2:
+		_show_hint("Light runs the whole length of the hall — and for a breath, two figures and their companions stand where you do, long ago. The great door swings wide.")
+	else:
+		_show_hint("With a grind the great door opens — just enough. A single lamp gutters alight in the dark. You did it alone, the patient way.")
 
 
 ## The Cistern lit (server-confirmed open): light the brazier and wake the murals (their clues for the
@@ -942,7 +1079,12 @@ func _open_ward(ward: Dictionary) -> void:
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
 	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	if bool(ward.get("is_light", false)):
+	if bool(ward.get("is_paired", false)):
+		# The Paired Hall: both plates held — the great door yields. A tiered waking (full with a second
+		# pair present, muted alone). Stop holding (the open gate already skips _update_hall).
+		ward["assigned"] = ""
+		_wake_paired_hall(ward)
+	elif bool(ward.get("is_light", false)):
 		# The Cistern: the carried light catches — the brazier flares, the murals wake, and the dark lifts
 		# (the gloom keys off this ward being open), as the sealed door grinds aside.
 		_light_cistern(ward)

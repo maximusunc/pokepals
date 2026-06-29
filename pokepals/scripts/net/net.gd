@@ -280,12 +280,13 @@ func send_ward_uncover(ward_id: String) -> void:
 	_push_event("ward", { "kind": "uncover", "ward": ward_id })
 
 
-## Report OUR companion stepping onto (`on`) or off a Ruin plate. The server combines everyone's
-## weight per ward and opens the slab when the rule is met, echoing the result. A no-op until joined.
-func send_ward_occupy(ward_id: String, on: bool) -> void:
+## Report OUR companion (or a wedge) stepping onto (`on`) or off a Ruin plate. `plate` selects which
+## plate of a PAIRED ward (the Paired Hall: "a"/"b"); "" for a single-plate ward. The server combines
+## everyone's weight per plate and opens the slab/door when the rule is met. A no-op until joined.
+func send_ward_occupy(ward_id: String, on: bool, plate: String = "") -> void:
 	if not _can_send():
 		return
-	_push_event("ward", { "kind": "occupy", "ward": ward_id, "on": on })
+	_push_event("ward", { "kind": "occupy", "ward": ward_id, "on": on, "plate": plate })
 
 
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion

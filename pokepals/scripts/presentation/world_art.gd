@@ -195,6 +195,15 @@ func open_slab(index: int) -> void:
 		_interactables[index]["pulse"] = 1.0
 
 
+## Toggle an interactable's lit/held state (the Paired Hall plate glow, which comes and goes as weight
+## lands and lifts — unlike open_slab, which only ever turns ON). Pulses on the rising edge.
+func set_lit(index: int, on: bool) -> void:
+	if index >= 0 and index < _interactables.size():
+		if on and not bool(_interactables[index].get("opened", false)):
+			_interactables[index]["pulse"] = 1.0
+		_interactables[index]["opened"] = on
+
+
 func _process(delta: float) -> void:
 	_time += delta
 	for it in _interactables:
@@ -280,7 +289,9 @@ func _draw() -> void:
 			"slab":
 				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)))
 			"plate":
-				_draw_plate(it["pos"], it["color"])
+				_draw_plate(it["pos"], it["color"], bool(it.get("opened", false)))
+			"wedge":
+				_draw_wedge(it["pos"], it["color"])
 			"column":
 				_draw_column(it["pos"], it["color"])
 			"nook":
@@ -470,13 +481,26 @@ func _draw_slab(p: Vector2, color: Color, opened: bool) -> void:
 	draw_line(p + Vector2(14, -56), p + Vector2(10, -30), color.darkened(0.22), 1.0)
 
 
-## A companion-plate: a worn round stone set flush in the floor, uncovered by the search. A sunken
-## ring with a faint carved glyph — the kind of thing only a creature nosing the moss would find.
-func _draw_plate(p: Vector2, color: Color) -> void:
+## A companion-plate: a worn round stone set flush in the floor. HELD (a companion's or a wedge's
+## weight on it — `held`): it sinks a touch and lights with a warm glow, so you can read at a glance
+## which plates are bearing weight (the Paired Hall feedback). Idle: a quiet sunken ring with a glyph.
+func _draw_plate(p: Vector2, color: Color, held: bool = false) -> void:
+	if held:
+		var breathe := 0.8 + 0.2 * sin(_time * 2.4)
+		for k in 3:
+			draw_circle(p + Vector2(0, -2), (26.0 - float(k) * 7.0) * breathe, Color(1.0, 0.86, 0.5, 0.10))
 	draw_circle(p + Vector2(0, 1), 15.0, color.darkened(0.25))
-	draw_circle(p, 13.0, color)
-	draw_arc(p, 9.0, 0.0, TAU, 24, color.darkened(0.3), 1.5)
+	draw_circle(p, 13.0, color if not held else color.lightened(0.15))
+	draw_arc(p, 9.0, 0.0, TAU, 24, (color.darkened(0.3) if not held else Color(1.0, 0.84, 0.5)), 1.5)
 	draw_arc(p, 4.0, 0.0, TAU, 16, color.lightened(0.15), 1.0)
+
+
+## A wedge stone — the lonely workaround in the Paired Hall: a carved chock you can jam onto a plate
+## to hold it while your companion bears the other. A blocky stone with a tapered edge.
+func _draw_wedge(p: Vector2, color: Color) -> void:
+	_draw_shadow(p + Vector2(0, 5), 8.0, 0.14)
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-8, 4), p + Vector2(8, 4), p + Vector2(6, -6), p + Vector2(-6, -2)]), color)
+	draw_line(p + Vector2(-6, -2), p + Vector2(6, -6), color.lightened(0.18), 1.5)
 
 
 ## A fallen/broken column from the ruined cross-wall: a stout stone stump with a broken top and a

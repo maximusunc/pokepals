@@ -166,27 +166,30 @@ Built on the ward system (the door is a standard latched slab), so the server wa
 untouched; new client work was the kindle, the two-leg carry (reusing Seek's `settle`,
 now standalone), the `nook`/`ember`/`brazier`/`mural` art, and the region gloom.
 
-### 4. The Paired Hall — the heart ✅ (design), 🔶 (build staging)
+### 4. The Paired Hall — the heart ✅ (built)
 
-The mechanism was built for **two** companions searching/holding at once, and it
-announces nothing. You assemble its secret from murals gathered across all prior
-rooms (the two figures in the Cistern, the paired marks in the Warren) — realize it
-was *built for two* — and only then understand both solutions.
+The great door was built for **two**: a door that yields only while **both plates bear
+weight at once** — which is *why* it takes two pairs (a companion to each), or, alone,
+a wedge. The Cistern murals foreshadow it ("two figures and their companions before a
+great door"). This is the room everything was for, and the **first that needed a server
+change**: a *paired* ward (`Server.RuinMechanisms`) that opens only when every plate is
+held at the same instant — exactly the cross-player simultaneity that motivated going
+authoritative. `Server.World`'s per-`{ward, plate}` occupant sets combine everyone's
+weight; each client only ever reports its own.
 
-**The lonely path (chosen design):** with one companion it can still be done, but
-only in **slow, patient sequence** — it finds and holds one side, but the old
-mechanism *slips* the moment it leaves to work the other. So you improvise the long
-way: send it to find something to *wedge* the first side (a mini-search of its own),
-then send it to the second, ferrying back and forth while the hall stays dim and
-hushed. It **works** — no fail state — but it's solitary, patient labor, and the
-quiet is the point.
+- **With a second pair:** each player stands near a plate and **Go look** — their
+  companion crosses to it and holds it. Both held → the door yields → the **full waking**
+  (light runs the hall, the old two glimpsed for a breath). Persistent holds (the client
+  re-issues the settle before its hold lapses) keep both plates weighted at once.
+- **Alone (the lonely path):** **examine the loose wedge** beside one plate to jam it
+  held (the client keeps reporting that plate's weight even after the companion leaves),
+  then **Go look** to send your one companion to stand the *other* plate. Both held → the
+  **muted waking** — the door opens just enough; you did it the patient way.
 
-**Tiered payoff:**
-- **Alone:** a *muted* waking — one lamp catches, a single chime, the door opens just
-  enough. Real, earned, a little melancholy.
-- **With a second pair:** the *full* waking — light runs the whole hall, the old two
-  who lived here glimpsed for a moment, a shared bond-bump for **both** pairs. The
-  thing the lonely last inhabitant never got to feel again.
+**Tiered payoff** by who's present at the open: full (≥2 players) vs. muted (solo).
+*(Deferred from v1: a visible carry of the wedge, the actual shared bond-bump, and a
+"slips the moment it leaves" non-latch — the door latches once both have held. The
+mechanism supports the non-latch already.)*
 
 Finding a friend feels like *relief and warmth*, not a checkbox — "togetherness is
 the long game," dramatized.
@@ -274,21 +277,26 @@ copy, not a redesign.
   carry the mote to the brazier (= `occupy`), lighting it, waking the Paired-Hall-foreshadow
   murals, and opening the door. Still a standard ward → **no server change**; new client work
   is the kindle, the carry, the gloom, and the `ember`/`brazier`/`mural` art.
+- **The Paired Hall** (room 4, the heart): a great door that opens only when **two plates are
+  held at once** — two pairs, or a wedge + your companion. The **first room that needed a
+  server change**: a *paired* ward (two plates, open when all bear weight, per-`{ward,plate}`
+  occupant sets), with tests. Client: persistent plate-holds, the wedge, plate-glow feedback,
+  and the tiered (full/muted) waking. The whole reason shared state went authoritative.
 
 ## Open / next ⬜
 
 - **Go play the Ruin** end to end and tune the *feel* (this is the whole bar): the Threshold
-  sweep pace/uncover radius; the Warren tell sense-range; the Cistern's carry pacing, the
-  gloom depth, and whether finding the ember in the dark reads (the door's hint guides it).
+  sweep pace; the Warren tell; the Cistern carry/gloom; and especially the **Paired Hall
+  holds** — whether the companion stays put on a plate (the re-issue-settle refresh) and
+  whether two players can get both plates held at once smoothly.
 - The Warren's tell is gentle (a glance). If it doesn't read strongly enough, escalate it —
   e.g. a brief stop-and-sniff at the true gap that releases before it clears (carefully, so
   the `point_at` freeze can't strand it).
-- The Cistern carry has **no visible travelling mote** yet (the ember shows one, the brazier
-  lights on arrival; the companion's path implies it). Add a mote that rides the companion if
-  the carry doesn't read.
+- The Cistern carry has **no visible travelling mote** yet; add one that rides the companion
+  if the carry doesn't read. The Paired Hall wedge likewise has **no visible carry** (examine
+  = jam it) and **no real bond-bump** on the full waking — both deferred.
 - Bespoke art (currently simple procedural shapes): slab / plate / column / nook / ember /
-  brazier / mural.
-- Build the **Paired Hall** — the heart — on this same ward foundation. It's the room the
-  shared/authoritative state and the non-latching ward were built for (two pairs, two plates
-  at once); `Server.World`'s per-ward occupant sets already support it.
+  brazier / mural / wedge.
 - Original naming for the ruin, the companion-plates, the gaps, and the "pairs" mythology.
+- **The Ruin is content-complete** (all four rooms). Next big arcs: proximity text chat (the
+  stated Rung-4 step), per-party instancing (so each group gets a private solve), and polish.
