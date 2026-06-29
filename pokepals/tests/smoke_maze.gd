@@ -34,22 +34,22 @@ func _process(_delta: float) -> bool:
 	var fails := 0
 
 	# The reach_center goal is active, with a centre + radius and a Return escape target.
-	fails += _check(_world._maze_active, "the maze goal is active")
-	fails += _check(_world._maze_radius > 0.0, "the heart has a reach radius (%.0f)" % _world._maze_radius)
+	fails += _check(_world._maze_dir._maze_active, "the maze goal is active")
+	fails += _check(_world._maze_dir._maze_radius > 0.0, "the heart has a reach radius (%.0f)" % _world._maze_dir._maze_radius)
 	fails += _check(_world._return_world != "", "a Return-to-the-Vale target is declared")
 
 	# The companion's flow-field guide loaded and points a unit direction out of a non-centre cell.
-	fails += _check(not _world._maze_guide_dirs.is_empty(), "the maze guide flow-field loaded")
-	var dir: Vector2 = _world._maze_dir_at(_world._player.position)
+	fails += _check(not _world._maze_dir._maze_guide_dirs.is_empty(), "the maze guide flow-field loaded")
+	var dir: Vector2 = _world._maze_dir._maze_dir_at(_world._player.position)
 	fails += _check(dir != null, "the guide resolves a direction at the player's cell")
 
 	# Reaching the heart latches the reward exactly once.
-	fails += _check(not _world._maze_reached, "the heart is not reached at the start")
-	_world._on_maze_reached()
-	fails += _check(_world._maze_reached, "reaching the heart latches the reward")
+	fails += _check(not _world._maze_dir._maze_reached, "the heart is not reached at the start")
+	_world._maze_dir._on_maze_reached()
+	fails += _check(_world._maze_dir._maze_reached, "reaching the heart latches the reward")
 
 	# The per-frame guide hint runs without error (relaxes the pose now the heart is reached).
-	_world._update_maze_hint(0.016)
+	_world._maze_dir.update(0.016)
 
 	if fails == 0:
 		print("ALL MAZE SMOKE CHECKS PASSED")
