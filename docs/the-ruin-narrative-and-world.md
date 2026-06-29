@@ -52,18 +52,22 @@ world reads top-to-bottom as **outside → down → in → deep → and back int
 | **2. The Mouth** | A **ruined facade**; broken **steps down** into the dark. The day-light falls away behind you. | The threshold of unease. | Crossing from world into underworld; from now into then. | — |
 | **3. Entrance Hall** | A **narrow, carved corridor**, torchlit *(placeholder torches)*. First **carving**: the Wardens and their kith, in better days. | Close, creepy, intimate. | Story beat 1 — *who built this, and how they lived.* | — |
 | **4. The Threshold** | The first chamber: the buried weight-plate + slab. | Tentative. | The place only answers to a *pair*. | Seek → plate → slab |
-| **5. Corridor** | Narrow hall; carving 2 — the **Rite of Two** (pairs walking it together). | Deeper, darker. | *What this place was for.* | — |
+| **5. The Gallery of Two** *(in-between)* | A **grand colonnade** — standing and toppled columns you walk *among* (not a corridor); torchlit; the **Rite of Two** carvings. | Faded grandeur. | *What this place was for* — pairs walking it in procession. | — |
 | **6. The Warren** | The caved-in gallery; four alike gaps. | Decay. | The wood and time breaking in. | Read the nose → true gap |
-| **7. Corridor** | Carving 3 — the **dwindling**: fewer pairs, lamps going out. | Cold, dim. | The slow loss. | — |
+| **7. The Rockfall** *(in-between)* | A **collapsed chamber choked with great rubble piles** — you weave a winding path between mounds. The **dwindling** carving on a leaning slab. | Claustrophobic, the wood's weight pressing down. | The ruin visibly *broken*; the slow loss. | — |
 | **8. The Cistern** | Pitch dark; the dead ember, the cold brazier, the murals. | Bleak, then a kindled warmth. | The lamps *can* be relit — by a pair. | Kindle → carry light |
-| **9. Corridor** | Carving 4 — the **last Warden**, alone before the Hall. | Grief, quiet. | The heart of the sadness. | — |
+| **9. The Sunken Grove** *(in-between)* | The ceiling has fallen in: a **shaft of daylight**, a **still dark pool** you skirt, roots and moss and pale flowers. The **last Warden** carving. | A breath of light, grief-tinged, before the climax. | The wood breaks *in*; the heart of the sadness. | — |
 | **10. The Hall of Two** | The great door; two plates; the wedge. | Reverence / weight. | *Do what the last Warden could not.* | Two plates at once |
 | **11. The Waking** | Beyond the door: light returns; flowers; the way home. | Release. **Muted** (alone) or **full** (two pairs). | Solitude echoed, or togetherness restored. | — |
 
-The corridors are the new connective tissue: **narrow** (you and your companion move close,
-single-file-ish), **dim** (the descent darkens room by room), and **load-bearing for story**
-(each holds one carving). They're cheap to build (two walls + a couple of props) and they do
-the heavy lifting on *immersion* and *pacing*.
+**The in-betweens are the connective tissue, and each one is a *different kind* of space** —
+deliberately not three identical corridors. They share three jobs (turn the mood screw, hold one
+story carving, and make you *travel* between beats) but each does them with its own geometry and
+way of moving: you **walk among** the Gallery's columns, **weave between** the Rockfall's piles,
+and **skirt around** the Grove's pool under its shaft of light. The one genuinely *narrow* hallway
+is kept where it belongs — the **Entrance Hall** at the mouth (beat 3), the "creepy descent in."
+Each in-between darkens the descent another notch, except the Grove, which *lifts* it for a beat —
+the light returning just before the Hall.
 
 ---
 
@@ -98,8 +102,11 @@ New placeholder prop **types**:
 - `carving` — a wall relief panel; **lit/unlit** state; examinable to read its story line.
 - `torch` — a wall sconce with a **flickering** warm glow (animation).
 - `roots` / `vines` — the wood prying into the stone (overgrowth).
-- `rubble_pile`, `broken_pillar` — scattered ruin debris for the approach.
+- `rubble_pile`, `broken_pillar` — scattered ruin debris; the Rockfall's piles are `rubble_pile`s at scale.
+- `pool` — a still, dark body of water (the Sunken Grove); solid.
+- `light_shaft` — a soft column of daylight with drifting motes, falling through a broken ceiling.
 - (existing, reused: `slab`, `nook`, `ember`, `brazier`, `mural`, `plate`, `wedge`, `column`.)
+- The **Gallery** reuses `column`/`broken_pillar`/`carving`/`torch`; the **Rockfall** reuses `rubble_pile`.
 
 Animation polish (procedural, cheap, immersive):
 
@@ -118,11 +125,13 @@ Animation polish (procedural, cheap, immersive):
 
 ## 5. Build order (this is incremental)
 
-1. **Arrival reframe** *(this pass)* — the Wood, the Approach, the Mouth, the Entrance Hall;
+1. **Arrival reframe** *(done)* — the Wood, the Approach, the Mouth, the Entrance Hall;
    reposition the portal into the forest; per-region gloom; the first placeholder art (facade,
    stairs, carving, torch, roots) + dust/flicker; carving 1.
-2. **Deepen the descent** *(next)* — corridors between the existing rooms, carvings 2–4, more
-   overgrowth, the cold-color grade per room.
+2. **Deepen the descent** *(done)* — the rooms pulled apart and three **varied** in-betweens
+   dropped into the gaps (the Gallery of Two, the Rockfall, the Sunken Grove), each with its own
+   geometry and one carving; new placeholder art (`pool`, `light_shaft`); the grove lifts the
+   gloom for a beat before the climax. *(Wards/ids untouched — coords shifted rigidly with their room.)*
 3. **The waking** *(next)* — the light-bloom + the brighter sanctum on the Hall opening.
 4. **Audio + Claude Design art swap** *(later)* — ambience, footsteps, the carving reveals; real
    assets over the placeholders.

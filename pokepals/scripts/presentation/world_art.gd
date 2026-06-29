@@ -316,6 +316,10 @@ func _draw() -> void:
 				_draw_broken_pillar(it["pos"], it["color"])
 			"rubble_pile":
 				_draw_rubble_pile(it["pos"], it["color"])
+			"pool":
+				_draw_pool(it["pos"], it["color"])
+			"light_shaft":
+				_draw_light_shaft(it["pos"], it["color"])
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -704,6 +708,40 @@ func _draw_rubble_pile(p: Vector2, color: Color) -> void:
 	draw_circle(p + Vector2(0, -2), 10.0, color)
 	draw_circle(p + Vector2(-3, -6), 5.0, color.lightened(0.08))
 	draw_circle(p + Vector2(7, -3), 4.0, color.lightened(0.05))
+
+
+## A still, dark POOL in the Sunken Grove — rain gathered where the ceiling fell. Drawn like a pond but
+## colder and darker, with a pale patch where the daylight shaft falls in. Solid (its spec collision_radius
+## is the real footprint; the art radius here just needs to read close to it). Placeholder for a real water asset.
+func _draw_pool(p: Vector2, color: Color) -> void:
+	var rad := 88.0
+	draw_circle(p, rad, color)
+	draw_arc(p, rad, 0.0, TAU, 48, Color(0.5, 0.6, 0.62, 0.32), 2.0)   # a faint stone rim
+	for k in 2:                                                        # slow, breathing ripples
+		var t := fposmod(_time * 0.16 + float(k) * 0.5, 1.0)
+		draw_arc(p, rad * (0.3 + 0.6 * t), 0.0, TAU, 40, Color(0.8, 0.9, 0.95, 0.14 * (1.0 - t)), 1.5)
+	# the pale reflected glow where the light-shaft strikes the water
+	draw_circle(p + Vector2(-4, -10), 22.0, Color(0.88, 0.93, 0.82, 0.10))
+	draw_circle(p + Vector2(-4, -10), 9.0, Color(0.95, 0.97, 0.9, 0.10))
+
+
+## A SHAFT of daylight falling through the Sunken Grove's broken ceiling — the one place the dark lifts.
+## A soft translucent column (narrow at the top, splaying to a pool of light on the floor) with dust motes
+## drifting down it. Non-solid; pure mood. Placeholder for a real volumetric-light asset.
+func _draw_light_shaft(p: Vector2, color: Color) -> void:
+	var top := p + Vector2(22, -150)
+	var glow := 0.10 + 0.03 * sin(_time * 0.8)
+	var beam := PackedVector2Array([top + Vector2(-14, 0), top + Vector2(18, 0), p + Vector2(58, 0), p + Vector2(-44, 0)])
+	draw_colored_polygon(beam, Color(color.r, color.g, color.b, glow))
+	var core := PackedVector2Array([top + Vector2(-4, 0), top + Vector2(6, 0), p + Vector2(22, 0), p + Vector2(-16, 0)])
+	draw_colored_polygon(core, Color(1.0, 0.98, 0.9, glow * 1.3))
+	for k in 6:                                                        # dust motes drifting down the beam
+		var ph := float(k) * 1.7
+		var ty := fposmod(_time * 0.2 + float(k) / 6.0, 1.0)
+		var mx := top.x - 22.0 * ty + sin(_time * 0.6 + ph) * 9.0
+		var my := top.y + ty * 150.0
+		draw_circle(Vector2(mx, my), 1.4, Color(1.0, 0.98, 0.85, 0.5 * (1.0 - ty)))
+	draw_circle(p, 30.0, Color(color.r, color.g, color.b, 0.06))       # the pool of light on the floor
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its
