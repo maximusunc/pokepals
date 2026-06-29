@@ -302,6 +302,20 @@ func _draw() -> void:
 				_draw_brazier(it["pos"], it["color"], bool(it.get("opened", false)))
 			"mural":
 				_draw_mural(it["pos"], it["color"], bool(it.get("opened", false)))
+			"facade":
+				_draw_facade(it["pos"], it["color"])
+			"stairs":
+				_draw_stairs(it["pos"], it["color"])
+			"carving":
+				_draw_carving(it["pos"], it["color"])
+			"torch":
+				_draw_torch(it["pos"], it["color"])
+			"roots":
+				_draw_roots(it["pos"], it["color"])
+			"broken_pillar":
+				_draw_broken_pillar(it["pos"], it["color"])
+			"rubble_pile":
+				_draw_rubble_pile(it["pos"], it["color"])
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -600,6 +614,96 @@ func _draw_mural(p: Vector2, color: Color, revealed: bool) -> void:
 		draw_circle(p + Vector2(sx + (4 if sx > 0 else -4), 4), 2.4, c)      # companion
 	# the great door arch above/behind them
 	draw_arc(p + Vector2(0, -2), 13.0, PI, TAU, 18, c, 2.0)
+
+
+# ── ARRIVAL / RUIN dressing — PLACEHOLDER ART. Each of these is a single `type` drawn by one small
+# function over a known footprint, ready to be swapped 1:1 for a Claude Design sprite later. They
+# establish staging + mood (the mouth, the descent, the carvings, torchlight, overgrowth); the
+# *surface* is meant to be replaced. See docs/the-ruin-narrative-and-world.md. ──
+
+## The ruin's MOUTH: a broken stone archway half-swallowed by the wood, framing the dark way in.
+## Footprint ~120×90. Non-solid (collision is the front wall + corridor); this is the face over the gap.
+func _draw_facade(p: Vector2, color: Color) -> void:
+	# the dark opening behind the arch
+	draw_rect(Rect2(p + Vector2(-42, -86), Vector2(84, 90)), Color(0.05, 0.07, 0.07, 0.92))
+	# two weathered jambs
+	draw_rect(Rect2(p + Vector2(-58, -88), Vector2(18, 92)), color.darkened(0.1))
+	draw_rect(Rect2(p + Vector2(40, -88), Vector2(18, 92)), color.darkened(0.1))
+	# the broken arch lintel (a shallow span, a chunk missing on the right)
+	draw_arc(p + Vector2(0, -86), 50.0, PI + 0.25, TAU - 0.55, 22, color.lightened(0.06), 9.0)
+	draw_rect(Rect2(p + Vector2(-58, -100), Vector2(40, 14)), color)
+	# cracks + a drape of vines off the top
+	draw_line(p + Vector2(-30, -90), p + Vector2(-22, -40), color.darkened(0.3), 1.5)
+	for vx in [-46, -10, 30]:
+		var s := _sway(_phase_for(p + Vector2(vx, 0)), 0.5)
+		draw_line(p + Vector2(vx, -96), p + Vector2(vx + s, -96 + 34.0), Color(0.32, 0.42, 0.26), 2.0)
+
+
+## Worn STEPS going down into the dark — a few stacked bands, each darker, to read as a descent.
+func _draw_stairs(p: Vector2, color: Color) -> void:
+	for k in 4:
+		var w := 60.0 - float(k) * 8.0
+		var y := -float(k) * 7.0
+		var shade := color.darkened(0.08 + 0.12 * float(k))
+		draw_rect(Rect2(p + Vector2(-w * 0.5, y - 5), Vector2(w, 6)), shade)
+		draw_rect(Rect2(p + Vector2(-w * 0.5, y - 7), Vector2(w, 2)), shade.lightened(0.12))
+	draw_rect(Rect2(p + Vector2(-26, -34), Vector2(52, 8)), Color(0.04, 0.06, 0.06, 0.85))  # the dark mouth at the top
+
+
+## A wall CARVING / relief panel — the ruin's story, told in stone. Two figures and a companion shape,
+## faint until you're close. Examinable (the spec label carries the line). Placeholder for a real relief.
+func _draw_carving(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-17, -24), Vector2(34, 42)), color.darkened(0.35))   # the recessed panel
+	draw_rect(Rect2(p + Vector2(-15, -22), Vector2(30, 38)), color.darkened(0.18))
+	var c := Color(color.r, color.g, color.b, 0.85)
+	for sx in [-7, 7]:                                  # two figures, side by side
+		draw_rect(Rect2(p + Vector2(sx - 2, -12), Vector2(4, 13)), c)
+		draw_circle(p + Vector2(sx, -15), 2.6, c)
+	draw_circle(p + Vector2(0, 6), 2.6, c)             # a companion shape between/below them
+	# a faint catch-light so it reads as "look here"
+	draw_arc(p + Vector2(0, -3), 13.0, PI * 1.1, PI * 1.9, 14, Color(0.9, 0.86, 0.7, 0.10 + 0.06 * sin(_time * 1.3)), 1.5)
+
+
+## A wall TORCH — sconce + a flickering warm flame and a breathing glow pool (animation). Placeholder.
+func _draw_torch(p: Vector2, color: Color) -> void:
+	# a fast, irregular flicker from two out-of-phase sines (cheap "fire")
+	var flick := 0.72 + 0.18 * sin(_time * 11.0 + p.x) + 0.10 * sin(_time * 23.0 + p.y)
+	for k in 3:                                          # the glow pool
+		draw_circle(p + Vector2(0, -10), (46.0 - float(k) * 13.0) * flick, Color(color.r, color.g, color.b, 0.07))
+	draw_rect(Rect2(p + Vector2(-2, -8), Vector2(4, 14)), Color(0.28, 0.22, 0.16))   # bracket
+	var f := sin(_time * 9.0 + p.x) * 1.6
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-4, -8), p + Vector2(4, -8), p + Vector2(f, -22 - 4.0 * flick)]), Color(1.0, 0.64, 0.26))
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-2, -8), p + Vector2(2, -8), p + Vector2(f * 0.5, -16 - 2.0 * flick)]), Color(1.0, 0.86, 0.5))
+	draw_circle(p + Vector2(0, -9), 2.2, Color(1, 0.95, 0.8))
+
+
+## ROOTS prying up the old flagstones — the wood reclaiming the stone. Non-solid overgrowth.
+func _draw_roots(p: Vector2, color: Color) -> void:
+	# a couple of cracked flags
+	draw_rect(Rect2(p + Vector2(-14, -6), Vector2(13, 12)), Color(0.40, 0.42, 0.36, 0.7))
+	draw_rect(Rect2(p + Vector2(2, -4), Vector2(12, 11)), Color(0.38, 0.40, 0.34, 0.7))
+	# sinuous roots over them
+	for r in [[-18, 4, 16, -8], [-4, 8, 14, -2], [6, 6, 18, 6]]:
+		draw_line(p + Vector2(r[0], r[1]), p + Vector2(r[2], r[3]), color, 2.0)
+	draw_circle(p + Vector2(-2, 2), 2.0, color.lightened(0.1))
+
+
+## A toppled PILLAR lying among the wood — a long drum on its side beside a broken stump.
+func _draw_broken_pillar(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-22, -6), Vector2(40, 13)), color)                   # the fallen shaft
+	draw_circle(p + Vector2(-22, 0), 7.0, color.lightened(0.1))
+	draw_circle(p + Vector2(-22, 0), 3.0, color.darkened(0.3))
+	draw_arc(p + Vector2(18, 0), 7.0, -PI * 0.5, PI * 0.5, 10, color.darkened(0.2), 2.0)
+	draw_rect(Rect2(p + Vector2(20, -4), Vector2(9, 11)), color.darkened(0.08))      # the stump it broke from
+
+
+## A heap of fallen stone — a low rubble mound. (Solid in the spec; the art is just the silhouette.)
+func _draw_rubble_pile(p: Vector2, color: Color) -> void:
+	draw_circle(p + Vector2(-8, 4), 9.0, color.darkened(0.12))
+	draw_circle(p + Vector2(9, 5), 8.0, color.darkened(0.16))
+	draw_circle(p + Vector2(0, -2), 10.0, color)
+	draw_circle(p + Vector2(-3, -6), 5.0, color.lightened(0.08))
+	draw_circle(p + Vector2(7, -3), 4.0, color.lightened(0.05))
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its
