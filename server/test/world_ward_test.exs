@@ -67,4 +67,28 @@ defmodule Server.WorldWardTest do
 
     assert_receive {:world_wards, [%{id: "gate", found: true, open: false}]}
   end
+
+  # --- PAIRED HALL: a door that opens only when two plates are held at the same instant ---
+
+  defp paired_defs, do: [%{"id" => "door", "plates" => ["a", "b"], "latch" => true}]
+
+  test "a paired door opens when two players hold the two plates at once" do
+    w = wid()
+    World.ensure_started(w, paired_defs())
+    World.update_transform(w, "u1", %{})
+    World.update_transform(w, "u2", %{})
+    World.apply_ward(w, "u1", %{"kind" => "occupy", "ward" => "door", "plate" => "a", "on" => true})
+    assert [%{id: "door", open: false}] = World.wards(w)
+    World.apply_ward(w, "u2", %{"kind" => "occupy", "ward" => "door", "plate" => "b", "on" => true})
+    assert [%{id: "door", open: true}] = World.wards(w)
+  end
+
+  test "one player can hold both paired plates (the solo wedge case)" do
+    w = wid()
+    World.ensure_started(w, paired_defs())
+    World.update_transform(w, "u1", %{})
+    World.apply_ward(w, "u1", %{"kind" => "occupy", "ward" => "door", "plate" => "a", "on" => true})
+    World.apply_ward(w, "u1", %{"kind" => "occupy", "ward" => "door", "plate" => "b", "on" => true})
+    assert [%{id: "door", open: true}] = World.wards(w)
+  end
 end

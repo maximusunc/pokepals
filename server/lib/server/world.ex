@@ -105,11 +105,11 @@ defmodule Server.World do
     transforms = Map.delete(state.transforms, user_id)
 
     # Drop this player's weight from every plate (a disconnect mid-puzzle releases what they held).
-    occupants = for {id, set} <- state.occupants, into: %{}, do: {id, MapSet.delete(set, user_id)}
+    occupants = for {key, set} <- state.occupants, into: %{}, do: {key, MapSet.delete(set, user_id)}
 
     wards =
-      Enum.reduce(occupants, state.wards, fn {id, set}, w ->
-        Server.RuinMechanisms.set_occupied(w, id, MapSet.size(set) > 0)
+      Enum.reduce(occupants, state.wards, fn {{id, plate}, set}, w ->
+        Server.RuinMechanisms.set_occupancy(w, id, plate, MapSet.size(set) > 0)
       end)
 
     state = %{state | transforms: transforms, occupants: occupants, wards: wards}
@@ -145,18 +145,22 @@ defmodule Server.World do
     %{state | wards: Server.RuinMechanisms.uncover(state.wards, to_string(id))}
   end
 
-  # A player's companion stepped onto / off a plate. occupants is the live set per ward; the ward is
-  # weighted while any companion stands on it.
+  # A player's companion (or a wedge) stepped onto / off a plate. occupants is the live set of user_ids
+  # per {ward, plate} — "plate" selects which plate of a PAIRED ward (the Paired Hall) and is "" for a
+  # single ward. The plate bears weight while any companion stands on it; a paired door opens only when
+  # all its plates do at once.
   defp apply_ward_intent(state, user_id, %{"kind" => "occupy", "ward" => id} = payload) do
     id = to_string(id)
+    plate = to_string(Map.get(payload, "plate", ""))
     on = Map.get(payload, "on", false) == true
-    set0 = Map.get(state.occupants, id, MapSet.new())
+    key = {id, plate}
+    set0 = Map.get(state.occupants, key, MapSet.new())
     set = if on, do: MapSet.put(set0, user_id), else: MapSet.delete(set0, user_id)
 
     %{
       state
-      | occupants: Map.put(state.occupants, id, set),
-        wards: Server.RuinMechanisms.set_occupied(state.wards, id, MapSet.size(set) > 0)
+      | occupants: Map.put(state.occupants, key, set),
+        wards: Server.RuinMechanisms.set_occupancy(state.wards, id, plate, MapSet.size(set) > 0)
     }
   end
 

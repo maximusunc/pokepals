@@ -60,4 +60,39 @@ defmodule Server.RuinMechanismsTest do
   test "to_list reflects ids and flags" do
     assert [%{id: "gate", found: true, open: false}] = gate() |> R.uncover("gate") |> R.to_list()
   end
+
+  # --- PAIRED wards (the Paired Hall: a door that needs two plates held AT ONCE) ---
+
+  defp pair(latch \\ true), do: R.new([%{"id" => "door", "plates" => ["a", "b"], "latch" => latch}])
+
+  test "a paired door opens only when both plates bear weight at once" do
+    s = R.set_occupancy(pair(), "door", "a", true)
+    refute R.open?(s, "door")
+    assert s |> R.set_occupancy("door", "b", true) |> R.open?("door")
+  end
+
+  test "a latched paired door stays open after a plate clears" do
+    s =
+      pair(true)
+      |> R.set_occupancy("door", "a", true)
+      |> R.set_occupancy("door", "b", true)
+      |> R.set_occupancy("door", "a", false)
+
+    assert R.open?(s, "door")
+  end
+
+  test "a non-latching paired door needs both held continuously" do
+    s = pair(false) |> R.set_occupancy("door", "a", true) |> R.set_occupancy("door", "b", true)
+    assert R.open?(s, "door")
+    refute s |> R.set_occupancy("door", "a", false) |> R.open?("door")
+  end
+
+  test "uncover is a no-op on a paired ward (its plates aren't hidden)" do
+    refute pair() |> R.uncover("door") |> R.open?("door")
+  end
+
+  test "to_list reports a paired ward's plate occupancy" do
+    assert [%{id: "door", open: false, plates: %{"a" => true, "b" => false}}] =
+             pair() |> R.set_occupancy("door", "a", true) |> R.to_list()
+  end
 end
