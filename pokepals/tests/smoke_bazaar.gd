@@ -34,7 +34,7 @@ func _process(_delta: float) -> bool:
 	var fails := 0
 
 	# The merchant's bonded companion stands beside them as a stationary puppet.
-	fails += _check(_world._npc_companion != null, "the merchant's companion puppet spawned")
+	fails += _check(_world._shop_dir._npc_companion != null, "the merchant's companion puppet spawned")
 
 	# The shopkeeper is an examinable interactable (Examining it opens the shop, not a cozy beat).
 	var keeper := _shopkeeper_entry()
@@ -45,20 +45,20 @@ func _process(_delta: float) -> bool:
 		{ "item_def_id": 1, "name": "Dawn", "swatch": [0.9, 0.6, 0.5], "price": 10, "owned": false },
 		{ "item_def_id": 2, "name": "Moss", "swatch": [0.4, 0.6, 0.4], "price": 12, "owned": false },
 	]
-	_world._on_economy_loaded("coins", 50, stock)
-	fails += _check(_world._shop_balance == 50, "the wallet balance was adopted (got %d)" % _world._shop_balance)
-	fails += _check(_world._shop_colors.size() == 2, "the colour stock was adopted (got %d)" % _world._shop_colors.size())
+	_world._shop_dir._on_economy_loaded("coins", 50, stock)
+	fails += _check(_world._shop_dir._shop_balance == 50, "the wallet balance was adopted (got %d)" % _world._shop_dir._shop_balance)
+	fails += _check(_world._shop_dir._shop_colors.size() == 2, "the colour stock was adopted (got %d)" % _world._shop_dir._shop_colors.size())
 
 	# Examining the merchant opens the shop window with that stock.
 	if not keeper.is_empty():
-		_world._open_shop(keeper)
+		_world._shop_dir.open_shop(keeper)
 		fails += _check(_world._shop.is_open(), "examining the merchant opens the shop")
 
 	# A purchase echo from the server marks the colour owned and adopts the new balance.
-	_world._on_purchase_succeeded(1, 40)
-	fails += _check(_world._shop_balance == 40, "a purchase adopts the new balance (got %d)" % _world._shop_balance)
+	_world._shop_dir._on_purchase_succeeded(1, 40)
+	fails += _check(_world._shop_dir._shop_balance == 40, "a purchase adopts the new balance (got %d)" % _world._shop_dir._shop_balance)
 	var owned := false
-	for c in _world._shop_colors:
+	for c in _world._shop_dir._shop_colors:
 		if int(c.get("item_def_id", 0)) == 1:
 			owned = bool(c.get("owned", false))
 	fails += _check(owned, "the purchased colour is marked owned")

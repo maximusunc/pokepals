@@ -56,6 +56,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 # every mechanic itself. See scripts/presentation/mechanics/.
 var _hunt_dir: HuntDirector
 var _maze_dir: MazeDirector
+var _shop_dir: ShopDirector
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
@@ -104,12 +105,6 @@ var _built_etag := ""
 # while it's false, so they never run against a not-yet-built world on a cold first visit (when _ready
 # defers the build until the server's spec arrives).
 var _world_built := false
-# The bazaar shop: the merchant's stationary companion (a puppet), and the economy snapshot the
-# server pushes on join (our wallet + the color stock). Empty/absent in worlds without a shopkeeper.
-var _npc_companion: CompanionView = null
-var _shop_colors: Array = []     # [ { item_def_id, name, swatch, price, owned, … } ], from Net
-var _shop_balance := 0
-var _shop_currency := "coins"
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
@@ -227,7 +222,7 @@ func _build_world(data: Dictionary) -> void:
 
 	# The bazaar's shopkeeper keeps their bonded companion at their side — spawn it as a stationary
 	# puppet (no-op in worlds without one).
-	_spawn_npc_companion(data)
+	_shop_dir.spawn_npc(data)
 
 	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
 	# from also spinning up the movement thumbstick underneath it.
@@ -271,10 +266,6 @@ func _build_world(data: Dictionary) -> void:
 	_debug_button.pressed.connect(_debug.toggle)
 	_joystick.add_exclusion(_debug_button)
 
-	# The bazaar shop window: a buy relays to the server (Net), a close just resumes the world.
-	_shop.buy_requested.connect(_on_shop_buy)
-	_shop.closed.connect(_on_shop_closed)
-
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
 	if not _wards.is_empty():
@@ -308,6 +299,10 @@ func _create_directors() -> void:
 	add_child(_maze_dir)
 	_maze_dir.setup(self, _companion, _player)
 
+	_shop_dir = ShopDirector.new()
+	add_child(_shop_dir)
+	_shop_dir.setup(self, _companion, _world_art, _scenery, _shop, _style)
+
 
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
 # public so each director can stay focused on its own mechanic and lean on the controller for the
@@ -336,7 +331,16 @@ func bounce_goal() -> void:
 
 ## Adopt a new wallet balance pushed by a server reward (so the shop is current next time it opens).
 func set_wallet_balance(balance: int) -> void:
-	_shop_balance = balance
+	_shop_dir.set_balance(balance)
+
+
+## Read / raw-set the hint line (no fade) — the shop uses this to clear its greeting on close.
+func hint_text() -> String:
+	return _hint.text
+
+
+func set_hint_text(text: String) -> void:
+	_hint.text = text
 
 
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
@@ -724,7 +728,7 @@ func _try_interact() -> void:
 		_hunt_dir.examine_rock(entry)
 		return
 	if String(entry["kind"]) == "shopkeeper":
-		_open_shop(entry)
+		_shop_dir.open_shop(entry)
 		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
@@ -1279,53 +1283,6 @@ func _set_seek_visible(show_button: bool) -> void:
 		tween.tween_callback(func() -> void: _seek_button.visible = false)
 
 
-## Spawn the merchant's bonded companion as a STATIONARY puppet beside them: a CompanionView flagged
-## remote (no brain, no save, never moves), parented into the y-sorted Scenery so it depth-sorts with
-## everything else, and given its resting-look from the world data. We pin its target transform to its
-## standing spot so the remote-puppet ease holds it there (a remote eases toward its target, which
-## would otherwise be the origin). No-op in worlds without an "npc_companion" block.
-func _spawn_npc_companion(data: Dictionary) -> void:
-	var npc: Dictionary = data.get("npc_companion", {})
-	if npc.is_empty():
-		return
-	var rc := COMPANION_SCENE.instantiate() as CompanionView
-	rc.set_remote()
-	rc.name = "NpcCompanion"
-	rc.set_style(_style)
-	_scenery.add_child(rc)
-	var pos := WorldData.to_vec2(npc.get("position", [0, 0]))
-	rc.position = pos
-	rc.set_remote_state(pos, Vector2.DOWN)
-	var look: Variant = npc.get("look", {})
-	if look is Dictionary:
-		rc.apply_remote_look(look)
-	_npc_companion = rc
-
-
-## Open the merchant's color shop. A cozy beat first — the merchant's prop pulses and your companion
-## notices — then the shop window opens with the wallet + stock the server pushed on world join.
-## Online-only: if the snapshot hasn't landed yet it opens empty and fills in via _on_economy_loaded.
-func _open_shop(entry: Dictionary) -> void:
-	if _shop == null or _shop.is_open():
-		return
-	_world_art.pulse_interactable(int(entry["render_index"]))
-	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
-	_show_hint("You greet %s." % entry["label"])
-	_shop.open(_shop_colors, _shop_balance, _shop_currency)
-
-
-## The player tapped Buy: relay it to the server (the purchase is authoritative there). The outcome
-## comes back via Net.purchase_succeeded / purchase_failed.
-func _on_shop_buy(item_def_id: int) -> void:
-	Net.buy_color(item_def_id)
-
-
-## The shop closed — clear the greeting so the world reads clean again.
-func _on_shop_closed() -> void:
-	if _hint.text.begins_with("You greet ") or _hint.text == "A new colour for your wardrobe!":
-		_hint.text = ""
-
-
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
 ## player needn't trek all the way back to the entry portal. Leads where this world's portals
 ## lead (the Vale). Serves both terminal states (a win and a run-out). Part of the host seam — the
@@ -1406,9 +1363,6 @@ func _setup_net() -> void:
 	Net.identity_received.connect(_on_identity_received)
 	Net.state_received.connect(_on_state_received)
 	Net.save_loaded.connect(_on_save_loaded)
-	Net.economy_loaded.connect(_on_economy_loaded)
-	Net.purchase_succeeded.connect(_on_purchase_succeeded)
-	Net.purchase_failed.connect(_on_purchase_failed)
 	Net.ward_state_received.connect(_on_ward_state)
 	Net.disconnected.connect(_on_disconnected)
 	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
@@ -1527,48 +1481,6 @@ func _apply_server_save(companion, appearance) -> void:
 		_push_save()
 	# Our relayed presentation identity may have changed (loaded look) — refresh it for peers.
 	Net.set_local_identity(_local_identity())
-
-
-## The economy snapshot arrived on world join (per-user: our wallet + the shop's color stock). Cache
-## it so the shop opens instantly; if the shop is already open when a fresh snapshot lands, refresh it.
-func _on_economy_loaded(currency: String, balance: int, colors: Array) -> void:
-	if currency != "":
-		_shop_currency = currency
-	_shop_balance = balance
-	_shop_colors = colors
-	if _shop != null and _shop.is_open():
-		_shop.open(_shop_colors, _shop_balance, _shop_currency)
-
-
-## A purchase succeeded: mark the color owned in our cached stock, adopt the new balance, reflect it
-## in the open shop, and celebrate. The color is now stored to the wardrobe (server-side); making it
-## show on the avatar is the deferred recolor step.
-func _on_purchase_succeeded(item_def_id: int, balance: int) -> void:
-	_shop_balance = balance
-	for c in _shop_colors:
-		if c is Dictionary and int(c.get("item_def_id", 0)) == item_def_id:
-			c["owned"] = true
-			break
-	if _shop != null:
-		_shop.apply_purchase(item_def_id, balance)
-	_show_hint("A new colour for your wardrobe!")
-
-
-## A purchase was refused: let the shop re-enable the row and surface a gentle reason.
-func _on_purchase_failed(item_def_id: int, reason: String) -> void:
-	if _shop != null:
-		_shop.apply_failure(item_def_id, reason)
-	_show_hint(_purchase_failure_text(reason))
-
-
-func _purchase_failure_text(reason: String) -> String:
-	match reason:
-		"insufficient_funds":
-			return "You can't quite afford that one yet."
-		"already_owned":
-			return "That colour is already yours."
-		_:
-			return "The merchant shakes their head."
 
 
 ## Persist on the ways a session can end — now pushed to the server instead of disk: window
