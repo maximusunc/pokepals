@@ -35,11 +35,11 @@ func _process(_delta: float) -> bool:
 	var fails := 0
 
 	# All four wards built, and one of each special kind (plain x2, light, paired).
-	fails += _check(_world._wards.size() == 4, "four wards built (got %d)" % _world._wards.size())
+	fails += _check(_world._ruin._wards.size() == 4, "four wards built (got %d)" % _world._ruin._wards.size())
 	var lights := 0
 	var paireds := 0
 	var open_at_start := 0
-	for w in _world._wards:
+	for w in _world._ruin._wards:
 		if bool(w["is_light"]):
 			lights += 1
 		if bool(w["is_paired"]):
@@ -49,22 +49,21 @@ func _process(_delta: float) -> bool:
 	fails += _check(lights == 1, "exactly one light-ward (the Cistern) (got %d)" % lights)
 	fails += _check(paireds == 1, "exactly one paired ward (the Hall) (got %d)" % paireds)
 	fails += _check(open_at_start == 0, "every ward starts shut")
-	fails += _check(_world._any_ward_unopened(), "the Ruin reports unsolved wards")
+	fails += _check(_world._ruin.has_unopened_ward(), "the Ruin reports unsolved wards")
 
 	# "Go look" at the Threshold (where we arrive) arms a delegated search.
-	fails += _check(not _world._seeking, "no search is out before Go look")
-	_world._try_seek()
-	fails += _check(_world._seeking, "Go look arms a delegated search")
+	fails += _check(not _world._ruin._seeking, "no search is out before Go look")
+	_world._ruin.try_seek()
+	fails += _check(_world._ruin._seeking, "Go look arms a delegated search")
 
 	# The per-frame ward referee runs without error.
-	_world._update_ruin(0.016)
-	_world._update_gloom(0.016)
+	_world._ruin.update(0.016)
 
 	# A server ward-state echo opens the Threshold gate for everyone (drops its collider).
 	var solids_before: int = _world._player._solids.size()
 	var thresh := _ward_by_id("threshold_gate")
 	fails += _check(not thresh.is_empty(), "the threshold_gate ward exists")
-	_world._on_ward_state([{ "id": "threshold_gate", "found": true, "open": true }])
+	_world._ruin._on_ward_state([{ "id": "threshold_gate", "found": true, "open": true }])
 	fails += _check(bool(thresh["open"]), "the server echo opened the threshold gate")
 	var solids_after: int = _world._player._solids.size()
 	fails += _check(solids_after < solids_before, "opening the gate dropped its collider (%d -> %d)" % [solids_before, solids_after])
@@ -79,7 +78,7 @@ func _process(_delta: float) -> bool:
 
 
 func _ward_by_id(id: String) -> Dictionary:
-	for w in _world._wards:
+	for w in _world._ruin._wards:
 		if String(w["id"]) == id:
 			return w
 	return {}
