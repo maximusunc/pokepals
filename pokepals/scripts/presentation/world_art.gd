@@ -100,6 +100,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"examined": false,   # rocks flip this on when turned over
 			"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
 			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
+			"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
 		})
 
 	queue_redraw()
@@ -287,7 +288,7 @@ func _draw() -> void:
 			"rock":
 				_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
 			"slab":
-				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)))
+				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
 			"plate":
 				_draw_plate(it["pos"], it["color"], bool(it.get("opened", false)))
 			"wedge":
@@ -295,7 +296,7 @@ func _draw() -> void:
 			"column":
 				_draw_column(it["pos"], it["color"])
 			"nook":
-				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)))
+				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
 			"ember":
 				_draw_ember(it["pos"], it["color"], bool(it.get("opened", false)))
 			"brazier":
@@ -477,26 +478,31 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 
 
 ## A Ruin gate slab. CLOSED: a heavy upright stone filling the doorway, a worn groove down its face.
-## OPENED: it has risen into a lintel up top, leaving a dark, open doorway beneath — the way through.
-func _draw_slab(p: Vector2, color: Color, opened: bool) -> void:
+## OPENED: it has risen into a lintel, leaving a dark, open doorway — the way through. `vertical` rotates
+## the whole motif 90° so it plugs a gap in a VERTICAL wall (the maze's east/west doorways) correctly,
+## instead of reading as a stone laid the wrong way across the opening.
+func _draw_slab(p: Vector2, color: Color, opened: bool, vertical: bool = false) -> void:
 	var w := 56.0
+	draw_set_transform(p, PI * 0.5 if vertical else 0.0, Vector2.ONE)
 	if opened:
 		# the dark doorway gap left behind
-		draw_rect(Rect2(p + Vector2(-w * 0.5 + 4, -64), Vector2(w - 8, 64)), Color(0.06, 0.08, 0.07, 0.85))
-		# the slab, hoisted up into a lintel above the opening
-		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 16)), color.darkened(0.1))
-		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 4)), color.lightened(0.12))
+		draw_rect(Rect2(Vector2(-w * 0.5 + 4, -64), Vector2(w - 8, 64)), Color(0.06, 0.08, 0.07, 0.85))
+		# the slab, hoisted into a lintel beside the opening
+		draw_rect(Rect2(Vector2(-w * 0.5, -82), Vector2(w, 16)), color.darkened(0.1))
+		draw_rect(Rect2(Vector2(-w * 0.5, -82), Vector2(w, 4)), color.lightened(0.12))
 		# jambs framing the open doorway
-		draw_rect(Rect2(p + Vector2(-w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
-		draw_rect(Rect2(p + Vector2(w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_rect(Rect2(Vector2(-w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_rect(Rect2(Vector2(w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	# closed: the lowered slab barring the way
-	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 72)), color.darkened(0.08))
-	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 5)), color.lightened(0.10))
-	draw_line(p + Vector2(0, -62), p + Vector2(0, 0), color.darkened(0.28), 2.0)
+	draw_rect(Rect2(Vector2(-w * 0.5, -68), Vector2(w, 72)), color.darkened(0.08))
+	draw_rect(Rect2(Vector2(-w * 0.5, -68), Vector2(w, 5)), color.lightened(0.10))
+	draw_line(Vector2(0, -62), Vector2(0, 0), color.darkened(0.28), 2.0)
 	# a couple of weathered cracks
-	draw_line(p + Vector2(-12, -50), p + Vector2(-8, -20), color.darkened(0.22), 1.0)
-	draw_line(p + Vector2(14, -56), p + Vector2(10, -30), color.darkened(0.22), 1.0)
+	draw_line(Vector2(-12, -50), Vector2(-8, -20), color.darkened(0.22), 1.0)
+	draw_line(Vector2(14, -56), Vector2(10, -30), color.darkened(0.22), 1.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## A companion-plate: a worn round stone set flush in the floor. HELD (a companion's or a wedge's
@@ -540,22 +546,24 @@ func _draw_column(p: Vector2, color: Color) -> void:
 ## which goes through (only the companion's nose can). CLOSED: a rubble mound around a shallow dark
 ## hollow (a dead-end look). OPENED: the rubble has shifted aside into a cleared passage you can see
 ## through — the one the companion nosed out and squeezed into.
-func _draw_nook(p: Vector2, color: Color, opened: bool) -> void:
+func _draw_nook(p: Vector2, color: Color, opened: bool, vertical: bool = false) -> void:
+	draw_set_transform(p, PI * 0.5 if vertical else 0.0, Vector2.ONE)
 	# the rubble shoulders either side of the gap
-	draw_circle(p + Vector2(-13, 5), 10.0, color.darkened(0.12))
-	draw_circle(p + Vector2(13, 5), 10.0, color.darkened(0.12))
-	draw_circle(p + Vector2(-9, -4), 8.0, color)
-	draw_circle(p + Vector2(9, -4), 8.0, color)
+	draw_circle(Vector2(-13, 5), 10.0, color.darkened(0.12))
+	draw_circle(Vector2(13, 5), 10.0, color.darkened(0.12))
+	draw_circle(Vector2(-9, -4), 8.0, color)
+	draw_circle(Vector2(9, -4), 8.0, color)
 	if opened:
 		# cleared: an open mouth with depth you can see into (the way through)
-		draw_rect(Rect2(p + Vector2(-7, -18), Vector2(14, 22)), Color(0.16, 0.22, 0.20, 0.92))
-		draw_arc(p + Vector2(0, -7), 8.5, PI, TAU, 16, color.lightened(0.22), 2.0)
+		draw_rect(Rect2(Vector2(-7, -18), Vector2(14, 22)), Color(0.16, 0.22, 0.20, 0.92))
+		draw_arc(Vector2(0, -7), 8.5, PI, TAU, 16, color.lightened(0.22), 2.0)
 		# a faint glimmer of the space beyond
-		draw_circle(p + Vector2(0, -10), 2.2, Color(0.70, 0.86, 0.82, 0.7))
+		draw_circle(Vector2(0, -10), 2.2, Color(0.70, 0.86, 0.82, 0.7))
 	else:
 		# blocked: a shallow, dead-looking hollow
-		draw_circle(p + Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
-		draw_arc(p + Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
+		draw_circle(Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
+		draw_arc(Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## The Cistern's ember source, in a cracked bowl. DEAD: a dark coal with the faintest red breath (so

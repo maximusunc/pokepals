@@ -160,12 +160,18 @@ Animation polish (procedural, cheap, immersive):
    tempting wrong turns. Gloom now keys off *progression*. A flood-fill validator proves the
    gates actually gate (closed → exit unreachable) and the path + every room/spur is reachable
    when open. *(All four wards keep their ids/relationships; coords re-placed.)*
-4. **The waking** *(next)* — the light-bloom + the brighter sanctum on the Hall opening.
+4. **The Waking** *(done)* — when the great door opens, the depths' gloom is permanently lifted
+   (paired_hall → 0.12, sanctum → 0.04, the brightest beat since the wood) and a one-shot warm
+   bloom sweeps the screen for anyone at the hall to witness it — fuller/longer with a second pair
+   present, gentler alone. The decoy spurs were also fleshed out: each dead-end now holds a small
+   scene (tally-marks, a shrine niche, a sealed niche, a flooded carving) so exploring is rewarded.
+5. **Audio + Claude Design art swap** *(later)* — ambience, footsteps, the carving reveals; real
+   assets over the placeholders.
 
-> **Known placeholder seam:** the gate art (`slab`/`nook`/door) is still drawn for a horizontal
-> doorway; on the maze's vertical walls it reads as "a stone in the gap" rather than a framed
-> doorway. Purely cosmetic — the collision and the opening are correct — and it's on the list to
-> rotate when the real assets land.
+> **Resolved seam:** the gate art (`slab`/`nook`/door) now rotates to plug the maze's *vertical*
+> walls (a `"wall": "v"` hint in the spec → a 90° transform in `world_art`), so an east/west
+> doorway reads as a doorway, not a stone laid the wrong way. Other placeholders still await the
+> Claude Design pass.
 4. **Audio + Claude Design art swap** *(later)* — ambience, footsteps, the carving reveals; real
    assets over the placeholders.
 

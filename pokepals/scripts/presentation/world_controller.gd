@@ -723,7 +723,7 @@ func _setup_ruin(data: Dictionary) -> void:
 	for r in data.get("regions", []):
 		if r.has("gloom"):
 			var mn := WorldData.to_vec2(r["min"])
-			_region_glooms.append({ "rect": Rect2(mn, WorldData.to_vec2(r["max"]) - mn), "gloom": float(r["gloom"]) })
+			_region_glooms.append({ "id": String(r.get("id", "")), "rect": Rect2(mn, WorldData.to_vec2(r["max"]) - mn), "gloom": float(r["gloom"]) })
 	for wd in data.get("ruin", {}).get("wards", []):
 		var slab_id := String(wd.get("slab_id", ""))
 		# Decoy points (Warren-style wards): identical-looking gaps where the companion's nose says
@@ -1020,12 +1020,52 @@ func _nearest_plate_key(w: Dictionary, from: Vector2, skip_wedged := false) -> S
 ## plate, your companion held the other): a muted waking, real but a little lonely. With a second pair
 ## (≥2 players here): the full waking — the old two glimpsed for a moment. The hint carries it; the door
 ## itself is opened by _open_ward.
-func _wake_paired_hall(_w: Dictionary) -> void:
+func _wake_paired_hall(w: Dictionary) -> void:
 	var present := 1 + _remote_pairs.size()
 	if present >= 2:
 		_show_hint("Light runs the whole length of the hall — and for a breath, two figures and their companions stand where you do, long ago. The great door swings wide.")
 	else:
 		_show_hint("With a grind the great door opens — just enough. A single lamp gutters alight in the dark. You did it alone, the patient way.")
+	# The Waking: light floods back. Permanently lift the depths' gloom (paired_hall + the sanctum beyond),
+	# so stepping through into the reward is the brightest beat since the forest — and, if you're here to
+	# witness it, a one-shot warm bloom sweeps the screen (fuller/longer with a second pair present).
+	_lift_gloom("paired_hall", 0.12)
+	_lift_gloom("sanctum", 0.04)
+	# Flash only for someone actually AT the hall to witness it — not on a far re-entry sync, and not
+	# jarringly across the map when a friend's pair opens it (the spawn point is ~1340px off).
+	var hall_center := _player.position
+	if w.has("plate_a") and w.has("plate_b"):
+		hall_center = (WorldData.to_vec2(w["plate_a"]) + WorldData.to_vec2(w["plate_b"])) * 0.5
+	if _player.position.distance_to(hall_center) < 900.0:
+		_play_waking_flash(present >= 2)
+
+
+## Set the ambient gloom of a named region (used by the Waking to lift the depths once the great door
+## opens). No-op if the region declares no gloom. The change is permanent for this visit, so the lit
+## sanctum stays bright as you move through it.
+func _lift_gloom(region_id: String, value: float) -> void:
+	for rg in _region_glooms:
+		if String(rg.get("id", "")) == region_id:
+			rg["gloom"] = value
+
+
+## The Waking bloom: a warm, full-screen wash that swells then fades — light flooding back the moment the
+## great door opens. Built in code on its own CanvasLayer (above the world, below nothing it needs to read),
+## torn down when the tween finishes. `full` (a second pair present) makes it brighter and a touch longer.
+func _play_waking_flash(full: bool) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	var rect := ColorRect.new()
+	rect.color = Color(1.0, 0.95, 0.82, 0.0)
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(rect)
+	add_child(layer)
+	var peak := 0.62 if full else 0.42
+	var tw := create_tween()
+	tw.tween_property(rect, "color:a", peak, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(rect, "color:a", 0.0, 1.9 if full else 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(layer.queue_free)
 
 
 ## The Cistern lit (server-confirmed open): light the brazier and wake the murals (their clues for the
