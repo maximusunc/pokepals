@@ -66,9 +66,15 @@ var _seek_shown := false  # whether the contextual "Go look" button is currently
 # (the cue that makes you name the need — "this place needs light"). Lifts as the brazier catches.
 const CARRY_REACH := 38.0  # how near the companion must get to "arrive" at the source / the brazier
 const HALL_REFRESH := 1.0   # seconds between re-issuing a Paired-Hall plate hold (before its hold lapses)
+# Ambient gloom: the screen eases toward GLOOM_DARK by the player's current region's "gloom" (0 = the
+# bright Wood, rising as you descend into the ruin). CISTERN_UNLIT is the extra dark its light-ward
+# chamber holds until the brazier is relit. See docs/the-ruin-narrative-and-world.md.
+const GLOOM_DARK := Color(0.24, 0.28, 0.28)
+const CISTERN_UNLIT := 0.88
 var _gloom := 0.0
 var _gloom_rect := Rect2()
 var _gloom_ward: Dictionary = {}
+var _region_glooms: Array = []  # [ { rect: Rect2, gloom: float } ] — per-region ambient darkness
 var _base_day_tint := Color.WHITE
 # Cached so the slab's collider can be removed when a ward opens (rebuild Solids without it).
 var _world_data: Dictionary = {}
@@ -404,8 +410,12 @@ func _place_arrivals(data: Dictionary, arrival_id: String) -> void:
 		for pd in data.get("portals", []):
 			if String(pd["id"]) == arrival_id:
 				var ppos := WorldData.to_vec2(pd["position"])
-				p_spawn = ppos + Vector2(0, 44)
-				c_spawn = ppos + Vector2(-26, 60)
+				# Default: step OUT to the south of the portal. A portal may override "arrival_offset"
+				# (e.g. the Ruin drops you to the NORTH, on the ruin side, so the way in leads away from
+				# the portal rather than back through it).
+				var off := WorldData.to_vec2(pd["arrival_offset"]) if pd.has("arrival_offset") else Vector2(0, 44)
+				p_spawn = ppos + off
+				c_spawn = ppos + off + Vector2(-26, 16)
 				break
 	_player.position = p_spawn
 	_companion.position = c_spawn
@@ -708,6 +718,12 @@ func _setup_ruin(data: Dictionary) -> void:
 	_gloom_rect = Rect2()
 	_gloom_ward = {}
 	_base_day_tint = _day_tint.color
+	# Per-region ambient gloom (the descent dimmer): cache each region's rect + declared darkness.
+	_region_glooms.clear()
+	for r in data.get("regions", []):
+		if r.has("gloom"):
+			var mn := WorldData.to_vec2(r["min"])
+			_region_glooms.append({ "id": String(r.get("id", "")), "rect": Rect2(mn, WorldData.to_vec2(r["max"]) - mn), "gloom": float(r["gloom"]) })
 	for wd in data.get("ruin", {}).get("wards", []):
 		var slab_id := String(wd.get("slab_id", ""))
 		# Decoy points (Warren-style wards): identical-looking gaps where the companion's nose says
@@ -1004,12 +1020,52 @@ func _nearest_plate_key(w: Dictionary, from: Vector2, skip_wedged := false) -> S
 ## plate, your companion held the other): a muted waking, real but a little lonely. With a second pair
 ## (≥2 players here): the full waking — the old two glimpsed for a moment. The hint carries it; the door
 ## itself is opened by _open_ward.
-func _wake_paired_hall(_w: Dictionary) -> void:
+func _wake_paired_hall(w: Dictionary) -> void:
 	var present := 1 + _remote_pairs.size()
 	if present >= 2:
 		_show_hint("Light runs the whole length of the hall — and for a breath, two figures and their companions stand where you do, long ago. The great door swings wide.")
 	else:
 		_show_hint("With a grind the great door opens — just enough. A single lamp gutters alight in the dark. You did it alone, the patient way.")
+	# The Waking: light floods back. Permanently lift the depths' gloom (paired_hall + the sanctum beyond),
+	# so stepping through into the reward is the brightest beat since the forest — and, if you're here to
+	# witness it, a one-shot warm bloom sweeps the screen (fuller/longer with a second pair present).
+	_lift_gloom("paired_hall", 0.12)
+	_lift_gloom("sanctum", 0.04)
+	# Flash only for someone actually AT the hall to witness it — not on a far re-entry sync, and not
+	# jarringly across the map when a friend's pair opens it (the spawn point is ~1340px off).
+	var hall_center := _player.position
+	if w.has("plate_a") and w.has("plate_b"):
+		hall_center = (WorldData.to_vec2(w["plate_a"]) + WorldData.to_vec2(w["plate_b"])) * 0.5
+	if _player.position.distance_to(hall_center) < 900.0:
+		_play_waking_flash(present >= 2)
+
+
+## Set the ambient gloom of a named region (used by the Waking to lift the depths once the great door
+## opens). No-op if the region declares no gloom. The change is permanent for this visit, so the lit
+## sanctum stays bright as you move through it.
+func _lift_gloom(region_id: String, value: float) -> void:
+	for rg in _region_glooms:
+		if String(rg.get("id", "")) == region_id:
+			rg["gloom"] = value
+
+
+## The Waking bloom: a warm, full-screen wash that swells then fades — light flooding back the moment the
+## great door opens. Built in code on its own CanvasLayer (above the world, below nothing it needs to read),
+## torn down when the tween finishes. `full` (a second pair present) makes it brighter and a touch longer.
+func _play_waking_flash(full: bool) -> void:
+	var layer := CanvasLayer.new()
+	layer.layer = 80
+	var rect := ColorRect.new()
+	rect.color = Color(1.0, 0.95, 0.82, 0.0)
+	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	layer.add_child(rect)
+	add_child(layer)
+	var peak := 0.62 if full else 0.42
+	var tw := create_tween()
+	tw.tween_property(rect, "color:a", peak, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(rect, "color:a", 0.0, 1.9 if full else 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_callback(layer.queue_free)
 
 
 ## The Cistern lit (server-confirmed open): light the brazier and wake the murals (their clues for the
@@ -1029,13 +1085,25 @@ func _light_cistern(w: Dictionary) -> void:
 ## the moment the brazier catches (the ward opens). No-op in worlds without a Cistern, and skipped if a
 ## daycycle owns the tint.
 func _update_gloom(delta: float) -> void:
-	if _gloom_ward.is_empty() or _day_enabled:
+	if _day_enabled:
 		return
-	var target := 0.0
-	if _gloom_rect.get_area() > 0.0 and not bool(_gloom_ward["open"]) and _gloom_rect.has_point(_player.position):
-		target = 1.0
-	_gloom = lerpf(_gloom, target, 1.0 - exp(-3.0 * delta))
-	_day_tint.color = _base_day_tint.lerp(Color(0.10, 0.13, 0.12), 0.78 * _gloom)
+	if _region_glooms.is_empty() and _gloom_ward.is_empty():
+		return
+	# Ambient darkness of the region you're standing in (the Wood is 0, the depths darker)...
+	var target := _region_gloom_at(_player.position)
+	# ...and the Cistern's puzzle dark on top: near-black in its chamber until the brazier is lit.
+	if not _gloom_ward.is_empty() and not bool(_gloom_ward["open"]) and _gloom_rect.get_area() > 0.0 and _gloom_rect.has_point(_player.position):
+		target = maxf(target, CISTERN_UNLIT)
+	_gloom = lerpf(_gloom, target, 1.0 - exp(-2.5 * delta))
+	_day_tint.color = _base_day_tint.lerp(GLOOM_DARK, _gloom)
+
+
+## The ambient gloom of the region containing `pos` (first match), or 0 (bright) if none declares one.
+func _region_gloom_at(pos: Vector2) -> float:
+	for rg in _region_glooms:
+		if (rg["rect"] as Rect2).has_point(pos):
+			return float(rg["gloom"])
+	return 0.0
 
 
 ## Reveal a ward's plate: mark it found, draw the uncovered stone (once), and narrate. `mine` tells the

@@ -100,6 +100,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"examined": false,   # rocks flip this on when turned over
 			"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
 			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
+			"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
 		})
 
 	queue_redraw()
@@ -287,7 +288,7 @@ func _draw() -> void:
 			"rock":
 				_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
 			"slab":
-				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)))
+				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
 			"plate":
 				_draw_plate(it["pos"], it["color"], bool(it.get("opened", false)))
 			"wedge":
@@ -295,13 +296,31 @@ func _draw() -> void:
 			"column":
 				_draw_column(it["pos"], it["color"])
 			"nook":
-				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)))
+				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
 			"ember":
 				_draw_ember(it["pos"], it["color"], bool(it.get("opened", false)))
 			"brazier":
 				_draw_brazier(it["pos"], it["color"], bool(it.get("opened", false)))
 			"mural":
 				_draw_mural(it["pos"], it["color"], bool(it.get("opened", false)))
+			"facade":
+				_draw_facade(it["pos"], it["color"])
+			"stairs":
+				_draw_stairs(it["pos"], it["color"])
+			"carving":
+				_draw_carving(it["pos"], it["color"])
+			"torch":
+				_draw_torch(it["pos"], it["color"])
+			"roots":
+				_draw_roots(it["pos"], it["color"])
+			"broken_pillar":
+				_draw_broken_pillar(it["pos"], it["color"])
+			"rubble_pile":
+				_draw_rubble_pile(it["pos"], it["color"])
+			"pool":
+				_draw_pool(it["pos"], it["color"])
+			"light_shaft":
+				_draw_light_shaft(it["pos"], it["color"])
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -459,26 +478,31 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 
 
 ## A Ruin gate slab. CLOSED: a heavy upright stone filling the doorway, a worn groove down its face.
-## OPENED: it has risen into a lintel up top, leaving a dark, open doorway beneath — the way through.
-func _draw_slab(p: Vector2, color: Color, opened: bool) -> void:
+## OPENED: it has risen into a lintel, leaving a dark, open doorway — the way through. `vertical` rotates
+## the whole motif 90° so it plugs a gap in a VERTICAL wall (the maze's east/west doorways) correctly,
+## instead of reading as a stone laid the wrong way across the opening.
+func _draw_slab(p: Vector2, color: Color, opened: bool, vertical: bool = false) -> void:
 	var w := 56.0
+	draw_set_transform(p, PI * 0.5 if vertical else 0.0, Vector2.ONE)
 	if opened:
 		# the dark doorway gap left behind
-		draw_rect(Rect2(p + Vector2(-w * 0.5 + 4, -64), Vector2(w - 8, 64)), Color(0.06, 0.08, 0.07, 0.85))
-		# the slab, hoisted up into a lintel above the opening
-		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 16)), color.darkened(0.1))
-		draw_rect(Rect2(p + Vector2(-w * 0.5, -82), Vector2(w, 4)), color.lightened(0.12))
+		draw_rect(Rect2(Vector2(-w * 0.5 + 4, -64), Vector2(w - 8, 64)), Color(0.06, 0.08, 0.07, 0.85))
+		# the slab, hoisted into a lintel beside the opening
+		draw_rect(Rect2(Vector2(-w * 0.5, -82), Vector2(w, 16)), color.darkened(0.1))
+		draw_rect(Rect2(Vector2(-w * 0.5, -82), Vector2(w, 4)), color.lightened(0.12))
 		# jambs framing the open doorway
-		draw_rect(Rect2(p + Vector2(-w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
-		draw_rect(Rect2(p + Vector2(w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_rect(Rect2(Vector2(-w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_rect(Rect2(Vector2(w * 0.5 - 2, -64), Vector2(4, 64)), color.darkened(0.2))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
 	# closed: the lowered slab barring the way
-	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 72)), color.darkened(0.08))
-	draw_rect(Rect2(p + Vector2(-w * 0.5, -68), Vector2(w, 5)), color.lightened(0.10))
-	draw_line(p + Vector2(0, -62), p + Vector2(0, 0), color.darkened(0.28), 2.0)
+	draw_rect(Rect2(Vector2(-w * 0.5, -68), Vector2(w, 72)), color.darkened(0.08))
+	draw_rect(Rect2(Vector2(-w * 0.5, -68), Vector2(w, 5)), color.lightened(0.10))
+	draw_line(Vector2(0, -62), Vector2(0, 0), color.darkened(0.28), 2.0)
 	# a couple of weathered cracks
-	draw_line(p + Vector2(-12, -50), p + Vector2(-8, -20), color.darkened(0.22), 1.0)
-	draw_line(p + Vector2(14, -56), p + Vector2(10, -30), color.darkened(0.22), 1.0)
+	draw_line(Vector2(-12, -50), Vector2(-8, -20), color.darkened(0.22), 1.0)
+	draw_line(Vector2(14, -56), Vector2(10, -30), color.darkened(0.22), 1.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## A companion-plate: a worn round stone set flush in the floor. HELD (a companion's or a wedge's
@@ -522,22 +546,24 @@ func _draw_column(p: Vector2, color: Color) -> void:
 ## which goes through (only the companion's nose can). CLOSED: a rubble mound around a shallow dark
 ## hollow (a dead-end look). OPENED: the rubble has shifted aside into a cleared passage you can see
 ## through — the one the companion nosed out and squeezed into.
-func _draw_nook(p: Vector2, color: Color, opened: bool) -> void:
+func _draw_nook(p: Vector2, color: Color, opened: bool, vertical: bool = false) -> void:
+	draw_set_transform(p, PI * 0.5 if vertical else 0.0, Vector2.ONE)
 	# the rubble shoulders either side of the gap
-	draw_circle(p + Vector2(-13, 5), 10.0, color.darkened(0.12))
-	draw_circle(p + Vector2(13, 5), 10.0, color.darkened(0.12))
-	draw_circle(p + Vector2(-9, -4), 8.0, color)
-	draw_circle(p + Vector2(9, -4), 8.0, color)
+	draw_circle(Vector2(-13, 5), 10.0, color.darkened(0.12))
+	draw_circle(Vector2(13, 5), 10.0, color.darkened(0.12))
+	draw_circle(Vector2(-9, -4), 8.0, color)
+	draw_circle(Vector2(9, -4), 8.0, color)
 	if opened:
 		# cleared: an open mouth with depth you can see into (the way through)
-		draw_rect(Rect2(p + Vector2(-7, -18), Vector2(14, 22)), Color(0.16, 0.22, 0.20, 0.92))
-		draw_arc(p + Vector2(0, -7), 8.5, PI, TAU, 16, color.lightened(0.22), 2.0)
+		draw_rect(Rect2(Vector2(-7, -18), Vector2(14, 22)), Color(0.16, 0.22, 0.20, 0.92))
+		draw_arc(Vector2(0, -7), 8.5, PI, TAU, 16, color.lightened(0.22), 2.0)
 		# a faint glimmer of the space beyond
-		draw_circle(p + Vector2(0, -10), 2.2, Color(0.70, 0.86, 0.82, 0.7))
+		draw_circle(Vector2(0, -10), 2.2, Color(0.70, 0.86, 0.82, 0.7))
 	else:
 		# blocked: a shallow, dead-looking hollow
-		draw_circle(p + Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
-		draw_arc(p + Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
+		draw_circle(Vector2(0, -3), 7.0, Color(0.08, 0.10, 0.09, 0.85))
+		draw_arc(Vector2(0, -3), 7.0, PI, TAU, 14, color.darkened(0.28), 1.5)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## The Cistern's ember source, in a cracked bowl. DEAD: a dark coal with the faintest red breath (so
@@ -600,6 +626,130 @@ func _draw_mural(p: Vector2, color: Color, revealed: bool) -> void:
 		draw_circle(p + Vector2(sx + (4 if sx > 0 else -4), 4), 2.4, c)      # companion
 	# the great door arch above/behind them
 	draw_arc(p + Vector2(0, -2), 13.0, PI, TAU, 18, c, 2.0)
+
+
+# ── ARRIVAL / RUIN dressing — PLACEHOLDER ART. Each of these is a single `type` drawn by one small
+# function over a known footprint, ready to be swapped 1:1 for a Claude Design sprite later. They
+# establish staging + mood (the mouth, the descent, the carvings, torchlight, overgrowth); the
+# *surface* is meant to be replaced. See docs/the-ruin-narrative-and-world.md. ──
+
+## The ruin's MOUTH: a broken stone archway half-swallowed by the wood, framing the dark way in.
+## Footprint ~120×90. Non-solid (collision is the front wall + corridor); this is the face over the gap.
+func _draw_facade(p: Vector2, color: Color) -> void:
+	# the dark opening behind the arch
+	draw_rect(Rect2(p + Vector2(-42, -86), Vector2(84, 90)), Color(0.05, 0.07, 0.07, 0.92))
+	# two weathered jambs
+	draw_rect(Rect2(p + Vector2(-58, -88), Vector2(18, 92)), color.darkened(0.1))
+	draw_rect(Rect2(p + Vector2(40, -88), Vector2(18, 92)), color.darkened(0.1))
+	# the broken arch lintel (a shallow span, a chunk missing on the right)
+	draw_arc(p + Vector2(0, -86), 50.0, PI + 0.25, TAU - 0.55, 22, color.lightened(0.06), 9.0)
+	draw_rect(Rect2(p + Vector2(-58, -100), Vector2(40, 14)), color)
+	# cracks + a drape of vines off the top
+	draw_line(p + Vector2(-30, -90), p + Vector2(-22, -40), color.darkened(0.3), 1.5)
+	for vx in [-46, -10, 30]:
+		var s := _sway(_phase_for(p + Vector2(vx, 0)), 0.5)
+		draw_line(p + Vector2(vx, -96), p + Vector2(vx + s, -96 + 34.0), Color(0.32, 0.42, 0.26), 2.0)
+
+
+## Worn STEPS going down into the dark — a few stacked bands, each darker, to read as a descent.
+func _draw_stairs(p: Vector2, color: Color) -> void:
+	for k in 4:
+		var w := 60.0 - float(k) * 8.0
+		var y := -float(k) * 7.0
+		var shade := color.darkened(0.08 + 0.12 * float(k))
+		draw_rect(Rect2(p + Vector2(-w * 0.5, y - 5), Vector2(w, 6)), shade)
+		draw_rect(Rect2(p + Vector2(-w * 0.5, y - 7), Vector2(w, 2)), shade.lightened(0.12))
+	draw_rect(Rect2(p + Vector2(-26, -34), Vector2(52, 8)), Color(0.04, 0.06, 0.06, 0.85))  # the dark mouth at the top
+
+
+## A wall CARVING / relief panel — the ruin's story, told in stone. Two figures and a companion shape,
+## faint until you're close. Examinable (the spec label carries the line). Placeholder for a real relief.
+func _draw_carving(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-17, -24), Vector2(34, 42)), color.darkened(0.35))   # the recessed panel
+	draw_rect(Rect2(p + Vector2(-15, -22), Vector2(30, 38)), color.darkened(0.18))
+	var c := Color(color.r, color.g, color.b, 0.85)
+	for sx in [-7, 7]:                                  # two figures, side by side
+		draw_rect(Rect2(p + Vector2(sx - 2, -12), Vector2(4, 13)), c)
+		draw_circle(p + Vector2(sx, -15), 2.6, c)
+	draw_circle(p + Vector2(0, 6), 2.6, c)             # a companion shape between/below them
+	# a faint catch-light so it reads as "look here"
+	draw_arc(p + Vector2(0, -3), 13.0, PI * 1.1, PI * 1.9, 14, Color(0.9, 0.86, 0.7, 0.10 + 0.06 * sin(_time * 1.3)), 1.5)
+
+
+## A wall TORCH — sconce + a flickering warm flame and a breathing glow pool (animation). Placeholder.
+func _draw_torch(p: Vector2, color: Color) -> void:
+	# a fast, irregular flicker from two out-of-phase sines (cheap "fire")
+	var flick := 0.72 + 0.18 * sin(_time * 11.0 + p.x) + 0.10 * sin(_time * 23.0 + p.y)
+	for k in 3:                                          # the glow pool
+		draw_circle(p + Vector2(0, -10), (46.0 - float(k) * 13.0) * flick, Color(color.r, color.g, color.b, 0.07))
+	draw_rect(Rect2(p + Vector2(-2, -8), Vector2(4, 14)), Color(0.28, 0.22, 0.16))   # bracket
+	var f := sin(_time * 9.0 + p.x) * 1.6
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-4, -8), p + Vector2(4, -8), p + Vector2(f, -22 - 4.0 * flick)]), Color(1.0, 0.64, 0.26))
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-2, -8), p + Vector2(2, -8), p + Vector2(f * 0.5, -16 - 2.0 * flick)]), Color(1.0, 0.86, 0.5))
+	draw_circle(p + Vector2(0, -9), 2.2, Color(1, 0.95, 0.8))
+
+
+## ROOTS prying up the old flagstones — the wood reclaiming the stone. Non-solid overgrowth.
+func _draw_roots(p: Vector2, color: Color) -> void:
+	# a couple of cracked flags
+	draw_rect(Rect2(p + Vector2(-14, -6), Vector2(13, 12)), Color(0.40, 0.42, 0.36, 0.7))
+	draw_rect(Rect2(p + Vector2(2, -4), Vector2(12, 11)), Color(0.38, 0.40, 0.34, 0.7))
+	# sinuous roots over them
+	for r in [[-18, 4, 16, -8], [-4, 8, 14, -2], [6, 6, 18, 6]]:
+		draw_line(p + Vector2(r[0], r[1]), p + Vector2(r[2], r[3]), color, 2.0)
+	draw_circle(p + Vector2(-2, 2), 2.0, color.lightened(0.1))
+
+
+## A toppled PILLAR lying among the wood — a long drum on its side beside a broken stump.
+func _draw_broken_pillar(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-22, -6), Vector2(40, 13)), color)                   # the fallen shaft
+	draw_circle(p + Vector2(-22, 0), 7.0, color.lightened(0.1))
+	draw_circle(p + Vector2(-22, 0), 3.0, color.darkened(0.3))
+	draw_arc(p + Vector2(18, 0), 7.0, -PI * 0.5, PI * 0.5, 10, color.darkened(0.2), 2.0)
+	draw_rect(Rect2(p + Vector2(20, -4), Vector2(9, 11)), color.darkened(0.08))      # the stump it broke from
+
+
+## A heap of fallen stone — a low rubble mound. (Solid in the spec; the art is just the silhouette.)
+func _draw_rubble_pile(p: Vector2, color: Color) -> void:
+	draw_circle(p + Vector2(-8, 4), 9.0, color.darkened(0.12))
+	draw_circle(p + Vector2(9, 5), 8.0, color.darkened(0.16))
+	draw_circle(p + Vector2(0, -2), 10.0, color)
+	draw_circle(p + Vector2(-3, -6), 5.0, color.lightened(0.08))
+	draw_circle(p + Vector2(7, -3), 4.0, color.lightened(0.05))
+
+
+## A still, dark POOL in the Sunken Grove — rain gathered where the ceiling fell. Drawn like a pond but
+## colder and darker, with a pale patch where the daylight shaft falls in. Solid (its spec collision_radius
+## is the real footprint; the art radius here just needs to read close to it). Placeholder for a real water asset.
+func _draw_pool(p: Vector2, color: Color) -> void:
+	var rad := 88.0
+	draw_circle(p, rad, color)
+	draw_arc(p, rad, 0.0, TAU, 48, Color(0.5, 0.6, 0.62, 0.32), 2.0)   # a faint stone rim
+	for k in 2:                                                        # slow, breathing ripples
+		var t := fposmod(_time * 0.16 + float(k) * 0.5, 1.0)
+		draw_arc(p, rad * (0.3 + 0.6 * t), 0.0, TAU, 40, Color(0.8, 0.9, 0.95, 0.14 * (1.0 - t)), 1.5)
+	# the pale reflected glow where the light-shaft strikes the water
+	draw_circle(p + Vector2(-4, -10), 22.0, Color(0.88, 0.93, 0.82, 0.10))
+	draw_circle(p + Vector2(-4, -10), 9.0, Color(0.95, 0.97, 0.9, 0.10))
+
+
+## A SHAFT of daylight falling through the Sunken Grove's broken ceiling — the one place the dark lifts.
+## A soft translucent column (narrow at the top, splaying to a pool of light on the floor) with dust motes
+## drifting down it. Non-solid; pure mood. Placeholder for a real volumetric-light asset.
+func _draw_light_shaft(p: Vector2, color: Color) -> void:
+	var top := p + Vector2(22, -150)
+	var glow := 0.10 + 0.03 * sin(_time * 0.8)
+	var beam := PackedVector2Array([top + Vector2(-14, 0), top + Vector2(18, 0), p + Vector2(58, 0), p + Vector2(-44, 0)])
+	draw_colored_polygon(beam, Color(color.r, color.g, color.b, glow))
+	var core := PackedVector2Array([top + Vector2(-4, 0), top + Vector2(6, 0), p + Vector2(22, 0), p + Vector2(-16, 0)])
+	draw_colored_polygon(core, Color(1.0, 0.98, 0.9, glow * 1.3))
+	for k in 6:                                                        # dust motes drifting down the beam
+		var ph := float(k) * 1.7
+		var ty := fposmod(_time * 0.2 + float(k) / 6.0, 1.0)
+		var mx := top.x - 22.0 * ty + sin(_time * 0.6 + ph) * 9.0
+		var my := top.y + ty * 150.0
+		draw_circle(Vector2(mx, my), 1.4, Color(1.0, 0.98, 0.85, 0.5 * (1.0 - ty)))
+	draw_circle(p, 30.0, Color(color.r, color.g, color.b, 0.06))       # the pool of light on the floor
 
 
 ## A riverbank rock. Unexamined it's a rounded stone; once turned over it tips onto its
