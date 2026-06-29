@@ -170,10 +170,56 @@ def emit_hedges(grid):
     return hedges
 
 
+def build_guide(grid):
+    """A flow field toward the centre: for every corridor cell, which way the SOLVED PATH
+    goes next (1=N, 2=E, 3=S, 4=W; 0 at the centre). BFS from the centre over the open-wall
+    adjacency, so the direction is the path direction — not the (usually wall-blocked) straight
+    line to the middle. The companion points along this when you've stood still a while.
+    """
+    from collections import deque
+
+    def open_between(cx, cy, dx, dy):
+        # The wall grid cell lying between (cx,cy) and its (dx,dy) neighbour; False = a way through.
+        return not grid[2 * cx + 1 + dx][2 * cy + 1 + dy]
+
+    parent = {}
+    start = (CENTER, CENTER)
+    seen = {start}
+    q = deque([start])
+    while q:
+        cx, cy = q.popleft()
+        for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+            nx, ny = cx + dx, cy + dy
+            if 0 <= nx < CELLS and 0 <= ny < CELLS and (nx, ny) not in seen and open_between(cx, cy, dx, dy):
+                seen.add((nx, ny))
+                parent[(nx, ny)] = (cx, cy)
+                q.append((nx, ny))
+
+    code = {(0, -1): 1, (1, 0): 2, (0, 1): 3, (-1, 0): 4}
+    dirs = []
+    for cy in range(CELLS):
+        for cx in range(CELLS):
+            p = parent.get((cx, cy))
+            if p is None:
+                dirs.append(0)  # the centre itself (or an unreachable cell, which can't happen here)
+            else:
+                dirs.append(code[(p[0] - cx, p[1] - cy)])
+
+    cell0 = center_of(1)  # world centre of cell (0,0), same on both axes
+    return {
+        "origin": [round(cell0, 1), round(cell0, 1)],
+        "pitch": CORRIDOR + HEDGE,
+        "cols": CELLS,
+        "rows": CELLS,
+        "dirs": dirs,
+    }
+
+
 def main():
     passages = carve_maze()
     grid = build_wall_grid(passages)
     hedges = emit_hedges(grid)
+    guide = build_guide(grid)
 
     cx_world = center_of(2 * CENTER + 1)
     cy_world = center_of(2 * CENTER + 1)
@@ -233,6 +279,13 @@ def main():
             "reward": 10,
             "label": "Find the heart of the maze",
         },
+        "_maze_guide_comment": (
+            "A flow field toward the centre (per corridor cell: 1=N 2=E 3=S 4=W, 0=centre), used "
+            "ONLY to let the companion subtly point the way along the solved path after you've stood "
+            "still a while. Presentation hint — it never moves you. Map a world pos to a cell with "
+            "round((p-origin)/pitch); dirs is row-major (cy*cols + cx)."
+        ),
+        "maze_guide": guide,
         "_return_comment": "Where the always-available 'Return to the Vale' button sends you.",
         "return": {"world": VALE_ID, "portal": "vale_maze_portal", "label": "Return to the Vale"},
         "portals": [

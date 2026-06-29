@@ -91,6 +91,21 @@ var _maze_active := false        # true in a world whose goal.type is "reach_cen
 var _maze_center := Vector2.ZERO # the heart of the maze (world pos)
 var _maze_radius := 70.0         # how near counts as "reached"
 var _maze_reached := false       # latched once reached this visit, so the reward fires once
+# The companion's "point the way" hint: after standing still a while, the companion subtly points
+# along the SOLVED PATH to the centre. The path direction per cell is authored in the spec's
+# "maze_guide" flow field (1=N 2=E 3=S 4=W, 0=centre) — pure presentation, it never moves the player.
+const MAZE_HINT_DELAY := 5.0      # seconds stood still before the companion points the way
+const MAZE_HINT_STRENGTH := 0.5   # a gentle, subtle point (1.0 is the hunt's full lock-on)
+const MAZE_HINT_REACH := 88.0     # how far ahead (px) to place the point target
+const MAZE_MOVE_EPS := 0.6        # per-frame move (px) under which the player counts as standing still
+var _maze_guide_origin := Vector2.ZERO  # world centre of cell (0,0)
+var _maze_guide_pitch := 100.0          # world distance between adjacent cell centres
+var _maze_guide_cols := 0
+var _maze_guide_rows := 0
+var _maze_guide_dirs: Array = []        # row-major (cy*cols + cx) path-direction codes
+var _maze_idle := 0.0            # seconds the player has stood still
+var _maze_pointing := false      # whether the companion is currently giving the hint
+var _last_player_pos := Vector2.ZERO  # to measure per-frame movement for the idle timer
 # The Return-to-the-Vale escape hatch: where it sends you (from the spec's "return" block), or "" if
 # this world declares none (so the button stays hidden everywhere but the maze).
 var _return_world := ""
@@ -190,6 +205,7 @@ func _build_world(data: Dictionary) -> void:
 
 	# Spawn beside the arrival portal if we travelled here, else at the world's own spawn points.
 	_place_arrivals(data, arrival_id)
+	_last_player_pos = _player.position  # baseline for the maze idle-timer's movement check
 
 	_world_art.render_world(data, _style)
 	_apply_atmosphere(data.get("atmosphere", {}))
@@ -326,6 +342,9 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_goal_active = false
 	_maze_active = false
 	_maze_reached = false
+	_maze_idle = 0.0
+	_maze_pointing = false
+	_maze_guide_dirs = []
 	_return_world = ""
 	_return_portal = ""
 
@@ -379,6 +398,14 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		_maze_active = true
 		_maze_center = WorldData.to_vec2(goal.get("center", [0, 0]))
 		_maze_radius = float(goal.get("radius", 70.0))
+		# The flow field the companion points along (the solved path per cell, toward the centre).
+		var guide: Dictionary = data.get("maze_guide", {})
+		_maze_guide_dirs = guide.get("dirs", [])
+		if not _maze_guide_dirs.is_empty():
+			_maze_guide_origin = WorldData.to_vec2(guide.get("origin", [0, 0]))
+			_maze_guide_pitch = float(guide.get("pitch", 100.0))
+			_maze_guide_cols = int(guide.get("cols", 0))
+			_maze_guide_rows = int(guide.get("rows", 0))
 
 	# The Return-to-the-Vale escape hatch: a world may declare where its Return button leads.
 	var ret: Dictionary = data.get("return", {})
@@ -589,6 +616,7 @@ func _process(delta: float) -> void:
 	# Walk-through portals, the companion's subtle salamander glance, and the Ruin's ward referee.
 	_update_portals(delta)
 	_update_hints(delta)
+	_update_maze_hint(delta)
 	_update_ruin(delta)
 	_update_gloom(delta)
 
@@ -1733,6 +1761,54 @@ func _on_maze_reached() -> void:
 	_completion_hint = "You've reached the heart of the maze!"
 	_show_hint(_completion_hint)
 	Net.claim_maze_reward()
+
+
+## The companion as a quiet maze-guide: once you've stood still for MAZE_HINT_DELAY, it points
+## subtly along the SOLVED PATH to the centre (from the spec's authored flow field), and relaxes the
+## moment you move again or reach the heart. Presentation only — like the salamander tell, it feeds
+## the companion's BODY (point_at), never its brain, so the companion still never *knows* the way; its
+## body just leans where the path leads. A no-op outside the maze.
+func _update_maze_hint(delta: float) -> void:
+	if not _maze_active:
+		return
+	# Done hinting once you've reached the heart (or if the world carried no guide) — relax the pose.
+	if _maze_reached or _maze_guide_dirs.is_empty():
+		if _maze_pointing:
+			_companion.point_at(Vector2.ZERO, 0.0)
+			_maze_pointing = false
+		return
+	# Moving resets the idle timer and releases any point — the hint is only for when you've paused.
+	var moved := _player.position.distance_to(_last_player_pos)
+	_last_player_pos = _player.position
+	if moved > MAZE_MOVE_EPS:
+		_maze_idle = 0.0
+		if _maze_pointing:
+			_companion.point_at(Vector2.ZERO, 0.0)
+			_maze_pointing = false
+		return
+	_maze_idle += delta
+	if _maze_idle < MAZE_HINT_DELAY:
+		return
+	var dir := _maze_dir_at(_player.position)
+	if dir == Vector2.ZERO:
+		return  # at/over the centre, or off-grid — nothing to point toward
+	_maze_pointing = true
+	_companion.point_at(_player.position + dir * MAZE_HINT_REACH, MAZE_HINT_STRENGTH)
+
+
+## The path direction (a unit Vector2) out of the cell the given world pos falls in, from the maze
+## flow field — toward the centre. Vector2.ZERO at the centre cell or if there's no guide.
+func _maze_dir_at(pos: Vector2) -> Vector2:
+	if _maze_guide_cols <= 0 or _maze_guide_rows <= 0:
+		return Vector2.ZERO
+	var cx := clampi(int(round((pos.x - _maze_guide_origin.x) / _maze_guide_pitch)), 0, _maze_guide_cols - 1)
+	var cy := clampi(int(round((pos.y - _maze_guide_origin.y) / _maze_guide_pitch)), 0, _maze_guide_rows - 1)
+	match int(_maze_guide_dirs[cy * _maze_guide_cols + cx]):
+		1: return Vector2(0, -1)
+		2: return Vector2(1, 0)
+		3: return Vector2(0, 1)
+		4: return Vector2(-1, 0)
+		_: return Vector2.ZERO
 
 
 ## The server resolved our maze reward. Adopt the new wallet balance (so the shop is current next
