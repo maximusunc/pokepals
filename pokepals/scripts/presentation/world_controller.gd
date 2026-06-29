@@ -51,9 +51,13 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 @onready var _fade: ColorRect = $Fade/Rect
 @onready var _shop: ShopController = $UI/ShopPanel
 
+# Per-mechanic directors, created in _build_world. Each owns one self-contained world mechanic so this
+# controller can stay a conductor — it builds the world and drives the directors, rather than being
+# every mechanic itself. See scripts/presentation/mechanics/.
+var _hunt_dir: HuntDirector
+
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
-var _hunt: SalamanderHunt = null  # the riverbank salamander hunt, or null in worlds without a goal
 # THE RUIN (companion-as-actor puzzle): ward state is now SERVER-AUTHORITATIVE (shared across everyone
 # in the world). This client DETECTS its own companion's actions and reports abstract intents (uncover /
 # occupy) to the server, then RENDERS whatever ward state the server echoes back (Net.ward_state_received)
@@ -83,8 +87,6 @@ var _border_pts: Array = []
 var _collision_cfg: Dictionary = {}
 var _body_radius := 6.0
 var _collision_margin := 2.0
-var _rocks: Array = []  # [ { pos, hunt_index, render_index } ] — the examinable rocks of the hunt
-var _goal_active := false
 # THE HEDGE MAZE: a "reach_center" goal. Reaching the centre plaza pays coins (server-decides,
 # gated on the goal type) and the way home is the portal there; a Return button bails out anytime.
 var _maze_active := false        # true in a world whose goal.type is "reach_center"
@@ -113,24 +115,7 @@ var _return_portal := ""
 var _return_shown := false
 var _home_world := ""  # where this world's portals (incl. the completion one) lead back to
 var _home_portal := ""
-var _flip_budget := 0  # max rocks the player may turn over this hunt (0 = unlimited); from goal.flip_budget
-var _flips_left := 0   # rocks remaining in the budget, shown on the goal label
-var _hunt_over := false  # latched once the hunt ends (won or run out) so it resolves only once
-var _completion_hint := ""  # the hint shown when the hunt ended, so the coin reward can append to it
-# Detector tuning (companion.json "detector"), cached from the companion at setup. When a hidden
-# salamander is within (bond-scaled) sense range and the cooldown has elapsed, the companion stops
-# and points at it for a couple seconds, then cools down — points more often the deeper the bond.
-var _sense_low := 70.0    # sense range (px) at zero bond — short when fresh
-var _sense_high := 200.0  # sense range (px) at full bond — long when bonded
-var _point_cooldown_low := 9.0   # seconds between points at zero bond (rare)
-var _point_cooldown_high := 2.0  # seconds between points at full bond (frequent)
-var _point_hold_seconds := 2.0   # how long it stops and holds a point
-# Point-event state machine (driven each frame in _update_hints).
-var _point_active := false       # true while the companion is holding a point
-var _point_hold_left := 0.0      # seconds remaining in the current point hold
-var _point_cd_left := 0.0        # seconds until the next point may fire
-var _point_target := Vector2.ZERO  # world pos the companion is pointing at
-var _point_target_hi := -1       # hunt_index of the pointed rock (to end early if it gets flipped)
+var _completion_hint := ""  # the hint shown when the maze ended, so the coin reward can append to it
 var _transitioning := false  # true once a portal transition's fade has begun
 # The content etag of the spec we actually BUILT this scene from (Net.cached_etag at build time), or
 # "" if we haven't built yet (still on the loading screen). Lets _on_world_spec_arrived tell "first
@@ -198,9 +183,14 @@ func _build_world(data: Dictionary) -> void:
 	_companion.set_style(_style)
 	_companion.setup(_player)
 
+	# Spin up the per-mechanic directors and hand each the scene refs it drives. Created before
+	# _setup_contents so they can lay out their own content (e.g. the hunt's rocks). Children of this
+	# node, so their Net connections are auto-dropped when the scene reloads on a world hop.
+	_create_directors()
+
 	# If this world carries a salamander-hunt goal, lay it out (fresh + random each visit) and
 	# fold its rocks — and this world's portals — into data["interactables"] so world_art draws
-	# them. Populates _hunt, _rocks and _portals; leaves worlds without a goal/portals untouched.
+	# them. Populates the hunt, its rocks and _portals; leaves worlds without a goal/portals untouched.
 	_setup_contents(data, arrival_id)
 
 	# Spawn beside the arrival portal if we travelled here, else at the world's own spawn points.
@@ -327,19 +317,55 @@ func _build_world(data: Dictionary) -> void:
 	_world_built = true
 
 
+## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
+## A child is freed with this node on a world hop, which auto-drops its Net signal connections — so a
+## fresh scene gets fresh directors with no stale wiring carried over.
+func _create_directors() -> void:
+	_hunt_dir = HuntDirector.new()
+	add_child(_hunt_dir)
+	_hunt_dir.setup(self, _companion, _world_art, _player)
+
+
+# ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
+# public so each director can stay focused on its own mechanic and lean on the controller for the
+# things that are genuinely world-wide (the hint line, the goal HUD, portals, the wallet). ──
+
+## Show a hint at full opacity (the directors' one channel to the hint line).
+func show_hint(text: String) -> void:
+	_show_hint(text)
+
+
+## Set the goal HUD label's text (the hunt's progress / the maze's banner).
+func set_goal_label_text(text: String) -> void:
+	_goal_label.text = text
+
+
+## Show or hide the goal HUD label.
+func show_goal_label(shown: bool) -> void:
+	_goal_label.visible = shown
+
+
+## A small celebratory pop of the goal counter (the hunt pops it on each find).
+func bounce_goal() -> void:
+	_goal_label.scale = Vector2(1.25, 1.25)
+	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(_goal_label, "scale", Vector2.ONE, 0.28)
+
+
+## Adopt a new wallet balance pushed by a server reward (so the shop is current next time it opens).
+func set_wallet_balance(balance: int) -> void:
+	_shop_balance = balance
+
+
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
 ## any) and the portals into data["interactables"] so world_art draws them, and build the
 ## runtime lists the controller acts on — _interactables (examinable: props + rocks), _portals
-## (walk-through), _rocks, and the companion's points of interest. Props keep their original
-## index (== their render index in world_art); rocks then portals are appended after. The
+## (walk-through; the HuntDirector owns the rocks themselves), and the companion's points of interest.
+## Props keep their original index (== their render index in world_art); rocks then portals are appended after. The
 ## companion is given props as POIs but NOT rocks: it reacts to a salamander you uncover, but is
 ## never led to the rocks (the search stays yours). arrival_id disarms the portal we arrived at.
 func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_interactables.clear()
 	_portals.clear()
-	_rocks.clear()
-	_hunt = null
-	_goal_active = false
 	_maze_active = false
 	_maze_reached = false
 	_maze_idle = 0.0
@@ -371,26 +397,11 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		poi_meta.append({ "pos": entry["pos"], "id": prop_id, "tags": entry["tags"] })
 	_companion.set_points_of_interest(poi, poi_meta)
 
-	# The salamander hunt: hide its salamanders + decoys among the rocks (fresh, random each
-	# visit) and make each rock an examinable interactable world_art can turn over.
+	# The salamander hunt: hand its layout to the HuntDirector, which hides the salamanders + decoys
+	# among the rocks (fresh, random each visit) and folds each rock into `combined` (so world_art
+	# draws it) and _interactables (so it can be turned over). A no-op in worlds without the goal.
 	var goal: Dictionary = data.get("goal", {})
-	var rock_defs: Array = data.get("rocks", [])
-	if String(goal.get("type", "")) == "find_salamanders" and not rock_defs.is_empty():
-		_goal_active = true
-		_hunt_over = false
-		_flip_budget = int(goal.get("flip_budget", 0))
-		_flips_left = _flip_budget
-		_cache_detector_tuning()
-		_hunt = SalamanderHunt.new()
-		var rng := RandomNumberGenerator.new()
-		rng.randomize()
-		_hunt.setup(rock_defs.size(), int(goal.get("count", 10)), goal.get("decoys", []), int(goal.get("decoy_count", 0)), rng, _flip_budget)
-		for ri in rock_defs.size():
-			var rpos := WorldData.to_vec2(rock_defs[ri])
-			var render_index := combined.size()
-			combined.append({ "id": "rock_%d" % ri, "type": "rock", "position": rock_defs[ri], "color": [0.60, 0.60, 0.56], "label": "a mossy rock", "tags": ["stone"] })
-			_rocks.append({ "pos": rpos, "hunt_index": ri, "render_index": render_index })
-			_interactables.append({ "pos": rpos, "label": "a mossy rock", "id": "rock_%d" % ri, "tags": ["stone"], "kind": "rock", "render_index": render_index, "hunt_index": ri })
+	_hunt_dir.setup_hunt(goal, data.get("rocks", []), combined, _interactables)
 
 	# The hedge maze: a "reach_center" goal. We only need the centre + radius here to notice when the
 	# player reaches the heart (see _process); the coin reward itself is decided + minted server-side.
@@ -441,31 +452,14 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	if data.has("companion"):
 		_companion.apply_config_overrides(data["companion"])
 
-	if _goal_active:
+	if _hunt_dir.is_active():
 		_goal_label.visible = true
-		_set_goal_text(0, int(goal.get("count", 10)))
+		_hunt_dir.show_initial_goal()
 	elif _maze_active:
 		_goal_label.visible = true
 		_goal_label.text = String(goal.get("label", "Find the heart of the maze"))
 	else:
 		_goal_label.visible = false
-
-
-## Cache the companion's presentation-only "detector" tuning (sense range + point cooldown/hold by
-## bond) so _update_hints can drive the point-event machine without re-reading the config each frame.
-## Defaults keep it working if the block is absent. Seeds the first cooldown to the long (fresh)
-## value so the companion never points on the very first frame of a fresh load.
-func _cache_detector_tuning() -> void:
-	var det: Dictionary = _companion.detector_cfg()
-	_sense_low = float(det.get("sense_range_low", 70.0))
-	_sense_high = float(det.get("sense_range_high", 200.0))
-	_point_cooldown_low = float(det.get("point_cooldown_low", 9.0))
-	_point_cooldown_high = float(det.get("point_cooldown_high", 2.0))
-	_point_hold_seconds = float(det.get("point_hold_seconds", 2.0))
-	_point_active = false
-	_point_hold_left = 0.0
-	_point_target_hi = -1
-	_point_cd_left = _point_cooldown_low
 
 
 ## Put the player and companion down: beside the named arrival portal if we travelled here
@@ -615,7 +609,7 @@ func _process(delta: float) -> void:
 
 	# Walk-through portals, the companion's subtle salamander glance, and the Ruin's ward referee.
 	_update_portals(delta)
-	_update_hints(delta)
+	_hunt_dir.update_detector(delta)
 	_update_maze_hint(delta)
 	_update_ruin(delta)
 	_update_gloom(delta)
@@ -764,7 +758,7 @@ func _try_interact() -> void:
 		return
 	var entry: Dictionary = _interactables[index]
 	if String(entry["kind"]) == "rock":
-		_examine_rock(entry)
+		_hunt_dir.examine_rock(entry)
 		return
 	if String(entry["kind"]) == "shopkeeper":
 		_open_shop(entry)
@@ -1369,69 +1363,11 @@ func _on_shop_closed() -> void:
 		_hint.text = ""
 
 
-## Turn over a rock: ask the hunt what's hidden under it (this spends a flip from the budget),
-## reveal it (world_art tips the rock and shows the find), let the companion appraise what
-## surfaced, tick the counter, and resolve the hunt if this flip won it or spent the last flip.
-func _examine_rock(entry: Dictionary) -> void:
-	if _hunt == null or _hunt_over:
-		return
-	var result: Dictionary = _hunt.examine(int(entry["hunt_index"]))
-	if bool(result["already_examined"]):
-		return
-	var kind := String(result["kind"])
-	_world_art.reveal_rock(int(entry["render_index"]), kind)
-	# Let the companion feel about what surfaced — high appeal for a salamander, mild for a decoy,
-	# little for bare sand. A kind-keyed id so repeated finds habituate gently rather than each
-	# rock being a brand-new wonder.
-	_companion.notify_interaction(entry["pos"], "rock_" + kind, result["tags"])
-	_show_hint("You lift the rock: %s" % result["label"])
-	# Tick the counter every flip so the dwindling flip budget is always legible; pop it on a find.
-	_flips_left = int(result["flips_remaining"])
-	_set_goal_text(int(result["found"]), int(result["total"]))
-	if kind == "salamander":
-		_bounce_goal_label()
-	# Resolve the hunt at most once. A win beats run-out: out_of_flips() already excludes the
-	# flip that finds the last salamander, so the order here is just belt-and-suspenders.
-	if bool(result["newly_complete"]):
-		_on_hunt_won(entry["pos"], int(result["found"]))
-	elif bool(result["out_of_flips"]):
-		_on_hunt_run_out(entry["pos"], int(result["found"]))
-
-
-## Won the hunt — all salamanders found. Open a way home and celebrate, with an extra flourish for
-## a flawless run (every flip a salamander, none wasted) — the reward for trusting your companion.
-## Claim the coin reward from the server; the amount it pays appends to this hint via _on_hunt_reward.
-func _on_hunt_won(at: Vector2, found: int) -> void:
-	_hunt_over = true
-	_open_completion_portal(at)
-	if _flip_budget > 0 and _hunt.flips_used == found:
-		_completion_hint = "A perfect hunt — every flip a salamander! A portal shimmers open just up the bank."
-	else:
-		_completion_hint = "All ten salamanders found! A portal shimmers open just up the bank."
-	_show_hint(_completion_hint)
-	Net.claim_hunt_reward(found)
-
-
-## Ran out of flips before finding them all — no hard loss. Flip every rock still face-down so the
-## player sees what they missed (dimmed), open the way home, and gently invite them back: as the
-## bond deepens, the companion's tell sharpens and the next visit goes better.
-func _on_hunt_run_out(at: Vector2, found: int) -> void:
-	_hunt_over = true
-	for r in _rocks:
-		var hi := int(r["hunt_index"])
-		if not _hunt.is_examined(hi):
-			_world_art.reveal_rock(int(r["render_index"]), _hunt.content_kind(hi), true)
-	_open_completion_portal(at)
-	_completion_hint = "Out of flips. Here's what the river was hiding — come back and let your companion help you find them."
-	_show_hint(_completion_hint)
-	# Even a partial hunt can earn a few coins (six or more); the server decides — see _on_hunt_reward.
-	Net.claim_hunt_reward(found)
-
-
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
 ## player needn't trek all the way back to the entry portal. Leads where this world's portals
-## lead (the Vale). Serves both terminal states (a win and a run-out).
-func _open_completion_portal(at: Vector2) -> void:
+## lead (the Vale). Serves both terminal states (a win and a run-out). Part of the host seam — the
+## HuntDirector calls this once its goal resolves.
+func open_completion_portal(at: Vector2) -> void:
 	var pos := at + Vector2(46, -28)
 	var render_index := _world_art.add_interactable(pos, Color(0.74, 0.66, 0.96), "portal")
 	_portals.append({
@@ -1472,84 +1408,6 @@ func _begin_transition(portal: Dictionary) -> void:
 	tw.tween_callback(func() -> void: WorldRouter.go_to(String(portal["target_world"]), String(portal["target_portal"])))
 
 
-## The companion as a living salamander DETECTOR — the heart of the hunt. A DISCRETE-EVENT machine,
-## not a continuous readout: when a hidden, un-found salamander is within the companion's (bond-scaled)
-## sense range and the cooldown has elapsed, the companion STOPS and points at it at full strength for
-## a couple seconds (the view holds it still while pointing), then releases and cools down. The cooldown
-## scales with bond — a fresh companion points rarely, a bonded one often — so the help you get IS the
-## relationship. Presentation only: this reads the hunt's truth but feeds it solely to the companion's
-## BODY (point_at), never its brain, so the companion still never *knows* where the salamanders are.
-## Decoys/empties are never sense-able, keeping the tell honest.
-func _update_hints(delta: float) -> void:
-	if not _goal_active or _hunt == null:
-		return
-	if _hunt_over:
-		if _point_active:
-			_point_active = false
-			_point_target_hi = -1
-		_companion.point_at(Vector2.ZERO, 0.0)  # hunt's done — relax the pose
-		return
-	var bond := _companion.bond_value()
-
-	# Holding a point: keep it full-strength until the timer runs out (or the player flips the very
-	# rock it's pointing at), then release and roll the next cooldown, shorter the deeper the bond.
-	if _point_active:
-		_point_hold_left -= delta
-		if _point_target_hi >= 0 and _hunt.is_examined(_point_target_hi):
-			_point_hold_left = 0.0
-		if _point_hold_left <= 0.0:
-			_point_active = false
-			_point_target_hi = -1
-			_point_cd_left = lerpf(_point_cooldown_low, _point_cooldown_high, bond)
-			_companion.point_at(Vector2.ZERO, 0.0)
-		else:
-			_companion.point_at(_point_target, 1.0)
-		return
-
-	# Cooling down between points — stand easy.
-	if _point_cd_left > 0.0:
-		_point_cd_left = maxf(0.0, _point_cd_left - delta)
-		return
-
-	# Ready: if a sense-able salamander is near, start a point hold. Otherwise leave the cooldown at
-	# zero so it fires the instant one comes into range (the companion's closeness, set by bond, is
-	# what decides how often that happens).
-	var sense := lerpf(_sense_low, _sense_high, bond)
-	var best := Vector2.ZERO
-	var best_d := sense
-	var best_hi := -1
-	for r in _rocks:
-		var hi := int(r["hunt_index"])
-		if _hunt.is_examined(hi):
-			continue
-		if _hunt.content_kind(hi) != "salamander":
-			continue
-		var d := _companion.position.distance_to(r["pos"])
-		if d <= best_d:
-			best_d = d
-			best = r["pos"]
-			best_hi = hi
-	if best_hi >= 0:
-		_point_active = true
-		_point_hold_left = _point_hold_seconds
-		_point_target = best
-		_point_target_hi = best_hi
-		_companion.point_at(best, 1.0)
-
-
-func _set_goal_text(found: int, total: int) -> void:
-	if _flip_budget > 0:
-		_goal_label.text = "Salamanders  %d / %d\nFlips left  %d" % [found, total, _flips_left]
-	else:
-		_goal_label.text = "Salamanders  %d / %d" % [found, total]
-
-
-## A small celebratory pop of the counter each time you find one.
-func _bounce_goal_label() -> void:
-	_goal_label.scale = Vector2(1.25, 1.25)
-	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(_goal_label, "scale", Vector2.ONE, 0.28)
-
-
 ## Index of the closest examinable interactable within range, or -1 if none. Already-searched
 ## rocks are skipped, so a turned-over rock no longer prompts "Examine"; once the hunt is over
 ## (won or run out) no rock prompts at all — the search is finished, the way home is open.
@@ -1558,7 +1416,7 @@ func _nearest_interactable() -> int:
 	var best_dist := INTERACT_RANGE
 	for i in _interactables.size():
 		var e: Dictionary = _interactables[i]
-		if String(e.get("kind", "prop")) == "rock" and _hunt != null and (_hunt_over or _hunt.is_examined(int(e["hunt_index"]))):
+		if String(e.get("kind", "prop")) == "rock" and _hunt_dir.should_skip_rock(int(e["hunt_index"])):
 			continue
 		var d := _player.position.distance_to(e["pos"])
 		if d <= best_dist:
@@ -1588,7 +1446,6 @@ func _setup_net() -> void:
 	Net.economy_loaded.connect(_on_economy_loaded)
 	Net.purchase_succeeded.connect(_on_purchase_succeeded)
 	Net.purchase_failed.connect(_on_purchase_failed)
-	Net.hunt_reward.connect(_on_hunt_reward)
 	Net.maze_reward.connect(_on_maze_reward)
 	Net.ward_state_received.connect(_on_ward_state)
 	Net.disconnected.connect(_on_disconnected)
@@ -1740,16 +1597,6 @@ func _on_purchase_failed(item_def_id: int, reason: String) -> void:
 	if _shop != null:
 		_shop.apply_failure(item_def_id, reason)
 	_show_hint(_purchase_failure_text(reason))
-
-
-## The server resolved our salamander-hunt reward. Adopt the new wallet balance (so it's current next
-## time we open the shop), and — if it actually paid out — append the earned coins to the completion
-## hint. Below the reward threshold (fewer than six found) the amount is 0 and the hint is left alone.
-func _on_hunt_reward(_found: int, amount: int, balance: int) -> void:
-	_shop_balance = balance
-	if amount > 0 and _completion_hint != "":
-		var coins := "coin" if amount == 1 else "coins"
-		_show_hint("%s  You earned %d %s!" % [_completion_hint, amount, coins])
 
 
 ## Reached the heart of the hedge maze. Latch it (so it fires once this visit), celebrate, and claim

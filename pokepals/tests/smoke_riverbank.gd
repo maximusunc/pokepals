@@ -43,9 +43,9 @@ func _process(_delta: float) -> bool:
 	var fails := 0
 
 	# The hunt was laid out: 10 salamanders hidden over the riverbank's 24 rocks.
-	fails += _check(_world._goal_active, "goal is active in the riverbank")
-	fails += _check(_world._hunt != null and _world._hunt.total == 10, "hunt hides 10 salamanders")
-	fails += _check(_world._rocks.size() == 24, "24 rocks were laid out (got %d)" % _world._rocks.size())
+	fails += _check(_world._hunt_dir._goal_active, "goal is active in the riverbank")
+	fails += _check(_world._hunt_dir._hunt != null and _world._hunt_dir._hunt.total == 10, "hunt hides 10 salamanders")
+	fails += _check(_world._hunt_dir._rocks.size() == 24, "24 rocks were laid out (got %d)" % _world._hunt_dir._rocks.size())
 
 	# The entry portal exists, and the player arrived beside it (not back in the Vale).
 	var entry := _find_portal("riverbank_entry")
@@ -59,17 +59,17 @@ func _process(_delta: float) -> bool:
 	# A flip budget caps how many rocks you may turn over — so flipping all 24 is no longer the
 	# winning play. Flip exactly the salamander rocks (peeking at the hidden truth, as a perfect
 	# companion-read would lead you to): all ten, within the 15-flip budget, completing the hunt.
-	fails += _check(_world._flip_budget > 0, "the riverbank hunt has a flip budget (%d)" % _world._flip_budget)
+	fails += _check(_world._hunt_dir._flip_budget > 0, "the riverbank hunt has a flip budget (%d)" % _world._hunt_dir._flip_budget)
 	var found_salamanders := 0
 	for entry_i in _world._interactables:
-		if String(entry_i.get("kind", "")) == "rock" and _world._hunt.content_kind(int(entry_i["hunt_index"])) == "salamander":
-			var before: int = _world._hunt.found
-			_world._examine_rock(entry_i)
-			if _world._hunt.found > before:
+		if String(entry_i.get("kind", "")) == "rock" and _world._hunt_dir._hunt.content_kind(int(entry_i["hunt_index"])) == "salamander":
+			var before: int = _world._hunt_dir._hunt.found
+			_world._hunt_dir.examine_rock(entry_i)
+			if _world._hunt_dir._hunt.found > before:
 				found_salamanders += 1
 	fails += _check(found_salamanders == 10, "flipping the salamander rocks found 10 salamanders (got %d)" % found_salamanders)
-	fails += _check(_world._hunt.is_complete(), "the hunt reports complete")
-	fails += _check(_world._hunt.flips_used == 10, "a perfect read used exactly 10 flips (got %d)" % _world._hunt.flips_used)
+	fails += _check(_world._hunt_dir._hunt.is_complete(), "the hunt reports complete")
+	fails += _check(_world._hunt_dir._hunt.flips_used == 10, "a perfect read used exactly 10 flips (got %d)" % _world._hunt_dir._hunt.flips_used)
 
 	# Completing the hunt opened a second way home.
 	var done_portal := _find_portal("riverbank_exit_complete")
