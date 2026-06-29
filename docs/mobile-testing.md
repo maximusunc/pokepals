@@ -95,14 +95,32 @@ already-installed app over Wi-Fi without a full Xcode rebuild.
 ## Android (no Mac needed — fastest path)
 
 1. Install **Android Studio** (you only need the SDK + platform tools it bundles).
-2. In Godot: **Editor → Editor Settings → Export → Android** and point the
-   **Android SDK Path** / **Debug Keystore** at your install. Godot can generate
-   a debug keystore for you (Editor Settings has a button), or:
+2. In Godot: **Editor → Editor Settings → Export → Android** (note: *Editor*
+   Settings, not Project Settings — these are machine-local). Set all three:
+   - **Android SDK Path** — from Android Studio: *Settings → Languages &
+     Frameworks → Android SDK*, the "Android SDK Location" at the top. Typical:
+     `~/Library/Android/sdk` (macOS), `~/Android/Sdk` (Linux).
+   - **Java SDK Path** — recent Godot requires a JDK to package the build. You
+     don't need to install one; Android Studio bundles it. Point at the folder
+     containing `bin/` and `lib/`:
+     - macOS: `/Applications/Android Studio.app/Contents/jbr/Contents/Home`
+     - Linux: `<android-studio-install>/jbr`
+     - Windows: `C:\Program Files\Android\Android Studio\jbr`
+
+     Verify (macOS): `ls "/Applications/Android Studio.app/Contents/jbr/Contents/Home/bin/java"`
+   - **Debug Keystore** (+ user/pass) — if you've built anything in Android
+     Studio, one exists at `~/.android/debug.keystore`. Otherwise generate it:
    ```sh
    keytool -keyalg RSA -genkeypair -alias androiddebugkey \
-     -keypass android -keystore debug.keystore -storepass android \
+     -keypass android -keystore ~/.android/debug.keystore -storepass android \
      -dname "CN=Android Debug,O=Android,C=US" -validity 9999 -deststoretype pkcs12
    ```
+   Then set **Debug Keystore User** = `androiddebugkey`, **Pass** = `android`.
+
+   > **Export Project greyed out?** The selected preset has a config error —
+   > read the red text at the bottom of the Export window. It names exactly which
+   > of the three paths above is missing (e.g. "A valid Java SDK path is required
+   > in Editor Settings").
 3. On the phone: enable **Developer options** (tap Build Number 7×) and turn on
    **USB debugging**. Plug it in and accept the trust prompt.
 4. In Godot, the phone appears in the top-right **one-click deploy** dropdown
