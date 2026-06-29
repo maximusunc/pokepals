@@ -92,7 +92,27 @@
 		{ "id": "dwall_r3", "type": "column", "position": [300, -860], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
 
 		{ "id": "inner_glimmer", "type": "crystal", "position": [60, -980], "color": [0.62, 0.80, 0.82], "label": "a faint glimmer returning to the dark", "tags": ["shiny", "light"] },
-		{ "id": "sanctum_flowers", "type": "wildflowers", "position": [-90, -960], "color": [0.74, 0.70, 0.86], "label": "flowers blooming where the light fell", "tags": ["flower", "fragrant"] }
+		{ "id": "sanctum_flowers", "type": "wildflowers", "position": [-90, -960], "color": [0.74, 0.70, 0.86], "label": "flowers blooming where the light fell", "tags": ["flower", "fragrant"] },
+
+		{ "id": "wall_l6", "type": "column", "position": [-360, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "wall_l7", "type": "column", "position": [-420, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "wall_r6", "type": "column", "position": [360, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "wall_r7", "type": "column", "position": [420, 40], "color": [0.52, 0.54, 0.50], "label": "a fallen column", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+
+		{ "id": "rubble_l4", "type": "column", "position": [-360, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_l5", "type": "column", "position": [-420, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_r4", "type": "column", "position": [360, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "rubble_r5", "type": "column", "position": [420, -300], "color": [0.50, 0.50, 0.46], "label": "a heap of rubble", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+
+		{ "id": "cwall_l4", "type": "column", "position": [-360, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_l5", "type": "column", "position": [-420, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_r4", "type": "column", "position": [360, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "cwall_r5", "type": "column", "position": [420, -580], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+
+		{ "id": "dwall_l4", "type": "column", "position": [-360, -860], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "dwall_l5", "type": "column", "position": [-420, -860], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "dwall_r4", "type": "column", "position": [360, -860], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 },
+		{ "id": "dwall_r5", "type": "column", "position": [420, -860], "color": [0.50, 0.50, 0.46], "label": "fallen stone", "tags": ["stone", "made"], "solid": true, "collision_radius": 26 }
 	],
 	"_ruin_comment": "The pair-operated WARDS, server-authoritative (shared). A ward links found+occupied → open (latched). threshold_gate: a buried PLATE the search uncovers → the slab. warren_passage: the TRUE nook (its 'slab') among 'decoys' the nose dismisses. cistern_light: a LIGHT-ward — it has a 'source' (the ember) and a 'brazier_id'/'murals'. The client treats KINDLING the ember (examining it) as the ward's 'uncover' (found), then on Go look the companion CARRIES the mote from the source to the plate (the brazier); arriving there is the 'occupy' (delivery) that opens the gate, lights the brazier, reveals the murals, and lifts the dark. The server only tracks found/open; the kindle, carry, murals and gloom are all client-side.",
 	"ruin": {
