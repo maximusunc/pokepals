@@ -12,6 +12,7 @@ var _bounds := Rect2()
 var _ponds: Array = []     # [ { center: Vector2, radius: float, color: Color } ]
 var _river: Dictionary = {}  # { rect: Rect2, color: Color, rim: Color } — a long water band, or empty
 var _paths: Array = []     # [ { from: Vector2, to: Vector2, color: Color } ]
+var _hedges: Array = []    # [ { a: Vector2, b: Vector2, t: float } ] — the maze's tall hedge walls
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
 var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
@@ -80,6 +81,11 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_paths.clear()
 	for p in data.get("paths", []):
 		_paths.append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]), "color": WorldData.to_color(p["color"]) })
+
+	# Hedge walls (the maze): segments with a thickness, drawn as tall rounded green walls.
+	_hedges.clear()
+	for h in data.get("hedges", []):
+		_hedges.append({ "a": WorldData.to_vec2(h["from"]), "b": WorldData.to_vec2(h["to"]), "t": float(h.get("thickness", 28.0)) })
 
 	# Flowers carry a per-element wind "phase" (seeded from position) so they don't all
 	# sway in lockstep — the breeze reads as organic, not a metronome.
@@ -277,6 +283,9 @@ func _draw() -> void:
 		draw_circle(fp, 4.0, f["color"])
 		draw_circle(fp, 1.6, Color(0.98, 0.92, 0.55))
 
+	# the maze's hedge walls (tall, rounded, slightly extruded so they read as height)
+	_draw_hedges()
+
 	# interactable props: contact shadow, optional warm glow, then the prop silhouette
 	for it in _interactables:
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
@@ -328,6 +337,29 @@ func _draw() -> void:
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
 	# companion can pass behind/in front of them by ground position. This pass renders
 	# only the always-underneath backdrop (ground, grass, flowers, paths, ponds, props).
+
+
+## The hedge maze, drawn in four whole-maze passes so the extruded "height" layers stay
+## consistent where runs cross: every contact shadow first, then every front face, then every
+## sunlit top (offset up), then a thin top highlight. Butt-capped lines meet inside the
+## perpendicular hedge at each junction, so long runs read as one continuous, solid wall.
+const HEDGE_HEIGHT := 14.0
+func _draw_hedges() -> void:
+	if _hedges.is_empty():
+		return
+	var lift := Vector2(0, -HEDGE_HEIGHT)
+	var shadow := Color(0.04, 0.06, 0.04, 0.20)
+	var front := Color(0.16, 0.30, 0.17)
+	var top := Color(0.27, 0.47, 0.25)
+	var hi := Color(0.41, 0.61, 0.34)
+	for h in _hedges:
+		draw_line(h["a"] + Vector2(5, 8), h["b"] + Vector2(5, 8), shadow, float(h["t"]) + 2.0)
+	for h in _hedges:
+		draw_line(h["a"], h["b"], front, float(h["t"]))
+	for h in _hedges:
+		draw_line(h["a"] + lift, h["b"] + lift, top, float(h["t"]))
+	for h in _hedges:
+		draw_line(h["a"] + lift + Vector2(0, -1), h["b"] + lift + Vector2(0, -1), hi, float(h["t"]) * 0.42)
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as

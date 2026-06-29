@@ -17,6 +17,7 @@ const VALE_ID := "11111111-1111-1111-1111-111111111111"
 const RIVERBANK_ID := "22222222-2222-2222-2222-222222222222"
 const BAZAAR_ID := "33333333-3333-3333-3333-333333333333"
 const RUIN_ID := "44444444-4444-4444-4444-444444444444"
+const MAZE_ID := "55555555-5555-5555-5555-555555555555"
 
 ## The world the next (or current) load should enter. Defaults to the Vale for a fresh boot.
 var current_world := VALE_ID

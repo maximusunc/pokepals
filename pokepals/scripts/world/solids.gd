@@ -81,6 +81,15 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 			solids.append(_pond_solid(world_data["pond"]))
 		for pd in world_data.get("ponds", []):
 			solids.append(_pond_solid(pd))
+	# Hedge walls (the maze): each is a SEGMENT solid — a line from "from" to "to" with a
+	# half-thickness radius (a capsule). resolve() pushes bodies off the nearest point of the
+	# segment, so one entry blocks a whole long hedge run rather than a string of circles.
+	for h in world_data.get("hedges", []):
+		solids.append({
+			"a": WorldData.to_vec2(h["from"]),
+			"b": WorldData.to_vec2(h["to"]),
+			"radius": float(h.get("thickness", 28.0)) * 0.5,
+		})
 	return solids
 
 
@@ -98,7 +107,9 @@ static func resolve(pos: Vector2, radius: float, solids: Array, bounds: Rect2, m
 	p = _clamp_bounds(p, r, bounds)
 	for _pass in 2:
 		for s in solids:
-			var center: Vector2 = s["center"]
+			# Circle solids carry a "center"; segment solids (hedges) carry "a"/"b" — for those
+			# the blocking point is the closest point on the segment to the body.
+			var center: Vector2 = Geometry2D.get_closest_point_to_segment(p, s["a"], s["b"]) if s.has("a") else s["center"]
 			var min_dist := r + float(s["radius"])
 			var d := p - center
 			var dist := d.length()
