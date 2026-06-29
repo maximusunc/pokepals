@@ -836,13 +836,13 @@ func _setup_ruin(data: Dictionary) -> void:
 			decoys.append(WorldData.to_vec2(d))
 		# Light-ward (Cistern): has a 'source' (the ember the player kindles) + a brazier + murals. The
 		# carry is a directed fetch (source → plate), not a search; kindling stands in for 'uncover'.
-		var is_light := wd.has("source")
+		var is_light: bool = wd.has("source")
 		var mural_idx: Array = []
 		for mid in wd.get("murals", []):
 			mural_idx.append(_render_index_for_id(String(mid)))
 		# Paired ward (the Paired Hall): two plates that must bear weight AT ONCE. Build the plate list
 		# (key → world pos + render index) for the hold logic and the per-plate glow feedback.
-		var is_paired := wd.has("plates")
+		var is_paired: bool = wd.has("plates")
 		var plates: Array = []
 		var occ_sent := {}
 		for pkey in wd.get("plates", []):
