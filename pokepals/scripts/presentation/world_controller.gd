@@ -15,12 +15,6 @@ const PET_RANGE := 56.0
 # step away before a just-used portal re-arms (so arriving on a portal doesn't bounce you back).
 const PORTAL_RANGE := 22.0
 const PORTAL_ARM_BUFFER := 18.0
-# Shared presence (Rung 3): how often we broadcast our own pair's transforms to peers. ~20 Hz is
-# plenty for a cozy walk-around — remote puppets interpolate between samples (see PlayerView).
-const NET_SEND_INTERVAL := 1.0 / 20.0
-const SAVE_INTERVAL := 15.0  # how often to push the companion/wardrobe to the server (sole save)
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
-const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
 # The world SPEC is fully SERVER-HOSTED: the client bundles NO world specs. Net fetches a world's spec
 # on join and caches it (in memory + on disk, keyed by a content etag); we build from that. A cold
@@ -57,6 +51,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 var _hunt_dir: HuntDirector
 var _maze_dir: MazeDirector
 var _shop_dir: ShopDirector
+var _presence_dir: PresenceDirector
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
@@ -117,15 +112,9 @@ var _day_loop := true
 var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sorted by t
 var _day_time := 0.0
 
-# --- Shared presence (Rung 3) -----------------------------------------------------------------
-# Each connected peer's PUPPET pair, keyed by Net peer id (the player's user_id): { peer_id: { player, companion } }.
-# Spawned on peer_joined, freed on peer_left, and driven entirely by transforms arriving over Net.
-# An identity packet that lands before its pair exists is stashed and applied the moment it spawns.
-var _remote_pairs: Dictionary = {}
-var _pending_identity: Dictionary = {}
-var _bounds_rect := Rect2()  # the world's walkable bounds, kept to CLAMP untrusted remote positions
-var _net_accum := 0.0        # accumulates toward the next NET_SEND_INTERVAL broadcast
-var _save_accum := 0.0       # accumulates toward the next server SAVE_INTERVAL push
+# The world's walkable bounds, computed at build. Shared: the camera frames to it, the Ruin rebuilds
+# colliders against it, and the PresenceDirector clamps untrusted remote positions to it.
+var _bounds_rect := Rect2()
 
 
 func _ready() -> void:
@@ -183,6 +172,7 @@ func _build_world(data: Dictionary) -> void:
 	var bounds_rect := Rect2(bmin, bmax - bmin)
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
+	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
 
 	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
 	# props, great-trees, ponds) and hand it to both characters to collide against. The
@@ -302,6 +292,10 @@ func _create_directors() -> void:
 	_shop_dir = ShopDirector.new()
 	add_child(_shop_dir)
 	_shop_dir.setup(self, _companion, _world_art, _scenery, _shop, _style)
+
+	_presence_dir = PresenceDirector.new()
+	add_child(_presence_dir)
+	_presence_dir.setup(_player, _companion, _scenery, _style)
 
 
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
@@ -582,8 +576,8 @@ func _process(delta: float) -> void:
 	_update_gloom(delta)
 
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
-	_broadcast_presence(delta)
-	_push_save_periodic(delta)
+	_presence_dir.broadcast(delta)
+	_presence_dir.push_save_periodic(delta)
 
 
 ## Gently fade the touch Examine button in or out as the player nears a prop, so
@@ -645,10 +639,10 @@ func _set_leave_visible(show_button: bool) -> void:
 
 ## Leave the session on purpose. Persist the companion one last time (the graceful close in
 ## Net.leave flushes it), then drop the link — which surfaces as disconnected() and brings the
-## lobby gate back up, ready to reconnect. The remote puppets are cleaned up by _on_disconnected.
+## lobby gate back up, ready to reconnect. The remote puppets are cleaned up by the PresenceDirector.
 func _on_leave_pressed() -> void:
 	if Net.is_active():
-		_push_save()
+		_presence_dir.push_save()
 	Net.leave()
 
 
@@ -1085,7 +1079,7 @@ func _nearest_plate_key(w: Dictionary, from: Vector2, skip_wedged := false) -> S
 ## (≥2 players here): the full waking — the old two glimpsed for a moment. The hint carries it; the door
 ## itself is opened by _open_ward.
 func _wake_paired_hall(w: Dictionary) -> void:
-	var present := 1 + _remote_pairs.size()
+	var present := 1 + _presence_dir.peer_count()
 	if present >= 2:
 		_show_hint("Light runs the whole length of the hall — and for a breath, two figures and their companions stand where you do, long ago. The great door swings wide.")
 	else:
@@ -1346,34 +1340,25 @@ func _nearest_interactable() -> int:
 
 
 # ============================================================================================
-# SHARED PRESENCE (Rung 3) — the game-side half of multiplayer: "me vs them". This decides WHAT
-# to send (our pair's transforms + a one-time identity) and turns a peer's wire state into a
-# spawned, smoothed puppet pair. It talks only to the Net seam in plain dictionaries, so it
-# survives the planned transport swaps (ENet -> WebSockets -> authoritative server) untouched.
-# The local Player/Companion (from the scene) stay fully authoritative over themselves and keep
-# running their own input/brain; remotes are pure puppets, driven only by what arrives over Net.
+# NETWORK + SESSION — the controller's own Net wiring. Shared presence ("me vs them"), the save, and
+# the economy now live in their own directors (PresenceDirector / ShopDirector), which connect their
+# Net signals themselves. What's left here is world-scoped: the Ruin's shared ward state, entering the
+# world channel, and the cold-spec handshake (_show_loading / _on_world_spec_arrived).
 # ============================================================================================
 
-## Wire up to the Net seam: publish our identity once, and react to peers joining, moving, and
-## leaving. Safe to call always — none of it does anything until the player Hosts or Joins.
+## Wire up the controller's own Net seam: the Ruin's shared ward state, then enter this world's channel.
+## Shared presence + the save are owned by the PresenceDirector (it connected its own signals in setup);
+## here we just kick the join and let it re-dress from any in-session save. Safe to call always — none of
+## it does anything until the player Hosts or Joins.
 func _setup_net() -> void:
-	Net.set_local_identity(_local_identity())
-	Net.peer_joined.connect(_on_peer_joined)
-	Net.peer_left.connect(_on_peer_left)
-	Net.identity_received.connect(_on_identity_received)
-	Net.state_received.connect(_on_state_received)
-	Net.save_loaded.connect(_on_save_loaded)
 	Net.ward_state_received.connect(_on_ward_state)
-	Net.disconnected.connect(_on_disconnected)
 	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
 	# server sends back its canonical spec (cached by Net for next time). Queued until the socket is
 	# open, so this is safe at boot before the player has connected, and on every world hop.
 	Net.enter_world(WorldRouter.current_world)
 	# Hopping between worlds reloads this scene with a fresh placeholder companion; if we're
 	# already connected, re-dress it from the in-session save the server already gave us.
-	if Net.has_session_save():
-		var s := Net.session_save()
-		_apply_server_save(s.get("companion"), s.get("appearance"))
+	_presence_dir.apply_session_save_if_any()
 
 
 ## Cover the not-yet-built scene with the black fade and a gentle word while we wait for the server's
@@ -1416,174 +1401,10 @@ func _on_world_spec_arrived(world_id: String, _version: int, _spec: Dictionary) 
 		get_tree().reload_current_scene()
 
 
-## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
-## the player's worn look (already JSON) and the companion's resting-look floats (its grown self,
-## with no mind attached). The friend never receives our save, our brain, or our bond — only this.
-func _local_identity() -> Dictionary:
-	return {
-		"name": "Friend",
-		"appearance": _player.appearance_dict(),
-		"companion_look": _companion.resting_look_payload(),
-	}
-
-
-## Stream our local pair's transforms to peers at ~20 Hz. The packet stays tiny: our player's
-## position+facing and our companion's position+attention (the Net seam marshals the Vector2s for
-## the wire). A no-op until connected (Net.broadcast_state guards it), so it's harmless offline.
-func _broadcast_presence(delta: float) -> void:
-	if not Net.is_active():
-		return
-	_net_accum += delta
-	if _net_accum < NET_SEND_INTERVAL:
-		return
-	_net_accum = 0.0
-	Net.broadcast_state({
-		"p": _player.position,
-		"pf": _player.facing(),
-		"c": _companion.position,
-		"cl": _companion.look_dir(),
-	})
-
-
-## Periodically push our companion + wardrobe to the server (the sole save). A no-op until
-## connected; the world calls it every frame.
-func _push_save_periodic(delta: float) -> void:
-	if not Net.is_active():
-		return
-	_save_accum += delta
-	if _save_accum < SAVE_INTERVAL:
-		return
-	_save_accum = 0.0
-	_push_save()
-
-
-## Send the current companion self + worn wardrobe up as the canonical save.
-func _push_save() -> void:
-	Net.push_save(_companion.self_dict(), _player.appearance_dict())
-
-
-## Our canonical save arrived from the server (or nulls for a brand-new player).
-func _on_save_loaded(companion, appearance) -> void:
-	_apply_server_save(companion, appearance)
-
-
-## Adopt a loaded save; if we're a brand-new player (no stored save), seed the server with the
-## placeholder companion + default look we started with, so next time it loads.
-func _apply_server_save(companion, appearance) -> void:
-	var had_save := false
-	if companion is Dictionary and not (companion as Dictionary).is_empty():
-		_companion.replace_self(companion)
-		had_save = true
-	if appearance is Dictionary and not (appearance as Dictionary).is_empty():
-		_player.apply_appearance(appearance)
-		had_save = true
-	if not had_save:
-		_push_save()
-	# Our relayed presentation identity may have changed (loaded look) — refresh it for peers.
-	Net.set_local_identity(_local_identity())
-
-
-## Persist on the ways a session can end — now pushed to the server instead of disk: window
-## close, app backgrounded, or this node leaving the tree (world hop / quit).
+## Persist on the ways a session can end — pushed to the server (the sole save): window close, app
+## backgrounded, or this node leaving the tree (world hop / quit). Delegated to the PresenceDirector,
+## which may not exist yet on a cold first visit (before the world is built), hence the guard.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
-		if Net.is_active():
-			_push_save()
-
-
-## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery
-## layer so they depth-sort with us and the trees. They're flagged remote BEFORE entering the tree
-## (set_remote → no input, no brain, no save). Any identity that beat them here is applied at once.
-func _on_peer_joined(peer_id: String) -> void:
-	if _remote_pairs.has(peer_id):
-		return
-	var rp := PLAYER_SCENE.instantiate() as PlayerView
-	rp.set_remote()
-	rp.name = "RemotePlayer_%s" % peer_id
-	var rc := COMPANION_SCENE.instantiate() as CompanionView
-	rc.set_remote()
-	rc.name = "RemoteCompanion_%s" % peer_id
-	rp.set_style(_style)
-	rc.set_style(_style)
-	_scenery.add_child(rp)
-	_scenery.add_child(rc)
-	# Start them where our own pair stands so they don't pop in from the origin; the first state
-	# packet snaps them to the truth a frame later. (Remotes never collide — their owner is.)
-	rp.position = _player.position
-	rc.position = _companion.position
-	rp.set_remote_state(_player.position, Vector2.DOWN)
-	rc.set_remote_state(_companion.position, Vector2.DOWN)
-	_remote_pairs[peer_id] = { "player": rp, "companion": rc }
-	if _pending_identity.has(peer_id):
-		_apply_remote_identity(peer_id, _pending_identity[peer_id])
-		_pending_identity.erase(peer_id)
-
-
-## A peer left: free its puppet pair and forget it. Clean despawn so a friend quitting simply
-## vanishes rather than freezing in place.
-func _on_peer_left(peer_id: String) -> void:
-	if _remote_pairs.has(peer_id):
-		var pair: Dictionary = _remote_pairs[peer_id]
-		(pair["player"] as Node).queue_free()
-		(pair["companion"] as Node).queue_free()
-		_remote_pairs.erase(peer_id)
-	_pending_identity.erase(peer_id)
-
-
-## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
-## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
-## reconnect doesn't leave the old ghosts behind). The lobby gate
-## reappears on its own (it also listens for disconnected()); our own player + companion stay put.
-func _on_disconnected() -> void:
-	for peer_id in _remote_pairs.keys():
-		var pair: Dictionary = _remote_pairs[peer_id]
-		(pair["player"] as Node).queue_free()
-		(pair["companion"] as Node).queue_free()
-	_remote_pairs.clear()
-	_pending_identity.clear()
-
-
-## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they
-## spawn (the packet can race ahead of peer_joined). Untrusted input — validated by the appliers.
-func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
-	if _remote_pairs.has(peer_id):
-		_apply_remote_identity(peer_id, payload)
-	else:
-		_pending_identity[peer_id] = payload
-
-
-func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
-	var pair: Dictionary = _remote_pairs[peer_id]
-	var appearance: Variant = payload.get("appearance", {})
-	if appearance is Dictionary:
-		(pair["player"] as PlayerView).apply_identity(appearance)
-	var look: Variant = payload.get("companion_look", {})
-	if look is Dictionary:
-		(pair["companion"] as CompanionView).apply_remote_look(look)
-
-
-## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped
-## to the world bounds, non-Vector2 junk is ignored, and the data can only move THIS peer's puppet —
-## never our avatar, never the save. The puppets interpolate toward it for smooth motion.
-func _on_state_received(peer_id: String, payload: Dictionary) -> void:
-	if not _remote_pairs.has(peer_id):
-		return
-	var pair: Dictionary = _remote_pairs[peer_id]
-	(pair["player"] as PlayerView).set_remote_state(_clamp_to_bounds(_as_vec2(payload.get("p"))), _as_vec2(payload.get("pf")))
-	(pair["companion"] as CompanionView).set_remote_state(_clamp_to_bounds(_as_vec2(payload.get("c"))), _as_vec2(payload.get("cl")))
-
-
-## Coerce an untrusted wire value to a Vector2, defaulting to zero for anything else — so a
-## malformed packet can never crash us or inject a wrong type into the rig.
-func _as_vec2(v: Variant) -> Vector2:
-	return v if v is Vector2 else Vector2.ZERO
-
-
-## Keep a remote position inside the walkable world, so a peer (honest or not) can never park its
-## puppet out in the void past the edges.
-func _clamp_to_bounds(p: Vector2) -> Vector2:
-	if _bounds_rect.size == Vector2.ZERO:
-		return p
-	return Vector2(
-		clampf(p.x, _bounds_rect.position.x, _bounds_rect.end.x),
-		clampf(p.y, _bounds_rect.position.y, _bounds_rect.end.y))
+		if _presence_dir != null:
+			_presence_dir.flush_save_on_exit()
