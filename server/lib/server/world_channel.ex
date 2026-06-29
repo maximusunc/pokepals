@@ -30,6 +30,10 @@ defmodule Server.WorldChannel do
   # the server alone decides the reward, mints it, and ledgers it — UGC/world code never touches this.
   @hunt_rewards %{10 => 10, 9 => 7, 8 => 5, 7 => 2, 6 => 1}
 
+  # What reaching the heart of the hedge maze pays out. Server-authoritative and honoured only in a
+  # world whose spec carries the "reach_center" goal, so it can't be claimed from anywhere else.
+  @maze_reward 10
+
   intercept ["presence_diff"]
 
   @impl true
@@ -208,6 +212,30 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Claim the reward for reaching the heart of the hedge maze. The SERVER decides the payout (a flat
+  # @maze_reward), mints it, and confirms the new balance — the same server-authoritative discipline as
+  # the hunt. Honoured only in a world whose spec carries the maze goal, so it can't be claimed
+  # elsewhere. (The client only sends this once per visit; even so, the grant is the maze's to make.)
+  def handle_in("maze_complete", _payload, socket) do
+    user_id = socket.assigns.user_id
+    amount = maze_reward_amount(socket.assigns.definition)
+
+    balance =
+      if amount > 0 do
+        case Economy.grant_currency(user_id, @shop_currency, amount,
+               txn_type: "reward",
+               context: %{"source" => "hedge_maze"}) do
+          {:ok, new_balance} -> new_balance
+          {:error, _reason} -> Economy.balance(user_id, @shop_currency)
+        end
+      else
+        Economy.balance(user_id, @shop_currency)
+      end
+
+    push(socket, "maze_reward", %{amount: amount, balance: balance, currency: @shop_currency})
+    {:noreply, socket}
+  end
+
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
 
   # The Ruin's ward defs from a world's spec (`ruin.wards`), or `[]` if it has no Ruin — what seeds the
@@ -221,6 +249,16 @@ defmodule Server.WorldChannel do
   defp hunt_reward_amount(definition, found) do
     if get_in(definition.spec, ["core", "goal", "type"]) == "find_salamanders" do
       Map.get(@hunt_rewards, found, 0)
+    else
+      0
+    end
+  end
+
+  # The maze payout, but only in a world whose spec carries the "reach_center" goal — elsewhere
+  # there's no maze to reward, so it's always 0.
+  defp maze_reward_amount(definition) do
+    if get_in(definition.spec, ["core", "goal", "type"]) == "reach_center" do
+      @maze_reward
     else
       0
     end

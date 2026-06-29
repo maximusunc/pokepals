@@ -60,6 +60,10 @@ signal purchase_failed(item_def_id: int, reason: String)
 ## The server resolved a salamander-hunt reward claim: how many we found, the coins it paid out (the
 ## SERVER decides the amount; 0 below the reward threshold), and our new wallet balance.
 signal hunt_reward(found: int, amount: int, balance: int)
+
+## The server resolved a hedge-maze reward claim: the coins it paid for reaching the centre (the
+## SERVER decides the amount, and only in a maze world), and our new wallet balance.
+signal maze_reward(amount: int, balance: int)
 ## The SHARED Ruin ward state for our current world arrived (on join, and whenever anyone's companion
 ## uncovers/weights a plate): an Array of { id, found, open }. The world layer renders the reveal /
 ## slab-raise from it — the server is the authority, so two players' companions converge on one truth.
@@ -272,6 +276,14 @@ func claim_hunt_reward(found: int) -> void:
 	_push_event("hunt_complete", { "found": found })
 
 
+## Tell the server we reached the heart of the hedge maze. The reward is decided + minted server-side
+## (only in a maze world); the outcome arrives back as maze_reward. A no-op until we've joined a world.
+func claim_maze_reward() -> void:
+	if not _can_send():
+		return
+	_push_event("maze_complete", {})
+
+
 ## Report that OUR companion's search uncovered a Ruin plate. The server marks the shared ward found
 ## and echoes the new ward state to everyone in the world (ward_state_received). A no-op until joined.
 func send_ward_uncover(ward_id: String) -> void:
@@ -473,6 +485,10 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 		"hunt_reward":
 			hunt_reward.emit(
 				int(payload.get("found", 0)),
+				int(payload.get("amount", 0)),
+				int(payload.get("balance", 0)))
+		"maze_reward":
+			maze_reward.emit(
 				int(payload.get("amount", 0)),
 				int(payload.get("balance", 0)))
 		"ward_state":

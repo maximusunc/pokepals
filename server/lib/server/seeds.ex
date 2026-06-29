@@ -14,7 +14,8 @@ defmodule Server.Seeds do
     %{world_id: "11111111-1111-1111-1111-111111111111", slug: "vale", name: "The Vale", file: "vale.json"},
     %{world_id: "22222222-2222-2222-2222-222222222222", slug: "riverbank", name: "The Riverbank", file: "riverbank.json"},
     %{world_id: "33333333-3333-3333-3333-333333333333", slug: "bazaar", name: "The Bazaar", file: "bazaar.json"},
-    %{world_id: "44444444-4444-4444-4444-444444444444", slug: "the-ruin", name: "The Ruin", file: "the-ruin.json"}
+    %{world_id: "44444444-4444-4444-4444-444444444444", slug: "the-ruin", name: "The Ruin", file: "the-ruin.json"},
+    %{world_id: "55555555-5555-5555-5555-555555555555", slug: "maze", name: "The Hedge Maze", file: "maze.json"}
   ]
 
   # The currency the bazaar shop charges in.

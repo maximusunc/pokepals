@@ -41,6 +41,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 @onready var _reset_button: Button = $UI/ResetButton
 @onready var _leave_button: Button = $UI/LeaveButton
 @onready var _seek_button: Button = $UI/SeekButton
+@onready var _return_button: Button = $UI/ReturnButton
 @onready var _debug: DebugOverlay = $DebugOverlay
 @onready var _debug_button: Button = $UI/DebugButton
 @onready var _day_tint: CanvasModulate = $DayTint
@@ -84,6 +85,17 @@ var _body_radius := 6.0
 var _collision_margin := 2.0
 var _rocks: Array = []  # [ { pos, hunt_index, render_index } ] — the examinable rocks of the hunt
 var _goal_active := false
+# THE HEDGE MAZE: a "reach_center" goal. Reaching the centre plaza pays coins (server-decides,
+# gated on the goal type) and the way home is the portal there; a Return button bails out anytime.
+var _maze_active := false        # true in a world whose goal.type is "reach_center"
+var _maze_center := Vector2.ZERO # the heart of the maze (world pos)
+var _maze_radius := 70.0         # how near counts as "reached"
+var _maze_reached := false       # latched once reached this visit, so the reward fires once
+# The Return-to-the-Vale escape hatch: where it sends you (from the spec's "return" block), or "" if
+# this world declares none (so the button stays hidden everywhere but the maze).
+var _return_world := ""
+var _return_portal := ""
+var _return_shown := false
 var _home_world := ""  # where this world's portals (incl. the completion one) lead back to
 var _home_portal := ""
 var _flip_budget := 0  # max rocks the player may turn over this hunt (0 = unlimited); from goal.flip_budget
@@ -262,6 +274,12 @@ func _build_world(data: Dictionary) -> void:
 	_seek_button.pressed.connect(_try_seek)
 	_joystick.add_exclusion(_seek_button)
 
+	# Top-left "Return to the Vale" button: an always-available escape hatch out of the maze (in case
+	# you get lost or bored). Faded in only in a world that declares a "return" target (see _process).
+	# Keep its taps off the movement thumbstick underneath.
+	_return_button.pressed.connect(_on_return_pressed)
+	_joystick.add_exclusion(_return_button)
+
 	# Dev-only companion/bond readout. On by default; the DBG button (and F3 on
 	# desktop) toggles it. Exclude its taps from the movement thumbstick underneath.
 	_debug.setup(_companion, _player)
@@ -306,6 +324,10 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_rocks.clear()
 	_hunt = null
 	_goal_active = false
+	_maze_active = false
+	_maze_reached = false
+	_return_world = ""
+	_return_portal = ""
 
 	var combined: Array = data.get("interactables", []).duplicate()
 
@@ -351,6 +373,21 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			_rocks.append({ "pos": rpos, "hunt_index": ri, "render_index": render_index })
 			_interactables.append({ "pos": rpos, "label": "a mossy rock", "id": "rock_%d" % ri, "tags": ["stone"], "kind": "rock", "render_index": render_index, "hunt_index": ri })
 
+	# The hedge maze: a "reach_center" goal. We only need the centre + radius here to notice when the
+	# player reaches the heart (see _process); the coin reward itself is decided + minted server-side.
+	if String(goal.get("type", "")) == "reach_center":
+		_maze_active = true
+		_maze_center = WorldData.to_vec2(goal.get("center", [0, 0]))
+		_maze_radius = float(goal.get("radius", 70.0))
+
+	# The Return-to-the-Vale escape hatch: a world may declare where its Return button leads.
+	var ret: Dictionary = data.get("return", {})
+	if ret.has("world"):
+		_return_world = String(ret["world"])
+		_return_portal = String(ret.get("portal", ""))
+		if ret.has("label"):
+			_return_button.text = String(ret["label"])
+
 	# Portals: walk-through doorways (not examinable). The one we arrived at starts DISARMED so
 	# we step OUT of it rather than straight back through. Remember where they lead "home" so a
 	# runtime completion portal can reuse it.
@@ -380,6 +417,9 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	if _goal_active:
 		_goal_label.visible = true
 		_set_goal_text(0, int(goal.get("count", 10)))
+	elif _maze_active:
+		_goal_label.visible = true
+		_goal_label.text = String(goal.get("label", "Find the heart of the maze"))
 	else:
 		_goal_label.visible = false
 
@@ -535,6 +575,14 @@ func _process(delta: float) -> void:
 	# Offer the way out only while we're actually in a session.
 	_set_leave_visible(Net.is_active())
 
+	# Offer the Return-to-the-Vale escape hatch in any world that declares one (the maze), while
+	# connected — so you can always bail out if you get lost.
+	_set_return_visible(_return_world != "" and Net.is_active())
+
+	# The hedge maze: the moment the player reaches the heart, claim the reward (once per visit).
+	if _maze_active and not _maze_reached and _player.position.distance_to(_maze_center) <= _maze_radius:
+		_on_maze_reached()
+
 	# "Go look" is offered only in a Ruin with a ward still to open.
 	_set_seek_visible(not _wards.is_empty() and _any_ward_unopened())
 
@@ -613,6 +661,33 @@ func _on_leave_pressed() -> void:
 	if Net.is_active():
 		_push_save()
 	Net.leave()
+
+
+## Gently fade the "Return to the Vale" button in while this world declares a return target (the
+## maze) and we're connected, out otherwise — mirrors the other contextual buttons.
+func _set_return_visible(show_button: bool) -> void:
+	if show_button == _return_shown:
+		return
+	_return_shown = show_button
+	if show_button:
+		_return_button.visible = true
+	var tween := create_tween()
+	tween.tween_property(_return_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: _return_button.visible = false)
+
+
+## The Return-to-the-Vale escape hatch: fade to black and travel back to the world/portal this world
+## declared (its "return" block). Reuses the portal transition latch so it can't double-fire with a
+## portal step. A no-op if there's no return target.
+func _on_return_pressed() -> void:
+	if _transitioning or _return_world == "":
+		return
+	_transitioning = true
+	_show_hint("You slip back to the Vale…")
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, 0.4)
+	tw.tween_callback(func() -> void: WorldRouter.go_to(_return_world, _return_portal))
 
 
 ## Start a fresh companion (immediate, no confirm — the button only appears once you
@@ -1486,6 +1561,7 @@ func _setup_net() -> void:
 	Net.purchase_succeeded.connect(_on_purchase_succeeded)
 	Net.purchase_failed.connect(_on_purchase_failed)
 	Net.hunt_reward.connect(_on_hunt_reward)
+	Net.maze_reward.connect(_on_maze_reward)
 	Net.ward_state_received.connect(_on_ward_state)
 	Net.disconnected.connect(_on_disconnected)
 	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
@@ -1642,6 +1718,26 @@ func _on_purchase_failed(item_def_id: int, reason: String) -> void:
 ## time we open the shop), and — if it actually paid out — append the earned coins to the completion
 ## hint. Below the reward threshold (fewer than six found) the amount is 0 and the hint is left alone.
 func _on_hunt_reward(_found: int, amount: int, balance: int) -> void:
+	_shop_balance = balance
+	if amount > 0 and _completion_hint != "":
+		var coins := "coin" if amount == 1 else "coins"
+		_show_hint("%s  You earned %d %s!" % [_completion_hint, amount, coins])
+
+
+## Reached the heart of the hedge maze. Latch it (so it fires once this visit), celebrate, and claim
+## the coin reward from the server — the amount it pays appends to this hint via _on_maze_reward. The
+## way home is the portal standing right here in the plaza; the Return button is the other way out.
+func _on_maze_reached() -> void:
+	_maze_reached = true
+	_goal_label.text = "The heart of the maze!"
+	_completion_hint = "You've reached the heart of the maze!"
+	_show_hint(_completion_hint)
+	Net.claim_maze_reward()
+
+
+## The server resolved our maze reward. Adopt the new wallet balance (so the shop is current next
+## time), and — if it paid out — append the earned coins to the celebration hint.
+func _on_maze_reward(amount: int, balance: int) -> void:
 	_shop_balance = balance
 	if amount > 0 and _completion_hint != "":
 		var coins := "coin" if amount == 1 else "coins"
