@@ -41,9 +41,29 @@ Two · *kith* (a bonded companion / the bond) · the Rite of Two (the passage).
 
 ## 2. The journey (space = story = pacing)
 
-The fix for "you just jump from one puzzle to the next" is **distance and descent**: you should
-travel *between* beats, and the travel should tell the story and turn the screw on mood. The
-world reads top-to-bottom as **outside → down → in → deep → and back into light**:
+The fix for "you just jump from one puzzle to the next" is **distance**, and the fix for "it all
+just goes north" is that the world is a **2D maze, not a shaft** — the true path *turns at every
+junction*, and "north" is sometimes a **dead end**, so you can't beeline and the side rooms
+actually matter. You travel *between* beats, the travel tells the story and turns the mood screw,
+and your heading keeps changing.
+
+**The true path, junction by junction:** you arrive in the wood (south) and head **N** into the
+mouth → **E** through the Gallery → **N** up into the Warren → **W** through the Rockfall → **N**
+into the Cistern → **W** into the Grove → **S** *down* onto the Hall of Two → **W** into the
+Sanctum. No leg repeats the last; there's a genuine **southward descent** onto the climax (you go
+*down* to the great door, not up); and the map folds back on itself rather than climbing a column.
+
+**Why you can't beeline:** at the **Threshold** the obvious way (straight on) is a walled-off
+trap, and at the **Warren** *north* dead-ends — the true way is a turn. Holding one direction
+strands you. So every junction has to be *read* (or the companion trusted).
+
+**The breadth lives in decoy spurs** hung off the *tempting wrong* turns — a collapsed cell, a
+shrine niche, a dead nook, a sealed niche, a flooded side-passage. Each is a short optional
+dead-end with a scrap of lore, so exploring is a real choice, not a detour you skip by
+pattern-matching "always north."
+
+The beats still run in the same authored order (the descent story and carving sequence are
+load-bearing); the maze just bends the *route* through them. As a sequence:
 
 | Beat | Space | Mood | Story it tells | Puzzle |
 |---|---|---|---|---|
@@ -60,21 +80,24 @@ world reads top-to-bottom as **outside → down → in → deep → and back int
 | **10. The Hall of Two** | The great door; two plates; the wedge. | Reverence / weight. | *Do what the last Warden could not.* | Two plates at once |
 | **11. The Waking** | Beyond the door: light returns; flowers; the way home. | Release. **Muted** (alone) or **full** (two pairs). | Solitude echoed, or togetherness restored. | — |
 
-**The in-betweens are the connective tissue, and each one is a *different kind* of space** —
-deliberately not three identical corridors. They share three jobs (turn the mood screw, hold one
-story carving, and make you *travel* between beats) but each does them with its own geometry and
-way of moving: you **walk among** the Gallery's columns, **weave between** the Rockfall's piles,
-and **skirt around** the Grove's pool under its shaft of light. The one genuinely *narrow* hallway
-is kept where it belongs — the **Entrance Hall** at the mouth (beat 3), the "creepy descent in."
-Each in-between darkens the descent another notch, except the Grove, which *lifts* it for a beat —
-the light returning just before the Hall.
+**The Gallery / Rockfall / Grove are also the *turns* of the maze, and each is a *different kind*
+of space** — deliberately not three identical corridors. They share three jobs (turn the mood
+screw, hold one story carving, and bend the route) but each does them with its own geometry and
+way of moving: you **walk among** the Gallery's columns (and turn N at its far end), **weave
+between** the Rockfall's piles (turning W), and **skirt around** the Grove's pool under its shaft
+of light (turning S, *down* to the Hall). The one genuinely *narrow* hallway is kept where it
+belongs — the **Entrance Hall** at the mouth (beat 3), the "creepy descent in." The gloom deepens
+by *progression* (not by literal compass direction, since the path turns), and the Grove *lifts*
+it for a beat — the light returning just before the Hall.
 
 ---
 
 ## 3. Mood & light (the descent as a dimmer)
 
-One continuous idea ties the space together: **light leaves you as you go down, and you bring it
-back at the end.** Implemented as **per-region ambient gloom** — each region declares how dark
+One continuous idea ties the space together: **light leaves you as you go *deeper*, and you bring
+it back at the end.** "Deeper" is by *progression*, not by literal compass `y` — the maze turns,
+so the dimmer keys off which region you've reached, not how far south you are. Implemented as
+**per-region ambient gloom** — each region declares how dark
 it is, and the screen eases toward that as you cross into it:
 
 - **The Wood:** bright, warm wash (gloom 0).
@@ -128,11 +151,21 @@ Animation polish (procedural, cheap, immersive):
 1. **Arrival reframe** *(done)* — the Wood, the Approach, the Mouth, the Entrance Hall;
    reposition the portal into the forest; per-region gloom; the first placeholder art (facade,
    stairs, carving, torch, roots) + dust/flicker; carving 1.
-2. **Deepen the descent** *(done)* — the rooms pulled apart and three **varied** in-betweens
-   dropped into the gaps (the Gallery of Two, the Rockfall, the Sunken Grove), each with its own
-   geometry and one carving; new placeholder art (`pool`, `light_shaft`); the grove lifts the
-   gloom for a beat before the climax. *(Wards/ids untouched — coords shifted rigidly with their room.)*
-3. **The waking** *(next)* — the light-bloom + the brighter sanctum on the Hall opening.
+2. **Deepen the descent** *(done)* — three **varied** in-betweens (the Gallery of Two, the
+   Rockfall, the Sunken Grove), each with its own geometry and one carving; new placeholder art
+   (`pool`, `light_shaft`); the grove lifts the gloom for a beat before the climax.
+3. **The maze** *(done)* — rebuilt the whole layout as a 2D maze: rooms tile a grid and share
+   walls, the true path turns every junction (N,E,N,W,N,W,**S**,W — a southward descent onto the
+   Hall), "north" dead-ends at the Threshold and Warren, and five **decoy spurs** hang off the
+   tempting wrong turns. Gloom now keys off *progression*. A flood-fill validator proves the
+   gates actually gate (closed → exit unreachable) and the path + every room/spur is reachable
+   when open. *(All four wards keep their ids/relationships; coords re-placed.)*
+4. **The waking** *(next)* — the light-bloom + the brighter sanctum on the Hall opening.
+
+> **Known placeholder seam:** the gate art (`slab`/`nook`/door) is still drawn for a horizontal
+> doorway; on the maze's vertical walls it reads as "a stone in the gap" rather than a framed
+> doorway. Purely cosmetic — the collision and the opening are correct — and it's on the list to
+> rotate when the real assets land.
 4. **Audio + Claude Design art swap** *(later)* — ambience, footsteps, the carving reveals; real
    assets over the placeholders.
 
