@@ -21,10 +21,14 @@ var wind_speed := 1.15
 var _time := 0.0
 
 
-func _process(delta: float) -> void:
-	# Each tree animates its own sway and redraws. Hundreds of these are cheap; if it
-	# ever isn't, a shared clock could be pushed in from the Scenery container instead.
-	_time += delta
+## The grove no longer self-animates: with hundreds of trees in a large world (the Ruin's
+## border ring alone is several hundred), one `_process` + `queue_redraw` per tree every
+## frame is the bulk of the cost. Scenery now drives a single shared clock and only ticks
+## the trees the camera can see — so this pushes the time in from the parent (the very
+## fallback the old comment here anticipated). Each tree keeps its own stable `phase`, so a
+## shared `_time` sways them all out of lockstep exactly as before.
+func set_time(t: float) -> void:
+	_time = t
 	queue_redraw()
 
 

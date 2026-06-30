@@ -226,8 +226,20 @@ func _sway(phase: float, gain: float) -> float:
 	return sin(_time * _wind_speed + phase) * _wind_strength * gain
 
 
+# How far past the screen edge a prop/tuft still draws, so nothing pops at the frame edge.
+# Sized to the tallest motif (a facade / light shaft reaches well above its ground point).
+const CULL_MARGIN := 200.0
+
+
 func _draw() -> void:
-	# ground: a soft vertical palette gradient, with the dapple noise laid over it
+	# Cull to what the camera can see, so this loop's cost scales with the screen, not the
+	# world. `has_area()` is false in headless / before the camera exists → we draw everything
+	# (the whole-world backdrop below is never culled anyway, so the world is never blank).
+	var vis := ViewCull.visible_world_rect(self, CULL_MARGIN)
+	var cull := vis.has_area()
+
+	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
+	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
 	if _ground_grad != null:
 		draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
 	else:
@@ -237,12 +249,16 @@ func _draw() -> void:
 
 	# per-region mood wash, so each named area feels distinct underfoot
 	for rt in _region_tints:
+		if cull and not vis.intersects(rt["rect"]):
+			continue
 		var c: Color = rt["color"]
 		c.a = _region_tint_alpha
 		draw_rect(rt["rect"], c)
 
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
+		if cull and not vis.has_point(g["pos"]):
+			continue
 		var sway := _sway(g["phase"], 0.25)
 		var base: Vector2 = g["pos"]
 		var tip := base + Vector2(sway, -float(g["len"]))
@@ -252,6 +268,8 @@ func _draw() -> void:
 
 	# worn paths
 	for p in _paths:
+		if cull and not vis.intersects(Rect2(p["from"], Vector2.ZERO).expand(p["to"]).grow(8.0)):
+			continue
 		draw_line(p["from"], p["to"], p["color"], 16.0)
 
 	# the river: a long water band with a lit upper edge and a few ripples drifting downstream
@@ -270,6 +288,8 @@ func _draw() -> void:
 	for pond in _ponds:
 		var center: Vector2 = pond["center"]
 		var radius: float = pond["radius"]
+		if cull and not vis.intersects(Rect2(center - Vector2(radius, radius), Vector2(radius, radius) * 2.0)):
+			continue
 		draw_circle(center, radius, pond["color"])
 		draw_arc(center, radius, 0.0, TAU, 48, Color(0.78, 0.86, 0.88, 0.5), 2.0)
 		for k in 2:
@@ -279,6 +299,8 @@ func _draw() -> void:
 
 	# flowers (a petal dot with a bright center), nodding in the breeze
 	for f in _flowers:
+		if cull and not vis.has_point(f["pos"]):
+			continue
 		var fp: Vector2 = f["pos"] + Vector2(_sway(f["phase"], 0.45), 0.0)
 		draw_circle(fp, 4.0, f["color"])
 		draw_circle(fp, 1.6, Color(0.98, 0.92, 0.55))
@@ -288,6 +310,8 @@ func _draw() -> void:
 
 	# interactable props: contact shadow, optional warm glow, then the prop silhouette
 	for it in _interactables:
+		if cull and not vis.has_point(it["pos"]):
+			continue
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
 		_draw_glow(it["type"], it["pos"])
 		var pulse: float = it["pulse"]

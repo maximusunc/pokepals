@@ -10,6 +10,36 @@ extends Node2D
 
 const TreeViewScript := preload("res://scripts/presentation/tree_view.gd")
 
+# How far past the screen edge a tree still ticks/draws, so a tall canopy whose feet sit
+# just off-screen doesn't pop in. Sized to the largest motif (a great tree's canopy).
+const CULL_MARGIN := 200.0
+
+var _time := 0.0
+var _trees: Array[TreeView] = []  # cached so the per-frame cull doesn't re-walk get_children()
+
+
+## One shared clock for the whole grove: advance time once, find the on-screen rect once,
+## then tick (sway + redraw) only the trees the camera can see and hide the rest. This
+## replaces the old per-tree `_process`/`queue_redraw` — the dominant per-frame cost in a
+## large world — and, because hidden CanvasItems drop out of the y-sort pass, it also shrinks
+## the sort/draw set to what's visible. Hiding a tree only stops its cosmetic sway; trees hold
+## no logic, so nothing breaks while they're off-screen, and the shared `_time` means they
+## resume mid-sway (no pop) when they scroll back in.
+func _process(delta: float) -> void:
+	if _trees.is_empty():
+		return
+	_time += delta
+	var vis := ViewCull.visible_world_rect(self, CULL_MARGIN)
+	var cull := vis.has_area()  # false in headless / before the camera exists → tick them all
+	for tree in _trees:
+		if cull and not vis.has_point(tree.position):
+			if tree.visible:
+				tree.visible = false
+			continue
+		if not tree.visible:
+			tree.visible = true
+		tree.set_time(_time)
+
 
 ## Spawn the world's trees as individually sortable nodes. `border_pts` is the same
 ## treeline the collision build uses (Solids.border_positions), so the drawn ring keeps
@@ -19,6 +49,7 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	for child in get_children():
 		if child is TreeView:
 			child.queue_free()
+	_trees.clear()
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -48,6 +79,7 @@ func _spawn_tree(pos: Vector2, is_great: bool, tex: Texture2D, style: ArtStyle, 
 	tree.wind_speed = wind_speed
 	tree.phase = _phase_for(pos)
 	add_child(tree)
+	_trees.append(tree)
 
 
 ## A stable pseudo-random wind phase derived from a world position, so each tree keeps

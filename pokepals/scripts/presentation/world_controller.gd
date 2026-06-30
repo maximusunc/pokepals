@@ -80,6 +80,13 @@ var _built_etag := ""
 # while it's false, so they never run against a not-yet-built world on a cold first visit (when _ready
 # defers the build until the server's spec arrives).
 var _world_built := false
+# Cache for _nearest_interactable so the per-frame hint scan doesn't recompute O(N) distances
+# (377 props in the Ruin) every frame. We only rescan once the player has drifted past a small
+# threshold, or when an examine changes a prop's skip/opened state under a standing player.
+var _nearest_cache := -1
+var _nearest_anchor := Vector2.ZERO
+var _nearest_dirty := true
+const NEAREST_RECALC_DIST := 6.0  # px of player travel before we rescan (examine range is 60px)
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
@@ -355,6 +362,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 ## never led to the rocks (the search stays yours). arrival_id disarms the portal we arrived at.
 func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_interactables.clear()
+	_nearest_dirty = true  # the list is being rebuilt; drop any cached index into the old one
 	_portals.clear()
 	_return_world = ""
 	_return_portal = ""
@@ -727,6 +735,9 @@ func _try_interact() -> void:
 	if index < 0:
 		return
 	var entry: Dictionary = _interactables[index]
+	# Examining can flip this prop's skip/opened state (a turned-over rock, an opened ward) while
+	# the player stands still — so refresh the cached hint on the next frame.
+	_invalidate_nearest()
 	if String(entry["kind"]) == "rock":
 		_hunt_dir.examine_rock(entry)
 		return
@@ -801,10 +812,28 @@ func _begin_transition(portal: Dictionary) -> void:
 	tw.tween_callback(func() -> void: WorldRouter.go_to(String(portal["target_world"]), String(portal["target_portal"])))
 
 
-## Index of the closest examinable interactable within range, or -1 if none. Already-searched
-## rocks are skipped, so a turned-over rock no longer prompts "Examine"; once the hunt is over
-## (won or run out) no rock prompts at all — the search is finished, the way home is open.
+## Index of the closest examinable interactable within range, or -1 if none. Cached: the full
+## scan only reruns once the player has moved past NEAREST_RECALC_DIST since the last scan (or
+## an examine marked it dirty), so a dense world doesn't pay the O(N) distance loop every frame.
 func _nearest_interactable() -> int:
+	var p: Vector2 = _player.position
+	if not _nearest_dirty and p.distance_to(_nearest_anchor) <= NEAREST_RECALC_DIST:
+		return _nearest_cache
+	_nearest_dirty = false
+	_nearest_anchor = p
+	_nearest_cache = _scan_nearest_interactable()
+	return _nearest_cache
+
+
+## Force the next _nearest_interactable() to rescan even if the player hasn't moved — used after
+## an examine, which can flip a prop's skip/opened state (and thus the hint) while standing still.
+func _invalidate_nearest() -> void:
+	_nearest_dirty = true
+
+
+## Already-searched rocks are skipped, so a turned-over rock no longer prompts "Examine"; once the
+## hunt is over (won or run out) no rock prompts at all — the search is finished, the way home is open.
+func _scan_nearest_interactable() -> int:
 	var best := -1
 	var best_dist := INTERACT_RANGE
 	for i in _interactables.size():
