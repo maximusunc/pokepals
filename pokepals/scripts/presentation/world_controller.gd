@@ -15,12 +15,6 @@ const PET_RANGE := 56.0
 # step away before a just-used portal re-arms (so arriving on a portal doesn't bounce you back).
 const PORTAL_RANGE := 22.0
 const PORTAL_ARM_BUFFER := 18.0
-# Shared presence (Rung 3): how often we broadcast our own pair's transforms to peers. ~20 Hz is
-# plenty for a cozy walk-around — remote puppets interpolate between samples (see PlayerView).
-const NET_SEND_INTERVAL := 1.0 / 20.0
-const SAVE_INTERVAL := 15.0  # how often to push the companion/wardrobe to the server (sole save)
-const PLAYER_SCENE := preload("res://scenes/player.tscn")
-const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 
 # The world SPEC is fully SERVER-HOSTED: the client bundles NO world specs. Net fetches a world's spec
 # on join and caches it (in memory + on disk, keyed by a content etag); we build from that. A cold
@@ -51,61 +45,25 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 @onready var _fade: ColorRect = $Fade/Rect
 @onready var _shop: ShopController = $UI/ShopPanel
 
+# Per-mechanic directors, created in _build_world. Each owns one self-contained world mechanic so this
+# controller can stay a conductor — it builds the world and drives the directors, rather than being
+# every mechanic itself. See scripts/presentation/mechanics/.
+var _hunt_dir: HuntDirector
+var _maze_dir: MazeDirector
+var _shop_dir: ShopDirector
+var _presence_dir: PresenceDirector
+var _ruin: RuinController
+
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
-var _hunt: SalamanderHunt = null  # the riverbank salamander hunt, or null in worlds without a goal
-# THE RUIN (companion-as-actor puzzle): ward state is now SERVER-AUTHORITATIVE (shared across everyone
-# in the world). This client DETECTS its own companion's actions and reports abstract intents (uncover /
-# occupy) to the server, then RENDERS whatever ward state the server echoes back (Net.ward_state_received)
-# — so two players' companions can work the same wards and converge on one truth. Each ward dict carries
-# the per-ward geometry for detection plus local flags mirroring the server (found/open) and which
-# intents we've already sent. Empty in worlds without a "ruin" spec block.
-var _wards: Array = []  # [ { id, plate, uncover_r, occupy_r, slab_id, slab_render_index, plate_render_index, hint, found, revealed, open, uncover_sent, occupied_sent } ]
-var _seeking := false   # true while a "go look" search is out, so only a delegated sweep uncovers a plate
-var _seek_shown := false  # whether the contextual "Go look" button is currently faded in
-# Cistern gloom: while you stand in the dark chamber with its light-ward unlit, darken the whole scene
-# (the cue that makes you name the need — "this place needs light"). Lifts as the brazier catches.
-const CARRY_REACH := 38.0  # how near the companion must get to "arrive" at the source / the brazier
-const HALL_REFRESH := 1.0   # seconds between re-issuing a Paired-Hall plate hold (before its hold lapses)
-# Ambient gloom: the screen eases toward GLOOM_DARK by the player's current region's "gloom" (0 = the
-# bright Wood, rising as you descend into the ruin). CISTERN_UNLIT is the extra dark its light-ward
-# chamber holds until the brazier is relit. See docs/the-ruin-narrative-and-world.md.
-const GLOOM_DARK := Color(0.24, 0.28, 0.28)
-const CISTERN_UNLIT := 0.88
-var _gloom := 0.0
-var _gloom_rect := Rect2()
-var _gloom_ward: Dictionary = {}
-var _region_glooms: Array = []  # [ { rect: Rect2, gloom: float } ] — per-region ambient darkness
-var _base_day_tint := Color.WHITE
-# Cached so the slab's collider can be removed when a ward opens (rebuild Solids without it).
+var _seek_shown := false  # whether the contextual "Go look" button (the Ruin's) is currently faded in
+# Cached so a raised ward slab's collider can be dropped when it opens (RuinController calls
+# rebuild_solids_dropping, which rebuilds Solids without the slab and re-hands them to both bodies).
 var _world_data: Dictionary = {}
 var _border_pts: Array = []
 var _collision_cfg: Dictionary = {}
 var _body_radius := 6.0
 var _collision_margin := 2.0
-var _rocks: Array = []  # [ { pos, hunt_index, render_index } ] — the examinable rocks of the hunt
-var _goal_active := false
-# THE HEDGE MAZE: a "reach_center" goal. Reaching the centre plaza pays coins (server-decides,
-# gated on the goal type) and the way home is the portal there; a Return button bails out anytime.
-var _maze_active := false        # true in a world whose goal.type is "reach_center"
-var _maze_center := Vector2.ZERO # the heart of the maze (world pos)
-var _maze_radius := 70.0         # how near counts as "reached"
-var _maze_reached := false       # latched once reached this visit, so the reward fires once
-# The companion's "point the way" hint: after standing still a while, the companion subtly points
-# along the SOLVED PATH to the centre. The path direction per cell is authored in the spec's
-# "maze_guide" flow field (1=N 2=E 3=S 4=W, 0=centre) — pure presentation, it never moves the player.
-const MAZE_HINT_DELAY := 5.0      # seconds stood still before the companion points the way
-const MAZE_HINT_STRENGTH := 0.5   # a gentle, subtle point (1.0 is the hunt's full lock-on)
-const MAZE_HINT_REACH := 88.0     # how far ahead (px) to place the point target
-const MAZE_MOVE_EPS := 0.6        # per-frame move (px) under which the player counts as standing still
-var _maze_guide_origin := Vector2.ZERO  # world centre of cell (0,0)
-var _maze_guide_pitch := 100.0          # world distance between adjacent cell centres
-var _maze_guide_cols := 0
-var _maze_guide_rows := 0
-var _maze_guide_dirs: Array = []        # row-major (cy*cols + cx) path-direction codes
-var _maze_idle := 0.0            # seconds the player has stood still
-var _maze_pointing := false      # whether the companion is currently giving the hint
-var _last_player_pos := Vector2.ZERO  # to measure per-frame movement for the idle timer
 # The Return-to-the-Vale escape hatch: where it sends you (from the spec's "return" block), or "" if
 # this world declares none (so the button stays hidden everywhere but the maze).
 var _return_world := ""
@@ -113,24 +71,6 @@ var _return_portal := ""
 var _return_shown := false
 var _home_world := ""  # where this world's portals (incl. the completion one) lead back to
 var _home_portal := ""
-var _flip_budget := 0  # max rocks the player may turn over this hunt (0 = unlimited); from goal.flip_budget
-var _flips_left := 0   # rocks remaining in the budget, shown on the goal label
-var _hunt_over := false  # latched once the hunt ends (won or run out) so it resolves only once
-var _completion_hint := ""  # the hint shown when the hunt ended, so the coin reward can append to it
-# Detector tuning (companion.json "detector"), cached from the companion at setup. When a hidden
-# salamander is within (bond-scaled) sense range and the cooldown has elapsed, the companion stops
-# and points at it for a couple seconds, then cools down — points more often the deeper the bond.
-var _sense_low := 70.0    # sense range (px) at zero bond — short when fresh
-var _sense_high := 200.0  # sense range (px) at full bond — long when bonded
-var _point_cooldown_low := 9.0   # seconds between points at zero bond (rare)
-var _point_cooldown_high := 2.0  # seconds between points at full bond (frequent)
-var _point_hold_seconds := 2.0   # how long it stops and holds a point
-# Point-event state machine (driven each frame in _update_hints).
-var _point_active := false       # true while the companion is holding a point
-var _point_hold_left := 0.0      # seconds remaining in the current point hold
-var _point_cd_left := 0.0        # seconds until the next point may fire
-var _point_target := Vector2.ZERO  # world pos the companion is pointing at
-var _point_target_hi := -1       # hunt_index of the pointed rock (to end early if it gets flipped)
 var _transitioning := false  # true once a portal transition's fade has begun
 # The content etag of the spec we actually BUILT this scene from (Net.cached_etag at build time), or
 # "" if we haven't built yet (still on the loading screen). Lets _on_world_spec_arrived tell "first
@@ -140,12 +80,6 @@ var _built_etag := ""
 # while it's false, so they never run against a not-yet-built world on a cold first visit (when _ready
 # defers the build until the server's spec arrives).
 var _world_built := false
-# The bazaar shop: the merchant's stationary companion (a puppet), and the economy snapshot the
-# server pushes on join (our wallet + the color stock). Empty/absent in worlds without a shopkeeper.
-var _npc_companion: CompanionView = null
-var _shop_colors: Array = []     # [ { item_def_id, name, swatch, price, owned, … } ], from Net
-var _shop_balance := 0
-var _shop_currency := "coins"
 var _examine_shown := false  # whether the touch Examine button is currently faded in
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
@@ -158,15 +92,9 @@ var _day_loop := true
 var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sorted by t
 var _day_time := 0.0
 
-# --- Shared presence (Rung 3) -----------------------------------------------------------------
-# Each connected peer's PUPPET pair, keyed by Net peer id (the player's user_id): { peer_id: { player, companion } }.
-# Spawned on peer_joined, freed on peer_left, and driven entirely by transforms arriving over Net.
-# An identity packet that lands before its pair exists is stashed and applied the moment it spawns.
-var _remote_pairs: Dictionary = {}
-var _pending_identity: Dictionary = {}
-var _bounds_rect := Rect2()  # the world's walkable bounds, kept to CLAMP untrusted remote positions
-var _net_accum := 0.0        # accumulates toward the next NET_SEND_INTERVAL broadcast
-var _save_accum := 0.0       # accumulates toward the next server SAVE_INTERVAL push
+# The world's walkable bounds, computed at build. Shared: the camera frames to it, the Ruin rebuilds
+# colliders against it, and the PresenceDirector clamps untrusted remote positions to it.
+var _bounds_rect := Rect2()
 
 
 func _ready() -> void:
@@ -198,14 +126,19 @@ func _build_world(data: Dictionary) -> void:
 	_companion.set_style(_style)
 	_companion.setup(_player)
 
+	# Spin up the per-mechanic directors and hand each the scene refs it drives. Created before
+	# _setup_contents so they can lay out their own content (e.g. the hunt's rocks). Children of this
+	# node, so their Net connections are auto-dropped when the scene reloads on a world hop.
+	_create_directors()
+
 	# If this world carries a salamander-hunt goal, lay it out (fresh + random each visit) and
 	# fold its rocks — and this world's portals — into data["interactables"] so world_art draws
-	# them. Populates _hunt, _rocks and _portals; leaves worlds without a goal/portals untouched.
+	# them. Populates the hunt, its rocks and _portals; leaves worlds without a goal/portals untouched.
 	_setup_contents(data, arrival_id)
 
 	# Spawn beside the arrival portal if we travelled here, else at the world's own spawn points.
 	_place_arrivals(data, arrival_id)
-	_last_player_pos = _player.position  # baseline for the maze idle-timer's movement check
+	_maze_dir.note_player_baseline()  # baseline for the maze idle-timer's movement check
 
 	_world_art.render_world(data, _style)
 	_apply_atmosphere(data.get("atmosphere", {}))
@@ -219,6 +152,7 @@ func _build_world(data: Dictionary) -> void:
 	var bounds_rect := Rect2(bmin, bmax - bmin)
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
+	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
 
 	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
 	# props, great-trees, ponds) and hand it to both characters to collide against. The
@@ -236,15 +170,16 @@ func _build_world(data: Dictionary) -> void:
 	_companion.set_solids(solids, bounds_rect, body_radius, margin)
 
 	# Keep what the Ruin needs to REBUILD collisions when a slab rises (drop the slab's solid and
-	# re-hand the list to both bodies — see _open_ward). Harmless to cache in worlds without a ruin.
+	# re-hand the list to both bodies — see rebuild_solids_dropping). Harmless to cache without a ruin.
 	_world_data = data
 	_border_pts = border_pts
 	_collision_cfg = ccfg
 	_body_radius = body_radius
 	_collision_margin = margin
 
-	# THE RUIN: build the ward logic + geometry from the spec's "ruin" block (no-op elsewhere).
-	_setup_ruin(data)
+	# THE RUIN: build the ward logic + geometry from the spec's "ruin" block (no-op elsewhere). The
+	# RuinController resolves slab/ember render indices from _interactables (laid out in _setup_contents).
+	_ruin.configure(data, _interactables)
 
 	# (The examinable interactables, the portals, the hunt and the companion's points of
 	# interest were all assembled in _setup_contents above, before the world was drawn.)
@@ -258,7 +193,7 @@ func _build_world(data: Dictionary) -> void:
 
 	# The bazaar's shopkeeper keeps their bonded companion at their side — spawn it as a stationary
 	# puppet (no-op in worlds without one).
-	_spawn_npc_companion(data)
+	_shop_dir.spawn_npc(data)
 
 	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
 	# from also spinning up the movement thumbstick underneath it.
@@ -287,7 +222,7 @@ func _build_world(data: Dictionary) -> void:
 
 	# "Go look": send the companion off to search (the Ruin's spine). Faded in only in a world with
 	# an unsolved ward (see _process). Keep its taps off the movement thumbstick underneath.
-	_seek_button.pressed.connect(_try_seek)
+	_seek_button.pressed.connect(_ruin.try_seek)
 	_joystick.add_exclusion(_seek_button)
 
 	# Top-left "Return to the Vale" button: an always-available escape hatch out of the maze (in case
@@ -302,13 +237,9 @@ func _build_world(data: Dictionary) -> void:
 	_debug_button.pressed.connect(_debug.toggle)
 	_joystick.add_exclusion(_debug_button)
 
-	# The bazaar shop window: a buy relays to the server (Net), a close just resumes the world.
-	_shop.buy_requested.connect(_on_shop_buy)
-	_shop.closed.connect(_on_shop_closed)
-
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
-	if not _wards.is_empty():
+	if _ruin.has_wards():
 		_hint.text = "An old slab bars the way deeper.  Tap Go look to send your companion searching."
 	else:
 		_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
@@ -327,24 +258,104 @@ func _build_world(data: Dictionary) -> void:
 	_world_built = true
 
 
+## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
+## A child is freed with this node on a world hop, which auto-drops its Net signal connections — so a
+## fresh scene gets fresh directors with no stale wiring carried over.
+func _create_directors() -> void:
+	_hunt_dir = HuntDirector.new()
+	add_child(_hunt_dir)
+	_hunt_dir.setup(self, _companion, _world_art, _player)
+
+	_maze_dir = MazeDirector.new()
+	add_child(_maze_dir)
+	_maze_dir.setup(self, _companion, _player)
+
+	_shop_dir = ShopDirector.new()
+	add_child(_shop_dir)
+	_shop_dir.setup(self, _companion, _world_art, _scenery, _shop, _style)
+
+	_presence_dir = PresenceDirector.new()
+	add_child(_presence_dir)
+	_presence_dir.setup(_player, _companion, _scenery, _style)
+
+	_ruin = RuinController.new()
+	add_child(_ruin)
+	_ruin.setup(self, _companion, _player, _world_art, _day_tint)
+
+
+# ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
+# public so each director can stay focused on its own mechanic and lean on the controller for the
+# things that are genuinely world-wide (the hint line, the goal HUD, portals, the wallet). ──
+
+## Show a hint at full opacity (the directors' one channel to the hint line).
+func show_hint(text: String) -> void:
+	_show_hint(text)
+
+
+## Set the goal HUD label's text (the hunt's progress / the maze's banner).
+func set_goal_label_text(text: String) -> void:
+	_goal_label.text = text
+
+
+## Show or hide the goal HUD label.
+func show_goal_label(shown: bool) -> void:
+	_goal_label.visible = shown
+
+
+## A small celebratory pop of the goal counter (the hunt pops it on each find).
+func bounce_goal() -> void:
+	_goal_label.scale = Vector2(1.25, 1.25)
+	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(_goal_label, "scale", Vector2.ONE, 0.28)
+
+
+## Adopt a new wallet balance pushed by a server reward (so the shop is current next time it opens).
+func set_wallet_balance(balance: int) -> void:
+	_shop_dir.set_balance(balance)
+
+
+## Read / raw-set the hint line (no fade) — the shop uses this to clear its greeting on close.
+func hint_text() -> String:
+	return _hint.text
+
+
+func set_hint_text(text: String) -> void:
+	_hint.text = text
+
+
+## How many remote pairs are present (the Ruin's paired-hall waking reads this to tier its payoff).
+func peer_count() -> int:
+	return _presence_dir.peer_count()
+
+
+## Whether an animated day→dusk cycle currently owns the day tint (so the Ruin's gloom stands down).
+func is_daycycle_enabled() -> bool:
+	return _day_enabled
+
+
+## Rebuild the barrier list with one ward slab dropped (it just rose into a lintel) and re-hand it to
+## both bodies, so the doorway is walkable for everyone present. Rebuilt from a deep copy so the (shared,
+## cached) spec stays untouched — which is what lets the Ruin reset closed on a later revisit. Part of the
+## host seam: the RuinController calls this when the server confirms a ward open.
+func rebuild_solids_dropping(slab_id: String) -> void:
+	var data_copy: Dictionary = _world_data.duplicate(true)
+	for it in data_copy.get("interactables", []):
+		if String(it.get("id", "")) == slab_id:
+			it["solid"] = false
+	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
+	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+
+
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
 ## any) and the portals into data["interactables"] so world_art draws them, and build the
 ## runtime lists the controller acts on — _interactables (examinable: props + rocks), _portals
-## (walk-through), _rocks, and the companion's points of interest. Props keep their original
-## index (== their render index in world_art); rocks then portals are appended after. The
+## (walk-through; the HuntDirector owns the rocks themselves), and the companion's points of interest.
+## Props keep their original index (== their render index in world_art); rocks then portals are appended after. The
 ## companion is given props as POIs but NOT rocks: it reacts to a salamander you uncover, but is
 ## never led to the rocks (the search stays yours). arrival_id disarms the portal we arrived at.
 func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_interactables.clear()
 	_portals.clear()
-	_rocks.clear()
-	_hunt = null
-	_goal_active = false
-	_maze_active = false
-	_maze_reached = false
-	_maze_idle = 0.0
-	_maze_pointing = false
-	_maze_guide_dirs = []
 	_return_world = ""
 	_return_portal = ""
 
@@ -371,41 +382,15 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		poi_meta.append({ "pos": entry["pos"], "id": prop_id, "tags": entry["tags"] })
 	_companion.set_points_of_interest(poi, poi_meta)
 
-	# The salamander hunt: hide its salamanders + decoys among the rocks (fresh, random each
-	# visit) and make each rock an examinable interactable world_art can turn over.
+	# The salamander hunt: hand its layout to the HuntDirector, which hides the salamanders + decoys
+	# among the rocks (fresh, random each visit) and folds each rock into `combined` (so world_art
+	# draws it) and _interactables (so it can be turned over). A no-op in worlds without the goal.
 	var goal: Dictionary = data.get("goal", {})
-	var rock_defs: Array = data.get("rocks", [])
-	if String(goal.get("type", "")) == "find_salamanders" and not rock_defs.is_empty():
-		_goal_active = true
-		_hunt_over = false
-		_flip_budget = int(goal.get("flip_budget", 0))
-		_flips_left = _flip_budget
-		_cache_detector_tuning()
-		_hunt = SalamanderHunt.new()
-		var rng := RandomNumberGenerator.new()
-		rng.randomize()
-		_hunt.setup(rock_defs.size(), int(goal.get("count", 10)), goal.get("decoys", []), int(goal.get("decoy_count", 0)), rng, _flip_budget)
-		for ri in rock_defs.size():
-			var rpos := WorldData.to_vec2(rock_defs[ri])
-			var render_index := combined.size()
-			combined.append({ "id": "rock_%d" % ri, "type": "rock", "position": rock_defs[ri], "color": [0.60, 0.60, 0.56], "label": "a mossy rock", "tags": ["stone"] })
-			_rocks.append({ "pos": rpos, "hunt_index": ri, "render_index": render_index })
-			_interactables.append({ "pos": rpos, "label": "a mossy rock", "id": "rock_%d" % ri, "tags": ["stone"], "kind": "rock", "render_index": render_index, "hunt_index": ri })
+	_hunt_dir.setup_hunt(goal, data.get("rocks", []), combined, _interactables)
 
-	# The hedge maze: a "reach_center" goal. We only need the centre + radius here to notice when the
-	# player reaches the heart (see _process); the coin reward itself is decided + minted server-side.
-	if String(goal.get("type", "")) == "reach_center":
-		_maze_active = true
-		_maze_center = WorldData.to_vec2(goal.get("center", [0, 0]))
-		_maze_radius = float(goal.get("radius", 70.0))
-		# The flow field the companion points along (the solved path per cell, toward the centre).
-		var guide: Dictionary = data.get("maze_guide", {})
-		_maze_guide_dirs = guide.get("dirs", [])
-		if not _maze_guide_dirs.is_empty():
-			_maze_guide_origin = WorldData.to_vec2(guide.get("origin", [0, 0]))
-			_maze_guide_pitch = float(guide.get("pitch", 100.0))
-			_maze_guide_cols = int(guide.get("cols", 0))
-			_maze_guide_rows = int(guide.get("rows", 0))
+	# The hedge maze: hand the goal to the MazeDirector, which caches the centre + radius (to notice
+	# when the player reaches the heart) and the companion's flow-field guide. A no-op elsewhere.
+	_maze_dir.setup_goal(goal, data)
 
 	# The Return-to-the-Vale escape hatch: a world may declare where its Return button leads.
 	var ret: Dictionary = data.get("return", {})
@@ -441,31 +426,14 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	if data.has("companion"):
 		_companion.apply_config_overrides(data["companion"])
 
-	if _goal_active:
+	if _hunt_dir.is_active():
 		_goal_label.visible = true
-		_set_goal_text(0, int(goal.get("count", 10)))
-	elif _maze_active:
+		_hunt_dir.show_initial_goal()
+	elif _maze_dir.is_active():
 		_goal_label.visible = true
-		_goal_label.text = String(goal.get("label", "Find the heart of the maze"))
+		_maze_dir.show_initial_goal()
 	else:
 		_goal_label.visible = false
-
-
-## Cache the companion's presentation-only "detector" tuning (sense range + point cooldown/hold by
-## bond) so _update_hints can drive the point-event machine without re-reading the config each frame.
-## Defaults keep it working if the block is absent. Seeds the first cooldown to the long (fresh)
-## value so the companion never points on the very first frame of a fresh load.
-func _cache_detector_tuning() -> void:
-	var det: Dictionary = _companion.detector_cfg()
-	_sense_low = float(det.get("sense_range_low", 70.0))
-	_sense_high = float(det.get("sense_range_high", 200.0))
-	_point_cooldown_low = float(det.get("point_cooldown_low", 9.0))
-	_point_cooldown_high = float(det.get("point_cooldown_high", 2.0))
-	_point_hold_seconds = float(det.get("point_hold_seconds", 2.0))
-	_point_active = false
-	_point_hold_left = 0.0
-	_point_target_hi = -1
-	_point_cd_left = _point_cooldown_low
 
 
 ## Put the player and companion down: beside the named arrival portal if we travelled here
@@ -606,23 +574,19 @@ func _process(delta: float) -> void:
 	# connected — so you can always bail out if you get lost.
 	_set_return_visible(_return_world != "" and Net.is_active())
 
-	# The hedge maze: the moment the player reaches the heart, claim the reward (once per visit).
-	if _maze_active and not _maze_reached and _player.position.distance_to(_maze_center) <= _maze_radius:
-		_on_maze_reached()
-
 	# "Go look" is offered only in a Ruin with a ward still to open.
-	_set_seek_visible(not _wards.is_empty() and _any_ward_unopened())
+	_set_seek_visible(_ruin.has_unopened_ward())
 
-	# Walk-through portals, the companion's subtle salamander glance, and the Ruin's ward referee.
+	# Walk-through portals, the hunt detector, the maze (reach check + guide hint), the Ruin (ward
+	# referee + descent gloom).
 	_update_portals(delta)
-	_update_hints(delta)
-	_update_maze_hint(delta)
-	_update_ruin(delta)
-	_update_gloom(delta)
+	_hunt_dir.update_detector(delta)
+	_maze_dir.update(delta)
+	_ruin.update(delta)
 
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
-	_broadcast_presence(delta)
-	_push_save_periodic(delta)
+	_presence_dir.broadcast(delta)
+	_presence_dir.push_save_periodic(delta)
 
 
 ## Gently fade the touch Examine button in or out as the player nears a prop, so
@@ -684,10 +648,10 @@ func _set_leave_visible(show_button: bool) -> void:
 
 ## Leave the session on purpose. Persist the companion one last time (the graceful close in
 ## Net.leave flushes it), then drop the link — which surfaces as disconnected() and brings the
-## lobby gate back up, ready to reconnect. The remote puppets are cleaned up by _on_disconnected.
+## lobby gate back up, ready to reconnect. The remote puppets are cleaned up by the PresenceDirector.
 func _on_leave_pressed() -> void:
 	if Net.is_active():
-		_push_save()
+		_presence_dir.push_save()
 	Net.leave()
 
 
@@ -764,548 +728,18 @@ func _try_interact() -> void:
 		return
 	var entry: Dictionary = _interactables[index]
 	if String(entry["kind"]) == "rock":
-		_examine_rock(entry)
+		_hunt_dir.examine_rock(entry)
 		return
 	if String(entry["kind"]) == "shopkeeper":
-		_open_shop(entry)
+		_shop_dir.open_shop(entry)
 		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
-	# KINDLE the Cistern ember: examining the dead ember is the deduction — naming that this place needs
-	# light. It wakes the ember (its art) and stands in for the light-ward's 'uncover' (found) on the
-	# server, arming the carry. Idempotent (only the first kindle of an unlit ward does anything).
-	var lw := _light_ward_for_source(String(entry["id"]))
-	if not lw.is_empty() and not bool(lw["open"]) and not bool(lw["kindled"]):
-		lw["kindled"] = true
-		var eri := int(lw["ember_render_index"])
-		if eri >= 0:
-			_world_art.open_slab(eri)
-		Net.send_ward_uncover(String(lw["id"]))
-		_show_hint("You breathe on the old ember — it wakes, and a mote of light lifts free. Now send your companion to carry it.")
-		return
-	# Jam the WEDGE onto a plate (the lonely Paired-Hall workaround): examining the wedge holds the plate
-	# nearest it, so your one companion is free to stand the other. _update_hall keeps the wedge's weight
-	# reported even after the companion leaves.
-	var hw := _paired_ward_for_wedge(String(entry["id"]))
-	if not hw.is_empty() and not bool(hw["open"]):
-		var key := _nearest_plate_key(hw, entry["pos"])
-		if key != "":
-			hw["wedged"] = key
-			_show_hint("Your companion drags the wedge onto the near plate — it settles, and the stone holds it down. Now send it to stand the other.")
-		return
-	# Examining an unsolved Ruin slab nudges you toward the real move — sending your companion.
-	var ward := _ward_for_slab(String(entry["id"]))
-	if not ward.is_empty() and not bool(ward["open"]):
-		_show_hint(String(ward.get("hint", "The slab won't budge. Maybe your companion can find what works it.")))
+	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
+	# handled by the RuinController; if it claims this prop, we're done.
+	if _ruin.try_examine(entry):
 		return
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
-
-
-# ============================================================================================
-# THE RUIN — the companion-as-actor puzzle, SHARED. The authoritative ward state now lives on the
-# SERVER (Server.RuinMechanisms, per world), so everyone present converges on one truth. This client
-# only: DETECTS what its OWN companion does (search nosing near a plate; weight stepping on/off) and
-# reports abstract intents to the server, then RENDERS whatever ward state the server echoes back
-# (reveal the plate, raise the slab). The companion's brain stays truth-blind throughout — it never
-# learns where a plate is; the local detection feeds only the intent stream and the body, never the mind.
-# ============================================================================================
-
-## Build the Ruin's wards from the spec's "ruin" block: the per-ward geometry this client needs to
-## DETECT its companion's actions (where the plate hides, how near to uncover/weight it, which slab it
-## raises), plus local flags mirroring the server's authoritative found/open. Resolves each slab's
-## render index from the interactables laid out in _setup_contents. No-op in
-## worlds without a "ruin" block, so every other world is untouched.
-func _setup_ruin(data: Dictionary) -> void:
-	_wards.clear()
-	_seeking = false
-	_gloom_rect = Rect2()
-	_gloom_ward = {}
-	_base_day_tint = _day_tint.color
-	# Per-region ambient gloom (the descent dimmer): cache each region's rect + declared darkness.
-	_region_glooms.clear()
-	for r in data.get("regions", []):
-		if r.has("gloom"):
-			var mn := WorldData.to_vec2(r["min"])
-			_region_glooms.append({ "id": String(r.get("id", "")), "rect": Rect2(mn, WorldData.to_vec2(r["max"]) - mn), "gloom": float(r["gloom"]) })
-	for wd in data.get("ruin", {}).get("wards", []):
-		var slab_id := String(wd.get("slab_id", ""))
-		# Decoy points (Warren-style wards): identical-looking gaps where the companion's nose says
-		# "not here". Drive the which-one tell off these vs. the true plate. Empty for a plain ward.
-		var decoys: Array = []
-		for d in wd.get("decoys", []):
-			decoys.append(WorldData.to_vec2(d))
-		# Light-ward (Cistern): has a 'source' (the ember the player kindles) + a brazier + murals. The
-		# carry is a directed fetch (source → plate), not a search; kindling stands in for 'uncover'.
-		var is_light := wd.has("source")
-		var mural_idx: Array = []
-		for mid in wd.get("murals", []):
-			mural_idx.append(_render_index_for_id(String(mid)))
-		# Paired ward (the Paired Hall): two plates that must bear weight AT ONCE. Build the plate list
-		# (key → world pos + render index) for the hold logic and the per-plate glow feedback.
-		var is_paired := wd.has("plates")
-		var plates: Array = []
-		var occ_sent := {}
-		for pkey in wd.get("plates", []):
-			var k := String(pkey)
-			plates.append({
-				"key": k,
-				"pos": WorldData.to_vec2(wd.get("plate_" + k, [0, 0])),
-				"render": _render_index_for_id(String(wd.get("plate_" + k + "_id", ""))),
-			})
-			occ_sent[k] = false
-		var ward := {
-			"id": String(wd.get("id", "ward")),
-			"plate": WorldData.to_vec2(wd.get("plate", [0, 0])),
-			"uncover_r": float(wd.get("uncover_radius", 120.0)),
-			"occupy_r": float(wd.get("occupy_radius", 34.0)),
-			"slab_id": slab_id,
-			"slab_render_index": _render_index_for_id(slab_id),
-			"plate_render_index": -1,
-			"hint": String(wd.get("hint", "")),
-			"decoys": decoys,
-			"is_light": is_light,
-			"source": WorldData.to_vec2(wd.get("source", [0, 0])),
-			"source_id": String(wd.get("source_id", "")),
-			"ember_render_index": _render_index_for_id(String(wd.get("source_id", ""))),
-			"brazier_render_index": _render_index_for_id(String(wd.get("brazier_id", ""))),
-			"mural_render_indices": mural_idx,
-			"region_rect": _region_rect(data, String(wd.get("region", ""))),
-			"kindled": false,
-			"carry_phase": "idle",
-			# Paired Hall: the two plates, which plate our companion is assigned to hold, which (if any)
-			# we've wedged, the occupy we've reported per plate, and the hold-refresh timer.
-			"is_paired": is_paired,
-			"plates": plates,
-			"wedge_id": String(wd.get("wedge_id", "")),
-			"assigned": "",
-			"wedged": "",
-			"occ_sent": occ_sent,
-			"refresh": 0.0,
-			# Local mirror of the server's authoritative state + which intents we've already sent.
-			"found": false,
-			"revealed": false,
-			"open": false,
-			"uncover_sent": false,
-			"occupied_sent": false,
-		}
-		_wards.append(ward)
-		# The dark chamber whose gloom we lift on lighting (the light-ward with a region).
-		if is_light and (ward["region_rect"] as Rect2).get_area() > 0.0:
-			_gloom_rect = ward["region_rect"]
-			_gloom_ward = ward
-
-
-## "Go look": send the companion off to search. _seeking gates the referee so ONLY a delegated
-## sweep uncovers a plate — the companion merely trailing you past it does nothing (the search is
-## the point). The brain (and bond) decide how the sweep actually goes; here we just issue it.
-func _try_seek() -> void:
-	if _wards.is_empty() or not _any_ward_unopened():
-		return
-	# In the Cistern (a dark light-ward chamber), "Go look" is a CARRY, not a search: it can't do anything
-	# until you've named the need and woken the ember. Gated to the chamber so it never hijacks the
-	# Threshold/Warren search elsewhere.
-	var lw := _active_light_ward()
-	if not lw.is_empty():
-		if not bool(lw["kindled"]):
-			_show_hint("Pitch dark — your companion casts about but finds nothing to work. Something here must be lit first.")
-		elif String(lw["carry_phase"]) == "idle":
-			_begin_carry(lw)
-		return
-	# In the Paired Hall, "Go look" sends the companion to STAND a plate (and hold it): the nearest one
-	# not already wedged, so after jamming the wedge on one you naturally send it to the other.
-	var hw := _active_paired_ward()
-	if not hw.is_empty():
-		var key := _nearest_plate_key(hw, _player.position, true)
-		if key == "":
-			_show_hint("Both plates are spoken for — the door should be giving way.")
-		else:
-			hw["assigned"] = key
-			hw["refresh"] = 0.0
-			_companion.issue_command("settle", _plate_pos(hw, key))
-			_show_hint("Your companion crosses to a plate and sets its weight on it. Now the other must be held too.")
-		return
-	_seeking = true
-	_companion.issue_command("seek")
-	_show_hint("You send your companion off to search.")
-
-
-## Run every frame: DETECT what OUR companion is doing and report abstract intents to the server (which
-## holds the authoritative shared ward state). Opening is NOT decided here — it arrives via the server's
-## echo (_on_ward_state), so every player sees the same gate open. For each not-yet-open ward:
-##   • UNCOVER — while a search is out, once our companion's sweep noses within uncover range, predict
-##     the reveal locally (so the find feels instant), send our companion to settle, and tell the server.
-##   • OCCUPY — once the plate is revealed, report (edge-triggered) our companion stepping on / off it.
-func _update_ruin(delta: float) -> void:
-	if _wards.is_empty():
-		return
-	var cpos: Vector2 = _companion.position
-	for w in _wards:
-		if bool(w["open"]):
-			continue
-		# Paired ward (Paired Hall): keep our companion on its plate and report our weight per plate.
-		if bool(w["is_paired"]):
-			_update_hall(w, cpos, delta)
-			continue
-		# Light-ward (Cistern): advance the carry instead of the search-uncover detection.
-		if bool(w["is_light"]):
-			_update_carry(w, cpos)
-			continue
-		# Warren-style ward (has decoys): drive the which-gap TELL — the companion perks and turns toward
-		# the TRUE gap as it nears it, so the player can read it and trust it over their own eyes.
-		if not w["decoys"].is_empty():
-			_drive_nook_tell(w, cpos)
-		var near := cpos.distance_to(w["plate"])
-		if not bool(w["uncover_sent"]) and _seeking and near <= float(w["uncover_r"]):
-			w["uncover_sent"] = true
-			_reveal_plate(w, true)                       # local prediction; server echo confirms
-			_companion.issue_command("settle", w["plate"])
-			Net.send_ward_uncover(String(w["id"]))
-		if bool(w["revealed"]):
-			var on := near <= float(w["occupy_r"])
-			if on != bool(w["occupied_sent"]):
-				w["occupied_sent"] = on
-				Net.send_ward_occupy(String(w["id"]), on)
-
-
-## The server's authoritative ward state arrived (on join, or whenever anyone's companion acts): adopt
-## it. A ward newly FOUND reveals its plate (so you see one a friend's companion uncovered); a ward newly
-## OPEN raises the slab for everyone. Idempotent — our own predicted reveal is already in, so this won't
-## double it.
-func _on_ward_state(wards: Array) -> void:
-	for entry in wards:
-		if not (entry is Dictionary):
-			continue
-		var w := _ward_by_id(String(entry.get("id", "")))
-		if w.is_empty():
-			continue
-		# Paired ward (Paired Hall): light each plate that's bearing weight (the glow everyone sees), and
-		# open the door once the server says both hold. No buried plate to reveal.
-		if bool(w["is_paired"]):
-			var plates_state: Variant = entry.get("plates", {})
-			if plates_state is Dictionary:
-				for p in w["plates"]:
-					_world_art.set_lit(int(p["render"]), bool((plates_state as Dictionary).get(String(p["key"]), false)))
-			if bool(entry.get("open", false)) and not bool(w["open"]):
-				_open_ward(w)
-			continue
-		if bool(entry.get("found", false)) and not bool(w["found"]):
-			_reveal_plate(w, false)
-		if bool(entry.get("open", false)) and not bool(w["open"]):
-			_open_ward(w)
-
-
-## The Warren's "which gap?" TELL — presentation only. While a search is out, when the companion comes
-## within (bond-scaled) sense range of the TRUE gap it perks and turns toward it (glance_toward) — a read
-## the player can trust over their own eyes. Crucially this uses glance_toward, NOT the salamander point_at:
-## point_at FREEZES the body (it's "stop and point out the rock"), which would strand the companion at
-## sense range and never let it nose in; a glance only redirects the gaze + perks, so it keeps moving in to
-## clear the gap. The decoys get no tell on purpose — its confidence landing on one of several alike gaps
-## IS the moment. Scaled by bond, like every tell. The brain never learns the truth: this feeds only the body.
-func _drive_nook_tell(w: Dictionary, cpos: Vector2) -> void:
-	if not _seeking or bool(w["found"]):
-		return
-	if cpos.distance_to(w["plate"]) <= lerpf(80.0, 150.0, _companion.bond_value()):
-		_companion.glance_toward(w["plate"])
-
-
-## The active light-ward (Cistern) if you're standing in its dark chamber, else {}. Region-gated so
-## "Go look" only means CARRY when you're actually in the Cistern — elsewhere it stays a search.
-func _active_light_ward() -> Dictionary:
-	for w in _wards:
-		if bool(w["open"]) or not bool(w["is_light"]):
-			continue
-		var rect: Rect2 = w["region_rect"]
-		if rect.get_area() > 0.0 and not rect.has_point(_player.position):
-			continue
-		return w
-	return {}
-
-
-## The light-ward whose ember (source) has this interactable id, or {} — for the kindle.
-func _light_ward_for_source(id: String) -> Dictionary:
-	for w in _wards:
-		if bool(w["is_light"]) and String(w["source_id"]) == id:
-			return w
-	return {}
-
-
-## Start the carry: send the companion to FETCH the woken light from the source. _update_carry takes
-## it from there (source → brazier → deliver). One leg at a time via the Seek action's "settle".
-func _begin_carry(w: Dictionary) -> void:
-	w["carry_phase"] = "to_source"
-	_companion.issue_command("settle", w["source"])
-	_show_hint("Your companion pads off to fetch the light.")
-
-
-## Advance the Cistern carry each frame: once the companion reaches the source it takes up the mote and
-## bears it to the brazier; arriving there is the DELIVERY — reported to the server as the ward's
-## 'occupy', which (with the kindle's 'uncover') opens it for everyone. The brazier lighting, the murals
-## and the dark lifting all follow from the server's open echo (_open_ward → _light_cistern).
-func _update_carry(w: Dictionary, cpos: Vector2) -> void:
-	match String(w["carry_phase"]):
-		"to_source":
-			if cpos.distance_to(w["source"]) <= CARRY_REACH:
-				w["carry_phase"] = "to_brazier"
-				_companion.issue_command("settle", w["plate"])
-				_show_hint("It takes up the mote of light and carries it to the brazier.")
-		"to_brazier":
-			if cpos.distance_to(w["plate"]) <= float(w["occupy_r"]):
-				w["carry_phase"] = "delivered"
-				Net.send_ward_occupy(String(w["id"]), true)
-
-
-# ── The Paired Hall: a door that yields only while BOTH plates bear weight at once. Each client holds
-# its OWN companion on a plate (or jams a wedge) and reports its weight PER PLATE; the server combines
-# everyone's and opens when all plates hold (see Server.RuinMechanisms paired wards). Two pairs → a
-# companion to each; alone → a wedge on one plate, your companion on the other. ──
-
-## Run every frame for the hall: keep our assigned companion standing on its plate (refresh the settle
-## before its hold lapses, so a brief lapse can't drop the door), and report our weight on each plate —
-## our companion standing on it, OR a wedge we've jammed (which holds even when the companion leaves).
-func _update_hall(w: Dictionary, cpos: Vector2, delta: float) -> void:
-	if String(w["assigned"]) != "":
-		w["refresh"] = float(w["refresh"]) - delta
-		if float(w["refresh"]) <= 0.0:
-			w["refresh"] = HALL_REFRESH
-			_companion.issue_command("settle", _plate_pos(w, String(w["assigned"])))
-	for p in w["plates"]:
-		var key := String(p["key"])
-		var on := cpos.distance_to(p["pos"]) <= float(w["occupy_r"]) or String(w["wedged"]) == key
-		if on != bool(w["occ_sent"][key]):
-			w["occ_sent"][key] = on
-			Net.send_ward_occupy(String(w["id"]), on, key)
-
-
-## The unopened paired ward whose chamber you're standing in, else {} (region-gated like the Cistern,
-## so "Go look" only means "stand a plate" inside the Paired Hall).
-func _active_paired_ward() -> Dictionary:
-	for w in _wards:
-		if bool(w["open"]) or not bool(w["is_paired"]):
-			continue
-		var rect: Rect2 = w["region_rect"]
-		if rect.get_area() > 0.0 and not rect.has_point(_player.position):
-			continue
-		return w
-	return {}
-
-
-## The paired ward whose wedge has this interactable id, or {} — for the wedge examine.
-func _paired_ward_for_wedge(id: String) -> Dictionary:
-	for w in _wards:
-		if bool(w["is_paired"]) and String(w["wedge_id"]) == id:
-			return w
-	return {}
-
-
-## The world pos / render index of a paired ward's plate by key.
-func _plate_pos(w: Dictionary, key: String) -> Vector2:
-	for p in w["plates"]:
-		if String(p["key"]) == key:
-			return p["pos"]
-	return Vector2.ZERO
-
-
-## The key of the plate nearest the player (any), or the nearest one NOT already wedged, or "" if none.
-func _nearest_plate_key(w: Dictionary, from: Vector2, skip_wedged := false) -> String:
-	var best := ""
-	var best_d := INF
-	for p in w["plates"]:
-		if skip_wedged and String(w["wedged"]) == String(p["key"]):
-			continue
-		var d := from.distance_to(p["pos"])
-		if d < best_d:
-			best_d = d
-			best = String(p["key"])
-	return best
-
-
-## The light-flooding payoff when the great door opens — TIERED by who's present. Solo (you wedged one
-## plate, your companion held the other): a muted waking, real but a little lonely. With a second pair
-## (≥2 players here): the full waking — the old two glimpsed for a moment. The hint carries it; the door
-## itself is opened by _open_ward.
-func _wake_paired_hall(w: Dictionary) -> void:
-	var present := 1 + _remote_pairs.size()
-	if present >= 2:
-		_show_hint("Light runs the whole length of the hall — and for a breath, two figures and their companions stand where you do, long ago. The great door swings wide.")
-	else:
-		_show_hint("With a grind the great door opens — just enough. A single lamp gutters alight in the dark. You did it alone, the patient way.")
-	# The Waking: light floods back. Permanently lift the depths' gloom (paired_hall + the sanctum beyond),
-	# so stepping through into the reward is the brightest beat since the forest — and, if you're here to
-	# witness it, a one-shot warm bloom sweeps the screen (fuller/longer with a second pair present).
-	_lift_gloom("paired_hall", 0.12)
-	_lift_gloom("sanctum", 0.04)
-	# Flash only for someone actually AT the hall to witness it — not on a far re-entry sync, and not
-	# jarringly across the map when a friend's pair opens it (the spawn point is ~1340px off).
-	var hall_center := _player.position
-	if w.has("plate_a") and w.has("plate_b"):
-		hall_center = (WorldData.to_vec2(w["plate_a"]) + WorldData.to_vec2(w["plate_b"])) * 0.5
-	if _player.position.distance_to(hall_center) < 900.0:
-		_play_waking_flash(present >= 2)
-
-
-## Set the ambient gloom of a named region (used by the Waking to lift the depths once the great door
-## opens). No-op if the region declares no gloom. The change is permanent for this visit, so the lit
-## sanctum stays bright as you move through it.
-func _lift_gloom(region_id: String, value: float) -> void:
-	for rg in _region_glooms:
-		if String(rg.get("id", "")) == region_id:
-			rg["gloom"] = value
-
-
-## The Waking bloom: a warm, full-screen wash that swells then fades — light flooding back the moment the
-## great door opens. Built in code on its own CanvasLayer (above the world, below nothing it needs to read),
-## torn down when the tween finishes. `full` (a second pair present) makes it brighter and a touch longer.
-func _play_waking_flash(full: bool) -> void:
-	var layer := CanvasLayer.new()
-	layer.layer = 80
-	var rect := ColorRect.new()
-	rect.color = Color(1.0, 0.95, 0.82, 0.0)
-	rect.set_anchors_preset(Control.PRESET_FULL_RECT)
-	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	layer.add_child(rect)
-	add_child(layer)
-	var peak := 0.62 if full else 0.42
-	var tw := create_tween()
-	tw.tween_property(rect, "color:a", peak, 0.7).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
-	tw.tween_property(rect, "color:a", 0.0, 1.9 if full else 1.5).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
-	tw.tween_callback(layer.queue_free)
-
-
-## The Cistern lit (server-confirmed open): light the brazier and wake the murals (their clues for the
-## Paired Hall). The sealed door and the dark are handled by _open_ward / the gloom, which key off
-## the ward being open.
-func _light_cistern(w: Dictionary) -> void:
-	var bri := int(w["brazier_render_index"])
-	if bri >= 0:
-		_world_art.open_slab(bri)
-	for mi in w["mural_render_indices"]:
-		if int(mi) >= 0:
-			_world_art.open_slab(int(mi))
-
-
-## Cistern gloom: while you stand in the dark chamber with its light-ward still unlit, darken the whole
-## scene (the CanvasModulate day tint) — the cue that makes you NAME the need. Eases in/out, and lifts
-## the moment the brazier catches (the ward opens). No-op in worlds without a Cistern, and skipped if a
-## daycycle owns the tint.
-func _update_gloom(delta: float) -> void:
-	if _day_enabled:
-		return
-	if _region_glooms.is_empty() and _gloom_ward.is_empty():
-		return
-	# Ambient darkness of the region you're standing in (the Wood is 0, the depths darker)...
-	var target := _region_gloom_at(_player.position)
-	# ...and the Cistern's puzzle dark on top: near-black in its chamber until the brazier is lit.
-	if not _gloom_ward.is_empty() and not bool(_gloom_ward["open"]) and _gloom_rect.get_area() > 0.0 and _gloom_rect.has_point(_player.position):
-		target = maxf(target, CISTERN_UNLIT)
-	_gloom = lerpf(_gloom, target, 1.0 - exp(-2.5 * delta))
-	_day_tint.color = _base_day_tint.lerp(GLOOM_DARK, _gloom)
-
-
-## The ambient gloom of the region containing `pos` (first match), or 0 (bright) if none declares one.
-func _region_gloom_at(pos: Vector2) -> float:
-	for rg in _region_glooms:
-		if (rg["rect"] as Rect2).has_point(pos):
-			return float(rg["gloom"])
-	return 0.0
-
-
-## Reveal a ward's plate: mark it found, draw the uncovered stone (once), and narrate. `mine` tells the
-## finder's snappy "your companion noses it out" beat from the calmer "a plate lies uncovered" a friend's
-## search produced. Idempotent on the draw, so the predicted reveal and the server echo never double up.
-func _reveal_plate(w: Dictionary, mine: bool) -> void:
-	w["found"] = true
-	if bool(w["revealed"]):
-		return
-	w["revealed"] = true
-	if bool(w["is_light"]):
-		# A light-ward (Cistern): 'found' comes from kindling the ember (already narrated), and the brazier
-		# is already drawn — there's no buried plate to reveal here.
-		return
-	if w["decoys"].is_empty():
-		# A buried plate (Threshold-style): spawn its uncovered stone where the search found it.
-		w["plate_render_index"] = _world_art.add_interactable(w["plate"], Color(0.62, 0.66, 0.60), "plate")
-		_show_hint("Your companion noses through the moss and uncovers a worn stone plate." if mine
-			else "A worn stone plate lies uncovered nearby.")
-	else:
-		# A Warren nook: the gap is already drawn; the clear (open state) is the reveal, so just narrate.
-		_show_hint("Your companion noses past the look-alike gaps to the one that truly goes through." if mine
-			else "A companion noses out the gap that goes through.")
-
-
-## A ward opened (server-confirmed): mark it, hoist the slab into a lintel (visual), and DROP its
-## collider by rebuilding the solids without it, then re-hand the list to both bodies so the doorway is
-## truly walkable — for everyone present, whoever's companion opened it. Rebuilt from a deep copy so the
-## (shared, cached) spec stays untouched, which is what lets the Ruin reset closed on a later revisit.
-func _open_ward(ward: Dictionary) -> void:
-	ward["open"] = true
-	_seeking = false
-	var sri := int(ward.get("slab_render_index", -1))
-	if sri >= 0:
-		_world_art.open_slab(sri)
-	var data_copy: Dictionary = _world_data.duplicate(true)
-	var slab_id := String(ward.get("slab_id", ""))
-	for it in data_copy.get("interactables", []):
-		if String(it.get("id", "")) == slab_id:
-			it["solid"] = false
-	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
-	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	if bool(ward.get("is_paired", false)):
-		# The Paired Hall: both plates held — the great door yields. A tiered waking (full with a second
-		# pair present, muted alone). Stop holding (the open gate already skips _update_hall).
-		ward["assigned"] = ""
-		_wake_paired_hall(ward)
-	elif bool(ward.get("is_light", false)):
-		# The Cistern: the carried light catches — the brazier flares, the murals wake, and the dark lifts
-		# (the gloom keys off this ward being open), as the sealed door grinds aside.
-		_light_cistern(ward)
-		_show_hint("The brazier catches — warm light floods the chamber, the old carvings wake, and the sealed door grinds open.")
-	else:
-		_show_hint("Stone grinds on stone — the slab rises, and the way lies open.")
-
-
-## The render index (in world_art's draw list) of the interactable with this id, or -1. Props keep
-## their original index there, so this resolves a ward's slab to the thing world_art draws.
-func _render_index_for_id(id: String) -> int:
-	for e in _interactables:
-		if String(e.get("id", "")) == id:
-			return int(e.get("render_index", -1))
-	return -1
-
-
-## The world-space rect of the named region (for the Cistern gloom), or an empty Rect2 if none.
-func _region_rect(data: Dictionary, name: String) -> Rect2:
-	if name == "":
-		return Rect2()
-	for r in data.get("regions", []):
-		if String(r.get("id", "")) == name:
-			var mn := WorldData.to_vec2(r["min"])
-			return Rect2(mn, WorldData.to_vec2(r["max"]) - mn)
-	return Rect2()
-
-
-## True if any ward is still shut (per our mirror of the server state) — gates the "Go look" affordance.
-func _any_ward_unopened() -> bool:
-	for w in _wards:
-		if not bool(w["open"]):
-			return true
-	return false
-
-
-## The ward whose slab has this id (empty dict if none) — for the examine-the-slab nudge.
-func _ward_for_slab(slab_id: String) -> Dictionary:
-	for w in _wards:
-		if String(w["slab_id"]) == slab_id:
-			return w
-	return {}
-
-
-## The ward with this id (empty dict if none) — for applying server ward-state echoes.
-func _ward_by_id(id: String) -> Dictionary:
-	for w in _wards:
-		if String(w["id"]) == id:
-			return w
-	return {}
 
 
 ## Fade the "Go look" button in while a Ruin ward is unsolved, out otherwise — mirrors the other
@@ -1322,116 +756,11 @@ func _set_seek_visible(show_button: bool) -> void:
 		tween.tween_callback(func() -> void: _seek_button.visible = false)
 
 
-## Spawn the merchant's bonded companion as a STATIONARY puppet beside them: a CompanionView flagged
-## remote (no brain, no save, never moves), parented into the y-sorted Scenery so it depth-sorts with
-## everything else, and given its resting-look from the world data. We pin its target transform to its
-## standing spot so the remote-puppet ease holds it there (a remote eases toward its target, which
-## would otherwise be the origin). No-op in worlds without an "npc_companion" block.
-func _spawn_npc_companion(data: Dictionary) -> void:
-	var npc: Dictionary = data.get("npc_companion", {})
-	if npc.is_empty():
-		return
-	var rc := COMPANION_SCENE.instantiate() as CompanionView
-	rc.set_remote()
-	rc.name = "NpcCompanion"
-	rc.set_style(_style)
-	_scenery.add_child(rc)
-	var pos := WorldData.to_vec2(npc.get("position", [0, 0]))
-	rc.position = pos
-	rc.set_remote_state(pos, Vector2.DOWN)
-	var look: Variant = npc.get("look", {})
-	if look is Dictionary:
-		rc.apply_remote_look(look)
-	_npc_companion = rc
-
-
-## Open the merchant's color shop. A cozy beat first — the merchant's prop pulses and your companion
-## notices — then the shop window opens with the wallet + stock the server pushed on world join.
-## Online-only: if the snapshot hasn't landed yet it opens empty and fills in via _on_economy_loaded.
-func _open_shop(entry: Dictionary) -> void:
-	if _shop == null or _shop.is_open():
-		return
-	_world_art.pulse_interactable(int(entry["render_index"]))
-	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
-	_show_hint("You greet %s." % entry["label"])
-	_shop.open(_shop_colors, _shop_balance, _shop_currency)
-
-
-## The player tapped Buy: relay it to the server (the purchase is authoritative there). The outcome
-## comes back via Net.purchase_succeeded / purchase_failed.
-func _on_shop_buy(item_def_id: int) -> void:
-	Net.buy_color(item_def_id)
-
-
-## The shop closed — clear the greeting so the world reads clean again.
-func _on_shop_closed() -> void:
-	if _hint.text.begins_with("You greet ") or _hint.text == "A new colour for your wardrobe!":
-		_hint.text = ""
-
-
-## Turn over a rock: ask the hunt what's hidden under it (this spends a flip from the budget),
-## reveal it (world_art tips the rock and shows the find), let the companion appraise what
-## surfaced, tick the counter, and resolve the hunt if this flip won it or spent the last flip.
-func _examine_rock(entry: Dictionary) -> void:
-	if _hunt == null or _hunt_over:
-		return
-	var result: Dictionary = _hunt.examine(int(entry["hunt_index"]))
-	if bool(result["already_examined"]):
-		return
-	var kind := String(result["kind"])
-	_world_art.reveal_rock(int(entry["render_index"]), kind)
-	# Let the companion feel about what surfaced — high appeal for a salamander, mild for a decoy,
-	# little for bare sand. A kind-keyed id so repeated finds habituate gently rather than each
-	# rock being a brand-new wonder.
-	_companion.notify_interaction(entry["pos"], "rock_" + kind, result["tags"])
-	_show_hint("You lift the rock: %s" % result["label"])
-	# Tick the counter every flip so the dwindling flip budget is always legible; pop it on a find.
-	_flips_left = int(result["flips_remaining"])
-	_set_goal_text(int(result["found"]), int(result["total"]))
-	if kind == "salamander":
-		_bounce_goal_label()
-	# Resolve the hunt at most once. A win beats run-out: out_of_flips() already excludes the
-	# flip that finds the last salamander, so the order here is just belt-and-suspenders.
-	if bool(result["newly_complete"]):
-		_on_hunt_won(entry["pos"], int(result["found"]))
-	elif bool(result["out_of_flips"]):
-		_on_hunt_run_out(entry["pos"], int(result["found"]))
-
-
-## Won the hunt — all salamanders found. Open a way home and celebrate, with an extra flourish for
-## a flawless run (every flip a salamander, none wasted) — the reward for trusting your companion.
-## Claim the coin reward from the server; the amount it pays appends to this hint via _on_hunt_reward.
-func _on_hunt_won(at: Vector2, found: int) -> void:
-	_hunt_over = true
-	_open_completion_portal(at)
-	if _flip_budget > 0 and _hunt.flips_used == found:
-		_completion_hint = "A perfect hunt — every flip a salamander! A portal shimmers open just up the bank."
-	else:
-		_completion_hint = "All ten salamanders found! A portal shimmers open just up the bank."
-	_show_hint(_completion_hint)
-	Net.claim_hunt_reward(found)
-
-
-## Ran out of flips before finding them all — no hard loss. Flip every rock still face-down so the
-## player sees what they missed (dimmed), open the way home, and gently invite them back: as the
-## bond deepens, the companion's tell sharpens and the next visit goes better.
-func _on_hunt_run_out(at: Vector2, found: int) -> void:
-	_hunt_over = true
-	for r in _rocks:
-		var hi := int(r["hunt_index"])
-		if not _hunt.is_examined(hi):
-			_world_art.reveal_rock(int(r["render_index"]), _hunt.content_kind(hi), true)
-	_open_completion_portal(at)
-	_completion_hint = "Out of flips. Here's what the river was hiding — come back and let your companion help you find them."
-	_show_hint(_completion_hint)
-	# Even a partial hunt can earn a few coins (six or more); the server decides — see _on_hunt_reward.
-	Net.claim_hunt_reward(found)
-
-
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
 ## player needn't trek all the way back to the entry portal. Leads where this world's portals
-## lead (the Vale). Serves both terminal states (a win and a run-out).
-func _open_completion_portal(at: Vector2) -> void:
+## lead (the Vale). Serves both terminal states (a win and a run-out). Part of the host seam — the
+## HuntDirector calls this once its goal resolves.
+func open_completion_portal(at: Vector2) -> void:
 	var pos := at + Vector2(46, -28)
 	var render_index := _world_art.add_interactable(pos, Color(0.74, 0.66, 0.96), "portal")
 	_portals.append({
@@ -1472,84 +801,6 @@ func _begin_transition(portal: Dictionary) -> void:
 	tw.tween_callback(func() -> void: WorldRouter.go_to(String(portal["target_world"]), String(portal["target_portal"])))
 
 
-## The companion as a living salamander DETECTOR — the heart of the hunt. A DISCRETE-EVENT machine,
-## not a continuous readout: when a hidden, un-found salamander is within the companion's (bond-scaled)
-## sense range and the cooldown has elapsed, the companion STOPS and points at it at full strength for
-## a couple seconds (the view holds it still while pointing), then releases and cools down. The cooldown
-## scales with bond — a fresh companion points rarely, a bonded one often — so the help you get IS the
-## relationship. Presentation only: this reads the hunt's truth but feeds it solely to the companion's
-## BODY (point_at), never its brain, so the companion still never *knows* where the salamanders are.
-## Decoys/empties are never sense-able, keeping the tell honest.
-func _update_hints(delta: float) -> void:
-	if not _goal_active or _hunt == null:
-		return
-	if _hunt_over:
-		if _point_active:
-			_point_active = false
-			_point_target_hi = -1
-		_companion.point_at(Vector2.ZERO, 0.0)  # hunt's done — relax the pose
-		return
-	var bond := _companion.bond_value()
-
-	# Holding a point: keep it full-strength until the timer runs out (or the player flips the very
-	# rock it's pointing at), then release and roll the next cooldown, shorter the deeper the bond.
-	if _point_active:
-		_point_hold_left -= delta
-		if _point_target_hi >= 0 and _hunt.is_examined(_point_target_hi):
-			_point_hold_left = 0.0
-		if _point_hold_left <= 0.0:
-			_point_active = false
-			_point_target_hi = -1
-			_point_cd_left = lerpf(_point_cooldown_low, _point_cooldown_high, bond)
-			_companion.point_at(Vector2.ZERO, 0.0)
-		else:
-			_companion.point_at(_point_target, 1.0)
-		return
-
-	# Cooling down between points — stand easy.
-	if _point_cd_left > 0.0:
-		_point_cd_left = maxf(0.0, _point_cd_left - delta)
-		return
-
-	# Ready: if a sense-able salamander is near, start a point hold. Otherwise leave the cooldown at
-	# zero so it fires the instant one comes into range (the companion's closeness, set by bond, is
-	# what decides how often that happens).
-	var sense := lerpf(_sense_low, _sense_high, bond)
-	var best := Vector2.ZERO
-	var best_d := sense
-	var best_hi := -1
-	for r in _rocks:
-		var hi := int(r["hunt_index"])
-		if _hunt.is_examined(hi):
-			continue
-		if _hunt.content_kind(hi) != "salamander":
-			continue
-		var d := _companion.position.distance_to(r["pos"])
-		if d <= best_d:
-			best_d = d
-			best = r["pos"]
-			best_hi = hi
-	if best_hi >= 0:
-		_point_active = true
-		_point_hold_left = _point_hold_seconds
-		_point_target = best
-		_point_target_hi = best_hi
-		_companion.point_at(best, 1.0)
-
-
-func _set_goal_text(found: int, total: int) -> void:
-	if _flip_budget > 0:
-		_goal_label.text = "Salamanders  %d / %d\nFlips left  %d" % [found, total, _flips_left]
-	else:
-		_goal_label.text = "Salamanders  %d / %d" % [found, total]
-
-
-## A small celebratory pop of the counter each time you find one.
-func _bounce_goal_label() -> void:
-	_goal_label.scale = Vector2(1.25, 1.25)
-	create_tween().set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT).tween_property(_goal_label, "scale", Vector2.ONE, 0.28)
-
-
 ## Index of the closest examinable interactable within range, or -1 if none. Already-searched
 ## rocks are skipped, so a turned-over rock no longer prompts "Examine"; once the hunt is over
 ## (won or run out) no rock prompts at all — the search is finished, the way home is open.
@@ -1558,7 +809,7 @@ func _nearest_interactable() -> int:
 	var best_dist := INTERACT_RANGE
 	for i in _interactables.size():
 		var e: Dictionary = _interactables[i]
-		if String(e.get("kind", "prop")) == "rock" and _hunt != null and (_hunt_over or _hunt.is_examined(int(e["hunt_index"]))):
+		if String(e.get("kind", "prop")) == "rock" and _hunt_dir.should_skip_rock(int(e["hunt_index"])):
 			continue
 		var d := _player.position.distance_to(e["pos"])
 		if d <= best_dist:
@@ -1568,39 +819,24 @@ func _nearest_interactable() -> int:
 
 
 # ============================================================================================
-# SHARED PRESENCE (Rung 3) — the game-side half of multiplayer: "me vs them". This decides WHAT
-# to send (our pair's transforms + a one-time identity) and turns a peer's wire state into a
-# spawned, smoothed puppet pair. It talks only to the Net seam in plain dictionaries, so it
-# survives the planned transport swaps (ENet -> WebSockets -> authoritative server) untouched.
-# The local Player/Companion (from the scene) stay fully authoritative over themselves and keep
-# running their own input/brain; remotes are pure puppets, driven only by what arrives over Net.
+# NETWORK + SESSION — the controller's own Net wiring. Shared presence ("me vs them"), the save, the
+# economy, and the Ruin's ward state now live in their own directors, which connect their Net signals
+# themselves. What's left here is world-scoped: entering the world channel and the cold-spec handshake
+# (_show_loading / _on_world_spec_arrived).
 # ============================================================================================
 
-## Wire up to the Net seam: publish our identity once, and react to peers joining, moving, and
-## leaving. Safe to call always — none of it does anything until the player Hosts or Joins.
+## Wire up the controller's own Net seam: enter this world's channel. Shared presence + the save (the
+## PresenceDirector) and the Ruin's ward state (the RuinController) connect their own Net signals in their
+## setup; here we just kick the join and let presence re-dress from any in-session save. Safe to call
+## always — none of it does anything until the player Hosts or Joins.
 func _setup_net() -> void:
-	Net.set_local_identity(_local_identity())
-	Net.peer_joined.connect(_on_peer_joined)
-	Net.peer_left.connect(_on_peer_left)
-	Net.identity_received.connect(_on_identity_received)
-	Net.state_received.connect(_on_state_received)
-	Net.save_loaded.connect(_on_save_loaded)
-	Net.economy_loaded.connect(_on_economy_loaded)
-	Net.purchase_succeeded.connect(_on_purchase_succeeded)
-	Net.purchase_failed.connect(_on_purchase_failed)
-	Net.hunt_reward.connect(_on_hunt_reward)
-	Net.maze_reward.connect(_on_maze_reward)
-	Net.ward_state_received.connect(_on_ward_state)
-	Net.disconnected.connect(_on_disconnected)
 	# Enter this world's channel: presence + live transforms here are scoped to this world, and the
 	# server sends back its canonical spec (cached by Net for next time). Queued until the socket is
 	# open, so this is safe at boot before the player has connected, and on every world hop.
 	Net.enter_world(WorldRouter.current_world)
 	# Hopping between worlds reloads this scene with a fresh placeholder companion; if we're
 	# already connected, re-dress it from the in-session save the server already gave us.
-	if Net.has_session_save():
-		var s := Net.session_save()
-		_apply_server_save(s.get("companion"), s.get("appearance"))
+	_presence_dir.apply_session_save_if_any()
 
 
 ## Cover the not-yet-built scene with the black fade and a gentle word while we wait for the server's
@@ -1643,294 +879,10 @@ func _on_world_spec_arrived(world_id: String, _version: int, _spec: Dictionary) 
 		get_tree().reload_current_scene()
 
 
-## Our one-time identity packet: who we are, for a friend to render. Pure presentation data —
-## the player's worn look (already JSON) and the companion's resting-look floats (its grown self,
-## with no mind attached). The friend never receives our save, our brain, or our bond — only this.
-func _local_identity() -> Dictionary:
-	return {
-		"name": "Friend",
-		"appearance": _player.appearance_dict(),
-		"companion_look": _companion.resting_look_payload(),
-	}
-
-
-## Stream our local pair's transforms to peers at ~20 Hz. The packet stays tiny: our player's
-## position+facing and our companion's position+attention (the Net seam marshals the Vector2s for
-## the wire). A no-op until connected (Net.broadcast_state guards it), so it's harmless offline.
-func _broadcast_presence(delta: float) -> void:
-	if not Net.is_active():
-		return
-	_net_accum += delta
-	if _net_accum < NET_SEND_INTERVAL:
-		return
-	_net_accum = 0.0
-	Net.broadcast_state({
-		"p": _player.position,
-		"pf": _player.facing(),
-		"c": _companion.position,
-		"cl": _companion.look_dir(),
-	})
-
-
-## Periodically push our companion + wardrobe to the server (the sole save). A no-op until
-## connected; the world calls it every frame.
-func _push_save_periodic(delta: float) -> void:
-	if not Net.is_active():
-		return
-	_save_accum += delta
-	if _save_accum < SAVE_INTERVAL:
-		return
-	_save_accum = 0.0
-	_push_save()
-
-
-## Send the current companion self + worn wardrobe up as the canonical save.
-func _push_save() -> void:
-	Net.push_save(_companion.self_dict(), _player.appearance_dict())
-
-
-## Our canonical save arrived from the server (or nulls for a brand-new player).
-func _on_save_loaded(companion, appearance) -> void:
-	_apply_server_save(companion, appearance)
-
-
-## Adopt a loaded save; if we're a brand-new player (no stored save), seed the server with the
-## placeholder companion + default look we started with, so next time it loads.
-func _apply_server_save(companion, appearance) -> void:
-	var had_save := false
-	if companion is Dictionary and not (companion as Dictionary).is_empty():
-		_companion.replace_self(companion)
-		had_save = true
-	if appearance is Dictionary and not (appearance as Dictionary).is_empty():
-		_player.apply_appearance(appearance)
-		had_save = true
-	if not had_save:
-		_push_save()
-	# Our relayed presentation identity may have changed (loaded look) — refresh it for peers.
-	Net.set_local_identity(_local_identity())
-
-
-## The economy snapshot arrived on world join (per-user: our wallet + the shop's color stock). Cache
-## it so the shop opens instantly; if the shop is already open when a fresh snapshot lands, refresh it.
-func _on_economy_loaded(currency: String, balance: int, colors: Array) -> void:
-	if currency != "":
-		_shop_currency = currency
-	_shop_balance = balance
-	_shop_colors = colors
-	if _shop != null and _shop.is_open():
-		_shop.open(_shop_colors, _shop_balance, _shop_currency)
-
-
-## A purchase succeeded: mark the color owned in our cached stock, adopt the new balance, reflect it
-## in the open shop, and celebrate. The color is now stored to the wardrobe (server-side); making it
-## show on the avatar is the deferred recolor step.
-func _on_purchase_succeeded(item_def_id: int, balance: int) -> void:
-	_shop_balance = balance
-	for c in _shop_colors:
-		if c is Dictionary and int(c.get("item_def_id", 0)) == item_def_id:
-			c["owned"] = true
-			break
-	if _shop != null:
-		_shop.apply_purchase(item_def_id, balance)
-	_show_hint("A new colour for your wardrobe!")
-
-
-## A purchase was refused: let the shop re-enable the row and surface a gentle reason.
-func _on_purchase_failed(item_def_id: int, reason: String) -> void:
-	if _shop != null:
-		_shop.apply_failure(item_def_id, reason)
-	_show_hint(_purchase_failure_text(reason))
-
-
-## The server resolved our salamander-hunt reward. Adopt the new wallet balance (so it's current next
-## time we open the shop), and — if it actually paid out — append the earned coins to the completion
-## hint. Below the reward threshold (fewer than six found) the amount is 0 and the hint is left alone.
-func _on_hunt_reward(_found: int, amount: int, balance: int) -> void:
-	_shop_balance = balance
-	if amount > 0 and _completion_hint != "":
-		var coins := "coin" if amount == 1 else "coins"
-		_show_hint("%s  You earned %d %s!" % [_completion_hint, amount, coins])
-
-
-## Reached the heart of the hedge maze. Latch it (so it fires once this visit), celebrate, and claim
-## the coin reward from the server — the amount it pays appends to this hint via _on_maze_reward. The
-## way home is the portal standing right here in the plaza; the Return button is the other way out.
-func _on_maze_reached() -> void:
-	_maze_reached = true
-	_goal_label.text = "The heart of the maze!"
-	_completion_hint = "You've reached the heart of the maze!"
-	_show_hint(_completion_hint)
-	Net.claim_maze_reward()
-
-
-## The companion as a quiet maze-guide: once you've stood still for MAZE_HINT_DELAY, it points
-## subtly along the SOLVED PATH to the centre (from the spec's authored flow field), and relaxes the
-## moment you move again or reach the heart. Presentation only — like the salamander tell, it feeds
-## the companion's BODY (point_at), never its brain, so the companion still never *knows* the way; its
-## body just leans where the path leads. A no-op outside the maze.
-func _update_maze_hint(delta: float) -> void:
-	if not _maze_active:
-		return
-	# Done hinting once you've reached the heart (or if the world carried no guide) — relax the pose.
-	if _maze_reached or _maze_guide_dirs.is_empty():
-		if _maze_pointing:
-			_companion.point_at(Vector2.ZERO, 0.0)
-			_maze_pointing = false
-		return
-	# Moving resets the idle timer and releases any point — the hint is only for when you've paused.
-	var moved := _player.position.distance_to(_last_player_pos)
-	_last_player_pos = _player.position
-	if moved > MAZE_MOVE_EPS:
-		_maze_idle = 0.0
-		if _maze_pointing:
-			_companion.point_at(Vector2.ZERO, 0.0)
-			_maze_pointing = false
-		return
-	_maze_idle += delta
-	if _maze_idle < MAZE_HINT_DELAY:
-		return
-	var dir := _maze_dir_at(_player.position)
-	if dir == Vector2.ZERO:
-		return  # at/over the centre, or off-grid — nothing to point toward
-	_maze_pointing = true
-	_companion.point_at(_player.position + dir * MAZE_HINT_REACH, MAZE_HINT_STRENGTH)
-
-
-## The path direction (a unit Vector2) out of the cell the given world pos falls in, from the maze
-## flow field — toward the centre. Vector2.ZERO at the centre cell or if there's no guide.
-func _maze_dir_at(pos: Vector2) -> Vector2:
-	if _maze_guide_cols <= 0 or _maze_guide_rows <= 0:
-		return Vector2.ZERO
-	var cx := clampi(int(round((pos.x - _maze_guide_origin.x) / _maze_guide_pitch)), 0, _maze_guide_cols - 1)
-	var cy := clampi(int(round((pos.y - _maze_guide_origin.y) / _maze_guide_pitch)), 0, _maze_guide_rows - 1)
-	match int(_maze_guide_dirs[cy * _maze_guide_cols + cx]):
-		1: return Vector2(0, -1)
-		2: return Vector2(1, 0)
-		3: return Vector2(0, 1)
-		4: return Vector2(-1, 0)
-		_: return Vector2.ZERO
-
-
-## The server resolved our maze reward. Adopt the new wallet balance (so the shop is current next
-## time), and — if it paid out — append the earned coins to the celebration hint.
-func _on_maze_reward(amount: int, balance: int) -> void:
-	_shop_balance = balance
-	if amount > 0 and _completion_hint != "":
-		var coins := "coin" if amount == 1 else "coins"
-		_show_hint("%s  You earned %d %s!" % [_completion_hint, amount, coins])
-
-
-func _purchase_failure_text(reason: String) -> String:
-	match reason:
-		"insufficient_funds":
-			return "You can't quite afford that one yet."
-		"already_owned":
-			return "That colour is already yours."
-		_:
-			return "The merchant shakes their head."
-
-
-## Persist on the ways a session can end — now pushed to the server instead of disk: window
-## close, app backgrounded, or this node leaving the tree (world hop / quit).
+## Persist on the ways a session can end — pushed to the server (the sole save): window close, app
+## backgrounded, or this node leaving the tree (world hop / quit). Delegated to the PresenceDirector,
+## which may not exist yet on a cold first visit (before the world is built), hence the guard.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_WM_CLOSE_REQUEST or what == NOTIFICATION_APPLICATION_PAUSED or what == NOTIFICATION_EXIT_TREE:
-		if Net.is_active():
-			_push_save()
-
-
-## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery
-## layer so they depth-sort with us and the trees. They're flagged remote BEFORE entering the tree
-## (set_remote → no input, no brain, no save). Any identity that beat them here is applied at once.
-func _on_peer_joined(peer_id: String) -> void:
-	if _remote_pairs.has(peer_id):
-		return
-	var rp := PLAYER_SCENE.instantiate() as PlayerView
-	rp.set_remote()
-	rp.name = "RemotePlayer_%s" % peer_id
-	var rc := COMPANION_SCENE.instantiate() as CompanionView
-	rc.set_remote()
-	rc.name = "RemoteCompanion_%s" % peer_id
-	rp.set_style(_style)
-	rc.set_style(_style)
-	_scenery.add_child(rp)
-	_scenery.add_child(rc)
-	# Start them where our own pair stands so they don't pop in from the origin; the first state
-	# packet snaps them to the truth a frame later. (Remotes never collide — their owner is.)
-	rp.position = _player.position
-	rc.position = _companion.position
-	rp.set_remote_state(_player.position, Vector2.DOWN)
-	rc.set_remote_state(_companion.position, Vector2.DOWN)
-	_remote_pairs[peer_id] = { "player": rp, "companion": rc }
-	if _pending_identity.has(peer_id):
-		_apply_remote_identity(peer_id, _pending_identity[peer_id])
-		_pending_identity.erase(peer_id)
-
-
-## A peer left: free its puppet pair and forget it. Clean despawn so a friend quitting simply
-## vanishes rather than freezing in place.
-func _on_peer_left(peer_id: String) -> void:
-	if _remote_pairs.has(peer_id):
-		var pair: Dictionary = _remote_pairs[peer_id]
-		(pair["player"] as Node).queue_free()
-		(pair["companion"] as Node).queue_free()
-		_remote_pairs.erase(peer_id)
-	_pending_identity.erase(peer_id)
-
-
-## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
-## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
-## reconnect doesn't leave the old ghosts behind). The lobby gate
-## reappears on its own (it also listens for disconnected()); our own player + companion stay put.
-func _on_disconnected() -> void:
-	for peer_id in _remote_pairs.keys():
-		var pair: Dictionary = _remote_pairs[peer_id]
-		(pair["player"] as Node).queue_free()
-		(pair["companion"] as Node).queue_free()
-	_remote_pairs.clear()
-	_pending_identity.clear()
-
-
-## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they
-## spawn (the packet can race ahead of peer_joined). Untrusted input — validated by the appliers.
-func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
-	if _remote_pairs.has(peer_id):
-		_apply_remote_identity(peer_id, payload)
-	else:
-		_pending_identity[peer_id] = payload
-
-
-func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
-	var pair: Dictionary = _remote_pairs[peer_id]
-	var appearance: Variant = payload.get("appearance", {})
-	if appearance is Dictionary:
-		(pair["player"] as PlayerView).apply_identity(appearance)
-	var look: Variant = payload.get("companion_look", {})
-	if look is Dictionary:
-		(pair["companion"] as CompanionView).apply_remote_look(look)
-
-
-## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped
-## to the world bounds, non-Vector2 junk is ignored, and the data can only move THIS peer's puppet —
-## never our avatar, never the save. The puppets interpolate toward it for smooth motion.
-func _on_state_received(peer_id: String, payload: Dictionary) -> void:
-	if not _remote_pairs.has(peer_id):
-		return
-	var pair: Dictionary = _remote_pairs[peer_id]
-	(pair["player"] as PlayerView).set_remote_state(_clamp_to_bounds(_as_vec2(payload.get("p"))), _as_vec2(payload.get("pf")))
-	(pair["companion"] as CompanionView).set_remote_state(_clamp_to_bounds(_as_vec2(payload.get("c"))), _as_vec2(payload.get("cl")))
-
-
-## Coerce an untrusted wire value to a Vector2, defaulting to zero for anything else — so a
-## malformed packet can never crash us or inject a wrong type into the rig.
-func _as_vec2(v: Variant) -> Vector2:
-	return v if v is Vector2 else Vector2.ZERO
-
-
-## Keep a remote position inside the walkable world, so a peer (honest or not) can never park its
-## puppet out in the void past the edges.
-func _clamp_to_bounds(p: Vector2) -> Vector2:
-	if _bounds_rect.size == Vector2.ZERO:
-		return p
-	return Vector2(
-		clampf(p.x, _bounds_rect.position.x, _bounds_rect.end.x),
-		clampf(p.y, _bounds_rect.position.y, _bounds_rect.end.y))
+		if _presence_dir != null:
+			_presence_dir.flush_save_on_exit()
