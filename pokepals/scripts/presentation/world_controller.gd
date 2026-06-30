@@ -384,6 +384,9 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			"tags": it.get("tags", []),
 			"kind": kind,
 			"render_index": i,
+			# An optional fragment of the world's story (a Knot's lore line, a notice-board, the
+			# wet-boots man). When present, Examining shows this instead of the generic perks-up line.
+			"lore": String(it.get("lore", "")),
 		}
 		_interactables.append(entry)
 		poi.append(entry["pos"])
@@ -749,6 +752,12 @@ func _try_interact() -> void:
 	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
 	# handled by the RuinController; if it claims this prop, we're done.
 	if _ruin.try_examine(entry):
+		return
+	# A prop carrying a story fragment (a Knot's lore signpost, a Knuckle notice-board, the wet-boots
+	# man) reads out that line; everything else gets the cozy generic beat.
+	var lore := String(entry.get("lore", ""))
+	if lore != "":
+		_show_hint(lore)
 		return
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
 
