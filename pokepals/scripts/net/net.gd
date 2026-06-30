@@ -68,6 +68,10 @@ signal maze_reward(amount: int, balance: int)
 ## uncovers/weights a plate): an Array of { id, found, open }. The world layer renders the reveal /
 ## slab-raise from it — the server is the authority, so two players' companions converge on one truth.
 signal ward_state_received(wards: Array)
+## A tick of our current world's AMBIENT-PAL sim arrived (on join, then ~10 Hz while we're here): an
+## Array of { id: String, pos: Vector2, look: Vector2 }. The pals are server-authoritative set-dressing,
+## so everyone in the world converges on the same positions; the world layer eases each puppet toward them.
+signal ambient_state_received(pals: Array)
 ## A world's spec arrived (and was cached, in memory + on disk): the display-agnostic core +
 ## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
 ## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
@@ -506,6 +510,9 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 		"ward_state":
 			var wards: Variant = payload.get("wards", [])
 			ward_state_received.emit(wards if wards is Array else [])
+		"ambient_state":
+			var pals: Variant = payload.get("pals", [])
+			ambient_state_received.emit(_decode_ambient(pals) if pals is Array else [])
 
 
 ## Send one of OUR channel events on the current world topic (stable join_ref, fresh ref).
@@ -595,3 +602,24 @@ static func _decode_state(payload: Dictionary) -> Dictionary:
 
 static func _is_number(v: Variant) -> bool:
 	return v is float or v is int
+
+
+## A server ambient-pal batch ([{ id, p: [x,y], l: [lx,ly] }]) → [{ id, pos: Vector2, look: Vector2 }].
+## Skips malformed entries so one bad packet can't break the render. Pure + static, unit-testable.
+static func _decode_ambient(pals: Array) -> Array:
+	var out: Array = []
+	for p in pals:
+		if not (p is Dictionary):
+			continue
+		var id := String(p.get("id", ""))
+		if id == "":
+			continue
+		out.append({ "id": id, "pos": _arr_to_vec2(p.get("p")), "look": _arr_to_vec2(p.get("l")) })
+	return out
+
+
+## [x, y] → Vector2, or Vector2.ZERO if it isn't a 2-number array.
+static func _arr_to_vec2(v: Variant) -> Vector2:
+	if v is Array and v.size() == 2 and _is_number(v[0]) and _is_number(v[1]):
+		return Vector2(v[0], v[1])
+	return Vector2.ZERO

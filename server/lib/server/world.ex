@@ -27,20 +27,25 @@ defmodule Server.World do
   @registry Server.WorldRegistry
   @supervisor Server.WorldSupervisor
 
+  # Ambient-pal simulation cadence: advance + broadcast at 10 Hz (the client eases the stream into 60 fps).
+  @tick_ms 100
+  @tick_dt 0.1
+
   # --- client API ---
 
-  def start_link({world_id, ward_defs}) when is_binary(world_id) do
-    GenServer.start_link(__MODULE__, {world_id, ward_defs}, name: via(world_id))
+  def start_link({world_id, ward_defs, ambient_defs}) when is_binary(world_id) do
+    GenServer.start_link(__MODULE__, {world_id, ward_defs, ambient_defs}, name: via(world_id))
   end
 
   @doc """
   Start the process for `world_id` if it isn't running yet; returns `world_id`. `ward_defs` (the
-  spec's `ruin.wards`, or `[]`) seed the shared Ruin ward state — only the FIRST starter's defs take;
-  later joiners re-affirm the same server-canonical spec, so passing them every join is safe.
+  spec's `ruin.wards`, or `[]`) seed the shared Ruin ward state and `ambient_defs` (the spec's
+  `ambient_pals`, or `[]`) seed the ambient-pal sim — only the FIRST starter's defs take; later joiners
+  re-affirm the same server-canonical spec, so passing them every join is safe.
   """
-  @spec ensure_started(String.t(), [map()]) :: String.t()
-  def ensure_started(world_id, ward_defs \\ []) when is_binary(world_id) do
-    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, {world_id, ward_defs}}) do
+  @spec ensure_started(String.t(), [map()], [map()]) :: String.t()
+  def ensure_started(world_id, ward_defs \\ [], ambient_defs \\ []) when is_binary(world_id) do
+    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, {world_id, ward_defs, ambient_defs}}) do
       {:ok, _pid} -> world_id
       {:error, {:already_started, _pid}} -> world_id
     end
@@ -78,10 +83,16 @@ defmodule Server.World do
     GenServer.call(via(world_id), :snapshot)
   end
 
+  @doc "The current ambient-pal transforms for `world_id` (`[%{id, p, l}]`), for the join snapshot."
+  @spec ambient_snapshot(String.t()) :: [map()]
+  def ambient_snapshot(world_id) do
+    GenServer.call(via(world_id), :ambient)
+  end
+
   # --- server callbacks ---
 
   @impl true
-  def init({world_id, ward_defs}) do
+  def init({world_id, ward_defs, ambient_defs}) do
     {:ok,
      %{
        world_id: world_id,
@@ -90,15 +101,20 @@ defmodule Server.World do
        # MapSet of user_ids per ward, so two pairs can hold two plates and a leaver releases their own.
        ward_defs: ward_defs,
        wards: Server.RuinMechanisms.new(ward_defs),
-       occupants: %{}
+       occupants: %{},
+       # Shared ambient-pal sim: pure wander logic, ticked while at least one player is here. `ticking`
+       # guards against scheduling more than one :tick timer at a time.
+       ambient: Server.AmbientPals.new(ambient_defs),
+       ticking: false
      }}
   end
 
   @impl true
   def handle_cast({:update, user_id, transform}, state) do
+    was_empty = map_size(state.transforms) == 0
     state = put_in(state.transforms[user_id], transform)
     Phoenix.PubSub.broadcast(Server.PubSub, state_topic(state.world_id), {:world_state, user_id, transform})
-    {:noreply, state}
+    {:noreply, maybe_start_ticking(state, was_empty)}
   end
 
   def handle_cast({:forget, user_id}, state) do
@@ -138,7 +154,42 @@ defmodule Server.World do
 
   def handle_call(:wards, _from, state), do: {:reply, Server.RuinMechanisms.to_list(state.wards), state}
 
+  def handle_call(:ambient, _from, state), do: {:reply, Server.AmbientPals.to_list(state.ambient), state}
+
+  # Advance the ambient-pal sim and fan the new transforms out — but only while someone is here to see
+  # them. When the world empties, stop the loop (the next join restarts it); idle worlds cost nothing.
+  @impl true
+  def handle_info(:tick, state) do
+    if map_size(state.transforms) == 0 do
+      {:noreply, %{state | ticking: false}}
+    else
+      ambient = Server.AmbientPals.tick(state.ambient, @tick_dt)
+
+      Phoenix.PubSub.broadcast(
+        Server.PubSub,
+        state_topic(state.world_id),
+        {:world_ambient, Server.AmbientPals.to_list(ambient)}
+      )
+
+      Process.send_after(self(), :tick, @tick_ms)
+      {:noreply, %{state | ambient: ambient}}
+    end
+  end
+
+  def handle_info(_msg, state), do: {:noreply, state}
+
   # --- internals ---
+
+  # Kick off the 10 Hz ambient tick when the first player arrives (and the world actually has pals).
+  # No-op if already ticking or there's nothing to simulate, so it can be called on every transform.
+  defp maybe_start_ticking(state, was_empty) do
+    if was_empty and not state.ticking and Server.AmbientPals.any?(state.ambient) do
+      Process.send_after(self(), :tick, @tick_ms)
+      %{state | ticking: true}
+    else
+      state
+    end
+  end
 
   # A player's companion uncovered a plate (its search nosed it out).
   defp apply_ward_intent(state, _user_id, %{"kind" => "uncover", "ward" => id}) do

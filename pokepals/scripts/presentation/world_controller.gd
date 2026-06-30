@@ -52,6 +52,7 @@ var _hunt_dir: HuntDirector
 var _maze_dir: MazeDirector
 var _shop_dir: ShopDirector
 var _presence_dir: PresenceDirector
+var _ambient_dir: AmbientPalDirector
 var _ruin: RuinController
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
@@ -160,6 +161,7 @@ func _build_world(data: Dictionary) -> void:
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
+	_ambient_dir.set_bounds(bounds_rect)  # same clamp for the server-driven ambient pals
 
 	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
 	# props, great-trees, ponds) and hand it to both characters to collide against. The
@@ -201,6 +203,10 @@ func _build_world(data: Dictionary) -> void:
 	# The bazaar's shopkeeper keeps their bonded companion at their side — spawn it as a stationary
 	# puppet (no-op in worlds without one).
 	_shop_dir.spawn_npc(data)
+
+	# Ambient pals: spawn the world's set-dressing creatures as puppets the server then drives (no-op in
+	# worlds without an "ambient_pals" block).
+	_ambient_dir.spawn_pals(data)
 
 	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
 	# from also spinning up the movement thumbstick underneath it.
@@ -284,6 +290,10 @@ func _create_directors() -> void:
 	_presence_dir = PresenceDirector.new()
 	add_child(_presence_dir)
 	_presence_dir.setup(_player, _companion, _scenery, _style)
+
+	_ambient_dir = AmbientPalDirector.new()
+	add_child(_ambient_dir)
+	_ambient_dir.setup(_scenery, _style)
 
 	_ruin = RuinController.new()
 	add_child(_ruin)
