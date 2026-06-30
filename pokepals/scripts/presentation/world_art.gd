@@ -11,6 +11,7 @@ var _ground_color := Color(0.43, 0.58, 0.36)
 var _bounds := Rect2()
 var _ponds: Array = []     # [ { center: Vector2, radius: float, color: Color } ]
 var _river: Dictionary = {}  # { rect: Rect2, color: Color, rim: Color } — a long water band, or empty
+var _vein: Dictionary = {}   # { rect, color, rim, cracks } — the bazaar's sunken DRY riverbed artery, or empty
 var _paths: Array = []     # [ { from: Vector2, to: Vector2, color: Color } ]
 var _hedges: Array = []    # [ { a: Vector2, b: Vector2, t: float } ] — the maze's tall hedge walls
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
@@ -76,6 +77,29 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"rect": Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])),
 			"color": WorldData.to_color(rv["color"]),
 			"rim": WorldData.to_color(rv.get("rim", [0.78, 0.86, 0.88])),
+		}
+
+	# The Vein: the bazaar's sunken DRY riverbed — a long dusty channel band the whole world drains
+	# toward (the navigation spine: "follow the channel and you'll never be lost"). Drawn like the river
+	# but bone-dry — sunken banks, an old high-water rim, cracked mud, and a faint dust "current"
+	# drifting down its centre on the breeze. Cracks are seeded once so they don't shimmer frame to frame.
+	_vein = {}
+	if data.has("vein"):
+		var vn: Dictionary = data["vein"]
+		var va: Array = vn["rect"]  # [x, y, w, h]
+		var vrect := Rect2(float(va[0]), float(va[1]), float(va[2]), float(va[3]))
+		var cracks: Array = []
+		var crng := RandomNumberGenerator.new()
+		crng.seed = 0x5EA50
+		var n := int(clampf(vrect.size.x / 90.0, 6, 40))
+		for i in n:
+			var a := Vector2(vrect.position.x + crng.randf() * vrect.size.x, vrect.position.y + 13.0 + crng.randf() * maxf(1.0, vrect.size.y - 26.0))
+			cracks.append([a, a + Vector2(crng.randf_range(-15.0, 15.0), crng.randf_range(-11.0, 11.0))])
+		_vein = {
+			"rect": vrect,
+			"color": WorldData.to_color(vn.get("color", [0.74, 0.66, 0.50])),
+			"rim": WorldData.to_color(vn.get("rim", [0.86, 0.80, 0.66])),
+			"cracks": cracks,
 		}
 
 	_paths.clear()
@@ -272,6 +296,9 @@ func _draw() -> void:
 			continue
 		draw_line(p["from"], p["to"], p["color"], 16.0)
 
+	# the Vein: the sunken dry channel, drawn under everything else (props sit on its bed)
+	_draw_vein()
+
 	# the river: a long water band with a lit upper edge and a few ripples drifting downstream
 	if not _river.is_empty():
 		var rrect: Rect2 = _river["rect"]
@@ -361,6 +388,35 @@ func _draw() -> void:
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
 	# companion can pass behind/in front of them by ground position. This pass renders
 	# only the always-underneath backdrop (ground, grass, flowers, paths, ponds, props).
+
+
+## The Vein — the sunken dry riverbed. A dusty channel band with darker sunken banks top and bottom,
+## a faint pale high-water rim just inside each bank (the river stood that high once), a scatter of
+## cracked mud across the bed, and a faint dust "current" drifting down the centre on the breeze.
+func _draw_vein() -> void:
+	if _vein.is_empty():
+		return
+	var rect: Rect2 = _vein["rect"]
+	var col: Color = _vein["color"]
+	var rim: Color = _vein["rim"]
+	draw_rect(rect, col)
+	# the sunken banks (the channel walls) along the top and bottom edges
+	var bank := col.darkened(0.28)
+	draw_rect(Rect2(rect.position, Vector2(rect.size.x, 8.0)), bank)
+	draw_rect(Rect2(rect.position + Vector2(0, rect.size.y - 8.0), Vector2(rect.size.x, 8.0)), bank)
+	# the old high-water rim, a hand's-width below each bank
+	var rimc := Color(rim.r, rim.g, rim.b, 0.40)
+	draw_line(rect.position + Vector2(0, 11), rect.position + Vector2(rect.size.x, 11), rimc, 1.5)
+	draw_line(rect.position + Vector2(0, rect.size.y - 11), rect.position + Vector2(rect.size.x, rect.size.y - 11), rimc, 1.5)
+	# cracked mud across the bed (seeded once)
+	var crackc := col.darkened(0.18)
+	for c in _vein["cracks"]:
+		draw_line(c[0], c[1], crackc, 1.0)
+	# the dust "current": pale streaks drifting along the centre line
+	var cy := rect.position.y + rect.size.y * 0.5
+	for k in 4:
+		var drift := fposmod(_time * 10.0 + float(k) * (rect.size.x / 4.0), rect.size.x)
+		draw_line(Vector2(rect.position.x + drift, cy), Vector2(rect.position.x + minf(drift + 90.0, rect.size.x), cy), Color(rim.r, rim.g, rim.b, 0.12), 2.0)
 
 
 ## The hedge maze, drawn in four whole-maze passes so the extruded "height" layers stay
@@ -527,6 +583,29 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			for k in 3:
 				var ang := _time * 1.6 + float(k) * TAU / 3.0
 				draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
+		# ── The Thousand-Knot Bazaar: the five Vanes (one tall landmark per Knot, the skyline compass),
+		# the Knuckle furniture (dry well, notice-board, shrine), the wet-boots wanderer, and cargo crates.
+		# Each is a small placeholder silhouette; the Vanes are drawn tall so they read as "steer by me".
+		"chimney":
+			_draw_chimney(p, color)
+		"prism_tower":
+			_draw_prism_tower(p, color)
+		"ivory_spire":
+			_draw_ivory_spire(p, color)
+		"crooked_mast":
+			_draw_crooked_mast(p, color)
+		"sky_anchor":
+			_draw_sky_anchor(p, color)
+		"dry_well":
+			_draw_dry_well(p, color)
+		"notice_board":
+			_draw_notice_board(p, color)
+		"shrine":
+			_draw_shrine(p, color)
+		"wanderer":
+			_draw_wanderer(p, color)
+		"crate":
+			_draw_crate(p, color)
 		_:
 			# fallback: the original ringed disc
 			draw_circle(p, 8.0, color)
@@ -863,3 +942,205 @@ func _draw_decoy(p: Vector2, dim: float = 1.0) -> void:
 	var s := 0.6 + 0.4 * sin(_time * 3.0)
 	draw_line(p + Vector2(0, -6), p + Vector2(0, -3), Color(1, 1, 1, 0.6 * s * dim), 1.0)
 	draw_line(p + Vector2(-3, -4), p + Vector2(-1, -4), Color(1, 1, 1, 0.5 * s * dim), 1.0)
+
+
+# ════════════════════════════════════════════════════════════════════════════════════════════
+# THE THOUSAND-KNOT BAZAAR — placeholder vane + plaza art. The five Vanes are the navigation pillar
+# made visible: one tall, unmistakable landmark per Knot, drawn well above the rooftops so it reads
+# as a thing to steer by. (In this top-down 2D presentation "skyline-visible" is honoured by drawing
+# them tall and distinct rather than by a real occlusion pass.) All are single-`type` placeholders
+# over a known footprint, ready to swap 1:1 for real sprites later. ──
+# ════════════════════════════════════════════════════════════════════════════════════════════
+
+## COPPER CHIMNEY — the Spice Knot's Vane: a tall, banded copper flue, forever smoking. The smoke is the
+## landmark you can find from anywhere over in the warm rows. Footprint ~36 wide; solid at its base.
+func _draw_chimney(p: Vector2, color: Color) -> void:
+	var h := 150.0
+	var top := p + Vector2(0, -h)
+	# the tapered stack
+	draw_colored_polygon(PackedVector2Array([
+		p + Vector2(-16, 0), p + Vector2(16, 0), top + Vector2(11, 0), top + Vector2(-11, 0)]), color.darkened(0.05))
+	# a sunlit left edge + shaded right, to give it round volume
+	draw_line(p + Vector2(-15, 0), top + Vector2(-10, 0), color.lightened(0.18), 2.0)
+	draw_line(p + Vector2(15, 0), top + Vector2(10, 0), color.darkened(0.18), 2.0)
+	# copper bands
+	for k in 5:
+		var y := -22.0 - float(k) * 28.0
+		var hw := lerpf(15.0, 10.0, float(k) / 5.0)
+		draw_line(p + Vector2(-hw, y), p + Vector2(hw, y), color.lightened(0.22), 2.0)
+	# the rim, then rising smoke (drifting up and fading)
+	draw_rect(Rect2(top + Vector2(-12, -4), Vector2(24, 5)), color.darkened(0.2))
+	for k in 4:
+		var t := fposmod(_time * 0.18 + float(k) / 4.0, 1.0)
+		var sx := sin(_time * 0.6 + float(k) * 1.7) * 12.0 * t
+		draw_circle(top + Vector2(sx, -8.0 - t * 70.0), 6.0 + 12.0 * t, Color(0.52, 0.47, 0.42, 0.20 * (1.0 - t)))
+
+
+## PRISM TOWER — the Glassblowers' Run Vane: a tall tower of stacked glass panes that throws a slow
+## halo of rainbow motes. Bright and jewel-toned; the colour you steer by.
+func _draw_prism_tower(p: Vector2, color: Color) -> void:
+	var h := 152.0
+	var top := p + Vector2(0, -h)
+	# the pane body
+	draw_rect(Rect2(p + Vector2(-13, -h), Vector2(26, h)), Color(color.r, color.g, color.b, 0.85))
+	# vertical facet seams
+	draw_line(p + Vector2(-5, 0), p + Vector2(-5, -h), color.lightened(0.3), 1.0)
+	draw_line(p + Vector2(6, 0), p + Vector2(6, -h), color.darkened(0.18), 1.0)
+	# horizontal pane lines
+	for k in 7:
+		var y := -float(k) * 20.0 - 8.0
+		draw_line(p + Vector2(-13, y), p + Vector2(13, y), color.darkened(0.1), 1.0)
+	# a faceted crystal crown with a white catch-light
+	draw_colored_polygon(PackedVector2Array([top + Vector2(-13, 0), top + Vector2(13, 0), top + Vector2(0, -24)]), color.lightened(0.22))
+	draw_circle(top + Vector2(0, -7), 3.0, Color(1, 1, 1, 0.85))
+	# the rainbow halo — small hue-cycling motes circling the crown (the Run's refracted-light identity)
+	for k in 6:
+		var ang := _time * 0.5 + float(k) * TAU / 6.0
+		var hue := fposmod(float(k) / 6.0 + _time * 0.05, 1.0)
+		draw_circle(top + Vector2(cos(ang) * 28.0, -18.0 + sin(ang) * 13.0), 2.2, Color.from_hsv(hue, 0.6, 1.0, 0.55))
+
+
+## IVORY FINGER — the Bonewrights' Knot Vane: a tall, carved bone-white spire with a rounded tip, cold
+## and still. It points at the sky over the hushed relic rows.
+func _draw_ivory_spire(p: Vector2, color: Color) -> void:
+	var h := 162.0
+	var top := p + Vector2(0, -h)
+	draw_colored_polygon(PackedVector2Array([
+		p + Vector2(-13, 0), p + Vector2(13, 0), top + Vector2(7, 0), top + Vector2(-7, 0)]), color)
+	# carved rings up the shaft
+	for k in 7:
+		var y := -float(k) * 21.0 - 10.0
+		var hw := lerpf(12.0, 7.0, float(k) / 7.0)
+		draw_line(p + Vector2(-hw, y), p + Vector2(hw, y), color.darkened(0.16), 1.5)
+	# cold shaded right edge + a rounded fingertip
+	draw_line(p + Vector2(11, 0), top + Vector2(6, 0), color.darkened(0.14), 2.0)
+	draw_circle(top, 7.0, color.lightened(0.06))
+	draw_circle(top + Vector2(-2, -2), 2.4, color.lightened(0.2))
+
+
+## CROOKED MAST — the Ragpicker's Tangle Vane: a leaning ship's mast with a tattered, swaying sail and a
+## thin pennant — a boat run aground in a dry river, fitting the Tangle's salvage-and-secrets mood.
+func _draw_crooked_mast(p: Vector2, color: Color) -> void:
+	var h := 150.0
+	var top := p + Vector2(-h * 0.2, -h)  # leans to the left
+	draw_line(p, top, color.darkened(0.1), 6.0)
+	draw_line(p + Vector2(-2, 0), top + Vector2(-2, 0), color.lightened(0.12), 1.5)
+	# a yard (cross-spar) two-thirds up
+	var spar := p.lerp(top, 0.62)
+	draw_line(spar + Vector2(-26, -2), spar + Vector2(22, -2), color.darkened(0.18), 3.0)
+	# the tattered sail hanging from the yard, billowing in the breeze
+	var s := _sway(_phase_for(p), 0.7)
+	var sail := Color(0.74, 0.68, 0.56, 0.82)
+	draw_colored_polygon(PackedVector2Array([
+		spar + Vector2(-22, 0), spar + Vector2(18, 0),
+		spar + Vector2(14 + s, 44), spar + Vector2(-18 + s * 0.6, 40)]), sail)
+	# a couple of torn edges
+	draw_line(spar + Vector2(14 + s, 44), spar + Vector2(2 + s, 36), sail.darkened(0.2), 1.5)
+	# a thin pennant at the top
+	draw_colored_polygon(PackedVector2Array([
+		top + Vector2(0, 2), top + Vector2(18 + s, 6), top + Vector2(0, 12)]), Color(0.66, 0.32, 0.26, 0.85))
+
+
+## SKY-ANCHOR — the High Stalls Vane: a giant iron anchor suspended on chains above the wealthiest rows,
+## swinging just perceptibly. Visible clear across the channel.
+func _draw_sky_anchor(p: Vector2, color: Color) -> void:
+	var iron := Color(0.46, 0.49, 0.54)
+	var swing := sin(_time * 0.7) * 0.06   # a slow pendulum
+	var ac := p + Vector2(sin(_time * 0.7) * 6.0, -78.0)  # the anchor body hangs above the ground
+	# two chains rising off the top of the frame
+	for cx in [-10.0, 10.0]:
+		var prev := ac + Vector2(cx * 0.5, -34)
+		for k in range(1, 7):
+			var nxt := ac + Vector2(cx * 0.5 - cx * 0.04 * float(k), -34.0 - float(k) * 16.0)
+			draw_line(prev, nxt, iron.darkened(0.1), 2.0)
+			prev = nxt
+	draw_set_transform(ac, swing, Vector2.ONE)
+	# ring + shank
+	draw_arc(Vector2(0, -34), 6.0, 0.0, TAU, 16, iron, 3.0)
+	draw_line(Vector2(0, -30), Vector2(0, 30), iron, 6.0)
+	# the stock (crossbar near the top)
+	draw_line(Vector2(-16, -22), Vector2(16, -22), iron.lightened(0.1), 4.0)
+	# the curved arms and flukes at the bottom
+	draw_arc(Vector2(0, 20), 22.0, 0.18 * PI, 0.82 * PI, 20, iron, 6.0)
+	for fx in [-22.0, 22.0]:
+		draw_colored_polygon(PackedVector2Array([
+			Vector2(fx, 22), Vector2(fx + (4 if fx < 0 else -4), 10), Vector2(fx + (10 if fx < 0 else -10), 24)]), iron.lightened(0.08))
+	# a faint tint band at the very top, from the spec colour, so the anchor reads against the gold sky
+	draw_arc(Vector2(0, -34), 9.0, 0.0, TAU, 16, Color(color.r, color.g, color.b, 0.5), 2.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## A KNUCKLE'S DRY WELL — a stone fountain ring around an empty, cracked basin, with a green high-water
+## stain a hand's-width above the floor: the river stood this high once. The plaza's quiet centrepiece.
+func _draw_dry_well(p: Vector2, color: Color) -> void:
+	draw_circle(p + Vector2(0, 4), 27.0, color.darkened(0.22))
+	draw_circle(p, 25.0, color)
+	# the empty sunken basin
+	draw_circle(p, 18.0, Color(0.20, 0.19, 0.17))
+	# cracked dry bottom
+	draw_line(p + Vector2(-9, -2), p + Vector2(7, 5), Color(0.32, 0.29, 0.24), 1.0)
+	draw_line(p + Vector2(3, -7), p + Vector2(-3, 9), Color(0.32, 0.29, 0.24), 1.0)
+	# the old waterline: a faint green stain just inside the rim
+	draw_arc(p, 20.0, 0.0, TAU, 30, Color(0.40, 0.55, 0.38, 0.5), 2.0)
+	draw_arc(p, 24.0, 0.0, TAU, 30, color.lightened(0.12), 1.0)
+
+
+## A KNUCKLE'S NOTICE-BOARD — a posted board on two legs, pinned with curling notes. Where lore and
+## bounties gather; the natural meet-up point. Examinable (its line carries a Knot's story fragment).
+func _draw_notice_board(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-18, -6), Vector2(3, 22)), Color(0.34, 0.26, 0.18))
+	draw_rect(Rect2(p + Vector2(15, -6), Vector2(3, 22)), Color(0.34, 0.26, 0.18))
+	draw_rect(Rect2(p + Vector2(-22, -36), Vector2(44, 32)), color)
+	draw_rect(Rect2(p + Vector2(-22, -36), Vector2(44, 4)), color.darkened(0.18))
+	draw_rect(Rect2(p + Vector2(-22, -8), Vector2(44, 4)), color.darkened(0.18))
+	# pinned notes, a couple curling at a corner
+	for note in [Vector2(-15, -30), Vector2(2, -32), Vector2(-7, -18), Vector2(9, -20)]:
+		draw_rect(Rect2(p + note, Vector2(10, 9)), Color(0.93, 0.89, 0.79))
+		draw_circle(p + note + Vector2(5, 1), 1.1, Color(0.72, 0.22, 0.2))
+		draw_line(p + note + Vector2(10, 9), p + note + Vector2(7, 7), Color(0.80, 0.76, 0.66), 1.0)
+
+
+## A KNUCKLE'S SHRINE — a small stone niche holding a steady candle (a rest point). No mechanic, just a
+## warm, breathing flame so a plaza reads as somewhere to pause.
+func _draw_shrine(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-11, -2), Vector2(22, 9)), color.darkened(0.16))
+	# the niche
+	draw_rect(Rect2(p + Vector2(-9, -18), Vector2(18, 16)), color.darkened(0.32))
+	draw_arc(p + Vector2(0, -18), 9.0, PI, TAU, 14, color.darkened(0.18), 3.0)
+	# the candle flame, warm and breathing
+	var breathe := 0.72 + 0.28 * sin(_time * 3.0)
+	draw_circle(p + Vector2(0, -10), 5.0 * breathe, Color(1.0, 0.82, 0.42, 0.28))
+	draw_circle(p + Vector2(0, -10), 2.0, Color(1, 0.92, 0.66))
+	draw_rect(Rect2(p + Vector2(-1.5, -9), Vector2(3, 7)), Color(0.92, 0.9, 0.82))
+
+
+## THE MAN WITH WET BOOTS — a cloaked wanderer who haunts the Ragpicker's Tangle, dealing in charts of a
+## river not yet returned. A standing figure with a quiet idle and, tellingly, dark wet boots and a sheen
+## at his feet. Examinable (a `wanderer`, not a `shopkeeper`, so it opens no shop — just his line).
+func _draw_wanderer(p: Vector2, color: Color) -> void:
+	var bob := sin(_time * 1.4 + _phase_for(p)) * 1.0
+	# a faint wet sheen on the dry ground at his feet
+	draw_circle(p + Vector2(0, 11), 8.0, Color(0.40, 0.50, 0.55, 0.16))
+	# cloak body
+	draw_colored_polygon(PackedVector2Array([
+		p + Vector2(-8, 8), p + Vector2(8, 8), p + Vector2(6, -10 + bob), p + Vector2(-6, -10 + bob)]), color)
+	draw_line(p + Vector2(0, -8 + bob), p + Vector2(0, 7), color.darkened(0.22), 1.0)
+	# hood + a shadowed face
+	draw_circle(p + Vector2(0, -14 + bob), 5.5, color.darkened(0.12))
+	draw_circle(p + Vector2(0, -13 + bob), 3.4, Color(0.80, 0.66, 0.56))
+	# the wet boots
+	draw_rect(Rect2(p + Vector2(-7, 7), Vector2(5, 4)), Color(0.17, 0.20, 0.24))
+	draw_rect(Rect2(p + Vector2(2, 7), Vector2(5, 4)), Color(0.17, 0.20, 0.24))
+	draw_circle(p + Vector2(-4.5, 7.5), 1.0, Color(0.6, 0.72, 0.78, 0.7))
+
+
+## STACKED CARGO CRATES — market texture: a big crate with a smaller one perched on top. Solid; used to
+## thicken the Ragpicker's Tangle into a maze and to dress the High Stalls' wealthy cargo.
+func _draw_crate(p: Vector2, color: Color) -> void:
+	draw_rect(Rect2(p + Vector2(-11, -9), Vector2(20, 17)), color)
+	draw_rect(Rect2(p + Vector2(-11, -9), Vector2(20, 4)), color.lightened(0.1))
+	draw_line(p + Vector2(-11, 0), p + Vector2(9, 0), color.darkened(0.22), 1.0)
+	draw_line(p + Vector2(-1, -9), p + Vector2(-1, 8), color.darkened(0.22), 1.0)
+	# a smaller crate stacked on top
+	draw_rect(Rect2(p + Vector2(-6, -20), Vector2(13, 11)), color.lightened(0.05))
+	draw_rect(Rect2(p + Vector2(-6, -20), Vector2(13, 3)), color.lightened(0.16))
