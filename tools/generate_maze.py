@@ -267,7 +267,7 @@ def main():
             [round(cx_world + 32, 1), round(cy_world + 20, 1), 0.92, 0.62, 0.30],
             [round(cx_world - 18, 1), round(cy_world - 30, 1), 0.70, 0.55, 0.85],
         ],
-        "interactables": [],
+        "props": [],
         "_goal_comment": (
             "reach_center: detected client-side (within 'radius' of 'center'); the reward "
             "is decided + minted SERVER-side, gated on this goal type (world_channel.ex)."

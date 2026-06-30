@@ -70,7 +70,7 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 		solids.append({ "center": p as Vector2, "radius": tree_r })
 	for lm in world_data.get("landmarks", []):
 		solids.append({ "center": WorldData.to_vec2(lm["position"]), "radius": great_r })
-	for it in world_data.get("interactables", []):
+	for it in world_data.get("props", []):
 		var type := String(it.get("type", ""))
 		if not bool(it.get("solid", SOLID_TYPES.has(type))):
 			continue

@@ -139,7 +139,7 @@ func _build_world(data: Dictionary) -> void:
 	_create_directors()
 
 	# If this world carries a salamander-hunt goal, lay it out (fresh + random each visit) and
-	# fold its rocks — and this world's portals — into data["interactables"] so world_art draws
+	# fold its rocks — and this world's portals — into data["props"] so world_art draws
 	# them. Populates the hunt, its rocks and _portals; leaves worlds without a goal/portals untouched.
 	_setup_contents(data, arrival_id)
 
@@ -345,7 +345,7 @@ func is_daycycle_enabled() -> bool:
 ## host seam: the RuinController calls this when the server confirms a ward open.
 func rebuild_solids_dropping(slab_id: String) -> void:
 	var data_copy: Dictionary = _world_data.duplicate(true)
-	for it in data_copy.get("interactables", []):
+	for it in data_copy.get("props", []):
 		if String(it.get("id", "")) == slab_id:
 			it["solid"] = false
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
@@ -354,8 +354,9 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 
 
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
-## any) and the portals into data["interactables"] so world_art draws them, and build the
-## runtime lists the controller acts on — _interactables (examinable: props + rocks), _portals
+## any) and the portals into data["props"] so world_art draws them, and build the
+## runtime lists the controller acts on — _interactables (the examinable subset: interactive props +
+## rocks), _portals
 ## (walk-through; the HuntDirector owns the rocks themselves), and the companion's points of interest.
 ## Props keep their original index (== their render index in world_art); rocks then portals are appended after. The
 ## companion is given props as POIs but NOT rocks: it reacts to a salamander you uncover, but is
@@ -367,12 +368,19 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_return_world = ""
 	_return_portal = ""
 
-	var combined: Array = data.get("interactables", []).duplicate()
+	var combined: Array = data.get("props", []).duplicate()
 
 	var poi: Array = []
 	var poi_meta: Array = []
 	for i in combined.size():
 		var it: Dictionary = combined[i]
+		# A prop is examinable only if it opts in with "interactive": true (it has a lore line, opens
+		# the shop, or is a Ruin ward piece). Everything else is static scenery: world_art still draws
+		# it (by 'type') and Solids still blocks movement, but it stays out of the examine scan and the
+		# companion's POIs — it conveys what it is by appearance alone. Skipping it here leaves its
+		# render index (== i) intact for world_art.
+		if not bool(it.get("interactive", false)):
+			continue
 		var prop_id := String(it.get("id", it.get("type", "prop_%d" % i)))
 		# A "shopkeeper" prop is examinable like any other, but Examining it opens the shop window
 		# instead of the cozy examine beat — keyed off this kind in _try_interact.
@@ -429,7 +437,7 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		_home_world = String(pd["target_world"])
 		_home_portal = String(pd["target_portal"])
 
-	data["interactables"] = combined
+	data["props"] = combined
 
 	# Per-world companion tuning: a world may quieten the companion's wandering and keep it close
 	# (e.g. the riverbank, so it stays at your side to point out salamanders). Merged over the global

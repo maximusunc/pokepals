@@ -63,8 +63,8 @@
 		[1100, 380, 0.70, 0.55, 0.85], [880, 300, 0.92, 0.62, 0.30],
 		[120, 620, 0.86, 0.40, 0.55], [240, 660, 0.95, 0.85, 0.40], [360, 600, 0.70, 0.55, 0.85]
 	],
-	"_interactables_comment": "Each has a stable 'id' — the companion keys its habituation/memory off it, so editing a prop's position or label keeps its identity (and the bond it earned). Keep ids unique and stable across edits. 'tags' are NEUTRAL descriptors of the thing; the companion's appraisal (see companion.json 'appraisal') decides how it feels about them — author tags freely without thinking about psychology.",
-	"interactables": [
+	"_props_comment": "Each has a stable 'id' — the companion keys its habituation/memory off it, so editing a prop's position or label keeps its identity (and the bond it earned). Keep ids unique and stable across edits. 'tags' are NEUTRAL descriptors of the thing; the companion's appraisal (see companion.json 'appraisal') decides how it feels about them — author tags freely without thinking about psychology. A prop is examinable only if it opts in with 'interactive': true (it has a 'lore' line, opens the shop, or is a Ruin ward piece). Everything else is STATIC SCENERY: world_art still draws it (by 'type') and it still blocks movement, but it's not examinable and the companion isn't drawn to it - it conveys what it is by appearance alone.",
+	"props": [
 		{ "id": "chime_stone", "type": "chime_stone", "position": [470, 300], "color": [0.66, 0.70, 0.78], "label": "a humming stone", "tags": ["sound", "stone"] },
 		{ "id": "lantern", "type": "lantern", "position": [780, 380], "color": [0.95, 0.78, 0.42], "label": "an old lantern", "tags": ["light", "made"] },
 		{ "id": "wildflowers", "type": "wildflowers", "position": [220, 470], "color": [0.88, 0.46, 0.58], "label": "a patch of wildflowers", "tags": ["flower", "fragrant"] },
