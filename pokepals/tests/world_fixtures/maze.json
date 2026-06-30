@@ -1962,7 +1962,7 @@
 			0.85
 		]
 	],
-	"interactables": [],
+	"props": [],
 	"_goal_comment": "reach_center: detected client-side (within 'radius' of 'center'); the reward is decided + minted SERVER-side, gated on this goal type (world_channel.ex).",
 	"goal": {
 		"type": "reach_center",

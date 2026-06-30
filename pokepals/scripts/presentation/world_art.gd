@@ -121,7 +121,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_scatter_grass()
 
 	_interactables.clear()
-	for it in data.get("interactables", []):
+	for it in data.get("props", []):
 		_interactables.append({
 			"pos": WorldData.to_vec2(it["position"]),
 			"color": WorldData.to_color(it["color"]),
