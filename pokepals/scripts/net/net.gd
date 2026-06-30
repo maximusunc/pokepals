@@ -84,6 +84,13 @@ const DEFAULT_SERVER_URL := "ws://192.168.86.38:4000/ws"
 ## Phoenix closes a socket that goes silent; send a heartbeat well inside that window.
 const HEARTBEAT_INTERVAL := 25.0
 
+## How much the WebSocket may buffer for a SINGLE inbound frame. Godot's default is only 64 KiB, but a
+## world's spec arrives as one Phoenix channel message, and a big world (the Ruin's spec is ~68 KB)
+## overflows that — the socket then closes mid-join and, because we rejoin the same desired world on
+## reconnect, it loops (disconnect → reconnect → disconnect). 1 MiB gives generous headroom for large
+## worlds. The outbound side stays tiny (our frames are small) but is bumped in step for symmetry.
+const SOCKET_BUFFER_SIZE := 1 << 20  # 1 MiB
+
 ## Where fetched world specs are cached on disk (one JSON per world_id), so revisits across SESSIONS
 ## skip the download — the client confirms freshness by sending the cached etag on join.
 const CACHE_DIR := "user://world_cache"
@@ -161,6 +168,11 @@ func local_id() -> String:
 func connect_to(base_url: String = DEFAULT_SERVER_URL) -> int:
 	_reset_socket()
 	_socket = WebSocketPeer.new()
+	# Raise the inbound buffer above the default 64 KiB so a large world's spec (one Phoenix message —
+	# the Ruin's is ~68 KB) can be received whole; otherwise the socket closes mid-join and reconnects
+	# loop on the same world. Must be set BEFORE connect_to_url.
+	_socket.inbound_buffer_size = SOCKET_BUFFER_SIZE
+	_socket.outbound_buffer_size = SOCKET_BUFFER_SIZE
 	var err := _socket.connect_to_url(_phoenix_url(base_url))
 	if err != OK:
 		_socket = null
