@@ -13,7 +13,7 @@ and over time reflects who you are and how you play. The game is a warm, living 
 inhabit *beside* that companion. The deepest appeal is companionship, discovery, and being
 together with other people — not combat or completion.
 
-### The long-term north star (CONTEXT ONLY — we are NOT building this yet)
+### The long-term north star
 
 Eventually this could grow into a world-of-worlds people build and visit together: a place
 where the companion is the constant self you carry through many player-made worlds, and
@@ -120,12 +120,11 @@ for 3D/VR worlds — all without a rewrite.
   jsonb), keyed by a client-generated identity token. The only thing in `user://` is that token
   (`player_id.json`); there is no local game save. (Rungs 1–2 used local `user://` saves — now retired.)
 - **Networking (current — Rung 4):**
-  - First shared-presence tests used Godot built-in multiplayer (ENet) — **done at Rung 3.**
-  - **Now:** raw WebSockets + JSON between the client and a **minimal authoritative
+  - First shared-presence tests used Godot built-in multiplayer (ENet)
+  - raw WebSockets + JSON between the client and a **minimal authoritative
     Elixir/Phoenix server** (Bandit + `Phoenix.PubSub`) — id assignment + presence relay only.
-- **Later rungs (NOT now — context only):**
   - Deepen the server: **Phoenix Presence** (proper roster) + **PostgreSQL** via Ecto for a
-    server-canonical companion/wardrobe, then proximity text chat (still Rung 4).
+    server-canonical companion/wardrobe.
 
 -----
 
@@ -161,9 +160,7 @@ for 3D/VR worlds — all without a rewrite.
   they come up.
 - Every rung is about *feel*, including this one. Shared presence has to feel warm and
   alive — two people and their companions simply being somewhere together — not like a
-  netcode demo. Prefer iterating on that presence over piling on networked mechanics. If I
-  start drifting toward world-building/UGC, 3D/VR, battle systems, or pulling later Rung-4
-  work (Presence, Postgres, chat) into this step before the shared feel lands, remind me.
+  netcode demo. Prefer iterating on that presence over piling on networked mechanics.
 - Teach me the “why” behind a Godot pattern, not just code to paste.
 - When something is worth running and *feeling* before moving on, tell me to go play it.
 
@@ -177,10 +174,9 @@ for 3D/VR worlds — all without a rewrite.
    subtly evolves to reflect the player, local save.
 1. **[DONE ✅]** Two players sharing a space for the first time — seeing each other and each
    other’s companions (Godot ENet, behind a swappable transport seam).
-1. **[IN PROGRESS — current rung]** A small persistent shared world. Done: WebSockets + a minimal
+1. **[DONE ]** A small persistent shared world. Done: WebSockets + a minimal
    authoritative Elixir/Phoenix server (step 1), Phoenix.Presence roster (step 2), and Postgres
    persistence of a now **server-resident companion** — which made the game **online-only** (step 3).
-   Remaining: proximity text chat.
 1. World-building / UGC tools, and only much later, other presentations (3D/VR). The
    “world-of-worlds” north star.
 
