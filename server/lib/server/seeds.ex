@@ -82,6 +82,7 @@ defmodule Server.Seeds do
         |> Application.app_dir("priv/world_seeds/#{file}")
         |> File.read!()
         |> Jason.decode!()
+        |> bake_border_trees()
 
       {:ok, _} =
         Worlds.upsert(%{
@@ -95,5 +96,13 @@ defmodule Server.Seeds do
           status: "active"
         })
     end
+  end
+
+  # Generate the world's border treeline server-side and bake it into the spec as `border_trees` (the
+  # server is the source of truth now — the client draws + collides against these exact points, and the
+  # ambient-pal sim avoids them). Deterministic, so it doesn't churn the content etag across re-seeds.
+  defp bake_border_trees(core) do
+    trees = Server.WorldBorder.positions(Map.get(core, "bounds"), Map.get(core, "border", %{}))
+    Map.put(core, "border_trees", trees)
   end
 end

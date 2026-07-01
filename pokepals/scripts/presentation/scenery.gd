@@ -42,8 +42,8 @@ func _process(delta: float) -> void:
 
 
 ## Spawn the world's trees as individually sortable nodes. `border_pts` is the same
-## treeline the collision build uses (Solids.border_positions), so the drawn ring keeps
-## matching its colliders.
+## treeline the collision build uses — the server-generated ring from the spec's
+## "border_trees" — so the drawn ring keeps matching its colliders.
 func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	# Clear any trees from a previous populate (actors are kept — they're scene-defined).
 	for child in get_children():

@@ -87,24 +87,20 @@ defmodule Server.AmbientPalsTest do
     end
   end
 
-  test "pals are held inside the border treeline via a bounds inset" do
+  test "pals avoid the server-baked border treeline (border_trees)" do
+    # A lone border tree parked in pal 'a's roam disk — the sim must never sit inside it.
     extra = %{
-      "bounds" => %{"min" => [0, 0], "max" => [1000, 1000]},
-      "border" => %{"ring" => true, "inset" => 18, "jitter" => 34, "rows" => 2, "row_gap" => 62},
       "collision" => %{"body_radius" => 6, "margin" => 2, "tree_radius" => 7},
-      "ambient_pals" => [%{"id" => "a", "home" => [500, 500], "roam_radius" => 3000, "look" => %{}}]
+      "ambient_pals" => [%{"id" => "a", "home" => [100, 100], "roam_radius" => 50, "look" => %{}}],
+      "border_trees" => [[130, 100]]
     }
 
     state = AmbientPals.new(core(extra))
-    {_final, frames} = run(state, 500)
-
-    # Border reaches inward 18 + (2-1)*62 + 34 + 7 = 121; plus the body radius 8 → the centre stays 129
-    # in from every edge, so the pal stops just inside the treeline instead of among it.
-    inset = 121 + 8
+    {_final, frames} = run(state, 800)
 
     for frame <- frames, %{id: "a", p: [px, py]} <- frame do
-      assert px >= inset - 0.5 and px <= 1000 - inset + 0.5
-      assert py >= inset - 0.5 and py <= 1000 - inset + 0.5
+      dist = :math.sqrt(:math.pow(px - 130, 2) + :math.pow(py - 100, 2))
+      assert dist >= 7 + 8 - 0.5, "entered a border tree (#{dist})"
     end
   end
 

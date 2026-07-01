@@ -163,12 +163,13 @@ func _build_world(data: Dictionary) -> void:
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
 	_ambient_dir.set_bounds(bounds_rect)  # same clamp for the server-driven ambient pals
 
-	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
-	# props, great-trees, ponds) and hand it to both characters to collide against. The
-	# border positions come from the same pure helper the renderer uses, so the drawn
-	# treeline and its colliders match exactly.
+	# Barriers: build the solid list once (trees incl. the border ring, tall props, great-trees,
+	# ponds) and hand it to both characters to collide against. The border treeline is generated
+	# SERVER-SIDE now (Server.WorldBorder) and shipped in the spec as "border_trees" — we draw and
+	# collide against those authoritative points, the same ones the ambient-pal sim avoids, so there's
+	# one source of truth (no client-side generation to drift from the server's).
 	var ccfg: Dictionary = data.get("collision", {})
-	var border_pts := Solids.border_positions(bounds_rect, data.get("border", {}))
+	var border_pts := _border_points(data)
 	# Spawn the trees (hand-placed + this border ring + landmarks) into the y-sorted
 	# Scenery layer, using the same border points as the colliders so drawing matches.
 	_scenery.populate(data, border_pts, _style)
@@ -274,6 +275,16 @@ func _build_world(data: Dictionary) -> void:
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
 ## A child is freed with this node on a world hop, which auto-drops its Net signal connections — so a
 ## fresh scene gets fresh directors with no stale wiring carried over.
+## The world's border-treeline positions as Vector2s. Generated server-side (Server.WorldBorder) and
+## shipped in the spec as "border_trees": [[x, y], …]; the client no longer generates them, it draws and
+## collides against these. Empty in worlds without a ring (offline test fixtures included).
+func _border_points(data: Dictionary) -> Array:
+	var out: Array = []
+	for t in data.get("border_trees", []):
+		out.append(WorldData.to_vec2(t))
+	return out
+
+
 func _create_directors() -> void:
 	_hunt_dir = HuntDirector.new()
 	add_child(_hunt_dir)
