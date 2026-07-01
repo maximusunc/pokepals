@@ -44,7 +44,7 @@ defmodule Server.WorldChannel do
         {:error, %{reason: "unknown_world"}}
 
       definition ->
-        World.ensure_started(world_id, ward_defs(definition))
+        World.ensure_started(world_id, ward_defs(definition), ambient_core(definition))
         known_etag = Map.get(payload, "known_etag", "")
         send(self(), :after_join)
 
@@ -95,6 +95,13 @@ defmodule Server.WorldChannel do
       push(socket, "state", Map.put(transform, "id", peer_id))
     end
 
+    # The ambient pals' current positions, so a late joiner sees them where they are right now rather
+    # than snapping in from their home spots on the next tick. Empty (skipped) in worlds without pals.
+    case World.ambient_snapshot(world_id) do
+      [] -> :ok
+      pals -> push(socket, "ambient_state", %{pals: pals})
+    end
+
     # The shared Ruin ward state, so a late joiner sees a gate someone already opened (and the slab
     # already raised). Empty in worlds without a Ruin, so we skip the push there.
     case World.wards(world_id) do
@@ -119,6 +126,13 @@ defmodule Server.WorldChannel do
   # our client, which renders the reveal / slab-raise. Everyone in the world converges on this truth.
   def handle_info({:world_wards, wards}, socket) do
     push(socket, "ward_state", %{wards: wards})
+    {:noreply, socket}
+  end
+
+  # A tick of the world's ambient-pal sim: relay the batch of pal transforms to our client, which eases
+  # each puppet toward its new spot. The same shared truth reaches every player, so pals are consistent.
+  def handle_info({:world_ambient, pals}, socket) do
+    push(socket, "ambient_state", %{pals: pals})
     {:noreply, socket}
   end
 
@@ -242,6 +256,12 @@ defmodule Server.WorldChannel do
   # shared ward state when the world process starts.
   defp ward_defs(definition) do
     get_in(definition.spec, ["core", "ruin", "wards"]) || []
+  end
+
+  # A world's whole spec `core` map (or `%{}`) — what seeds the ambient-pal sim: its `ambient_pals` and
+  # the geometry (trees/landmarks/props/ponds/collision/bounds) the pals steer around.
+  defp ambient_core(definition) do
+    get_in(definition.spec, ["core"]) || %{}
   end
 
   # The hunt payout for `found`, but only in a world whose spec carries the salamander hunt — elsewhere

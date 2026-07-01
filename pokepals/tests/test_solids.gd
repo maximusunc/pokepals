@@ -10,7 +10,6 @@ static func run_all() -> int:
 	fails += _test_clamps_to_bounds()
 	fails += _test_slides_along_obstacle()
 	fails += _test_leaves_a_clear_point_untouched()
-	fails += _test_border_positions_deterministic()
 	fails += _test_build_includes_the_right_categories()
 	return fails
 
@@ -49,14 +48,6 @@ static func _test_leaves_a_clear_point_untouched() -> int:
 	var solids := [{ "center": Vector2(500, 500), "radius": 10.0 }]
 	var p := Solids.resolve(Vector2.ZERO, 6.0, solids, _big_bounds(), 2.0)
 	return _check("leaves a clear point exactly where it is", p.is_equal_approx(Vector2.ZERO))
-
-
-static func _test_border_positions_deterministic() -> int:
-	var cfg := { "ring": true, "spacing": 132.0, "inset": 18.0, "jitter": 34.0, "rows": 2, "row_gap": 62.0 }
-	var a := Solids.border_positions(_big_bounds(), cfg)
-	var b := Solids.border_positions(_big_bounds(), cfg)
-	var same := a.size() > 0 and a.size() == b.size() and (a[0] as Vector2).is_equal_approx(b[0])
-	return _check("border ring is deterministic and non-empty", same)
 
 
 static func _test_build_includes_the_right_categories() -> int:

@@ -52,6 +52,7 @@ var _hunt_dir: HuntDirector
 var _maze_dir: MazeDirector
 var _shop_dir: ShopDirector
 var _presence_dir: PresenceDirector
+var _ambient_dir: AmbientPalDirector
 var _ruin: RuinController
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
@@ -160,13 +161,15 @@ func _build_world(data: Dictionary) -> void:
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
+	_ambient_dir.set_bounds(bounds_rect)  # same clamp for the server-driven ambient pals
 
-	# Barriers: build the solid list once (trees incl. the procedural border ring, tall
-	# props, great-trees, ponds) and hand it to both characters to collide against. The
-	# border positions come from the same pure helper the renderer uses, so the drawn
-	# treeline and its colliders match exactly.
+	# Barriers: build the solid list once (trees incl. the border ring, tall props, great-trees,
+	# ponds) and hand it to both characters to collide against. The border treeline is generated
+	# SERVER-SIDE now (Server.WorldBorder) and shipped in the spec as "border_trees" — we draw and
+	# collide against those authoritative points, the same ones the ambient-pal sim avoids, so there's
+	# one source of truth (no client-side generation to drift from the server's).
 	var ccfg: Dictionary = data.get("collision", {})
-	var border_pts := Solids.border_positions(bounds_rect, data.get("border", {}))
+	var border_pts := _border_points(data)
 	# Spawn the trees (hand-placed + this border ring + landmarks) into the y-sorted
 	# Scenery layer, using the same border points as the colliders so drawing matches.
 	_scenery.populate(data, border_pts, _style)
@@ -201,6 +204,10 @@ func _build_world(data: Dictionary) -> void:
 	# The bazaar's shopkeeper keeps their bonded companion at their side — spawn it as a stationary
 	# puppet (no-op in worlds without one).
 	_shop_dir.spawn_npc(data)
+
+	# Ambient pals: spawn the world's set-dressing creatures as puppets the server then drives (no-op in
+	# worlds without an "ambient_pals" block).
+	_ambient_dir.spawn_pals(data)
 
 	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
 	# from also spinning up the movement thumbstick underneath it.
@@ -268,6 +275,16 @@ func _build_world(data: Dictionary) -> void:
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
 ## A child is freed with this node on a world hop, which auto-drops its Net signal connections — so a
 ## fresh scene gets fresh directors with no stale wiring carried over.
+## The world's border-treeline positions as Vector2s. Generated server-side (Server.WorldBorder) and
+## shipped in the spec as "border_trees": [[x, y], …]; the client no longer generates them, it draws and
+## collides against these. Empty in worlds without a ring (offline test fixtures included).
+func _border_points(data: Dictionary) -> Array:
+	var out: Array = []
+	for t in data.get("border_trees", []):
+		out.append(WorldData.to_vec2(t))
+	return out
+
+
 func _create_directors() -> void:
 	_hunt_dir = HuntDirector.new()
 	add_child(_hunt_dir)
@@ -284,6 +301,10 @@ func _create_directors() -> void:
 	_presence_dir = PresenceDirector.new()
 	add_child(_presence_dir)
 	_presence_dir.setup(_player, _companion, _scenery, _style)
+
+	_ambient_dir = AmbientPalDirector.new()
+	add_child(_ambient_dir)
+	_ambient_dir.setup(_scenery, _style)
 
 	_ruin = RuinController.new()
 	add_child(_ruin)

@@ -20,44 +20,12 @@ const SOLID_TYPES := {
 }
 
 
-## The seeded, jittered border-ring tree positions. Shared by the renderer (world_art)
-## and the collision builder so the drawn treeline and its barriers always agree.
-static func border_positions(bounds: Rect2, cfg: Dictionary) -> Array:
-	var out: Array = []
-	if cfg.is_empty() or not bool(cfg.get("ring", true)):
-		return out
-	var spacing := float(cfg.get("spacing", 130.0))
-	var inset := float(cfg.get("inset", 20.0))
-	var jitter := float(cfg.get("jitter", 34.0))
-	var rows := int(cfg.get("rows", 2))
-	var row_gap := float(cfg.get("row_gap", 64.0))
-	var rng := RandomNumberGenerator.new()
-	rng.seed = 0xBEEF
-	for row in rows:
-		var pad := inset + float(row) * row_gap
-		var rect := Rect2(bounds.position + Vector2(pad, pad), bounds.size - Vector2(pad * 2.0, pad * 2.0))
-		if rect.size.x <= 0.0 or rect.size.y <= 0.0:
-			continue
-		var x := rect.position.x
-		while x <= rect.end.x:
-			out.append(_jitter(Vector2(x, rect.position.y), jitter, rng))
-			out.append(_jitter(Vector2(x, rect.end.y), jitter, rng))
-			x += spacing
-		var y := rect.position.y + spacing
-		while y < rect.end.y:
-			out.append(_jitter(Vector2(rect.position.x, y), jitter, rng))
-			out.append(_jitter(Vector2(rect.end.x, y), jitter, rng))
-			y += spacing
-	return out
-
-
-static func _jitter(base: Vector2, jitter: float, rng: RandomNumberGenerator) -> Vector2:
-	return base + Vector2(rng.randf_range(-jitter, jitter), rng.randf_range(-jitter, jitter))
-
-
 ## Build the full list of solid circles [{ center: Vector2, radius: float }] from the
 ## world data: hand-placed trees + the border ring, great-tree landmarks, the tall
-## props, and (optionally) ponds. cfg is the world spec's "collision" block.
+## props, and (optionally) ponds. `border_pts` is the world's border treeline, generated
+## SERVER-SIDE now (Server.WorldBorder) and shipped in the spec as "border_trees" — the
+## client draws and collides against those authoritative points rather than generating them.
+## cfg is the world spec's "collision" block.
 static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) -> Array:
 	var solids: Array = []
 	var tree_r := float(cfg.get("tree_radius", 7.0))

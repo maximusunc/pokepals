@@ -57,6 +57,17 @@ identity *token* (`user://player_id.json`); there is **no local game save and no
 Connecting to a server is required to play. **Remaining Rung-4 step:** proximity text chat. The
 FEEL-first philosophy still governs.
 
+> **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
+> creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
+> server's *first* bit of world *simulation* (a per-world `Server.AmbientPals` sim ticked by
+> `Server.World`, broadcast like presence), a small, deliberate step past the earlier "id assignment +
+> relay only" scope. The sim also does **server-side obstacle avoidance** — an Elixir port of the
+> client's `Solids` circle collision, so pals steer around trees/props/ponds authoritatively. The
+> **border treeline is now generated server-side too** (`Server.WorldBorder`, baked into each spec as
+> `border_trees`) and consumed by the client for drawing + its avatar collision — one source of truth,
+> no client-side ring generation. It's atmosphere only: no bonding, no interaction. The companion
+> "finding" beat (bonding to one of them) remains out of scope.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as
