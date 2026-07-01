@@ -44,7 +44,7 @@ defmodule Server.WorldChannel do
         {:error, %{reason: "unknown_world"}}
 
       definition ->
-        World.ensure_started(world_id, ward_defs(definition), ambient_defs(definition))
+        World.ensure_started(world_id, ward_defs(definition), ambient_core(definition))
         known_etag = Map.get(payload, "known_etag", "")
         send(self(), :after_join)
 
@@ -258,10 +258,10 @@ defmodule Server.WorldChannel do
     get_in(definition.spec, ["core", "ruin", "wards"]) || []
   end
 
-  # The ambient-pal defs from a world's spec (`ambient_pals`), or `[]` if it has none — what seeds the
-  # shared ambient-pal sim when the world process starts.
-  defp ambient_defs(definition) do
-    get_in(definition.spec, ["core", "ambient_pals"]) || []
+  # A world's whole spec `core` map (or `%{}`) — what seeds the ambient-pal sim: its `ambient_pals` and
+  # the geometry (trees/landmarks/props/ponds/collision/bounds) the pals steer around.
+  defp ambient_core(definition) do
+    get_in(definition.spec, ["core"]) || %{}
   end
 
   # The hunt payout for `found`, but only in a world whose spec carries the salamander hunt — elsewhere

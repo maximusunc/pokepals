@@ -61,8 +61,10 @@ FEEL-first philosophy still governs.
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
 > server's *first* bit of world *simulation* (a per-world `Server.AmbientPals` sim ticked by
 > `Server.World`, broadcast like presence), a small, deliberate step past the earlier "id assignment +
-> relay only" scope. It's atmosphere only: no bonding, no interaction. The companion "finding" beat
-> (bonding to one of them) remains out of scope.
+> relay only" scope. The sim also does **server-side obstacle avoidance** — an Elixir port of the
+> client's `Solids` circle collision, so pals steer around trees/props/ponds authoritatively. It's
+> atmosphere only: no bonding, no interaction. The companion "finding" beat (bonding to one of them)
+> remains out of scope.
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping

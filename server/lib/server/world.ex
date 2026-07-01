@@ -33,19 +33,20 @@ defmodule Server.World do
 
   # --- client API ---
 
-  def start_link({world_id, ward_defs, ambient_defs}) when is_binary(world_id) do
-    GenServer.start_link(__MODULE__, {world_id, ward_defs, ambient_defs}, name: via(world_id))
+  def start_link({world_id, ward_defs, ambient_core}) when is_binary(world_id) do
+    GenServer.start_link(__MODULE__, {world_id, ward_defs, ambient_core}, name: via(world_id))
   end
 
   @doc """
   Start the process for `world_id` if it isn't running yet; returns `world_id`. `ward_defs` (the
-  spec's `ruin.wards`, or `[]`) seed the shared Ruin ward state and `ambient_defs` (the spec's
-  `ambient_pals`, or `[]`) seed the ambient-pal sim — only the FIRST starter's defs take; later joiners
-  re-affirm the same server-canonical spec, so passing them every join is safe.
+  spec's `ruin.wards`, or `[]`) seed the shared Ruin ward state and `ambient_core` (the spec's whole
+  `core` map, or `%{}`) seeds the ambient-pal sim — its pals AND the geometry they avoid. Only the FIRST
+  starter's defs take; later joiners re-affirm the same server-canonical spec, so passing them every
+  join is safe.
   """
-  @spec ensure_started(String.t(), [map()], [map()]) :: String.t()
-  def ensure_started(world_id, ward_defs \\ [], ambient_defs \\ []) when is_binary(world_id) do
-    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, {world_id, ward_defs, ambient_defs}}) do
+  @spec ensure_started(String.t(), [map()], map()) :: String.t()
+  def ensure_started(world_id, ward_defs \\ [], ambient_core \\ %{}) when is_binary(world_id) do
+    case DynamicSupervisor.start_child(@supervisor, {__MODULE__, {world_id, ward_defs, ambient_core}}) do
       {:ok, _pid} -> world_id
       {:error, {:already_started, _pid}} -> world_id
     end
@@ -92,7 +93,7 @@ defmodule Server.World do
   # --- server callbacks ---
 
   @impl true
-  def init({world_id, ward_defs, ambient_defs}) do
+  def init({world_id, ward_defs, ambient_core}) do
     {:ok,
      %{
        world_id: world_id,
@@ -102,9 +103,9 @@ defmodule Server.World do
        ward_defs: ward_defs,
        wards: Server.RuinMechanisms.new(ward_defs),
        occupants: %{},
-       # Shared ambient-pal sim: pure wander logic, ticked while at least one player is here. `ticking`
-       # guards against scheduling more than one :tick timer at a time.
-       ambient: Server.AmbientPals.new(ambient_defs),
+       # Shared ambient-pal sim: pure wander logic (incl. obstacle avoidance), ticked while at least one
+       # player is here. `ticking` guards against scheduling more than one :tick timer at a time.
+       ambient: Server.AmbientPals.new(ambient_core),
        ticking: false
      }}
   end
