@@ -20,8 +20,14 @@ static func visible_world_rect(ci: CanvasItem, margin: float) -> Rect2:
 	var screen: Vector2 = ci.get_viewport_rect().size
 	if screen.x <= 0.0 or screen.y <= 0.0:
 		return Rect2()
-	# get_viewport_transform() maps world (canvas) -> screen; invert to map screen -> world.
-	var inv := ci.get_viewport_transform().affine_inverse()
+	# get_canvas_transform() maps world (canvas) -> the viewport's 2D coordinate space, which is
+	# the same virtual-unit space get_viewport_rect() is measured in. Invert it to map the visible
+	# rect back into world space. (Do NOT use get_viewport_transform(): that also folds in the
+	# stretch/final transform, mapping world -> post-stretch *screen pixels*. Under this project's
+	# `canvas_items` stretch mode the final transform scales by window_pixels / 640x360, so feeding
+	# the virtual-unit rect corners through it shrank the rect toward the top-left corner — the cull
+	# region drifted up-and-left of the player and the right/bottom edges popped in and out.)
+	var inv := ci.get_canvas_transform().affine_inverse()
 	# Expand over all four screen corners so the bounds stay correct even if the camera ever
 	# rotates or zooms (today it only eases position + zoom, but this costs nothing extra).
 	var r := Rect2(inv * Vector2.ZERO, Vector2.ZERO)
