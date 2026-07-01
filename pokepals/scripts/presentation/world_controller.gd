@@ -107,19 +107,27 @@ var _bounds_rect := Rect2()
 
 func _ready() -> void:
 	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a fresh
-	# boot). The spec is SERVER-CANONICAL — there is no bundled copy — so we either build now from Net's
-	# cache (revisit / warm disk cache) or, on a cold first visit, show a loading screen and build the
-	# moment the spec arrives. We also stay subscribed so a world that changes on the server while we're
+	# boot). The spec is SERVER-CANONICAL — there is no bundled copy. We stay subscribed to both spec
+	# signals so the join can drive our build, and so a world that changes on the server while we're
 	# standing in it rebuilds itself, no new client build required (see _on_world_spec_arrived).
 	var world_id := WorldRouter.current_world
 	Net.world_spec_received.connect(_on_world_spec_arrived)
+	Net.world_spec_unchanged.connect(_on_world_spec_unchanged)
+	# WHEN to build. Paint instantly from the cache ONLY when we're already in a live session — a world
+	# hop / revisit, where the server is about to re-confirm the very spec we cached and instant paint is
+	# the nice feel. On a cold, DISCONNECTED boot we must connect before we can play anyway (online-only),
+	# and the SERVER's spec is the authority: building from a possibly-stale cache now would only be torn
+	# down and rebuilt the moment the fresh spec lands — a wasteful double-build (and the source of the
+	# connect-time reload). So we DEFER the build until the join tells us which spec is live: an unchanged
+	# reply builds from cache (_on_world_spec_unchanged), a changed one from the fresh spec
+	# (_on_world_spec_arrived). Either way it's a clean first paint, never a reload.
 	var data := Net.cached_spec_core(world_id)
-	if data.is_empty():
-		_show_loading()
-		Net.enter_world(world_id)  # fetch; _build_world runs from _on_world_spec_arrived when it lands
+	if Net.is_active() and not data.is_empty():
+		_built_etag = Net.cached_etag(world_id)
+		_build_world(data)
 		return
-	_built_etag = Net.cached_etag(world_id)
-	_build_world(data)
+	_show_loading()
+	Net.enter_world(world_id)  # _build_world runs from _on_world_spec_arrived / _on_world_spec_unchanged
 
 
 ## Build the whole world from its (server-provided) spec CORE: lay out contents, place the player and
@@ -922,14 +930,16 @@ func _show_loading() -> void:
 	_hint.modulate.a = 1.0
 
 
-## The server delivered (or re-delivered) a world's spec. Three cases, decided by comparing the just-
-## cached etag to the one we built from (_built_etag):
+## The server shipped a world's spec (it differed from the known_etag we sent, or we had none). Three
+## cases, decided by comparing the just-cached etag to the one we built from (_built_etag):
 ##   • not our current world → ignore.
 ##   • same etag we already built → a reconfirm; nothing to do.
-##   • different (we hadn't built yet → first paint; or our cached copy was stale and the server sent a
-##     newer one → the world changed under us) → (re)build from the now-cached fresh spec.
-## A live change rebuilds via a scene reload (the clean way to tear down the old world); a first paint
-## builds in place so the loading screen flows straight into the world.
+##   • different → either we hadn't built yet (a fresh/deferred boot → FIRST PAINT, in place, so the
+##     loading screen flows straight into the world) or our cached copy was stale and the server sent a
+##     newer one while we stood in the world (→ the world changed under us → a scene reload, the clean way
+##     to tear down the old world and rebuild from the now-cached spec).
+## Its sibling _on_world_spec_unchanged handles the case where the server confirmed our cache instead of
+## re-shipping — a deferred boot builds from cache there.
 func _on_world_spec_arrived(world_id: String, _version: int, _spec: Dictionary) -> void:
 	if world_id != WorldRouter.current_world:
 		return
@@ -944,6 +954,19 @@ func _on_world_spec_arrived(world_id: String, _version: int, _spec: Dictionary) 
 		# roster re-arrives after the rebuild) and reload the scene to rebuild from the now-cached spec.
 		Net.leave_world()
 		get_tree().reload_current_scene()
+
+
+## The server confirmed our cached spec is still current (we sent a matching known_etag on join, so it
+## didn't re-ship the spec). If we DEFERRED the build — a cold, disconnected boot waiting for this
+## confirmation — build now from the cache: a clean first paint. If we already built (a live revisit that
+## painted from cache before joining), there's nothing to do.
+func _on_world_spec_unchanged(world_id: String) -> void:
+	if world_id != WorldRouter.current_world or _built_etag != "":
+		return
+	var data := Net.cached_spec_core(world_id)
+	if not data.is_empty():
+		_built_etag = Net.cached_etag(world_id)
+		_build_world(data)
 
 
 ## Persist on the ways a session can end — pushed to the server (the sole save): window close, app

@@ -76,6 +76,10 @@ signal ambient_state_received(pals: Array)
 ## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
 ## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
 signal world_spec_received(world_id: String, version: int, spec: Dictionary)
+## Our cached spec for a world is still current — we sent a matching known_etag on join, so the server
+## did NOT re-ship the spec. The world layer uses this to know the cache is authoritative: a boot that
+## DEFERRED its build until the server confirmed which spec is live builds from the cache on this signal.
+signal world_spec_unchanged(world_id: String)
 ## We reached the server but it REFUSED our world-channel join (e.g. the world isn't in the catalog —
 ## reason "unknown_world"; usually the server hasn't been seeded). The lobby surfaces this instead of
 ## hanging on "loading".
@@ -445,8 +449,12 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 				_persist_spec(wid, entry)
 				world_spec_received.emit(wid, version, spec)
 		"world_spec_unchanged":
-			# Our cached spec is current; nothing to do (the world layer already has it).
-			pass
+			# Our cached spec is still current (the server didn't re-ship it). Surface it so a boot that
+			# deferred building until this confirmation can now build from the cache. A revisit that already
+			# painted from cache simply ignores it.
+			var uwid := String(payload.get("world_id", ""))
+			if uwid != "":
+				world_spec_unchanged.emit(uwid)
 		"welcome":
 			# We're in the world: adopt our id, mark joined, flush identity, learn who's here.
 			_my_id = String(payload.get("id", ""))
