@@ -87,6 +87,27 @@ defmodule Server.AmbientPalsTest do
     end
   end
 
+  test "pals are held inside the border treeline via a bounds inset" do
+    extra = %{
+      "bounds" => %{"min" => [0, 0], "max" => [1000, 1000]},
+      "border" => %{"ring" => true, "inset" => 18, "jitter" => 34, "rows" => 2, "row_gap" => 62},
+      "collision" => %{"body_radius" => 6, "margin" => 2, "tree_radius" => 7},
+      "ambient_pals" => [%{"id" => "a", "home" => [500, 500], "roam_radius" => 3000, "look" => %{}}]
+    }
+
+    state = AmbientPals.new(core(extra))
+    {_final, frames} = run(state, 500)
+
+    # Border reaches inward 18 + (2-1)*62 + 34 + 7 = 121; plus the body radius 8 → the centre stays 129
+    # in from every edge, so the pal stops just inside the treeline instead of among it.
+    inset = 121 + 8
+
+    for frame <- frames, %{id: "a", p: [px, py]} <- frame do
+      assert px >= inset - 0.5 and px <= 1000 - inset + 0.5
+      assert py >= inset - 0.5 and py <= 1000 - inset + 0.5
+    end
+  end
+
   test "pals stay inside the world bounds" do
     extra = %{
       "bounds" => %{"min" => [80, 80], "max" => [140, 140]},

@@ -19,10 +19,13 @@ defmodule Server.AmbientPals do
   `props`, and blocking `ponds`) and resolves with the same clamp-to-bounds + push-out-of-circles pass,
   using a pal body radius of `collision.body_radius + collision.margin`.
 
-  Two solids the client's resolver also has are deliberately OMITTED here, because no ambient pal is ever
-  near them: the procedural border-ring treeline (a seeded edge ring — pals roam interior regions and are
-  bounds-clamped anyway) and hedge segment walls (only the maze, which has no pals). A pal that does get
-  wedged abandons its target after a moment (the stuck-guard) rather than grinding into a trunk forever.
+  The one client solid NOT ported as circles is the procedural border-ring treeline: its exact tree
+  positions come from the client's seeded RNG, which we don't replicate. Instead pals are kept out of the
+  treeline band by INSETTING the clamp bounds by the ring's inward depth
+  (`inset + (rows-1)*row_gap + jitter + tree_radius`) — so a pal near the world edge stops just inside the
+  trees rather than weaving among them. Hedge segment walls are skipped too (only the maze, which has no
+  pals). A pal that gets wedged abandons its target after a moment (the stuck-guard) rather than grinding
+  into a trunk forever.
 
   Wire shape (`to_list/1`): `[%{id: String, p: [x, y], l: [lx, ly]}]` — position and a facing unit
   vector, the same `[x, y]` JSON encoding the live-transform fan-out uses.
@@ -220,10 +223,35 @@ defmodule Server.AmbientPals do
   defp build_bounds(core) do
     case Map.get(core, "bounds") do
       %{"min" => [minx, miny | _], "max" => [maxx, maxy | _]} ->
-        {num(minx), num(miny), num(maxx), num(maxy)}
+        minx = num(minx)
+        miny = num(miny)
+        maxx = num(maxx)
+        maxy = num(maxy)
+        # Inset by the border treeline's inward depth so pals stop just inside the ring rather than
+        # among its trees. Capped to under half the smaller span so a tiny world can't invert the rect.
+        bi = min(border_inset(core), min(maxx - minx, maxy - miny) / 2.0 - 1.0) |> max(0.0)
+        {minx + bi, miny + bi, maxx - bi, maxy - bi}
 
       _ ->
         nil
+    end
+  end
+
+  # How far the procedural border-ring treeline reaches inward from the bounds edge (0 when there's no
+  # ring). Mirrors the client's Solids.border_positions geometry: rows stepped by row_gap from `inset`,
+  # each tree jittered up to `jitter` and blocking at `tree_radius`.
+  defp border_inset(core) do
+    b = Map.get(core, "border", %{})
+
+    if is_map(b) and map_size(b) > 0 and Map.get(b, "ring", true) == true do
+      inset = num(Map.get(b, "inset", 20.0))
+      jitter = num(Map.get(b, "jitter", 34.0))
+      rows = trunc(num(Map.get(b, "rows", 2)))
+      row_gap = num(Map.get(b, "row_gap", 64.0))
+      tree_r = num(Map.get(Map.get(core, "collision", %{}), "tree_radius", 7.0))
+      inset + max(rows - 1, 0) * row_gap + jitter + tree_r
+    else
+      0.0
     end
   end
 
