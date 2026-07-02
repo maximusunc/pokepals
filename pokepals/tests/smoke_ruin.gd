@@ -27,6 +27,8 @@ func _process(_delta: float) -> bool:
 		var scene: PackedScene = load("res://scenes/world.tscn")
 		_world = scene.instantiate()
 		root.add_child(_world)
+		# world_controller defers its build until a join confirms the live spec; this is that confirmation.
+		net.emit_signal("world_spec_unchanged", router.RUIN_ID)
 		return false
 	if _frames < 6:
 		return false

@@ -57,12 +57,16 @@ func _on_connect() -> void:
 ## The server accepted us; our companion is on its way. Hold the gate until it actually arrives
 ## (save_loaded), so the world doesn't flash a placeholder before the real companion loads.
 func _on_connected() -> void:
+	if _is_stale():
+		return
 	_status.text = "Connected! Loading your companion…"
 
 
 ## Our companion + wardrobe are here (or we're a brand-new player). Fade the gate away and let the
 ## player be in the world — connected-and-alone is the normal way to play.
 func _on_save_loaded(_companion, _appearance) -> void:
+	if _is_stale():
+		return
 	# Officially in the world now — this is the ONE place the world becomes playable. Unfreeze before the
 	# fade so the player can move the instant the gate clears. (The fade itself animates while we're
 	# transitioning out of pause because this Control is PROCESS_MODE_ALWAYS.)
@@ -73,6 +77,8 @@ func _on_save_loaded(_companion, _appearance) -> void:
 
 
 func _on_connection_failed() -> void:
+	if _is_stale():
+		return
 	_status.text = "Couldn't reach that server. Check the address, and that it's running."
 	_set_controls_enabled(true)
 
@@ -80,6 +86,8 @@ func _on_connection_failed() -> void:
 ## We reached the server but it refused to let us into the world — almost always because the server's
 ## world catalog is empty (run its seeds). Surface it instead of hanging on "loading".
 func _on_world_join_failed(reason: String) -> void:
+	if _is_stale():
+		return
 	if reason == "unknown_world":
 		_status.text = "The server has no world to enter yet. Seed it: mix run priv/repo/seeds.exs"
 	else:
@@ -89,6 +97,8 @@ func _on_world_join_failed(reason: String) -> void:
 
 ## The link dropped. With no offline mode, the player returns to the gate to reconnect.
 func _on_disconnected() -> void:
+	if _is_stale():
+		return
 	_status.text = "Disconnected from the server. Reconnect to keep playing."
 	_reshow()
 
@@ -105,3 +115,15 @@ func _reshow() -> void:
 func _set_controls_enabled(on: bool) -> void:
 	_connect_button.disabled = not on
 	_url_edit.editable = on
+
+
+## True if this lobby is detached from the scene tree — it's a torn-down husk that should NOT react.
+##
+## We subscribe to the Net AUTOLOAD's signals, and Net outlives any single world scene. When a world
+## reloads mid-connect — e.g. the server ships a freshly-changed spec and world_controller rebuilds via
+## get_tree().reload_current_scene() — this old lobby leaves the tree a frame (or more) before it's
+## actually freed. If a Net signal fires in that window our handler runs on a husk whose get_tree() is
+## null, and `get_tree().paused = …` crashes. The fresh scene's lobby owns the gate now, so a stale one
+## simply bows out. (A normal, single-lobby connect never trips this — it's always in the tree.)
+func _is_stale() -> bool:
+	return not is_inside_tree()

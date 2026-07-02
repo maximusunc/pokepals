@@ -17,14 +17,17 @@ var _phase_frame := 0
 
 func _initialize() -> void:
 	# The world spec is server-hosted now (the client bundles none). Headless and server-less, we prime
-	# Net's spec cache from a test fixture so world_controller builds the Vale synchronously, exactly as
-	# it would from a cached server spec. (Fixture mirrors the server's priv/world_seeds/vale.json.)
+	# Net's spec cache from a test fixture, then confirm it the way a real join does. world_controller now
+	# DEFERS its build until the server says which spec is live (it no longer builds eagerly from cache on
+	# a disconnected boot); world_spec_unchanged is that confirmation, so it builds the Vale from the
+	# primed cache. (Fixture mirrors the server's priv/world_seeds/vale.json.)
 	var router := root.get_node("/root/WorldRouter")
 	var net := root.get_node("/root/Net")
 	net.prime_world_spec(router.VALE_ID, WorldData.load_json("res://tests/world_fixtures/vale.json"))
 	var scene: PackedScene = load("res://scenes/world.tscn")
 	_world = scene.instantiate()
 	root.add_child(_world)
+	net.emit_signal("world_spec_unchanged", router.VALE_ID)  # server confirms the primed spec -> build
 
 
 func _process(_delta: float) -> bool:
