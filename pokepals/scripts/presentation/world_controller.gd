@@ -92,6 +92,7 @@ var _examine_shown := false  # whether the touch Examine button is currently fad
 var _pet_shown := false  # whether the contextual Pet button is currently faded in
 var _reset_shown := false  # whether the "new companion" button is currently faded in
 var _leave_shown := false  # whether the "leave" button is currently faded in (only while connected)
+var _button_fades: Dictionary = {}  # Button -> its in-flight fade Tween, so a new fade cancels the old
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 var _style: ArtStyle
 var _day_enabled := false
@@ -637,18 +638,35 @@ func _process(delta: float) -> void:
 	_presence_dir.push_save_periodic(delta)
 
 
+## Fade a contextual button in or out (0 ⇆ 1 alpha), keeping it out of the layout when hidden.
+##
+## Cancels any fade already in flight on THIS button before starting the new one — which is what makes
+## it safe across the connect gate freezing/unfreezing the tree. This node is PROCESS_MODE_INHERIT, so
+## its tweens PAUSE when the gate sets get_tree().paused. A fade-out interrupted that way (e.g. the
+## Leave button on disconnect) would otherwise resume on reconnect and fire its deferred `visible =
+## false` AFTER _process has already re-shown the button — stranding it hidden while its `_*_shown`
+## flag reads shown, so the guard in the callers blocks it forever (the reconnect bug). Killing the
+## stale tween drops that late callback, so `visible` and the shown-flag can never disagree.
+func _fade_button(button: Button, show_button: bool) -> void:
+	var prev: Tween = _button_fades.get(button)
+	if prev != null and prev.is_valid():
+		prev.kill()
+	if show_button:
+		button.visible = true
+	var tween := create_tween()
+	tween.tween_property(button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
+	if not show_button:
+		tween.tween_callback(func() -> void: button.visible = false)
+	_button_fades[button] = tween
+
+
 ## Gently fade the touch Examine button in or out as the player nears a prop, so
 ## it signals "something's here" without cluttering the screen while wandering.
 func _set_examine_visible(show_button: bool) -> void:
 	if show_button == _examine_shown:
 		return
 	_examine_shown = show_button
-	if show_button:
-		_examine_button.visible = true
-	var tween := create_tween()
-	tween.tween_property(_examine_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: _examine_button.visible = false)
+	_fade_button(_examine_button, show_button)
 
 
 ## Gently fade the touch Pet button in when beside the companion, out otherwise — mirrors the
@@ -657,12 +675,7 @@ func _set_pet_visible(show_button: bool) -> void:
 	if show_button == _pet_shown:
 		return
 	_pet_shown = show_button
-	if show_button:
-		_pet_button.visible = true
-	var tween := create_tween()
-	tween.tween_property(_pet_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: _pet_button.visible = false)
+	_fade_button(_pet_button, show_button)
 
 
 ## Gently fade the "new companion" button in once fully bonded, out otherwise —
@@ -671,12 +684,7 @@ func _set_reset_visible(show_button: bool) -> void:
 	if show_button == _reset_shown:
 		return
 	_reset_shown = show_button
-	if show_button:
-		_reset_button.visible = true
-	var tween := create_tween()
-	tween.tween_property(_reset_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: _reset_button.visible = false)
+	_fade_button(_reset_button, show_button)
 
 
 ## Gently fade the "Leave" button in while connected, out otherwise — mirrors the other
@@ -686,12 +694,7 @@ func _set_leave_visible(show_button: bool) -> void:
 	if show_button == _leave_shown:
 		return
 	_leave_shown = show_button
-	if show_button:
-		_leave_button.visible = true
-	var tween := create_tween()
-	tween.tween_property(_leave_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: _leave_button.visible = false)
+	_fade_button(_leave_button, show_button)
 
 
 ## Leave the session on purpose. Persist the companion one last time (the graceful close in
@@ -709,12 +712,7 @@ func _set_return_visible(show_button: bool) -> void:
 	if show_button == _return_shown:
 		return
 	_return_shown = show_button
-	if show_button:
-		_return_button.visible = true
-	var tween := create_tween()
-	tween.tween_property(_return_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: _return_button.visible = false)
+	_fade_button(_return_button, show_button)
 
 
 ## The Return-to-the-Vale escape hatch: fade to black and travel back to the world/portal this world
@@ -805,12 +803,7 @@ func _set_seek_visible(show_button: bool) -> void:
 	if show_button == _seek_shown:
 		return
 	_seek_shown = show_button
-	if show_button:
-		_seek_button.visible = true
-	var tween := create_tween()
-	tween.tween_property(_seek_button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: _seek_button.visible = false)
+	_fade_button(_seek_button, show_button)
 
 
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
