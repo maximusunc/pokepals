@@ -82,8 +82,12 @@ func _ready() -> void:
 
 
 ## Reflow the chip (and any open arc) whenever the root's size changes — i.e. on window resize.
+## Guarded on is_node_ready(): a Control gets its first NOTIFICATION_RESIZED as its rect resolves,
+## which happens BEFORE _ready() builds _chip/_dot — so an unguarded _layout() would deref a null
+## _chip. The initial layout is handled by the _layout.call_deferred() in _ready(); this only needs
+## to catch later, post-ready resizes.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED:
+	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_layout()
 
 

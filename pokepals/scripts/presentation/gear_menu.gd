@@ -55,16 +55,25 @@ func _ready() -> void:
 	_gear.add_theme_stylebox_override("pressed", empty)
 	_gear.add_theme_stylebox_override("focus", empty)
 	_gear.pressed.connect(_toggle)
-	_gear.button_down.connect(func() -> void: _pressed_look = true; queue_redraw())
-	_gear.button_up.connect(func() -> void: _pressed_look = false; queue_redraw())
+	_gear.button_down.connect(_set_pressed_look.bind(true))
+	_gear.button_up.connect(_set_pressed_look.bind(false))
 	add_child(_gear)
 
 	_layout.call_deferred()
 
 
+## Dim the drawn gear disc while the button is held (wired to button_down/up).
+func _set_pressed_look(pressed_look: bool) -> void:
+	_pressed_look = pressed_look
+	queue_redraw()
+
+
 ## Reposition the gear (and any open list) when the root's size changes — i.e. on window resize.
+## Guarded on is_node_ready(): the first NOTIFICATION_RESIZED arrives BEFORE _ready() builds _gear/
+## _list, so an unguarded _layout() would deref a null _gear. The initial layout is handled by the
+## _layout.call_deferred() in _ready(); this only catches later, post-ready resizes.
 func _notification(what: int) -> void:
-	if what == NOTIFICATION_RESIZED:
+	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_layout()
 
 
@@ -177,7 +186,10 @@ func _on_catcher_input(event: InputEvent) -> void:
 
 func _draw() -> void:
 	# The gear's whole look, drawn beneath the transparent hit-target: a cream disc with a purple
-	# outline, then a small gear glyph in the system-purple accent.
+	# outline, then a small gear glyph in the system-purple accent. Guard against a redraw queued
+	# before _ready() has built _gear.
+	if _gear == null:
+		return
 	var c := _gear.position + _gear.size * 0.5
 	var r := GEAR_SIZE * 0.5
 	var dim := 0.9 if _pressed_look else 1.0
