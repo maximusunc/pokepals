@@ -229,8 +229,8 @@ func _make_slice(id: String, label: String) -> Button:
 
 
 func _on_catcher_input(event: InputEvent) -> void:
-	var tap := event is InputEventMouseButton and event.pressed
-	var touch := event is InputEventScreenTouch and event.pressed
+	var tap: bool = event is InputEventMouseButton and event.pressed
+	var touch: bool = event is InputEventScreenTouch and event.pressed
 	if tap or touch:
 		_close()
 		accept_event()
