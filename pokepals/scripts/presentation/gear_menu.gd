@@ -78,20 +78,9 @@ func _notification(what: int) -> void:
 		_layout()
 
 
-## A blocky cream tile with a chunky inked outline and hard, square (non-AA) edges — a pixel-art
-## panel rather than a smooth web pill.
-func _pill_style(dim := 1.0) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
-	sb.border_color = ACCENT
-	sb.set_border_width_all(BORDER_W)
-	sb.set_corner_radius_all(0)  # square corners
-	sb.anti_aliasing = false     # crisp, pixel-hard edges
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 7
-	sb.content_margin_bottom = 7
-	return sb
+## A gritty pixel-art panel (bevel + speckle + hard inked outline) rather than a smooth web pill.
+func _pill_style(dim := 1.0) -> PixelPanelStyle:
+	return PixelPanelStyle.make(Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98), ACCENT, BORDER_W, 16, 7)
 
 
 func _layout() -> void:
@@ -196,10 +185,9 @@ func _draw() -> void:
 	var c := _gear.position + _gear.size * 0.5
 	var dim := 0.9 if _pressed_look else 1.0
 	var disc := Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
-	# A square, hard-outlined cream tile (matches the blocky buttons) instead of a smooth round disc.
+	# A gritty square cream tile (same worn pixel look as the buttons) instead of a smooth round disc.
 	var tile := Rect2(_gear.position, _gear.size)
-	draw_rect(tile, disc, true)
-	draw_rect(tile, ACCENT, false, float(BORDER_W))
+	PixelPanelStyle.make(disc, ACCENT, BORDER_W, 0, 0).draw(get_canvas_item(), tile)
 
 	# A proper cog: filled trapezoidal teeth around a solid hub, with a hole punched in the middle.
 	var teeth := 8

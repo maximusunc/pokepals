@@ -92,20 +92,10 @@ func _notification(what: int) -> void:
 		_layout()
 
 
-## A blocky cream tile with a chunky inked outline and hard (non-AA, square) edges — a pixel-art
-## panel rather than a smooth web pill. `dim` darkens the fill for pressed.
-func _pill_style(dim := 1.0) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
-	sb.border_color = ACCENT
-	sb.set_border_width_all(BORDER_W)
-	sb.set_corner_radius_all(0)  # square corners
-	sb.anti_aliasing = false     # crisp, pixel-hard edges
-	sb.content_margin_left = 16
-	sb.content_margin_right = 16
-	sb.content_margin_top = 7
-	sb.content_margin_bottom = 7
-	return sb
+## A gritty pixel-art panel (bevel + speckle + hard inked outline) rather than a smooth web pill.
+## `dim` darkens the fill for pressed.
+func _pill_style(dim := 1.0) -> PixelPanelStyle:
+	return PixelPanelStyle.make(Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98), ACCENT, BORDER_W, 16, 7)
 
 
 ## The bond dot's fill: a muted grey-brown when fresh, warming to a soft glow when fully bonded.

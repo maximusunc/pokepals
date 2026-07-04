@@ -52,20 +52,10 @@ func _ready() -> void:
 	add_child(_button)
 
 
-## A blocky cream bubble with a chunky inked outline and hard, square (non-AA) edges — a pixel-art
-## tag rather than a smooth web bubble. `dim` scales the fill for the pressed look.
-func _bubble_style(dim := 1.0) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	sb.bg_color = Color(BUBBLE_BG.r * dim, BUBBLE_BG.g * dim, BUBBLE_BG.b * dim, 0.98)
-	sb.border_color = BUBBLE_BORDER
-	sb.set_border_width_all(BORDER_W)
-	sb.set_corner_radius_all(0)  # square corners
-	sb.anti_aliasing = false     # crisp, pixel-hard edges
-	sb.content_margin_left = 11
-	sb.content_margin_right = 11
-	sb.content_margin_top = 4
-	sb.content_margin_bottom = 4
-	return sb
+## A gritty pixel-art tag (bevel + speckle + hard inked outline) rather than a smooth web bubble.
+## `dim` scales the fill for the pressed look.
+func _bubble_style(dim := 1.0) -> PixelPanelStyle:
+	return PixelPanelStyle.make(Color(BUBBLE_BG.r * dim, BUBBLE_BG.g * dim, BUBBLE_BG.b * dim, 0.98), BUBBLE_BORDER, BORDER_W, 11, 4)
 
 
 ## Point the prompt at a world object (the bubble text is the constant "Examine"). Fades in if it
