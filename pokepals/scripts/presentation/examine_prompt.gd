@@ -17,8 +17,9 @@ extends Control
 signal pressed
 
 const BUBBLE_BG := Color(0.96, 0.94, 0.87)
-const BUBBLE_BORDER := Color(0.30, 0.50, 0.34)  # world-object green (matches the mockup legend)
+const BUBBLE_BORDER := Color(0.16, 0.30, 0.20)  # inked dark-green edge (pixel-art outline)
 const TEXT_COLOR := Color(0.17, 0.20, 0.16)
+const BORDER_W := 3  # chunky, hard-edged outline
 const CARET_H := 9.0
 const OBJECT_LIFT := 26.0  # px above the object's world point where the caret tip sits
 
@@ -51,13 +52,15 @@ func _ready() -> void:
 	add_child(_button)
 
 
-## A rounded cream bubble with a green outline. `dim` scales the fill for the pressed look.
+## A blocky cream bubble with a chunky inked outline and hard, square (non-AA) edges — a pixel-art
+## tag rather than a smooth web bubble. `dim` scales the fill for the pressed look.
 func _bubble_style(dim := 1.0) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(BUBBLE_BG.r * dim, BUBBLE_BG.g * dim, BUBBLE_BG.b * dim, 0.98)
 	sb.border_color = BUBBLE_BORDER
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(8)
+	sb.set_border_width_all(BORDER_W)
+	sb.set_corner_radius_all(0)  # square corners
+	sb.anti_aliasing = false     # crisp, pixel-hard edges
 	sb.content_margin_left = 11
 	sb.content_margin_right = 11
 	sb.content_margin_top = 4
@@ -119,8 +122,8 @@ func _draw() -> void:
 	])
 	draw_colored_polygon(pts, BUBBLE_BG)
 	# Two edges of the caret in the border color, leaving the base open into the bubble.
-	draw_line(Vector2(-half, base_y), Vector2(0, 0), BUBBLE_BORDER, 2.0)
-	draw_line(Vector2(half, base_y), Vector2(0, 0), BUBBLE_BORDER, 2.0)
+	draw_line(Vector2(-half, base_y), Vector2(0, 0), BUBBLE_BORDER, float(BORDER_W))
+	draw_line(Vector2(half, base_y), Vector2(0, 0), BUBBLE_BORDER, float(BORDER_W))
 
 
 ## The interactive Controls the virtual joystick must exclude (so a tap here doesn't also move you).

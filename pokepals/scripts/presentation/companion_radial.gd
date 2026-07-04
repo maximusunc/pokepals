@@ -14,8 +14,9 @@ signal action_selected(id: String)
 signal opened  ## fired when the arc fans open, so the controller can close the gear menu
 
 const CREAM := Color(0.96, 0.94, 0.87)
-const ACCENT := Color(0.72, 0.42, 0.30)  # companion terracotta (matches the mockup legend)
+const ACCENT := Color(0.34, 0.19, 0.12)  # inked dark-brown edge (pixel-art outline, warm-toned)
 const TEXT_COLOR := Color(0.17, 0.14, 0.12)
+const BORDER_W := 3  # chunky, hard-edged outline — reads pixel-art, not smooth web UI
 const CHIP_MARGIN := Vector2(16, 16)  # gap from the bottom-right corner
 const ARC_RADIUS := 116.0
 const SLICE_STAGGER := 0.035
@@ -91,13 +92,15 @@ func _notification(what: int) -> void:
 		_layout()
 
 
-## A rounded cream pill with the companion-terracotta outline. `dim` darkens the fill for pressed.
+## A blocky cream tile with a chunky inked outline and hard (non-AA, square) edges — a pixel-art
+## panel rather than a smooth web pill. `dim` darkens the fill for pressed.
 func _pill_style(dim := 1.0) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
 	sb.border_color = ACCENT
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(13)
+	sb.set_border_width_all(BORDER_W)
+	sb.set_corner_radius_all(0)  # square corners
+	sb.anti_aliasing = false     # crisp, pixel-hard edges
 	sb.content_margin_left = 16
 	sb.content_margin_right = 16
 	sb.content_margin_top = 7
@@ -106,12 +109,16 @@ func _pill_style(dim := 1.0) -> StyleBoxFlat:
 
 
 ## The bond dot's fill: a muted grey-brown when fresh, warming to a soft glow when fully bonded.
+## A square, outlined pixel pip (not a smooth circle) to match the blocky buttons.
 func _dot_style(bond: float) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	var cool := Color(0.62, 0.57, 0.52)
 	var warm := Color(0.96, 0.52, 0.36)
 	sb.bg_color = cool.lerp(warm, clampf(bond, 0.0, 1.0))
-	sb.set_corner_radius_all(6)  # >= half the 11px size → a circle
+	sb.border_color = ACCENT
+	sb.set_border_width_all(1)
+	sb.set_corner_radius_all(0)  # square pip
+	sb.anti_aliasing = false
 	return sb
 
 

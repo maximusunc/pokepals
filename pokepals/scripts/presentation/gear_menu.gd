@@ -12,8 +12,9 @@ signal item_selected(id: String)
 signal opened  ## fired when the list drops open, so the controller can close the companion radial
 
 const CREAM := Color(0.96, 0.94, 0.87)
-const ACCENT := Color(0.42, 0.43, 0.46)  # neutral slate grey — the system menu's accent
+const ACCENT := Color(0.29, 0.30, 0.33)  # inked dark-slate edge (pixel-art outline + cog)
 const TEXT_COLOR := Color(0.20, 0.20, 0.22)
+const BORDER_W := 3  # chunky, hard-edged outline
 const GEAR_SIZE := 42.0
 const GEAR_MARGIN := Vector2(14, 12)
 
@@ -77,12 +78,15 @@ func _notification(what: int) -> void:
 		_layout()
 
 
+## A blocky cream tile with a chunky inked outline and hard, square (non-AA) edges — a pixel-art
+## panel rather than a smooth web pill.
 func _pill_style(dim := 1.0) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	sb.bg_color = Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
 	sb.border_color = ACCENT
-	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(11)
+	sb.set_border_width_all(BORDER_W)
+	sb.set_corner_radius_all(0)  # square corners
+	sb.anti_aliasing = false     # crisp, pixel-hard edges
 	sb.content_margin_left = 16
 	sb.content_margin_right = 16
 	sb.content_margin_top = 7
@@ -185,15 +189,17 @@ func _on_catcher_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	# The gear's whole look, drawn beneath the transparent hit-target: a cream disc, then a solid cog
-	# wheel in the grey accent. Guard against a redraw queued before _ready() has built _gear.
+	# The gear's whole look, drawn beneath the transparent hit-target: a square cream tile, then a
+	# solid cog wheel in the inked-slate accent. Guard against a redraw queued before _ready() builds _gear.
 	if _gear == null:
 		return
 	var c := _gear.position + _gear.size * 0.5
 	var dim := 0.9 if _pressed_look else 1.0
 	var disc := Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
-	draw_circle(c, GEAR_SIZE * 0.5, disc)
-	draw_arc(c, GEAR_SIZE * 0.5 - 1.0, 0.0, TAU, 40, ACCENT, 2.0)
+	# A square, hard-outlined cream tile (matches the blocky buttons) instead of a smooth round disc.
+	var tile := Rect2(_gear.position, _gear.size)
+	draw_rect(tile, disc, true)
+	draw_rect(tile, ACCENT, false, float(BORDER_W))
 
 	# A proper cog: filled trapezoidal teeth around a solid hub, with a hole punched in the middle.
 	var teeth := 8
