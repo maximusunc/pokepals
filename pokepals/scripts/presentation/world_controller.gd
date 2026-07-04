@@ -575,10 +575,11 @@ func _process(delta: float) -> void:
 		_apply_daycycle(u)
 
 	# Diegetic Examine bubble: float it over the nearest examinable prop, pointing at it, only while
-	# in range. The bubble carries the label now, so the hint line no longer echoes "Examine X".
+	# in range. It just reads "Examine" — the thing's identity comes from how it looks and, once
+	# examined, from the hint line.
 	var nearest := _nearest_interactable()
 	if nearest >= 0:
-		_examine_prompt.point_at(_interactables[nearest]["pos"], String(_interactables[nearest]["label"]))
+		_examine_prompt.point_at(_interactables[nearest]["pos"])
 	else:
 		_examine_prompt.hide_prompt()
 

@@ -1,14 +1,18 @@
 class_name ExaminePrompt
 extends Control
-## The diegetic "Examine <thing>" prompt: a small cream bubble with a downward caret that
-## floats just ABOVE the nearby world object and points at it, instead of a fixed on-screen
-## button. It fades in only while the player is in range of something examinable and tracks the
-## object as the camera pans, so the affordance reads as belonging to the world, not the HUD.
+## The diegetic "Examine" prompt: a small cream bubble with a downward caret that floats just ABOVE
+## the nearby world object and points at it, instead of a fixed on-screen button. It fades in only
+## while the player is in range of something examinable and tracks the object as the camera pans, so
+## the affordance reads as belonging to the world, not the HUD.
 ##
-## Pure presentation: the world controller tells it WHAT to point at (a world position + label)
-## and listens for `pressed`; it owns none of the interaction logic. Lives on a CanvasLayer (so it
-## isn't scaled by the Camera2D), and projects the target world point to screen each frame via the
-## viewport's canvas transform — the standard way to anchor HUD to a world position in Godot.
+## The bubble just reads "Examine" — no object name. What the thing IS should come across from how it
+## looks in the world, and the hint line names it once you actually examine it, so spelling it out on
+## the prompt would only be noise.
+##
+## Pure presentation: the world controller tells it WHERE to point (a world position) and listens for
+## `pressed`; it owns none of the interaction logic. Lives on a CanvasLayer (so it isn't scaled by the
+## Camera2D), and projects the target world point to screen each frame via the viewport's canvas
+## transform — the standard way to anchor HUD to a world position in Godot.
 
 signal pressed
 
@@ -31,9 +35,10 @@ func _ready() -> void:
 	visible = false
 
 	_button = Button.new()
+	_button.text = "Examine"  # constant — never names the object (see class docs)
 	_button.focus_mode = Control.FOCUS_NONE
 	_button.mouse_filter = Control.MOUSE_FILTER_STOP
-	_button.add_theme_font_size_override("font_size", 20)
+	_button.add_theme_font_size_override("font_size", 15)
 	_button.add_theme_color_override("font_color", TEXT_COLOR)
 	_button.add_theme_color_override("font_hover_color", TEXT_COLOR)
 	_button.add_theme_color_override("font_pressed_color", TEXT_COLOR)
@@ -52,20 +57,18 @@ func _bubble_style(dim := 1.0) -> StyleBoxFlat:
 	sb.bg_color = Color(BUBBLE_BG.r * dim, BUBBLE_BG.g * dim, BUBBLE_BG.b * dim, 0.98)
 	sb.border_color = BUBBLE_BORDER
 	sb.set_border_width_all(2)
-	sb.set_corner_radius_all(9)
-	sb.content_margin_left = 14
-	sb.content_margin_right = 14
-	sb.content_margin_top = 6
-	sb.content_margin_bottom = 6
+	sb.set_corner_radius_all(8)
+	sb.content_margin_left = 11
+	sb.content_margin_right = 11
+	sb.content_margin_top = 4
+	sb.content_margin_bottom = 4
 	return sb
 
 
-## Point the prompt at a world object. Sets the label and fades in if it wasn't already showing.
-func point_at(world_pos: Vector2, label: String) -> void:
+## Point the prompt at a world object (the bubble text is the constant "Examine"). Fades in if it
+## wasn't already showing.
+func point_at(world_pos: Vector2) -> void:
 	_target_world = world_pos
-	var text := "Examine %s" % label
-	if _button.text != text:
-		_button.text = text
 	if not _active:
 		_active = true
 		visible = true
