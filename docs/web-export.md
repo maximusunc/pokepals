@@ -68,6 +68,29 @@ Then just run the server as usual (`mix phx.server` / your release). It now answ
 Until you've exported, `GET /` returns a plain 503 telling you to export — the socket and
 JSON routes work regardless.
 
+### Running under Docker Compose
+
+`docker compose up -d --build` serves the browser client too — there's **no separate web
+server**, and the exposed port 4000 carries both the game files and `/ws` (so one Tailscale
+Funnel → 4000 covers everything). One ordering rule, because Docker differs from a bare
+`mix phx.server`:
+
+> **Export before you build.** A bare server reads `priv/static/` from disk live; the Docker
+> image **bakes `priv/` in at build time** (`COPY priv priv` → `mix release`). So the export
+> must already be in `server/priv/static/` when you run `--build`. The files are gitignored but
+> **not** dockerignored, so Docker copies them in. Rebuild the client → re-run
+> `docker compose up -d --build` to bake the new export; a plain restart won't pick it up.
+
+```bash
+cd pokepals
+godot --headless --export-release "Web" ../server/priv/static/index.html   # 1. export first
+cd ../server
+docker compose up -d --build                                               # 2. then build+serve
+```
+
+A fresh `git clone` has no export (it's gitignored), so `docker compose up --build` on a clean
+checkout starts fine but `GET /` returns the 503 until you export and rebuild.
+
 ---
 
 ## Reaching it over TLS (Tailscale Funnel)
