@@ -16,6 +16,26 @@ defmodule Server.Router do
   plug :match
   plug :dispatch
 
+  # The web client's entry point. `Plug.Static` (in the endpoint) serves the export's named assets,
+  # but a bare `GET /` has no filename to match, so we resolve it to `index.html` here. Until the
+  # Godot "Web" preset has been exported into `priv/static`, we say so plainly instead of 404-ing.
+  get "/" do
+    index = Application.app_dir(:server, "priv/static/index.html")
+
+    if File.exists?(index) do
+      conn
+      |> put_resp_content_type("text/html")
+      |> send_file(200, index)
+    else
+      send_resp(
+        conn,
+        503,
+        "Web client not built yet. Export Godot's 'Web' preset into server/priv/static/ " <>
+          "(see docs/web-export.md)."
+      )
+    end
+  end
+
   get "/health" do
     send_resp(conn, 200, "ok")
   end

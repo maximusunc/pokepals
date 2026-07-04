@@ -11,5 +11,19 @@ defmodule Server.Endpoint do
     websocket: true,
     longpoll: false
 
+  # Serve the Godot **Web export** (index.html/.js/.wasm/.pck/…) so the browser client and the `/ws`
+  # socket live at the SAME origin — no CORS, no mixed-content, no second host to run. The client's
+  # web build derives its `wss://` URL from the page origin (see `Net.default_server_url`), so
+  # however a player reaches this server (LAN, a Tailscale Funnel's `*.ts.net`, …) the socket URL
+  # matches automatically. Files are exported into `priv/static` (see `docs/web-export.md`); every
+  # Godot output filename begins with `index`, so `only_matching` keeps this plug from ever shadowing
+  # the `/health` and `/worlds` routes below. It's a no-op until the export exists. Must precede the
+  # router so asset requests don't fall through to the catalog's `match _` 404.
+  plug Plug.Static,
+    at: "/",
+    from: :server,
+    gzip: true,
+    only_matching: ~w(index favicon manifest)
+
   plug Server.Router
 end

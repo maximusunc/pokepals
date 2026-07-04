@@ -10,7 +10,7 @@ extends Control
 
 
 func _ready() -> void:
-	_url_edit.text = Net.DEFAULT_SERVER_URL
+	_url_edit.text = Net.default_server_url()
 	_connect_button.pressed.connect(_on_connect)
 	Net.connected.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
