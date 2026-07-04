@@ -85,10 +85,16 @@ signal world_spec_unchanged(world_id: String)
 ## hanging on "loading".
 signal world_join_failed(reason: String)
 
-## Where a NATIVE client connects by default — the channel mount point. Net rewrites this into the
-## full Phoenix socket URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). The web build ignores
-## this in favor of the page origin — see default_server_url().
+## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
+## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
+## the baked-in native config (SERVER_CONFIG_PATH) yields a URL — see default_server_url().
 const DEFAULT_SERVER_URL := "ws://192.168.86.38:4000/ws"
+
+## A NATIVE build's server URL is read at startup from this file — baked into the installable package
+## (it lives under res://) but kept OUT of git, so the real address ships without living in the repo.
+## Shape: `{ "server_url": "wss://your-host/ws" }`. Absent/blank → DEFAULT_SERVER_URL. The web build
+## ignores this entirely (it derives the URL from the page origin). See server_config.example.json.
+const SERVER_CONFIG_PATH := "res://server_config.json"
 
 ## Phoenix closes a socket that goes silent; send a heartbeat well inside that window.
 const HEARTBEAT_INTERVAL := 25.0
@@ -336,13 +342,18 @@ func has_session_save() -> bool:
 ## (same origin — see the endpoint's Plug.Static), so we derive `wss://<this-host>/ws` from the page
 ## location: no hardcoded host, and the socket scheme/host automatically match however the player
 ## reached us — a `https://…ts.net` Tailscale Funnel yields `wss://…ts.net/ws`, a plain-http LAN page
-## yields `ws://host:port/ws`. Native builds (and web when the origin can't be read) fall back to the
-## LAN dev default, which the lobby leaves editable.
+## yields `ws://host:port/ws`. Native builds read the URL baked into the package (SERVER_CONFIG_PATH);
+## if neither source yields a URL we fall back to the LAN dev default. The lobby auto-connects to this.
 func default_server_url() -> String:
 	if OS.has_feature("web"):
 		var origin := _web_page_origin()
 		if origin != "":
 			return origin + "/ws"
+		return DEFAULT_SERVER_URL
+	# Native (iOS/Android/desktop): the URL baked into the package at export time wins.
+	var configured := _configured_server_url()
+	if configured != "":
+		return configured
 	return DEFAULT_SERVER_URL
 
 
@@ -361,6 +372,16 @@ func _web_page_origin() -> String:
 		return ""
 	var ws_scheme := "wss" if str(loc.protocol) == "https:" else "ws"
 	return "%s://%s" % [ws_scheme, host]
+
+
+## The native build-time server URL from SERVER_CONFIG_PATH, or "" if the file is missing, blank, or
+## malformed. WorldData.load_json ASSERTS the file exists, so we guard first (as art_style.gd does) —
+## a missing config is the normal case (web builds, or native before you add one).
+func _configured_server_url() -> String:
+	if not FileAccess.file_exists(SERVER_CONFIG_PATH):
+		return ""
+	var data := WorldData.load_json(SERVER_CONFIG_PATH)
+	return str(data.get("server_url", "")).strip_edges()
 
 
 # --- internals -------------------------------------------------------------------------

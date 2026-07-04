@@ -1,0 +1,4 @@
+{
+  "_comment": "Copy this file to server_config.json (same folder) and set your server's WebSocket URL. server_config.json is gitignored but IS baked into native iOS/Android exports, so the address ships in the installable package without living in the repo. The web build ignores this file entirely — it derives the URL from the page origin. Use wss:// for a TLS server (e.g. a Tailscale Funnel), ws:// for a plain LAN dev server.",
+  "server_url": "wss://your-host.example/ws"
+}

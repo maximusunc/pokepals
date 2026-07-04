@@ -1,17 +1,17 @@
 extends Control
 ## The connection gate. The game is ONLINE-ONLY: there is no solo/offline mode and no local save —
-## your companion lives on the server — so entering the world REQUIRES connecting. This overlay
-## takes a server URL, drives the Net seam (Net.connect_to), reflects status, and steps aside once
-## the server has handed back your companion (save_loaded). Pure presentation.
+## your companion lives on the server — so entering the world REQUIRES connecting. There's no address
+## to type: the server URL is resolved automatically (the page origin on web; a build-time config on
+## native — see Net.default_server_url). This overlay auto-connects, reflects status, and steps aside
+## once the server has handed back your companion (save_loaded). If the link can't be made it offers a
+## Retry. Pure presentation.
 
-@onready var _url_edit: LineEdit = $Box/UrlRow/UrlEdit
-@onready var _connect_button: Button = $Box/UrlRow/ConnectButton
 @onready var _status: Label = $Box/Status
+@onready var _retry_button: Button = $Box/RetryButton
 
 
 func _ready() -> void:
-	_url_edit.text = Net.default_server_url()
-	_connect_button.pressed.connect(_on_connect)
+	_retry_button.pressed.connect(_begin_connect)
 	Net.connected.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
 	Net.disconnected.connect(_on_disconnected)
@@ -22,14 +22,14 @@ func _ready() -> void:
 	# exception — PROCESS_MODE_ALWAYS — so the socket keeps pumping), so nothing can move, no portal can
 	# fire, and a not-yet-joined client never walks around or broadcasts.
 	#
-	# _ready only decides the INITIAL pause state for this freshly-(re)loaded scene. The "officially
-	# joined" guarantee lives elsewhere: the world only ever UNFREEZES in _on_save_loaded, so the window
-	# between socket-open and the companion arriving stays frozen no matter what. So here we only need to
-	# tell two fresh loads apart:
+	# _ready only decides the INITIAL state for this freshly-(re)loaded scene. The "officially joined"
+	# guarantee lives elsewhere: the world only ever UNFREEZES in _on_save_loaded, so the window between
+	# socket-open and the companion arriving stays frozen no matter what. So here we only tell two fresh
+	# loads apart:
 	#   • a connected world hop (WorldRouter.go_to reloads this scene without dropping the socket): the
 	#     socket is already open → we're mid-session, stay out of the way and leave the world live.
-	#   • a cold boot or a post-disconnect reload (socket not open): show the opaque gate and freeze the
-	#     world until we connect and load in.
+	#   • a cold boot or a post-disconnect reload (socket not open): show the opaque gate, freeze the
+	#     world, and auto-connect.
 	# We key off Net.is_active() (socket open), NOT the contents of the save — a brand-new player's first
 	# load is empty (no companion blob yet), so a save-contents check would wrongly bounce them to the gate
 	# on their first portal hop.
@@ -37,21 +37,20 @@ func _ready() -> void:
 		visible = false
 		get_tree().paused = false
 		return
-	_status.text = "Connect to a server to play with your companion."
 	get_tree().paused = true
+	_begin_connect()
 
 
-func _on_connect() -> void:
-	var url := _url_edit.text.strip_edges()
-	if url == "":
-		_status.text = "Type the server's address first."
-		return
-	var err := Net.connect_to(url)
+## Start (or retry) connecting to the resolved server. No address is typed — web derives it from the
+## page origin, native reads the baked-in config (see Net.default_server_url).
+func _begin_connect() -> void:
+	_retry_button.visible = false
+	var err := Net.connect_to(Net.default_server_url())
 	if err != OK:
-		_status.text = "Couldn't start connecting (error %d). Check the address." % err
+		_status.text = "Couldn't start connecting (error %d)." % err
+		_retry_button.visible = true
 		return
-	_status.text = "Connecting to %s…" % url
-	_set_controls_enabled(false)
+	_status.text = "Connecting…"
 
 
 ## The server accepted us; our companion is on its way. Hold the gate until it actually arrives
@@ -79,8 +78,8 @@ func _on_save_loaded(_companion, _appearance) -> void:
 func _on_connection_failed() -> void:
 	if _is_stale():
 		return
-	_status.text = "Couldn't reach that server. Check the address, and that it's running."
-	_set_controls_enabled(true)
+	_status.text = "Couldn't reach the server. Check that it's running, then retry."
+	_retry_button.visible = true
 
 
 ## We reached the server but it refused to let us into the world — almost always because the server's
@@ -92,7 +91,7 @@ func _on_world_join_failed(reason: String) -> void:
 		_status.text = "The server has no world to enter yet. Seed it: mix run priv/repo/seeds.exs"
 	else:
 		_status.text = "The server refused entry to the world (%s)." % reason
-	_set_controls_enabled(true)
+	_retry_button.visible = true
 
 
 ## The link dropped. With no offline mode, the player returns to the gate to reconnect.
@@ -105,16 +104,11 @@ func _on_disconnected() -> void:
 
 func _reshow() -> void:
 	# Re-freeze the world under the opaque gate: no movement, and no portal can fire to sneak us back
-	# into a disconnected world.
+	# into a disconnected world. Offer Retry — there's nothing else to configure.
 	get_tree().paused = true
 	visible = true
 	modulate.a = 1.0
-	_set_controls_enabled(true)
-
-
-func _set_controls_enabled(on: bool) -> void:
-	_connect_button.disabled = not on
-	_url_edit.editable = on
+	_retry_button.visible = true
 
 
 ## True if this lobby is detached from the scene tree — it's a torn-down husk that should NOT react.

@@ -109,8 +109,27 @@ companion to load — a quick sanity check before assuming).
 
 The client's web build **derives its server URL from the page origin** (see
 `Net.default_server_url` in [`net.gd`](../pokepals/scripts/net/net.gd)): reached over
-`https://…ts.net`, it offers `wss://…ts.net/ws` automatically. Nothing is hardcoded, and the
-lobby's address field stays editable for anything unusual.
+`https://…ts.net`, it offers `wss://…ts.net/ws` automatically. Nothing is hardcoded.
+
+---
+
+## How the client picks its server URL
+
+There is **no address-entry screen** — the connection gate auto-connects to a URL resolved per
+platform, and only shows a **Retry** button if the connection can't be made:
+
+- **Web:** derived from the page origin (above). Served over `https://…ts.net` → `wss://…ts.net/ws`.
+- **Native (iOS / Android / desktop):** read at startup from **`pokepals/server_config.json`** —
+  a file that is **gitignored but baked into the exported package** (it lives under `res://`), so
+  the real address ships in the installable without ever living in the repo. Copy the committed
+  [`server_config.example.json`](../pokepals/server_config.example.json) to `server_config.json`
+  and set `server_url`, then export. If the file is absent, native falls back to
+  `Net.DEFAULT_SERVER_URL` (a harmless LAN default).
+
+```jsonc
+// pokepals/server_config.json  (gitignored; create from server_config.example.json)
+{ "server_url": "wss://your-host.ts.net/ws" }
+```
 
 ---
 
@@ -124,5 +143,5 @@ lobby's address field stays editable for anything unusual.
   accepted). Once the public origin is stable, consider tightening it in
   [`config/config.exs`](../server/config/config.exs), e.g.
   `check_origin: ["https://your-box.ts.net"]`.
-- **Native builds are unaffected.** iOS/Android/desktop still use the editable LAN default
-  (`Net.DEFAULT_SERVER_URL`); only the web build reads the page origin.
+- **Native URL is baked in at export.** `server_config.json` is read from `res://`, so it's fixed
+  when you export the package — change it and re-export to point a build at a different server.
