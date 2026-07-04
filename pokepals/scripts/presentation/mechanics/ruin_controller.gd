@@ -32,6 +32,7 @@ var _interactables: Array = []  # the controller's master list (shared ref), for
 # intents we've already sent. Empty in worlds without a "ruin" spec block.
 var _wards: Array = []
 var _seeking := false   # true while a "go look" search is out, so only a delegated sweep uncovers a plate
+var _seek_armed := false  # true once we've actually seen the companion take up the search (behavior "seek")
 var _gloom := 0.0
 var _gloom_rect := Rect2()
 var _gloom_ward: Dictionary = {}
@@ -80,6 +81,7 @@ func update(delta: float) -> void:
 func _setup_ruin(data: Dictionary) -> void:
 	_wards.clear()
 	_seeking = false
+	_seek_armed = false
 	_gloom_rect = Rect2()
 	_gloom_ward = {}
 	_base_day_tint = _day_tint.color
@@ -187,6 +189,7 @@ func try_seek() -> void:
 			_host.show_hint("Your companion crosses to a plate and sets its weight on it. Now the other must be held too.")
 		return
 	_seeking = true
+	_seek_armed = false
 	_companion.issue_command("seek")
 	_host.show_hint("You send your companion off to search.")
 
@@ -235,6 +238,7 @@ func try_examine(entry: Dictionary) -> bool:
 func _update_ruin(delta: float) -> void:
 	if _wards.is_empty():
 		return
+	_update_seek_watch()
 	var cpos: Vector2 = _companion.position
 	for w in _wards:
 		if bool(w["open"]):
@@ -262,6 +266,34 @@ func _update_ruin(delta: float) -> void:
 			if on != bool(w["occupied_sent"]):
 				w["occupied_sent"] = on
 				Net.send_ward_occupy(String(w["id"]), on)
+
+
+## Watch a delegated "go look" search's lifecycle so a fruitless one ends CLEANLY. Once we've seen the
+## companion actually take up the search (behavior "seek"), if it later drops OUT of seek while we still
+## think a search is out — it timed out on its own, or you whistled it off — with no ward opened. Disarm
+## the referee (else _seeking would stay stuck on, and a later trailing pass-by would wrongly uncover a
+## plate), and if it gave up unaided (not called away by you) let the player know the search is over.
+## A successful find clears _seeking via _open_ward first, so this never fires on a win.
+func _update_seek_watch() -> void:
+	if not _seeking:
+		_seek_armed = false
+		return
+	var behavior := _companion.behavior()
+	if behavior == "seek":
+		_seek_armed = true
+		return
+	if not _seek_armed:
+		return  # the search was issued but the brain hasn't picked it up yet
+	# A find in flight (uncovered, just awaiting the server's open echo) isn't a fruitless end.
+	for w in _wards:
+		if bool(w["uncover_sent"]) and not bool(w["open"]):
+			return
+	_seeking = false
+	_seek_armed = false
+	# Called away by you (a whistle or a pet) — you know why; stay quiet. Only a self-directed give-up
+	# (it slipped back to an autonomous beat) gets the "nothing turned up" note.
+	if behavior != "come" and behavior != "pet":
+		_host.show_hint("Your companion casts about for a while but turns up nothing this time — try sending it off from somewhere new.")
 
 
 ## The server's authoritative ward state arrived (on join, or whenever anyone's companion acts): adopt
@@ -535,6 +567,7 @@ func _reveal_plate(w: Dictionary, mine: bool) -> void:
 func _open_ward(ward: Dictionary) -> void:
 	ward["open"] = true
 	_seeking = false
+	_seek_armed = false
 	var sri := int(ward.get("slab_render_index", -1))
 	if sri >= 0:
 		_world_art.open_slab(sri)

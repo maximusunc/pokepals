@@ -177,6 +177,16 @@ func bond_value() -> float:
 	return _brain.get_self().bond
 
 
+## The companion's current high-level behavior (idle/follow/wander/seek/come/...), straight from
+## the brain — for mechanics that need to notice WHAT it's doing right now, e.g. the Ruin watching
+## a delegated "go look" search end (whether it found a plate, gave up, or was whistled off).
+## Empty for a remote puppet, which has no mind of its own.
+func behavior() -> String:
+	if _brain == null:
+		return ""
+	return _brain.behavior()
+
+
 ## The presentation-only "detector" tuning block from companion.json (sense range, tell ceiling,
 ## pose params), for the controller to read. Empty dict if unconfigured (callers default).
 func detector_cfg() -> Dictionary:
