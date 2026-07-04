@@ -23,6 +23,8 @@ static func run_all() -> int:
 	fails += _test_fresh_pet_can_shy_away(cfg)
 	fails += _test_bonded_pet_leans_in(cfg)
 	fails += _test_seek_sweeps_then_settles(cfg)
+	fails += _test_seek_times_out_when_fruitless(cfg)
+	fails += _test_call_breaks_off_a_search(cfg)
 	fails += _test_brain_routes_seek(cfg)
 	return fails
 
@@ -314,6 +316,42 @@ static func _test_seek_sweeps_then_settles(cfg: Dictionary) -> int:
 	for _i in int(hold / 0.05) + 5:
 		seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)
 	fails += _ok(seek.score(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng) == 0.0, "after holding on the plate the search releases")
+	return fails
+
+
+# A search that never finds anything doesn't get stuck: the sweep TIMES OUT (seek.search_seconds)
+# and releases, so its own life (Follow) can resume. We hold the companion in place away from its
+# target so it always "wants to move" and never dwells — the fruitless-forever case from the report.
+static func _test_seek_times_out_when_fruitless(cfg: Dictionary) -> int:
+	var seek := CompanionActions.SeekAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var rng := _rng()
+	seek.score(_seek_percept("seek", Vector2.ZERO, Vector2(400, 0)), s, cfg, rng)
+	var timeout := float(cfg.get("seek", {}).get("search_seconds", 14.0))
+	var released := false
+	for _i in int(timeout / 0.05) + 20:
+		seek.act(_seek_percept("", Vector2.ZERO, Vector2(400, 0)), s, cfg, rng, 0.05)
+		if seek.score(_seek_percept("", Vector2.ZERO, Vector2(400, 0)), s, cfg, rng) == 0.0:
+			released = true
+			break
+	return _ok(released, "a fruitless search gives up (times out) instead of ranging forever")
+
+
+# The "Call rescues it" path: a whistle mid-search breaks the search off (yields the command band)
+# so a stuck "go look" can always be recovered — the exact fix the bug report asked for.
+static func _test_call_breaks_off_a_search(cfg: Dictionary) -> int:
+	var seek := CompanionActions.SeekAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var rng := _rng()
+	seek.score(_seek_percept("seek", Vector2.ZERO, Vector2.ZERO), s, cfg, rng)
+	seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)  # searching
+	var fails := 0
+	fails += _ok(seek.score(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng) == 1.0,
+		"the search is running before the whistle")
+	fails += _ok(seek.score(_seek_percept("come", Vector2.ZERO, Vector2(100, 0)), s, cfg, rng) == 0.0,
+		"whistling 'come' breaks off the search so Call can take over (yields the command band)")
 	return fails
 
 

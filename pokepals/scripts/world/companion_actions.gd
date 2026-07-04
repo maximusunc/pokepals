@@ -899,6 +899,8 @@ class LeadAction extends CompanionAction:
 ## hops — so how well the search goes IS the relationship, the same arc as the salamander tell. It
 ## searches OUTWARD FROM THE PLAYER, so where you stand softly biases where it looks (accompaniment,
 ## never a leash). Releasing after the settle-hold lets Follow resume; a latched slab stays open.
+## A fruitless sweep isn't a trap: the SEARCH times out (seek.search_seconds) and gives up on its own,
+## and a whistle ("come") or a pet breaks it off early — so a "go look" that finds nothing always ends.
 class SeekAction extends CompanionAction:
 	enum { SEARCH, GO, HOLD }
 	var _active := false
@@ -908,6 +910,11 @@ class SeekAction extends CompanionAction:
 	var _hold_left := 0.0
 	var _just_triggered := false
 	var _arrived := false
+	# How long the current SEARCH sweep has left before it gives up. A search that never noses
+	# near a plate would otherwise range forever (the controller only ever interrupts it with a
+	# "settle" once the nose finds something); this backstop lets it quit and return to its own
+	# life instead of getting stuck out there. Counted down in act() during SEARCH only.
+	var _search_left := 0.0
 
 	func _init(band_value: int) -> void:
 		id = "seek"
@@ -928,6 +935,7 @@ class SeekAction extends CompanionAction:
 			_dwell = 0.0
 			_arrived = false
 			_just_triggered = true
+			_search_left = float(cfg.get("seek", {}).get("search_seconds", 14.0))
 			_target = _pick_sweep(perception, s, cfg, rng)
 		elif command == "settle":
 			# Go to (and stand on) a specific point: the controller pointing us at a revealed plate after
@@ -939,6 +947,13 @@ class SeekAction extends CompanionAction:
 				_phase = GO
 				_target = pt
 				_arrived = false
+		elif _active and _phase == SEARCH and (command == "come" or command == "pet"):
+			# Called off mid-search: yield the command band so the whistle (or a pet) can take over.
+			# Without this the search's large commitment out-bids a same-band Come in the arbiter, so a
+			# fruitless "go look" would ignore your whistle and stay stuck — this is the "Call rescues it"
+			# path. Only while SEARCHING: a "settle" (found it, or a Cistern/Hall carry-hold) isn't a
+			# search and shouldn't be interruptible this way.
+			_active = false
 		return 1.0 if _active else 0.0
 
 	func act(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator, delta: float) -> Dictionary:
@@ -956,7 +971,14 @@ class SeekAction extends CompanionAction:
 			SEARCH:
 				# Sweep: walk to a waypoint, pause to sniff, pick the next. The controller will
 				# interrupt with "settle" the moment the sweep noses near the hidden plate.
-				if companion_pos.distance_to(_target) > stop:
+				_search_left -= delta
+				if _search_left <= 0.0:
+					# Searched long enough with nothing turning up — give up and let its own life
+					# (Follow) resume, rather than ranging out here forever. The controller notices
+					# the search ended and tells the player.
+					_active = false
+					reactions.append("look")
+				elif companion_pos.distance_to(_target) > stop:
 					move_target = _target
 					speed = float(cfg["walk_speed"])
 				else:
