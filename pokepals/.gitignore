@@ -8,3 +8,7 @@ MoltenVK*/
 *.pck
 *.xcprivacy
 *.gd.uid
+
+# The native build's server URL — baked into iOS/Android exports but kept out of the repo.
+# Copy server_config.example.json to this and set your address. See docs/web-export.md.
+server_config.json
