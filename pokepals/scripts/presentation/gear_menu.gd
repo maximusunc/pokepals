@@ -12,8 +12,8 @@ signal item_selected(id: String)
 signal opened  ## fired when the list drops open, so the controller can close the companion radial
 
 const CREAM := Color(0.96, 0.94, 0.87)
-const ACCENT := Color(0.55, 0.48, 0.78)  # system purple (matches the mockup legend)
-const TEXT_COLOR := Color(0.16, 0.15, 0.20)
+const ACCENT := Color(0.42, 0.43, 0.46)  # neutral slate grey — the system menu's accent
+const TEXT_COLOR := Color(0.20, 0.20, 0.22)
 const GEAR_SIZE := 42.0
 const GEAR_MARGIN := Vector2(14, 12)
 
@@ -185,25 +185,35 @@ func _on_catcher_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	# The gear's whole look, drawn beneath the transparent hit-target: a cream disc with a purple
-	# outline, then a small gear glyph in the system-purple accent. Guard against a redraw queued
-	# before _ready() has built _gear.
+	# The gear's whole look, drawn beneath the transparent hit-target: a cream disc, then a solid cog
+	# wheel in the grey accent. Guard against a redraw queued before _ready() has built _gear.
 	if _gear == null:
 		return
 	var c := _gear.position + _gear.size * 0.5
-	var r := GEAR_SIZE * 0.5
 	var dim := 0.9 if _pressed_look else 1.0
-	draw_circle(c, r, Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98))
-	draw_arc(c, r - 1.0, 0.0, TAU, 40, ACCENT, 2.0)
-	var outer := GEAR_SIZE * 0.28
-	var inner := GEAR_SIZE * 0.13
-	# Teeth: short spokes around the ring.
-	for i in 8:
-		var a := TAU * float(i) / 8.0
-		var dir := Vector2(cos(a), sin(a))
-		draw_line(c + dir * (outer * 0.7), c + dir * (outer + 3.0), ACCENT, 3.0)
-	draw_arc(c, outer, 0.0, TAU, 24, ACCENT, 3.0)
-	draw_arc(c, inner, 0.0, TAU, 16, ACCENT, 2.5)
+	var disc := Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
+	draw_circle(c, GEAR_SIZE * 0.5, disc)
+	draw_arc(c, GEAR_SIZE * 0.5 - 1.0, 0.0, TAU, 40, ACCENT, 2.0)
+
+	# A proper cog: filled trapezoidal teeth around a solid hub, with a hole punched in the middle.
+	var teeth := 8
+	var r_body := GEAR_SIZE * 0.26   # hub / valley radius
+	var r_tip := GEAR_SIZE * 0.38    # tooth-tip radius
+	var r_hole := GEAR_SIZE * 0.12   # centre hole
+	var seg := TAU / float(teeth)
+	var base_half := seg * 0.30      # angular half-width of a tooth at its base
+	var tip_half := seg * 0.18       # narrower at the tip → a tapered tooth
+	for i in teeth:
+		var a := seg * float(i)
+		var tooth := PackedVector2Array([
+			c + Vector2(cos(a - base_half), sin(a - base_half)) * r_body,
+			c + Vector2(cos(a - tip_half), sin(a - tip_half)) * r_tip,
+			c + Vector2(cos(a + tip_half), sin(a + tip_half)) * r_tip,
+			c + Vector2(cos(a + base_half), sin(a + base_half)) * r_body,
+		])
+		draw_colored_polygon(tooth, ACCENT)
+	draw_circle(c, r_body, ACCENT)   # the hub, filling the tooth bases into one body
+	draw_circle(c, r_hole, disc)     # punch the centre hole back to the disc colour
 
 
 ## The interactive Controls the joystick must exclude (the catcher covers the open list too).
