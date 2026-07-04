@@ -29,15 +29,13 @@ const PORTAL_ARM_BUFFER := 18.0
 @onready var _camera: CameraRig = $Camera2D
 @onready var _hint: Label = $UI/HintLabel
 @onready var _joystick: VirtualJoystick = $UI/Joystick
-@onready var _examine_button: Button = $UI/ExamineButton
-@onready var _call_button: Button = $UI/CallButton
-@onready var _pet_button: Button = $UI/PetButton
-@onready var _reset_button: Button = $UI/ResetButton
-@onready var _leave_button: Button = $UI/LeaveButton
-@onready var _seek_button: Button = $UI/SeekButton
-@onready var _return_button: Button = $UI/ReturnButton
+# The three HUD zones (see scripts/presentation/{examine_prompt,companion_radial,gear_menu}.gd):
+# a diegetic examine bubble over the nearby object, the bottom-right companion action radial, and
+# the top-right system/meta gear menu. They replace the old scatter of free-floating buttons.
+@onready var _examine_prompt: ExaminePrompt = $UI/ExaminePrompt
+@onready var _radial: CompanionRadial = $UI/CompanionRadial
+@onready var _gear: GearMenu = $UI/GearMenu
 @onready var _debug: DebugOverlay = $DebugOverlay
-@onready var _debug_button: Button = $UI/DebugButton
 @onready var _day_tint: CanvasModulate = $DayTint
 @onready var _vignette: ColorRect = $Vignette/Rect
 @onready var _pollen: CPUParticles2D = $Camera2D/Pollen
@@ -57,7 +55,6 @@ var _ruin: RuinController
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
-var _seek_shown := false  # whether the contextual "Go look" button (the Ruin's) is currently faded in
 # Cached so a raised ward slab's collider can be dropped when it opens (RuinController calls
 # rebuild_solids_dropping, which rebuilds Solids without the slab and re-hands them to both bodies).
 var _world_data: Dictionary = {}
@@ -69,7 +66,7 @@ var _collision_margin := 2.0
 # this world declares none (so the button stays hidden everywhere but the maze).
 var _return_world := ""
 var _return_portal := ""
-var _return_shown := false
+var _return_label := ""  # a world may override its Return item's label (its "return" block); "" = default
 var _home_world := ""  # where this world's portals (incl. the completion one) lead back to
 var _home_portal := ""
 var _transitioning := false  # true once a portal transition's fade has begun
@@ -88,11 +85,6 @@ var _nearest_cache := -1
 var _nearest_anchor := Vector2.ZERO
 var _nearest_dirty := true
 const NEAREST_RECALC_DIST := 6.0  # px of player travel before we rescan (examine range is 60px)
-var _examine_shown := false  # whether the touch Examine button is currently faded in
-var _pet_shown := false  # whether the contextual Pet button is currently faded in
-var _reset_shown := false  # whether the "new companion" button is currently faded in
-var _leave_shown := false  # whether the "leave" button is currently faded in (only while connected)
-var _button_fades: Dictionary = {}  # Button -> its in-flight fade Tween, so a new fade cancels the old
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 var _style: ArtStyle
 var _day_enabled := false
@@ -218,54 +210,35 @@ func _build_world(data: Dictionary) -> void:
 	# worlds without an "ambient_pals" block).
 	_ambient_dir.spawn_pals(data)
 
-	# Touch: tapping the on-screen button examines. Wire it up and keep its taps
-	# from also spinning up the movement thumbstick underneath it.
-	_examine_button.pressed.connect(_try_interact)
-	_joystick.add_exclusion(_examine_button)
+	# The three HUD zones. Each is a self-contained view that reports what the player tapped; the
+	# controller maps that to the SAME handlers the old free-floating buttons used. Every tap surface
+	# is excluded from the movement thumbstick underneath (the components expose tap_targets() for
+	# exactly this — their full-screen "tap away to dismiss" catchers cover the fanned/dropped items
+	# too, so a tap on a menu never also spins up the joystick).
+	#
+	# Diegetic Examine bubble: floats over the nearby prop and, when tapped, examines (Space/Enter
+	# still work via _unhandled_input). The contextual set is pushed each frame in _process.
+	_examine_prompt.pressed.connect(_try_interact)
+	# Companion radial: Pet / Call always, Go look when the Ruin has a ward to open (see _process).
+	# Desktop convenience keys stay: C calls, E pets (_unhandled_input).
+	_radial.action_selected.connect(_on_radial_action)
+	# Gear menu: New Companion / Return / Leave / DBG, each gated in _process.
+	_gear.item_selected.connect(_on_gear_item)
+	# Keep the two menus mutually exclusive — opening one dismisses the other.
+	_radial.opened.connect(_gear.close)
+	_gear.opened.connect(_radial.close)
+	for target in _examine_prompt.tap_targets() + _radial.tap_targets() + _gear.tap_targets():
+		_joystick.add_exclusion(target)
 
-	# Call / whistle: always available (it's a bid for attention, not gated on a nearby prop).
-	# Keep its taps off the movement thumbstick underneath. Desktop: C (see _unhandled_input).
-	_call_button.pressed.connect(_try_call)
-	_joystick.add_exclusion(_call_button)
-
-	# Pet: a contextual affordance, faded in only when standing beside the companion (see
-	# _process). Keep its taps off the thumbstick. Desktop: E (see _unhandled_input).
-	_pet_button.pressed.connect(_try_pet)
-	_joystick.add_exclusion(_pet_button)
-
-	# Top-right "start over" button: only revealed once fully bonded (see _process).
-	_reset_button.pressed.connect(_on_reset_pressed)
-	_joystick.add_exclusion(_reset_button)
-
-	# Top-right "Leave" button: the player-initiated way out of a session. Faded in only while
-	# connected (see _process), so it never shows in the solo/disconnected gate state. Keep its
-	# taps off the movement thumbstick underneath.
-	_leave_button.pressed.connect(_on_leave_pressed)
-	_joystick.add_exclusion(_leave_button)
-
-	# "Go look": send the companion off to search (the Ruin's spine). Faded in only in a world with
-	# an unsolved ward (see _process). Keep its taps off the movement thumbstick underneath.
-	_seek_button.pressed.connect(_ruin.try_seek)
-	_joystick.add_exclusion(_seek_button)
-
-	# Top-left "Return to the Vale" button: an always-available escape hatch out of the maze (in case
-	# you get lost or bored). Faded in only in a world that declares a "return" target (see _process).
-	# Keep its taps off the movement thumbstick underneath.
-	_return_button.pressed.connect(_on_return_pressed)
-	_joystick.add_exclusion(_return_button)
-
-	# Dev-only companion/bond readout. On by default; the DBG button (and F3 on
-	# desktop) toggles it. Exclude its taps from the movement thumbstick underneath.
+	# Dev-only companion/bond readout. Toggled from the gear menu's "DBG" item (and F3 on desktop).
 	_debug.setup(_companion, _player)
-	_debug_button.pressed.connect(_debug.toggle)
-	_joystick.add_exclusion(_debug_button)
 
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
-	# text while you wander. Any real prompt (Examine ...) cancels the fade and shows.
+	# text while you wander. Any real hint (a whistle, lore, a portal step) cancels the fade and shows.
 	if _ruin.has_wards():
-		_hint.text = "An old slab bars the way deeper.  Tap Go look to send your companion searching."
+		_hint.text = "An old slab bars the way deeper.  Tap your companion and choose Go look to send it searching."
 	else:
-		_hint.text = "Wander with arrows / WASD or drag.  Space or tap Examine to look closer."
+		_hint.text = "Wander with arrows / WASD or drag.  Step up to something and Examine to look closer."
 	_hint.modulate.a = 1.0
 	_intro_tween = create_tween()
 	_intro_tween.tween_interval(5.0)
@@ -397,6 +370,7 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_portals.clear()
 	_return_world = ""
 	_return_portal = ""
+	_return_label = ""
 
 	var combined: Array = data.get("props", []).duplicate()
 
@@ -441,13 +415,14 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	# when the player reaches the heart) and the companion's flow-field guide. A no-op elsewhere.
 	_maze_dir.setup_goal(goal, data)
 
-	# The Return-to-the-Vale escape hatch: a world may declare where its Return button leads.
+	# The Return-to-the-Vale escape hatch: a world may declare where its Return item leads, and
+	# override its label (surfaced in the gear menu — see _gather_gear_items).
 	var ret: Dictionary = data.get("return", {})
 	if ret.has("world"):
 		_return_world = String(ret["world"])
 		_return_portal = String(ret.get("portal", ""))
 		if ret.has("label"):
-			_return_button.text = String(ret["label"])
+			_return_label = String(ret["label"])
 
 	# Portals: walk-through doorways (not examinable). The one we arrived at starts DISARMED so
 	# we step OUT of it rather than straight back through. Remember where they lead "home" so a
@@ -599,32 +574,27 @@ func _process(delta: float) -> void:
 			u = 1.0 - absf(2.0 * u - 1.0)  # ping-pong: day → dusk → day
 		_apply_daycycle(u)
 
-	# Surface a gentle prompt — and the touch Examine button — when standing near
-	# something to examine.
+	# Diegetic Examine bubble: float it over the nearest examinable prop, pointing at it, only while
+	# in range. The bubble carries the label now, so the hint line no longer echoes "Examine X".
 	var nearest := _nearest_interactable()
 	if nearest >= 0:
-		_show_hint("Examine %s" % _interactables[nearest]["label"])
-		_set_examine_visible(true)
+		_examine_prompt.point_at(_interactables[nearest]["pos"], String(_interactables[nearest]["label"]))
 	else:
-		_set_examine_visible(false)
-		if _hint.text.begins_with("Examine "):
-			_hint.text = ""
+		_examine_prompt.hide_prompt()
 
-	# Surface the Pet affordance only when standing right beside the companion.
-	_set_pet_visible(_player.position.distance_to(_companion.position) <= PET_RANGE)
+	# Companion radial: Pet and Call are core (always there); Go look joins the arc only in a Ruin
+	# with a ward still to open. The chip's dot warms with the live bond.
+	_radial.set_bond(_companion.bond_value())
+	_radial.set_actions([
+		{ "id": "pet", "label": "Pet", "enabled": true },
+		{ "id": "call", "label": "Call", "enabled": true },
+		{ "id": "seek", "label": "Go look", "enabled": _ruin.has_unopened_ward() },
+	])
 
-	# Reveal the "new companion" button only once the bond is full.
-	_set_reset_visible(_companion.is_fully_bonded())
-
-	# Offer the way out only while we're actually in a session.
-	_set_leave_visible(Net.is_active())
-
-	# Offer the Return-to-the-Vale escape hatch in any world that declares one (the maze), while
-	# connected — so you can always bail out if you get lost.
-	_set_return_visible(_return_world != "" and Net.is_active())
-
-	# "Go look" is offered only in a Ruin with a ward still to open.
-	_set_seek_visible(_ruin.has_unopened_ward())
+	# Gear menu: the meta actions, each shown only when it applies — New Companion once fully bonded,
+	# Return-to-the-Vale in a world that declares one while connected, Leave while in a session, DBG
+	# always (dev).
+	_gear.set_items(_gather_gear_items())
 
 	# Walk-through portals, the hunt detector, the maze (reach check + guide hint), the Ruin (ward
 	# referee + descent gloom).
@@ -638,63 +608,43 @@ func _process(delta: float) -> void:
 	_presence_dir.push_save_periodic(delta)
 
 
-## Fade a contextual button in or out (0 ⇆ 1 alpha), keeping it out of the layout when hidden.
-##
-## Cancels any fade already in flight on THIS button before starting the new one — which is what makes
-## it safe across the connect gate freezing/unfreezing the tree. This node is PROCESS_MODE_INHERIT, so
-## its tweens PAUSE when the gate sets get_tree().paused. A fade-out interrupted that way (e.g. the
-## Leave button on disconnect) would otherwise resume on reconnect and fire its deferred `visible =
-## false` AFTER _process has already re-shown the button — stranding it hidden while its `_*_shown`
-## flag reads shown, so the guard in the callers blocks it forever (the reconnect bug). Killing the
-## stale tween drops that late callback, so `visible` and the shown-flag can never disagree.
-func _fade_button(button: Button, show_button: bool) -> void:
-	var prev: Tween = _button_fades.get(button)
-	if prev != null and prev.is_valid():
-		prev.kill()
-	if show_button:
-		button.visible = true
-	var tween := create_tween()
-	tween.tween_property(button, "modulate:a", 1.0 if show_button else 0.0, 0.18)
-	if not show_button:
-		tween.tween_callback(func() -> void: button.visible = false)
-	_button_fades[button] = tween
+## The gear menu's items for this frame, each gated exactly as its old free-floating button was: New
+## Companion only once fully bonded, Return-to-the-Vale only where a world declares one (while
+## connected), Leave only in a live session, DBG always (dev). The GearMenu dedupes an unchanged set,
+## so rebuilding this list every frame is cheap.
+func _gather_gear_items() -> Array:
+	var items: Array = []
+	if _companion.is_fully_bonded():
+		items.append({ "id": "new_companion", "label": "New Companion" })
+	if _return_world != "" and Net.is_active():
+		items.append({ "id": "return", "label": _return_item_label() })
+	if Net.is_active():
+		items.append({ "id": "leave", "label": "Leave game" })
+	items.append({ "id": "dbg", "label": "DBG" })
+	return items
 
 
-## Gently fade the touch Examine button in or out as the player nears a prop, so
-## it signals "something's here" without cluttering the screen while wandering.
-func _set_examine_visible(show_button: bool) -> void:
-	if show_button == _examine_shown:
-		return
-	_examine_shown = show_button
-	_fade_button(_examine_button, show_button)
+## The Return item's label — the world may override it via its "return" block (see _setup_contents),
+## defaulting to "Return to the Vale".
+func _return_item_label() -> String:
+	return _return_label if _return_label != "" else "Return to the Vale"
 
 
-## Gently fade the touch Pet button in when beside the companion, out otherwise — mirrors the
-## Examine fade, so the affordance signals "you can pet it now" without cluttering the screen.
-func _set_pet_visible(show_button: bool) -> void:
-	if show_button == _pet_shown:
-		return
-	_pet_shown = show_button
-	_fade_button(_pet_button, show_button)
+## Map a companion-radial tap to the SAME handler its old button used.
+func _on_radial_action(id: String) -> void:
+	match id:
+		"pet": _try_pet()
+		"call": _try_call()
+		"seek": _ruin.try_seek()
 
 
-## Gently fade the "new companion" button in once fully bonded, out otherwise —
-## mirrors the Examine button's fade so the screen stays uncluttered until it matters.
-func _set_reset_visible(show_button: bool) -> void:
-	if show_button == _reset_shown:
-		return
-	_reset_shown = show_button
-	_fade_button(_reset_button, show_button)
-
-
-## Gently fade the "Leave" button in while connected, out otherwise — mirrors the other
-## contextual buttons so the screen stays uncluttered, and so it's absent the moment there's
-## no session to leave.
-func _set_leave_visible(show_button: bool) -> void:
-	if show_button == _leave_shown:
-		return
-	_leave_shown = show_button
-	_fade_button(_leave_button, show_button)
+## Map a gear-menu tap to the SAME handler its old button used.
+func _on_gear_item(id: String) -> void:
+	match id:
+		"new_companion": _on_reset_pressed()
+		"return": _on_return_pressed()
+		"leave": _on_leave_pressed()
+		"dbg": _debug.toggle()
 
 
 ## Leave the session on purpose. Persist the companion one last time (the graceful close in
@@ -704,15 +654,6 @@ func _on_leave_pressed() -> void:
 	if Net.is_active():
 		_presence_dir.push_save()
 	Net.leave()
-
-
-## Gently fade the "Return to the Vale" button in while this world declares a return target (the
-## maze) and we're connected, out otherwise — mirrors the other contextual buttons.
-func _set_return_visible(show_button: bool) -> void:
-	if show_button == _return_shown:
-		return
-	_return_shown = show_button
-	_fade_button(_return_button, show_button)
 
 
 ## The Return-to-the-Vale escape hatch: fade to black and travel back to the world/portal this world
@@ -728,12 +669,10 @@ func _on_return_pressed() -> void:
 	tw.tween_callback(func() -> void: WorldRouter.go_to(_return_world, _return_portal))
 
 
-## Start a fresh companion (immediate, no confirm — the button only appears once you
-## have a fully bonded companion to start over from). It hides itself again until the
-## new companion bonds.
+## Start a fresh companion (immediate, no confirm — the item only appears once you have a fully bonded
+## companion to start over from, and drops out of the gear menu again the next frame after reset).
 func _on_reset_pressed() -> void:
 	_companion.reset()
-	_set_reset_visible(false)
 	_show_hint("A new companion blinks into the world beside you.")
 
 
@@ -759,10 +698,12 @@ func _try_call() -> void:
 	_show_hint("You whistle for your companion.")
 
 
-## Pet the companion when you're beside it. Whether it leans in or shies away is up to the
-## brain and the bond (see PetAction); out of range the command quietly no-ops.
+## Pet the companion when you're beside it. Whether it leans in or shies away is up to the brain and
+## the bond (see PetAction). Pet is a core radial action (always offered), so out of range we nudge
+## the player to close the gap rather than silently no-op — a visible action should never feel dead.
 func _try_pet() -> void:
 	if _player.position.distance_to(_companion.position) > PET_RANGE:
+		_show_hint("Your companion is too far to reach — step closer.")
 		return
 	_companion.issue_command("pet")
 	_show_hint("You reach out to your companion.")
@@ -795,15 +736,6 @@ func _try_interact() -> void:
 		_show_hint(lore)
 		return
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
-
-
-## Fade the "Go look" button in while a Ruin ward is unsolved, out otherwise — mirrors the other
-## contextual buttons so the screen stays uncluttered and it's absent everywhere but the Ruin.
-func _set_seek_visible(show_button: bool) -> void:
-	if show_button == _seek_shown:
-		return
-	_seek_shown = show_button
-	_fade_button(_seek_button, show_button)
 
 
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
