@@ -85,8 +85,9 @@ signal world_spec_unchanged(world_id: String)
 ## hanging on "loading".
 signal world_join_failed(reason: String)
 
-## Where a client connects by default — the channel mount point. Net rewrites this into the full
-## Phoenix socket URL (…/websocket?vsn=2.0.0&token=…) in connect_to().
+## Where a NATIVE client connects by default — the channel mount point. Net rewrites this into the
+## full Phoenix socket URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). The web build ignores
+## this in favor of the page origin — see default_server_url().
 const DEFAULT_SERVER_URL := "ws://192.168.86.38:4000/ws"
 
 ## Phoenix closes a socket that goes silent; send a heartbeat well inside that window.
@@ -329,6 +330,37 @@ func session_save() -> Dictionary:
 
 func has_session_save() -> bool:
 	return not _session_save.is_empty()
+
+
+## The server URL to offer the player by default. On the WEB build the game is served BY the server
+## (same origin — see the endpoint's Plug.Static), so we derive `wss://<this-host>/ws` from the page
+## location: no hardcoded host, and the socket scheme/host automatically match however the player
+## reached us — a `https://…ts.net` Tailscale Funnel yields `wss://…ts.net/ws`, a plain-http LAN page
+## yields `ws://host:port/ws`. Native builds (and web when the origin can't be read) fall back to the
+## LAN dev default, which the lobby leaves editable.
+func default_server_url() -> String:
+	if OS.has_feature("web"):
+		var origin := _web_page_origin()
+		if origin != "":
+			return origin + "/ws"
+	return DEFAULT_SERVER_URL
+
+
+## The page's origin as a WebSocket base ("wss://host" or "ws://host:port"), or "" off-web / if it
+## can't be read. `JavaScriptBridge` is the bridge to the browser's JS; `get_interface("location")`
+## hands back `window.location`, whose `.protocol` ("https:"/"http:") picks the secure ws scheme and
+## whose `.host` already carries any non-default port.
+func _web_page_origin() -> String:
+	if not OS.has_feature("web"):
+		return ""
+	var loc = JavaScriptBridge.get_interface("location")
+	if loc == null:
+		return ""
+	var host := str(loc.host)
+	if host == "":
+		return ""
+	var ws_scheme := "wss" if str(loc.protocol) == "https:" else "ws"
+	return "%s://%s" % [ws_scheme, host]
 
 
 # --- internals -------------------------------------------------------------------------
