@@ -21,6 +21,9 @@ const ACCENT := Color(0.29, 0.30, 0.33)
 const TEXT_COLOR := Color(0.20, 0.20, 0.22)
 const DIM := Color(0.08, 0.09, 0.11, 0.82)   # the scrim behind the panel
 const EQUIPPED_FILL := Color(1.0, 0.97, 0.90)
+const FOOTER_BG := Color(0.06, 0.07, 0.09, 0.96)   # the bottom action bar's own band
+const FOOTER_H := 76.0                              # bottom-pinned bar height (room for the buttons)
+const EDGE := 18.0                                  # screen margin around the content
 
 var _catalog: CosmeticsCatalog
 var _appearance: PlayerAppearance   # a working copy; the live one is untouched until Done
@@ -57,6 +60,10 @@ func current_look() -> Dictionary:
 
 
 # ------------------------------------------------------------------ UI scaffold
+## Two independently-anchored regions under the scrim: a CONTENT area bounded above a bottom-
+## pinned FOOTER. The action buttons live in the footer, so they can never be pushed off-screen
+## by a full item grid (the earlier one-VBox layout overflowed on the color tabs). Colors sit
+## ABOVE the grid so they stay visible too; the grid is the only expanding child and scrolls.
 func _build_ui() -> void:
 	_built = true
 	set_anchors_preset(Control.PRESET_FULL_RECT)
@@ -68,15 +75,18 @@ func _build_ui() -> void:
 	scrim.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(scrim)
 
-	var margin := MarginContainer.new()
-	margin.set_anchors_preset(Control.PRESET_FULL_RECT)
-	for side in ["left", "right", "top", "bottom"]:
-		margin.add_theme_constant_override("margin_" + side, 18)
-	add_child(margin)
+	# --- Content region: everything except the buttons, clipped above the footer. ---
+	var content := MarginContainer.new()
+	content.set_anchors_preset(Control.PRESET_FULL_RECT)
+	content.offset_left = EDGE
+	content.offset_top = EDGE
+	content.offset_right = -EDGE
+	content.offset_bottom = -FOOTER_H
+	add_child(content)
 
 	var col := VBoxContainer.new()
 	col.add_theme_constant_override("separation", 10)
-	margin.add_child(col)
+	content.add_child(col)
 
 	_title = Label.new()
 	_title.add_theme_font_size_override("font_size", 24)
@@ -86,7 +96,7 @@ func _build_ui() -> void:
 
 	# Live portrait.
 	_preview = AvatarPreview.new()
-	_preview.custom_minimum_size = Vector2(0, 200)
+	_preview.custom_minimum_size = Vector2(0, 140)
 	_preview.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	col.add_child(_preview)
 
@@ -94,12 +104,18 @@ func _build_ui() -> void:
 	var tabs_scroll := ScrollContainer.new()
 	tabs_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	tabs_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	tabs_scroll.custom_minimum_size = Vector2(0, 44)
 	col.add_child(tabs_scroll)
 	_tabs = HBoxContainer.new()
 	_tabs.add_theme_constant_override("separation", 6)
 	tabs_scroll.add_child(_tabs)
 
-	# Owned items for the active tab.
+	# Color swatches (skin tone / hair color) — above the grid so they stay visible on short screens.
+	_colors = HBoxContainer.new()
+	_colors.add_theme_constant_override("separation", 6)
+	col.add_child(_colors)
+
+	# Owned items for the active tab — the sole expanding child; scrolls within the bounded content.
 	var grid_scroll := ScrollContainer.new()
 	grid_scroll.size_flags_vertical = Control.SIZE_EXPAND_FILL
 	grid_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -110,20 +126,28 @@ func _build_ui() -> void:
 	_grid.add_theme_constant_override("v_separation", 6)
 	grid_scroll.add_child(_grid)
 
-	# Color swatches (skin tone / hair color) for the active tab, when one applies.
-	_colors = HBoxContainer.new()
-	_colors.add_theme_constant_override("separation", 6)
-	col.add_child(_colors)
+	# --- Footer: a bottom-pinned action bar, always visible with room to breathe. ---
+	var footer := ColorRect.new()
+	footer.color = FOOTER_BG
+	footer.anchor_left = 0.0
+	footer.anchor_right = 1.0
+	footer.anchor_top = 1.0
+	footer.anchor_bottom = 1.0
+	footer.offset_top = -FOOTER_H
+	footer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(footer)
 
-	# Actions.
+	var center := CenterContainer.new()
+	center.set_anchors_preset(Control.PRESET_FULL_RECT)
+	footer.add_child(center)
+
 	var actions := HBoxContainer.new()
-	actions.alignment = BoxContainer.ALIGNMENT_CENTER
-	actions.add_theme_constant_override("separation", 12)
-	col.add_child(actions)
+	actions.add_theme_constant_override("separation", 16)
+	center.add_child(actions)
 	if _mode == "wardrobe":
-		actions.add_child(_make_button("Cancel", func() -> void: canceled.emit()))
+		actions.add_child(_make_action_button("Cancel", func() -> void: canceled.emit()))
 	var done_label := "Begin" if _mode == "create" else "Done"
-	actions.add_child(_make_button(done_label, func() -> void: confirmed.emit(_appearance.to_dict())))
+	actions.add_child(_make_action_button(done_label, func() -> void: confirmed.emit(_appearance.to_dict())))
 
 
 # ------------------------------------------------------------------ tabs
@@ -266,6 +290,17 @@ func _make_button(text: String, on_press: Callable) -> Button:
 	b.add_theme_stylebox_override("pressed", PixelPanelStyle.make(EQUIPPED_FILL, ACCENT, 3))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	b.pressed.connect(on_press)
+	return b
+
+
+## A bigger, roomier button for the footer's Cancel/Done — generous tap target and padding.
+func _make_action_button(text: String, on_press: Callable) -> Button:
+	var b := _make_button(text, on_press)
+	b.custom_minimum_size = Vector2(150, 48)
+	b.add_theme_font_size_override("font_size", 20)
+	b.add_theme_stylebox_override("normal", PixelPanelStyle.make(CREAM, ACCENT, 3, 22, 12))
+	b.add_theme_stylebox_override("hover", PixelPanelStyle.make(CREAM.darkened(0.04), ACCENT, 3, 22, 12))
+	b.add_theme_stylebox_override("pressed", PixelPanelStyle.make(EQUIPPED_FILL, ACCENT, 3, 22, 12))
 	return b
 
 
