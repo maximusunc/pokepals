@@ -54,11 +54,12 @@ static func _sheet_path(reg: Dictionary, species: String, variant: int) -> Strin
 	return "res://assets/pals/%s_%d.png" % [species, clampi(variant, 0, n - 1)]
 
 
+var _seeded := false
+
+
 func _ready() -> void:
 	texture_filter = TEXTURE_FILTER_NEAREST
 	_target_pos = position
-	# Desync idle hops between pals so a cluster doesn't bounce in lockstep.
-	_time = position.x * 0.017 + position.y * 0.031
 
 
 ## Pick the species + coat. Returns false (draws nothing) if the sheet is missing —
@@ -87,6 +88,11 @@ func set_remote_state(pos: Vector2, look: Vector2) -> void:
 
 
 func _process(delta: float) -> void:
+	if not _seeded:
+		# Desync motion phase between pals (by home spot, which is set after _ready)
+		# so a cluster doesn't hop in lockstep.
+		_time = absf(position.x) * 0.017 + absf(position.y) * 0.031
+		_seeded = true
 	var before := position
 	position = position.lerp(_target_pos, 1.0 - exp(-REMOTE_LERP_RATE * delta))
 	_speed = (position - before).length() / maxf(delta, 0.0001)

@@ -70,7 +70,7 @@ one without code changes), loaded by **`CosmeticsCatalog`** (pure). Each item:
 "riverbank:reed_hat": {                       // WORLD-NAMESPACED id ("origin:name")
   "slot": "headwear", "name": "Woven Reed Hat", "origin": "riverbank",
   "sheet": "res://assets/cosmetics/reed_hat.png", "z": 60,
-  "frame": [32,32], "fps": 8, "walk_frames": 4, "idle_frame": 0,
+  "frame": [32,32], "fps": 10, "walk_frames": 8, "idle_frame": 0,
   "dirs": { "down":0, "side":1, "up":2 }
 }
 ```
@@ -135,13 +135,18 @@ player's compositor.
 
 The paper-doll seam is now a working, playable loop:
 
-- **Component art** — `tools/gen_cosmetics.py` authors per-slot 32×32 / 3-dir / 4-frame sheets
-  (grayscale bodies + hair for recolor; baked-color outfit/footwear/headwear/accessory) into
-  `res://assets/cosmetics/<slot>/`, all registered to one shared skeleton so they stack pixel-perfect.
+- **Component art (2026-07: re-sourced)** — the art is now hand-authored ASCII pixel maps in
+  `tools/pixelart/` (see its README), exported per wardrobe layer by `tools/gen_wardrobe.py`:
+  32×32 / 3-dir / **8-frame** sheets (fps 10), ALL grayscale dye layers except the ink glasses.
+  The exporter bridges composite art to stacked layers with mannequin-based outline ownership
+  and a side-view arm carve (the same registration trick as the old face carve). The previous
+  `gen_cosmetics.py` procedural art is retired.
   Run `godot --headless --path pokepals --import` after regenerating so Godot imports the new PNGs.
-- **Catalog** — `data/cosmetics.json` now ships an `accessory` slot and a real base set: three body
-  builds, three hairs, three outfits, two footwear, two headwear, two accessories. The fresh loadout is
-  a clothed starter (average build + tunic + boots + short hair + default skin/hair color).
+- **Catalog** — `data/cosmetics.json` ships one body, a new required `legwear` slot (the pixelart
+  body map is head+arms only, so legwear/outfit/footwear are required), tee/tank tops, pants, shoes,
+  three hairs, headband, glasses — with color slots for skin, hair, top, legwear, footwear and
+  headwear whose swatches come from the pixelart ramps. The fresh loadout is a clothed starter
+  (tee + pants + shoes + short hair + default dyes).
 - **Recolor (landed)** — color slots carry `swatches` ([r,g,b] per ramp). `resolved_layers()` carries a
   `palette_color`, and `AvatarCompositor` CPU-bakes a recolored copy of each grayscale dye layer
   (luminance → swatch shadow/highlight, outline preserved), cached by (sheet, ramp). Skin tone and hair
