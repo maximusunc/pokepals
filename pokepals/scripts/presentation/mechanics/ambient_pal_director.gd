@@ -17,7 +17,7 @@ const COMPANION_SCENE := preload("res://scenes/companion.tscn")
 var _scenery: Node2D
 var _style: ArtStyle
 var _bounds := Rect2()
-var _pals: Dictionary = {}  # id (String) -> CompanionView puppet
+var _pals: Dictionary = {}  # id (String) -> puppet (CompanionView, or PalView for species pals)
 
 
 ## Wire up scene refs and start listening for the server's ambient-pal ticks.
@@ -34,6 +34,9 @@ func set_bounds(bounds: Rect2) -> void:
 
 
 ## Spawn one stationary puppet per pal in the spec, pinned at its home until the server's sim drives it.
+## A pal whose spec names a SPECIES (cat/fox/rabbit/bird/wolf — see data/pals.json) gets the pixelart
+## animal sprite (PalView); one without — or with a species we can't draw — keeps the classic
+## companion puppet, so older seeds render exactly as before.
 func spawn_pals(data: Dictionary) -> void:
 	for d in data.get("ambient_pals", []):
 		if not (d is Dictionary):
@@ -42,6 +45,17 @@ func spawn_pals(data: Dictionary) -> void:
 		if id == "" or _pals.has(id):
 			continue
 		var home := WorldData.to_vec2(d.get("home", [0, 0]))
+		var species := String(d.get("species", ""))
+		var variant := int(d.get("variant", 0))
+		if species != "" and PalView.supported(species, variant):
+			var pv := PalView.new()
+			pv.name = "AmbientPal_%s" % id
+			pv.setup_species(species, variant)
+			_scenery.add_child(pv)
+			pv.position = home
+			pv.set_remote_state(home, Vector2.DOWN)
+			_pals[id] = pv
+			continue
 		var rc := COMPANION_SCENE.instantiate() as CompanionView
 		rc.set_remote()  # before add_child: builds no brain, reads no save, never self-collides
 		rc.name = "AmbientPal_%s" % id
@@ -61,7 +75,9 @@ func _on_ambient_state(pals: Array) -> void:
 	for p in pals:
 		if not (p is Dictionary):
 			continue
-		var rc: CompanionView = _pals.get(String(p.get("id", "")))
+		# Either puppet kind (CompanionView or PalView) — both answer set_remote_state(),
+		# so the call stays dynamic rather than typed to one class.
+		var rc: Variant = _pals.get(String(p.get("id", "")))
 		if rc == null:
 			continue
 		var pos: Vector2 = p.get("pos", Vector2.ZERO)
