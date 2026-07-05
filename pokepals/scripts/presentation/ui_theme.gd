@@ -17,4 +17,6 @@ func _ready() -> void:
 	if theme == null:
 		theme = Theme.new()
 	theme.default_font = body
+	# The wardrobe screen's compact type scale, as the baseline for anything unstyled.
+	theme.default_font_size = 12
 	get_window().theme = theme

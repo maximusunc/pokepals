@@ -24,31 +24,31 @@ extends Control
 signal confirmed(look: Dictionary)
 signal canceled
 
-# ---- design tokens (the wireframe's palette, metrics at the game's 640×360 UI scale) ----
-const INK := Color("2f2417")
-const INK_STRONG := Color("33281b")
-const MUTED := Color("9a8b76")
-const MUTED_2 := Color("b7a98f")
-const PANEL_TOP := Color("f8f2e5")
-const PANEL_BOTTOM := Color("efe5d2")
-const TAB_IDLE_BG := Color("fffdf7")
-const TAB_IDLE_BORDER := Color("dccca6")
-const TAB_IDLE_TEXT := Color("5a4a34")
-const TAB_ON_BG := Color("2f2417")
-const TAB_ON_TEXT := Color("f6efe0")
-const TOGGLE_TRACK := Color("e7d9bd")
-const TOGGLE_IDLE_TEXT := Color("7a6a52")
-const GOLD := Color("dfa53e")
-const DIVIDER := Color("e2d6bd")
+# ---- design tokens: the shared UiStyle voice, plus the wardrobe's own grid colors ----
+const INK := UiStyle.INK
+const INK_STRONG := UiStyle.INK_STRONG
+const MUTED := UiStyle.MUTED
+const MUTED_2 := UiStyle.MUTED_2
+const PANEL_TOP := UiStyle.PANEL_TOP
+const PANEL_BOTTOM := UiStyle.PANEL_BOTTOM
+const TAB_IDLE_BG := UiStyle.PILL_BG
+const TAB_IDLE_BORDER := UiStyle.PILL_BORDER
+const TAB_IDLE_TEXT := UiStyle.PILL_TEXT
+const TAB_ON_BG := UiStyle.TAB_ON_BG
+const TAB_ON_TEXT := UiStyle.TAB_ON_TEXT
+const TOGGLE_TRACK := UiStyle.TOGGLE_TRACK
+const TOGGLE_IDLE_TEXT := UiStyle.TOGGLE_IDLE_TEXT
+const GOLD := UiStyle.GOLD
+const DIVIDER := UiStyle.DIVIDER
 const CELL_EQUIPPED := Color("fff6e6")
 const CELL_OWNED := Color("efe6d3")
 const CELL_LOCKED := Color("ddd1b8")
 const SILHOUETTE := Color(0.11, 0.08, 0.06, 0.92)
-const LEGEND_TEXT := Color("8a7c65")
-const ACCENT_RUST := Color("b5603a")
-const CREAM_TEXT := Color("f4ecda")
-const BADGE_GOLD := Color("c2902f")
-const GEM_GOLD := Color("f2c65a")
+const LEGEND_TEXT := UiStyle.LEGEND_TEXT
+const ACCENT_RUST := UiStyle.ACCENT_RUST
+const CREAM_TEXT := UiStyle.PAPER
+const BADGE_GOLD := UiStyle.BADGE_GOLD
+const GEM_GOLD := UiStyle.GEM_GOLD
 
 const DOCK_W := 240.0
 
@@ -204,20 +204,8 @@ func _build_screen_header() -> void:
 
 	_back_btn = Button.new()
 	_back_btn.text = "‹"
-	_back_btn.focus_mode = Control.FOCUS_NONE
 	_back_btn.custom_minimum_size = Vector2(26, 26)
-	_back_btn.add_theme_font_size_override("font_size", 13)
-	var f := UiFonts.grotesk(700)
-	if f != null:
-		_back_btn.add_theme_font_override("font", f)
-	_set_button_colors(_back_btn, Color("3a2c1c"))
-	var bsb := StyleBoxFlat.new()
-	bsb.bg_color = Color(246.0 / 255.0, 240.0 / 255.0, 228.0 / 255.0, 0.9)
-	bsb.set_border_width_all(2)
-	bsb.border_width_bottom = 4   # the chunky hard drop
-	bsb.border_color = Color(20.0 / 255.0, 14.0 / 255.0, 8.0 / 255.0, 0.5)
-	bsb.set_corner_radius_all(7)
-	_set_button_boxes(_back_btn, bsb)
+	UiStyle.hud_button(_back_btn, 13, 700, 7, 0.0, 0.0)
 	_back_btn.pressed.connect(func() -> void: canceled.emit())
 	_screen_header.add_child(_back_btn)
 
@@ -335,20 +323,7 @@ func _build_dock() -> void:
 	_set_margins(foot, 12, 8, 12, 10)
 	col.add_child(foot)
 	_equip_btn = _make_button("Equip look", func() -> void: confirmed.emit(_appearance.to_dict()))
-	_equip_btn.add_theme_font_size_override("font_size", 10)
-	var ef := UiFonts.grotesk(700)
-	if ef != null:
-		_equip_btn.add_theme_font_override("font", ef)
-	_set_button_colors(_equip_btn, INK)
-	var esb := StyleBoxFlat.new()
-	esb.bg_color = GOLD
-	esb.set_border_width_all(2)
-	esb.border_width_bottom = 5   # 2px border + the hard 3px drop, in one chunky ink base
-	esb.border_color = INK
-	esb.set_corner_radius_all(8)
-	esb.content_margin_top = 7
-	esb.content_margin_bottom = 7
-	_set_button_boxes(_equip_btn, esb)
+	UiStyle.gold_button(_equip_btn, 10)
 	foot.add_child(_equip_btn)
 
 
@@ -698,25 +673,11 @@ func _pick_dye(slot_id: String, ramp: String) -> void:
 
 # ------------------------------------------------------------------ little widgets
 func _label(text: String, sz: int, color: Color, weight := 400) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", sz)
-	l.add_theme_color_override("font_color", color)
-	var f := UiFonts.grotesk(weight)
-	if f != null:
-		l.add_theme_font_override("font", f)
-	return l
+	return UiStyle.label(text, sz, color, weight)
 
 
 func _pixel_label(text: String, sz: int, color: Color, spacing := 0) -> Label:
-	var l := Label.new()
-	l.text = text
-	l.add_theme_font_size_override("font_size", sz)
-	l.add_theme_color_override("font_color", color)
-	var f := UiFonts.pixel(false, spacing)
-	if f != null:
-		l.add_theme_font_override("font", f)
-	return l
+	return UiStyle.pixel_label(text, sz, color, spacing)
 
 
 func _make_button(text: String, on_press: Callable) -> Button:
@@ -763,8 +724,8 @@ func _set_button_boxes(b: Button, sb: StyleBox) -> void:
 
 
 func _set_button_colors(b: Button, color: Color) -> void:
-	for state in ["font_color", "font_hover_color", "font_pressed_color", "font_focus_color", "font_hover_pressed_color", "font_disabled_color"]:
-		b.add_theme_color_override(state, color)
+	UiStyle.set_button_text_color(b, color)
+	b.add_theme_color_override("font_disabled_color", color)
 
 
 func _style_seg(b: Button, on: bool) -> void:

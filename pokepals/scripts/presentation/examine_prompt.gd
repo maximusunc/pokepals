@@ -16,10 +16,9 @@ extends Control
 
 signal pressed
 
-const BUBBLE_BG := Color(0.96, 0.94, 0.87)
-const BUBBLE_BORDER := Color(0.16, 0.30, 0.20)  # inked dark-green edge (pixel-art outline)
-const TEXT_COLOR := Color(0.17, 0.20, 0.16)
-const BORDER_W := 3  # chunky, hard-edged outline
+const BUBBLE_BG := UiStyle.HUD_BG
+const BUBBLE_BORDER := UiStyle.HUD_BORDER
+const BORDER_W := 2  # matches the HUD buttons' border weight
 const CARET_H := 9.0
 const OBJECT_LIFT := 26.0  # px above the object's world point where the caret tip sits
 
@@ -37,25 +36,10 @@ func _ready() -> void:
 
 	_button = Button.new()
 	_button.text = "Examine"  # constant — never names the object (see class docs)
-	_button.focus_mode = Control.FOCUS_NONE
 	_button.mouse_filter = Control.MOUSE_FILTER_STOP
-	_button.add_theme_font_size_override("font_size", 15)
-	_button.add_theme_color_override("font_color", TEXT_COLOR)
-	_button.add_theme_color_override("font_hover_color", TEXT_COLOR)
-	_button.add_theme_color_override("font_pressed_color", TEXT_COLOR)
-	var sb := _bubble_style()
-	_button.add_theme_stylebox_override("normal", sb)
-	_button.add_theme_stylebox_override("hover", sb)
-	_button.add_theme_stylebox_override("pressed", _bubble_style(0.90))
-	_button.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	UiStyle.hud_button(_button, 10, 600, 8, 10.0, 3.0)
 	_button.pressed.connect(func() -> void: pressed.emit())
 	add_child(_button)
-
-
-## A gritty pixel-art tag (bevel + speckle + hard inked outline) rather than a smooth web bubble.
-## `dim` scales the fill for the pressed look.
-func _bubble_style(dim := 1.0) -> PixelPanelStyle:
-	return PixelPanelStyle.make(Color(BUBBLE_BG.r * dim, BUBBLE_BG.g * dim, BUBBLE_BG.b * dim, 0.98), BUBBLE_BORDER, BORDER_W, 11, 4)
 
 
 ## Point the prompt at a world object (the bubble text is the constant "Examine"). Fades in if it
