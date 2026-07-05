@@ -115,6 +115,7 @@ func resolved_layers(catalog: CosmeticsCatalog) -> Array:
 		var def: Dictionary = catalog.item(id).duplicate(true)
 		def["id"] = id
 		def["palette"] = _palette_for_slot(catalog, slot_id)
+		def["palette_color"] = _palette_color_for_slot(catalog, slot_id)
 		layers.append(def)
 	return layers
 
@@ -127,6 +128,17 @@ func _palette_for_slot(catalog: CosmeticsCatalog, slot: String) -> String:
 		if String(cs.get("applies_to", "")) == slot:
 			return String(colors.get(String(cs["id"]), cs.get("default", "")))
 	return ""
+
+
+## The [r,g,b] swatch (0..1) the compositor recolors this slot's grayscale layer onto — the
+## chosen (or default) ramp's color for whatever color slot targets this slot, or [] if none
+## (then the layer draws at its native colors). Pure data; the presentation layer does the pixels.
+func _palette_color_for_slot(catalog: CosmeticsCatalog, slot: String) -> Array:
+	for cs in catalog.color_slots():
+		if String(cs.get("applies_to", "")) == slot:
+			var ramp := String(colors.get(String(cs["id"]), cs.get("default", "")))
+			return catalog.ramp_color(String(cs["id"]), ramp)
+	return []
 
 
 ## Plain, JSON-serializable snapshot. Dictionaries are deep-copied so callers can't mutate

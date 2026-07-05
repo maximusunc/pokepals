@@ -54,7 +54,7 @@ layer follows the **existing sheet convention** (rows = facing, cols = walk cycl
 - **Shape** comes from layers (mix any hat + any outfit; a world can also grant a one-piece
   costume — that's just the degenerate single-big-layer case).
 - **Color** comes from **palette-swap** ramps on color slots (skin tone, hair color) — tiny
-  data, no new art per variant. *(The recolor shader itself is deferred — see below.)*
+  data, no new art per variant. *(Landed as a CPU recolor bake — see the pixel-art pipeline section.)*
 
 A single base body layer drawn through the compositor is **byte-for-byte the old
 single-sheet render**, so this is a pure seam, not a visual change.
@@ -131,17 +131,40 @@ player's compositor.
 
 ---
 
+## ✅ Pixel-art pipeline — creation, wardrobe, recolor (built)
+
+The paper-doll seam is now a working, playable loop:
+
+- **Component art** — `tools/gen_cosmetics.py` authors per-slot 32×32 / 3-dir / 4-frame sheets
+  (grayscale bodies + hair for recolor; baked-color outfit/footwear/headwear/accessory) into
+  `res://assets/cosmetics/<slot>/`, all registered to one shared skeleton so they stack pixel-perfect.
+  Run `godot --headless --path pokepals --import` after regenerating so Godot imports the new PNGs.
+- **Catalog** — `data/cosmetics.json` now ships an `accessory` slot and a real base set: three body
+  builds, three hairs, three outfits, two footwear, two headwear, two accessories. The fresh loadout is
+  a clothed starter (average build + tunic + boots + short hair + default skin/hair color).
+- **Recolor (landed)** — color slots carry `swatches` ([r,g,b] per ramp). `resolved_layers()` carries a
+  `palette_color`, and `AvatarCompositor` CPU-bakes a recolored copy of each grayscale dye layer
+  (luminance → swatch shadow/highlight, outline preserved), cached by (sheet, ramp). Skin tone and hair
+  color now actually show. `assets/palette_swap.gdshader` is shipped as the alternative for a future
+  Sprite2D-node path. (This also unblocks the color shop's "deferred recolor step".)
+- **Creation** — a brand-new player (no server appearance yet) is routed through the `AvatarCustomizer`
+  in "create" mode before the world seeds their save: `PresenceDirector` raises `needs_creation` (instead
+  of silently seeding the default), the world opens the overlay paused, and on confirm
+  `PresenceDirector.apply_local_look()` performs the first `push_save`.
+- **Wardrobe** — the same overlay reopens from the gear menu ("Wardrobe") to restyle mid-play; Done runs
+  the same `apply_local_look` (refresh + re-broadcast identity + save), so friends re-render the new look
+  live via the existing identity relay. `AvatarPreview` mirrors the real render path so the portrait is
+  exactly what you become in the world.
+
 ## ⬜ Deferred (future rungs — the architecture above means none force a rewrite)
 
-- **Palette-swap shader** — the data model and the per-layer `palette` hint are in place and
-  carried through `resolved_layers()`; the actual recolor (a ramp shader over a layer) is the
-  next presentation wiring. Until it lands, layers draw at native colors = identical to today.
-- **Wardrobe UI** — a screen that lists `owned` by slot and writes `equipped`/`colors` (then
-  calls `PlayerView._refresh_avatar()` + saves). In the cozy slice an in-world "wardrobe"
-  affordance (like Pet/Examine) could let you swap among owned items to test the *feel*.
+- **Server-economy cosmetics** — buying *new* clothing/accessories (not just colors) still needs the
+  integer `item_def_id` ↔ string catalog reconciliation + an `equip` wire message hitting `Economy.equip`.
+  Today the wardrobe only offers items the player already owns (the base set); the shop path is separate.
 - **Acquisition in worlds** — wire `grant()` to actual pickups/rewards; a "new!" beat.
-- **`CompanionLook` resolver** — the derived-companion-appearance function above.
-- **Cosmetic art** — base-set layers (hair/outfit/headwear) + per-world drops.
+- **`CompanionLook` resolver** — the derived-companion-appearance function above (companions still use
+  their own separate rig, not this pipeline).
+- **More art + polish** — per-world cosmetic drops, item thumbnails in the grid, a real 4th (left) row.
 
 ---
 
