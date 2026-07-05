@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c2a0ktkn4zmsn"
-path="res://.godot/imported/build_sturdy.png-4295479adb31e2756847701b93987c05.ctex"
+uid="uid://c3vdopu8pu0qp"
+path="res://.godot/imported/headband.png-71272e4a41f584155c5d55a847e7ef71.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cosmetics/body/build_sturdy.png"
-dest_files=["res://.godot/imported/build_sturdy.png-4295479adb31e2756847701b93987c05.ctex"]
+source_file="res://assets/cosmetics/headwear/headband.png"
+dest_files=["res://.godot/imported/headband.png-71272e4a41f584155c5d55a847e7ef71.ctex"]
 
 [params]
 

@@ -269,8 +269,9 @@ func _color_slot_for(slot: String) -> Dictionary:
 
 func _slot_label(slot: String) -> String:
 	match slot:
-		"body": return "Build"
-		"outfit": return "Clothing"
+		"body": return "Body"
+		"outfit": return "Tops"
+		"legwear": return "Pants"
 		"footwear": return "Shoes"
 		"accessory": return "Extras"
 		"headwear": return "Hats"

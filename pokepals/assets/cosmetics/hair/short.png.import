@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c7t8qe5j5t8v3"
-path="res://.godot/imported/sandals.png-e4523ce663bf31f722b3a678deb58a95.ctex"
+uid="uid://cs86tjipb6gc"
+path="res://.godot/imported/short.png-16ea7a27629a66cca21f145c2f3e9ff7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cosmetics/footwear/sandals.png"
-dest_files=["res://.godot/imported/sandals.png-e4523ce663bf31f722b3a678deb58a95.ctex"]
+source_file="res://assets/cosmetics/hair/short.png"
+dest_files=["res://.godot/imported/short.png-16ea7a27629a66cca21f145c2f3e9ff7.ctex"]
 
 [params]
 

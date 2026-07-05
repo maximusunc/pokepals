@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c37qicydxtrax"
-path="res://.godot/imported/scarf.png-5df5534aa7264798c33364450b637ffb.ctex"
+uid="uid://c1kjvvwhjwd20"
+path="res://.godot/imported/spiky.png-2de932fc219a11811b51d4dc1299f0e1.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cosmetics/accessory/scarf.png"
-dest_files=["res://.godot/imported/scarf.png-5df5534aa7264798c33364450b637ffb.ctex"]
+source_file="res://assets/cosmetics/hair/spiky.png"
+dest_files=["res://.godot/imported/spiky.png-2de932fc219a11811b51d4dc1299f0e1.ctex"]
 
 [params]
 

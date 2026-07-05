@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c1xd38qmlvrfb"
-path="res://.godot/imported/bonnet.png-384fbd25fbb89979da3248351424ff5c.ctex"
+uid="uid://c6hz4qbdtl49"
+path="res://.godot/imported/tee.png-0546bf0ad8ee929bdbfc04bdc460430a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cosmetics/headwear/bonnet.png"
-dest_files=["res://.godot/imported/bonnet.png-384fbd25fbb89979da3248351424ff5c.ctex"]
+source_file="res://assets/cosmetics/outfit/tee.png"
+dest_files=["res://.godot/imported/tee.png-0546bf0ad8ee929bdbfc04bdc460430a.ctex"]
 
 [params]
 

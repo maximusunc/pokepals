@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c2qwslhuqxlyi"
-path="res://.godot/imported/build_average.png-504c8513c78cf6a5ad7cb6ae517186d3.ctex"
+uid="uid://c37yb3z7nn0sr"
+path="res://.godot/imported/tank.png-5e2258d261546cb70feb2bdb403936a5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/cosmetics/body/build_average.png"
-dest_files=["res://.godot/imported/build_average.png-504c8513c78cf6a5ad7cb6ae517186d3.ctex"]
+source_file="res://assets/cosmetics/outfit/tank.png"
+dest_files=["res://.godot/imported/tank.png-5e2258d261546cb70feb2bdb403936a5.ctex"]
 
 [params]
 
