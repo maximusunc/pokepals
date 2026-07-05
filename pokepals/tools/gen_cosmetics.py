@@ -173,31 +173,59 @@ def build_body(shoulder, torso_bot_half, foot_spread):
         # a highlight catch on the up-left of the head (matches the world light)
         disk(g, hc[0] - 1, hc[1] - 1, a["head_r"] * 0.5, "l")
 
-        # face: eyes on down/side, hidden facing up (back of head)
+        # face: eyes + a soft mouth on down/side, hidden facing up (back of head). Hair/hats
+        # worn on top carve a face opening (see carve_face) so this shows through.
         if facing == "down":
-            put(g, hc[0] - 2, hc[1] + 1, "o")
+            put(g, hc[0] - 2, hc[1] + 1, "o")   # eyes
             put(g, hc[0] + 2, hc[1] + 1, "o")
+            put(g, hc[0], hc[1] + 3, "d")        # mouth
         elif facing == "side":
             put(g, hc[0] + 2, hc[1] + 1, "o")   # single visible eye
             put(g, hc[0] + 3, hc[1], "m")       # nose tip
+            put(g, hc[0] + 2, hc[1] + 3, "d")    # mouth
 
         return trace_outline(g, "mdl")
     return builder
 
 
+## Clear the lower-front of the head so a hat/hair worn ON TOP reveals the body's face beneath
+## (paper-doll layers draw in fixed z-order — the face lives on the body layer at z=0). NOT carved
+## facing up: the back of the head has no face, so hair/hats cover it fully and "up" reads as away.
+def carve_face(g, hc, facing):
+    if facing == "up":
+        return
+    if facing == "side":
+        xr, yr = range(hc[0] + 1, hc[0] + 5), range(hc[1], hc[1] + 3)   # the forward (right) face
+    else:
+        xr, yr = range(hc[0] - 2, hc[0] + 3), range(hc[1], hc[1] + 4)   # eyes + nose + mouth
+    for y in yr:
+        for x in xr:
+            put(g, x, y, ".")
+
+
 # =======================================================================================
-# HAIR (dye layer, grayscale). Sits on/around the head. Bald = simply no hair item.
+# HAIR (dye layer, grayscale). Frames the head: a crown cap over the top + side strands, with
+# the FACE CARVED OUT on down/side (so the body's face shows through) and left solid facing up
+# (the back of the head). Bald = simply no hair item. All three styles share _crown().
 # =======================================================================================
+def _crown(g, hc, crown_r):
+    disk(g, hc[0], hc[1] - 1, crown_r, "m")               # dome over the top of the head
+    disk(g, hc[0] - 1, hc[1] - 2, crown_r * 0.55, "l")    # up-left highlight (matches the light)
+
+
 def hair_short(frame, facing):
     g = blank()
     bob, *_ = walk(frame)
     a = ANATOMY
     hc = (a["head_c"][0] + side_dx(facing), a["head_c"][1] + bob)
-    disk(g, hc[0], hc[1] - 1, a["head_r"] + 0.5, "m")     # a rounded cap
-    disk(g, hc[0] - 1, hc[1] - 2, a["head_r"] * 0.6, "l")
-    if facing != "up":
-        rect(g, hc[0] - 4, hc[1] - 1, hc[0] + 3, hc[1] - 1, "m")  # fringe
-        rect(g, hc[0] - 4, hc[1] + 1, hc[0] - 3, hc[1] + 3, "d")  # sideburn hint
+    _crown(g, hc, a["head_r"] + 0.6)
+    for dy in range(0, 3):                                 # short tufts at the temples
+        put(g, hc[0] - 4, hc[1] - 1 + dy, "m")
+        if facing != "side":
+            put(g, hc[0] + 3, hc[1] - 1 + dy, "m")
+    if facing == "up":
+        rect(g, hc[0], hc[1] - 2, hc[0], hc[1] + 2, "d")   # a centre part so the back reads
+    carve_face(g, hc, facing)
     return trace_outline(g, "mdl")
 
 
@@ -206,18 +234,21 @@ def hair_long(frame, facing):
     bob, hem_dx, *_ = walk(frame)
     a = ANATOMY
     hc = (a["head_c"][0] + side_dx(facing), a["head_c"][1] + bob)
-    disk(g, hc[0], hc[1] - 1, a["head_r"] + 0.7, "m")
-    disk(g, hc[0] - 1, hc[1] - 2, a["head_r"] * 0.6, "l")
-    # long fall down past the shoulders, swaying with the hem
-    left = hc[0] - 4
-    right = hc[0] + 3
-    for y in range(hc[1], a["hip_y"] - 2 + bob):
-        sway = round(hem_dx * (y - hc[1]) / 8.0)
-        put(g, left + sway, y, "m")
-        put(g, left + 1 + sway, y, "d")
-        if facing == "down":
-            put(g, right + sway, y, "m")
-            put(g, right - 1 + sway, y, "d")
+    _crown(g, hc, a["head_r"] + 0.8)
+    # Falls ALONGSIDE the head/neck to just below the shoulders (not over the torso — that read
+    # as a cape). Strands sway gently with the walk. Facing up the back fills in solid.
+    bottom = a["shoulder_y"] + 3 + bob
+    for y in range(hc[1] - 1, bottom):
+        sway = round(hem_dx * (y - hc[1]) / 10.0)
+        put(g, hc[0] - 4 + sway, y, "m")
+        put(g, hc[0] - 3 + sway, y, "d")
+        if facing != "side":
+            put(g, hc[0] + 3 + sway, y, "m")
+            put(g, hc[0] + 2 + sway, y, "d")
+    if facing == "up":
+        for y in range(hc[1], bottom):                     # solid back of the head + nape
+            rect(g, hc[0] - 3, y, hc[0] + 2, y, "m")
+    carve_face(g, hc, facing)
     return trace_outline(g, "mdl")
 
 
@@ -226,11 +257,15 @@ def hair_bun(frame, facing):
     bob, *_ = walk(frame)
     a = ANATOMY
     hc = (a["head_c"][0] + side_dx(facing), a["head_c"][1] + bob)
-    disk(g, hc[0], hc[1] - 1, a["head_r"] + 0.4, "m")
-    disk(g, hc[0] - 1, hc[1] - 2, a["head_r"] * 0.55, "l")
+    _crown(g, hc, a["head_r"] + 0.4)
+    for dy in range(0, 2):                                 # neat temples
+        put(g, hc[0] - 4, hc[1] - 1 + dy, "m")
+        if facing != "side":
+            put(g, hc[0] + 3, hc[1] - 1 + dy, "m")
     bx = hc[0] + (2 if facing == "side" else 0)
-    disk(g, bx, hc[1] - a["head_r"] - 1, 2.0, "m")   # the top-knot
+    disk(g, bx, hc[1] - a["head_r"] - 1, 2.0, "m")         # the top-knot
     disk(g, bx - 1, hc[1] - a["head_r"] - 2, 1.0, "l")
+    carve_face(g, hc, facing)
     return trace_outline(g, "mdl")
 
 
@@ -317,6 +352,7 @@ def headwear_builder(base, kind):
             if facing != "up":
                 rect(g, hc[0] + 1, hc[1] - 2, hc[0] + 5, hc[1] - 2, "d")  # forward bill
             put(g, hc[0] - 2, hc[1] - 3, "l")
+            carve_face(g, hc, facing)   # keep the brim above the brow; don't cover the face
         elif kind == "bonnet":
             disk(g, hc[0], hc[1] - 1, a["head_r"] + 1.1, "c")          # rounded bonnet
             disk(g, hc[0], hc[1], a["head_r"] + 0.2, ".")             # cut the face out
