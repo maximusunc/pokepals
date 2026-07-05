@@ -68,6 +68,13 @@ FEEL-first philosophy still governs.
 > no client-side ring generation. It's atmosphere only: no bonding, no interaction. The companion
 > "finding" beat (bonding to one of them) remains out of scope.
 
+> **Pixel-art pipeline (2026-07):** player wardrobe art and ambient-pal sprites are now generated
+> from the hand-authored ASCII pixel maps in `pokepals/tools/pixelart/` (see its README — Pillow is a
+> tools-only dependency; PNGs stay committed). `tools/gen_wardrobe.py` exports per-layer 8-frame dye
+> sheets for the paper-doll wardrobe; `tools/gen_pals.py` bakes real animal species (cat/fox/rabbit/
+> bird/wolf) for ambient pals, rendered client-side by `PalView` when a seed pal names a `species`
+> (companion-puppet fallback otherwise). The bonded companion's rig art is deliberately untouched.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

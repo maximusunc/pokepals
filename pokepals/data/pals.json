@@ -1,0 +1,15 @@
+{
+	"_comment": "The AMBIENT PAL registry — which set-dressing species exist and how their sheets are laid out (see PalView + tools/gen_pals.py, art authored in tools/pixelart). A world seed's ambient_pals entries pick a 'species' + 'variant' (a natural coat color, clamped to 'variants'); an entry without a species — or with one this registry doesn't know — falls back to the companion-puppet pal, so old seeds keep working. Sheets are res://assets/pals/<species>_<variant>.png: 8 motion columns (col 0 = idle), one row per RIGHT-handed facing in 'rows' (the left family mirrors at runtime). 'fly_row' (bird only) is the wing-flap cycle PalView switches to while the pal is moving.",
+	"frame": [32, 32],
+	"fps": 10,
+	"idle_frame": 0,
+	"move_frames": 8,
+	"rows": { "down": 0, "down_right": 1, "right": 2, "up_right": 3, "up": 4 },
+	"species": {
+		"cat": { "variants": 4 },
+		"fox": { "variants": 3 },
+		"rabbit": { "variants": 4 },
+		"bird": { "variants": 4, "fly_row": 5 },
+		"wolf": { "variants": 4 }
+	}
+}
