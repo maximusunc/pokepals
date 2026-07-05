@@ -11,12 +11,9 @@ extends Control
 signal item_selected(id: String)
 signal opened  ## fired when the list drops open, so the controller can close the companion radial
 
-const CREAM := Color(0.96, 0.94, 0.87)
-const ACCENT := Color(0.29, 0.30, 0.33)  # inked dark-slate edge (pixel-art outline + cog)
-const TEXT_COLOR := Color(0.20, 0.20, 0.22)
-const BORDER_W := 3  # chunky, hard-edged outline
-const GEAR_SIZE := 42.0
-const GEAR_MARGIN := Vector2(14, 12)
+const COG := UiStyle.INK_SOFT   # the drawn cog, in the HUD buttons' text brown
+const GEAR_SIZE := 34.0
+const GEAR_MARGIN := Vector2(12, 10)
 
 var _gear: Button
 var _catcher: Control
@@ -76,11 +73,6 @@ func _set_pressed_look(pressed_look: bool) -> void:
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_layout()
-
-
-## A gritty pixel-art panel (bevel + speckle + hard inked outline) rather than a smooth web pill.
-func _pill_style(dim := 1.0) -> PixelPanelStyle:
-	return PixelPanelStyle.make(Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98), ACCENT, BORDER_W, 16, 7)
 
 
 func _layout() -> void:
@@ -146,17 +138,9 @@ func _build_list() -> void:
 		var id := String(it["id"])
 		var btn := Button.new()
 		btn.text = String(it["label"])
-		btn.focus_mode = Control.FOCUS_NONE
 		btn.mouse_filter = Control.MOUSE_FILTER_STOP
 		btn.alignment = HORIZONTAL_ALIGNMENT_LEFT
-		btn.add_theme_font_size_override("font_size", 18)
-		btn.add_theme_color_override("font_color", TEXT_COLOR)
-		btn.add_theme_color_override("font_hover_color", TEXT_COLOR)
-		btn.add_theme_color_override("font_pressed_color", TEXT_COLOR)
-		btn.add_theme_stylebox_override("normal", _pill_style())
-		btn.add_theme_stylebox_override("hover", _pill_style(0.96))
-		btn.add_theme_stylebox_override("pressed", _pill_style(0.9))
-		btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		UiStyle.hud_button(btn, 11, 600, 8, 12.0, 6.0)
 		btn.pressed.connect(func() -> void:
 			item_selected.emit(id)
 			_close())
@@ -178,16 +162,15 @@ func _on_catcher_input(event: InputEvent) -> void:
 
 
 func _draw() -> void:
-	# The gear's whole look, drawn beneath the transparent hit-target: a square cream tile, then a
-	# solid cog wheel in the inked-slate accent. Guard against a redraw queued before _ready() builds _gear.
+	# The gear's whole look, drawn beneath the transparent hit-target: the shared HUD button tile
+	# (cream, soft ink border, hard bottom drop), then a solid cog wheel in the HUD text brown.
+	# Guard against a redraw queued before _ready() builds _gear.
 	if _gear == null:
 		return
 	var c := _gear.position + _gear.size * 0.5
-	var dim := 0.9 if _pressed_look else 1.0
-	var disc := Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98)
-	# A gritty square cream tile (same worn pixel look as the buttons) instead of a smooth round disc.
 	var tile := Rect2(_gear.position, _gear.size)
-	PixelPanelStyle.make(disc, ACCENT, BORDER_W, 0, 0).draw(get_canvas_item(), tile)
+	UiStyle.hud_box(10, _pressed_look).draw(get_canvas_item(), tile)
+	var disc := UiStyle.hud_box(10, _pressed_look).bg_color
 
 	# A proper cog: filled trapezoidal teeth around a solid hub, with a hole punched in the middle.
 	var teeth := 8
@@ -205,9 +188,9 @@ func _draw() -> void:
 			c + Vector2(cos(a + tip_half), sin(a + tip_half)) * r_tip,
 			c + Vector2(cos(a + base_half), sin(a + base_half)) * r_body,
 		])
-		draw_colored_polygon(tooth, ACCENT)
-	draw_circle(c, r_body, ACCENT)   # the hub, filling the tooth bases into one body
-	draw_circle(c, r_hole, disc)     # punch the centre hole back to the disc colour
+		draw_colored_polygon(tooth, COG)
+	draw_circle(c, r_body, COG)      # the hub, filling the tooth bases into one body
+	draw_circle(c, r_hole, disc)     # punch the centre hole back to the tile colour
 
 
 ## The interactive Controls the joystick must exclude (the catcher covers the open list too).

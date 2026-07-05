@@ -6,11 +6,13 @@ extends Control
 ## once the server has handed back your companion (save_loaded). If the link can't be made it offers a
 ## Retry. Pure presentation.
 
+@onready var _title: Label = $Box/Title
 @onready var _status: Label = $Box/Status
 @onready var _retry_button: Button = $Box/RetryButton
 
 
 func _ready() -> void:
+	_apply_style()
 	_retry_button.pressed.connect(_begin_connect)
 	Net.connected.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
@@ -39,6 +41,22 @@ func _ready() -> void:
 		return
 	get_tree().paused = true
 	_begin_connect()
+
+
+## The gate in the shared UiStyle voice: a Silkscreen wordmark over the dark backdrop (the
+## same pixel-caps treatment as the wardrobe's WARDROBE header), quiet paper status text,
+## and the gold primary button for Retry.
+func _apply_style() -> void:
+	var wordmark := UiFonts.pixel(false, 1)
+	if wordmark != null:
+		_title.add_theme_font_override("font", wordmark)
+	_title.add_theme_font_size_override("font_size", 11)
+	_title.add_theme_color_override("font_shadow_color", Color(20.0 / 255.0, 14.0 / 255.0, 8.0 / 255.0, 0.55))
+	_title.add_theme_constant_override("shadow_offset_x", 0)
+	_title.add_theme_constant_override("shadow_offset_y", 1)
+	UiStyle.set_font(_status, 500, 10)
+	_status.add_theme_color_override("font_color", UiStyle.PAPER)
+	UiStyle.gold_button(_retry_button, 11)
 
 
 ## Start (or retry) connecting to the resolved server. No address is typed — web derives it from the

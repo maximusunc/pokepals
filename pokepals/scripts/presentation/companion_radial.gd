@@ -13,12 +13,8 @@ extends Control
 signal action_selected(id: String)
 signal opened  ## fired when the arc fans open, so the controller can close the gear menu
 
-const CREAM := Color(0.96, 0.94, 0.87)
-const ACCENT := Color(0.34, 0.19, 0.12)  # inked dark-brown edge (pixel-art outline, warm-toned)
-const TEXT_COLOR := Color(0.17, 0.14, 0.12)
-const BORDER_W := 3  # chunky, hard-edged outline — reads pixel-art, not smooth web UI
-const CHIP_MARGIN := Vector2(16, 16)  # gap from the bottom-right corner
-const ARC_RADIUS := 116.0
+const CHIP_MARGIN := Vector2(14, 14)  # gap from the bottom-right corner
+const ARC_RADIUS := 100.0
 const SLICE_STAGGER := 0.035
 
 var _chip: Button
@@ -54,28 +50,18 @@ func _ready() -> void:
 	# which sidesteps the corner-anchor/offset confusion.
 	_chip = Button.new()
 	_chip.text = "Companion"
-	_chip.focus_mode = Control.FOCUS_NONE
-	_chip.add_theme_font_size_override("font_size", 20)
-	_chip.add_theme_color_override("font_color", TEXT_COLOR)
-	_chip.add_theme_color_override("font_hover_color", TEXT_COLOR)
-	_chip.add_theme_color_override("font_pressed_color", TEXT_COLOR)
-	var sb := _pill_style()
-	var sb_pressed := _pill_style(0.92)
+	UiStyle.hud_button(_chip, 11, 600, 999, 13.0, 6.0)
 	# Leave room on the right for the bond dot (same on every state so the text doesn't jump on press).
-	sb.content_margin_right = 30
-	sb_pressed.content_margin_right = 30
-	_chip.add_theme_stylebox_override("normal", sb)
-	_chip.add_theme_stylebox_override("hover", sb)
-	_chip.add_theme_stylebox_override("pressed", sb_pressed)
-	_chip.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	for state in ["normal", "hover", "pressed"]:
+		(_chip.get_theme_stylebox(state) as StyleBoxFlat).content_margin_right = 30
 	_chip.pressed.connect(_toggle)
 	add_child(_chip)
 
 	# The bond dot: a small circle at the chip's right edge that warms with the bond.
 	_dot = Panel.new()
 	_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dot.custom_minimum_size = Vector2(11, 11)
-	_dot.size = Vector2(11, 11)
+	_dot.custom_minimum_size = Vector2(10, 10)
+	_dot.size = Vector2(10, 10)
 	_dot.add_theme_stylebox_override("panel", _dot_style(_bond))
 	_chip.add_child(_dot)
 
@@ -92,23 +78,16 @@ func _notification(what: int) -> void:
 		_layout()
 
 
-## A gritty pixel-art panel (bevel + speckle + hard inked outline) rather than a smooth web pill.
-## `dim` darkens the fill for pressed.
-func _pill_style(dim := 1.0) -> PixelPanelStyle:
-	return PixelPanelStyle.make(Color(CREAM.r * dim, CREAM.g * dim, CREAM.b * dim, 0.98), ACCENT, BORDER_W, 16, 7)
-
-
 ## The bond dot's fill: a muted grey-brown when fresh, warming to a soft glow when fully bonded.
-## A square, outlined pixel pip (not a smooth circle) to match the blocky buttons.
+## A round pip with the HUD's soft ink rim, matching the pill it sits in.
 func _dot_style(bond: float) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
 	var cool := Color(0.62, 0.57, 0.52)
 	var warm := Color(0.96, 0.52, 0.36)
 	sb.bg_color = cool.lerp(warm, clampf(bond, 0.0, 1.0))
-	sb.border_color = ACCENT
+	sb.border_color = UiStyle.HUD_BORDER
 	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(0)  # square pip
-	sb.anti_aliasing = false
+	sb.set_corner_radius_all(999)
 	return sb
 
 
@@ -212,17 +191,8 @@ func _build_slices() -> void:
 func _make_slice(id: String, label: String) -> Button:
 	var btn := Button.new()
 	btn.text = label
-	btn.focus_mode = Control.FOCUS_NONE
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	btn.add_theme_font_size_override("font_size", 19)
-	btn.add_theme_color_override("font_color", TEXT_COLOR)
-	btn.add_theme_color_override("font_hover_color", TEXT_COLOR)
-	btn.add_theme_color_override("font_pressed_color", TEXT_COLOR)
-	var sb := _pill_style()
-	btn.add_theme_stylebox_override("normal", sb)
-	btn.add_theme_stylebox_override("hover", _pill_style(0.96))
-	btn.add_theme_stylebox_override("pressed", _pill_style(0.9))
-	btn.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+	UiStyle.hud_button(btn, 11, 600, 999, 13.0, 6.0)
 	btn.pressed.connect(func() -> void:
 		action_selected.emit(id)
 		_close())

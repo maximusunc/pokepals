@@ -44,66 +44,66 @@
 			"swatches": { "river": [0.196, 0.373, 0.627], "clay": [0.647, 0.216, 0.216], "moss": [0.216, 0.510, 0.294], "violet": [0.490, 0.314, 0.627], "stone": [0.373, 0.373, 0.392], "gold": [0.784, 0.608, 0.196] }
 		}
 	],
-	"_items_comment": "ITEMS keyed by a WORLD-NAMESPACED id ('origin:name'), mirroring the companion's area ids ('world:region') — so a world's drops are self-contained and a later authoritative server can grant them by id without collision. 'origin':'base' items are owned by every player from the start; exactly one per default-able slot is tagged 'default_for' (the fresh-player loadout: tee + pants + shoes + short hair and the default dye colors — a clothed starter). The render fields (sheet/frame/fps/walk_frames/idle_frame/dirs/z) follow the SAME sheet convention as the player/companion art (rows=facing down/side/up, cols=walk cycle, left=side flipped); see SpriteActor. The walk is now the pixelart package's 8-frame cycle at 10 fps. All sheets are GRAYSCALE dye layers recolored by their color slot, except glasses (baked near-black ink).",
+	"_items_comment": "ITEMS keyed by a WORLD-NAMESPACED id ('origin:name'), mirroring the companion's area ids ('world:region') — so a world's drops are self-contained and a later authoritative server can grant them by id without collision. 'origin':'base' items are owned by every player from the start; exactly one per default-able slot is tagged 'default_for' (the fresh-player loadout: tee + pants + shoes + short hair and the default dye colors — a clothed starter). 'rarity' (common | uncommon | rare | legendary) is a wardrobe-UI hint — base items are common, world drops rank up — it grants nothing mechanically. The render fields (sheet/frame/fps/walk_frames/idle_frame/dirs/z) follow the SAME sheet convention as the player/companion art (rows=facing down/side/up, cols=walk cycle, left=side flipped); see SpriteActor. The walk is now the pixelart package's 8-frame cycle at 10 fps. All sheets are GRAYSCALE dye layers recolored by their color slot, except glasses (baked near-black ink).",
 	"items": {
 		"base:body": {
-			"slot": "body", "name": "Body", "origin": "base", "default_for": "body",
+			"slot": "body", "name": "Body", "origin": "base", "default_for": "body", "rarity": "common",
 			"sheet": "res://assets/cosmetics/body/body.png",
 			"z": 0, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 
 		"base:pants": {
-			"slot": "legwear", "name": "Pants", "origin": "base", "default_for": "legwear",
+			"slot": "legwear", "name": "Pants", "origin": "base", "default_for": "legwear", "rarity": "common",
 			"sheet": "res://assets/cosmetics/legwear/pants.png",
 			"z": 15, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 
 		"base:tee": {
-			"slot": "outfit", "name": "Tee", "origin": "base", "default_for": "outfit",
+			"slot": "outfit", "name": "Tee", "origin": "base", "default_for": "outfit", "rarity": "common",
 			"sheet": "res://assets/cosmetics/outfit/tee.png",
 			"z": 20, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 		"base:tank": {
-			"slot": "outfit", "name": "Tank", "origin": "base",
+			"slot": "outfit", "name": "Tank", "origin": "base", "rarity": "common",
 			"sheet": "res://assets/cosmetics/outfit/tank.png",
 			"z": 20, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 
 		"base:shoes": {
-			"slot": "footwear", "name": "Shoes", "origin": "base", "default_for": "footwear",
+			"slot": "footwear", "name": "Shoes", "origin": "base", "default_for": "footwear", "rarity": "common",
 			"sheet": "res://assets/cosmetics/footwear/shoes.png",
 			"z": 25, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 
 		"base:glasses": {
-			"slot": "accessory", "name": "Glasses", "origin": "base",
+			"slot": "accessory", "name": "Glasses", "origin": "base", "rarity": "uncommon",
 			"sheet": "res://assets/cosmetics/accessory/glasses.png",
 			"z": 45, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 
 		"base:hair_short": {
-			"slot": "hair", "name": "Short Hair", "origin": "base", "default_for": "hair",
+			"slot": "hair", "name": "Short Hair", "origin": "base", "default_for": "hair", "rarity": "common",
 			"sheet": "res://assets/cosmetics/hair/short.png",
 			"z": 50, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 		"base:hair_long": {
-			"slot": "hair", "name": "Long Hair", "origin": "base",
+			"slot": "hair", "name": "Long Hair", "origin": "base", "rarity": "common",
 			"sheet": "res://assets/cosmetics/hair/long.png",
 			"z": 50, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 		"base:hair_spiky": {
-			"slot": "hair", "name": "Spiky Hair", "origin": "base",
+			"slot": "hair", "name": "Spiky Hair", "origin": "base", "rarity": "uncommon",
 			"sheet": "res://assets/cosmetics/hair/spiky.png",
 			"z": 50, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 
 		"base:headband": {
-			"slot": "headwear", "name": "Headband", "origin": "base",
+			"slot": "headwear", "name": "Headband", "origin": "base", "rarity": "common",
 			"sheet": "res://assets/cosmetics/headwear/headband.png",
 			"z": 60, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		},
 		"riverbank:reed_hat": {
-			"slot": "headwear", "name": "Woven Reed Hat", "origin": "riverbank",
+			"slot": "headwear", "name": "Woven Reed Hat", "origin": "riverbank", "rarity": "rare",
 			"sheet": "res://assets/cosmetics/reed_hat.png",
 			"z": 60, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
 		}

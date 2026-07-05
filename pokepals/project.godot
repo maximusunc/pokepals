@@ -17,6 +17,7 @@ config/icon="res://icon.svg"
 
 [autoload]
 
+UiTheme="*res://scripts/presentation/ui_theme.gd"
 SaveStore="*res://scripts/world/save_store.gd"
 WorldRouter="*res://scripts/world/world_router.gd"
 PlayerIdentity="*res://scripts/world/player_identity.gd"

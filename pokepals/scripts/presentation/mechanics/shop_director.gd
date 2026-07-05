@@ -47,6 +47,11 @@ func set_balance(balance: int) -> void:
 	_shop_balance = balance
 
 
+## The wallet as we last heard it from the server — read by the wardrobe's coin badge.
+func balance() -> int:
+	return _shop_balance
+
+
 ## Spawn the merchant's bonded companion as a STATIONARY puppet beside them: a CompanionView flagged
 ## remote (no brain, no save, never moves), parented into the y-sorted Scenery so it depth-sorts with
 ## everything else, and given its resting-look from the world data. We pin its target transform to its

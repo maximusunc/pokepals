@@ -29,6 +29,19 @@ var _rows: Dictionary = {}
 func _ready() -> void:
 	visible = false
 	_close_button.pressed.connect(close)
+	_apply_style()
+
+
+## Dress the scene's plain nodes in the shared UiStyle voice: a cream ink-bordered dialog,
+## ink headings, and the wardrobe's cream pill for Close. Row widgets are styled as they're
+## built in _add_row.
+func _apply_style() -> void:
+	($Panel as PanelContainer).add_theme_stylebox_override("panel", UiStyle.panel_box())
+	UiStyle.set_font(_title, 700, 12)
+	_title.add_theme_color_override("font_color", UiStyle.INK_STRONG)
+	UiStyle.set_font(_balance_label, 600, 10)
+	_balance_label.add_theme_color_override("font_color", UiStyle.LABEL_BROWN)
+	UiStyle.pill_button(_close_button, 10)
 
 
 func is_open() -> bool:
@@ -96,31 +109,37 @@ func _add_row(color: Dictionary) -> void:
 	var row := HBoxContainer.new()
 	row.add_theme_constant_override("separation", 10)
 
-	var swatch := ColorRect.new()
-	swatch.custom_minimum_size = Vector2(26, 26)
-	swatch.color = _swatch_color(color.get("swatch", []))
+	# A round swatch, like the wardrobe's dye discs.
+	var swatch := Panel.new()
+	swatch.custom_minimum_size = Vector2(20, 20)
+	swatch.size_flags_vertical = Control.SIZE_SHRINK_CENTER
+	var ssb := StyleBoxFlat.new()
+	ssb.bg_color = _swatch_color(color.get("swatch", []))
+	ssb.set_corner_radius_all(999)
+	ssb.set_border_width_all(1)
+	ssb.border_color = Color(0, 0, 0, 0.22)
+	swatch.add_theme_stylebox_override("panel", ssb)
 	row.add_child(swatch)
 
-	var name_label := Label.new()
-	name_label.text = String(color.get("name", "a colour"))
+	var name_label := UiStyle.label(String(color.get("name", "a colour")), 10, UiStyle.INK_STRONG, 500)
 	name_label.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	row.add_child(name_label)
 
-	var price_label := Label.new()
-	price_label.text = "%d %s" % [price, _currency]
-	price_label.custom_minimum_size = Vector2(84, 0)
+	var price_label := UiStyle.label("%d %s" % [price, _currency], 9, UiStyle.MUTED, 600)
+	price_label.custom_minimum_size = Vector2(70, 0)
 	price_label.horizontal_alignment = HORIZONTAL_ALIGNMENT_RIGHT
 	row.add_child(price_label)
 
-	var status := Label.new()
-	status.custom_minimum_size = Vector2(64, 0)
+	var status := UiStyle.label("", 9, UiStyle.MUTED_2, 600)
+	status.custom_minimum_size = Vector2(56, 0)
 	status.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	status.visible = false
 	row.add_child(status)
 
 	var buy := Button.new()
 	buy.text = "Buy"
-	buy.custom_minimum_size = Vector2(64, 0)
+	buy.custom_minimum_size = Vector2(56, 0)
+	UiStyle.gold_button(buy, 9, 8, 10.0, 3.0)
 	buy.pressed.connect(_on_buy_pressed.bind(item_def_id))
 	row.add_child(buy)
 
