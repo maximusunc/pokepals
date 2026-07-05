@@ -53,6 +53,11 @@ var _presence_dir: PresenceDirector
 var _ambient_dir: AmbientPalDirector
 var _ruin: RuinController
 
+# The dressing-room overlay (first-run creation + gear-menu wardrobe), created on demand. The shared
+# cosmetics catalog is loaded once and reused for both. See scripts/presentation/avatar_customizer.gd.
+var _cosmetics: CosmeticsCatalog
+var _customizer: AvatarCustomizer
+
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
 # Cached so a raised ward slab's collider can be dropped when it opens (RuinController calls
@@ -283,6 +288,8 @@ func _create_directors() -> void:
 	_presence_dir = PresenceDirector.new()
 	add_child(_presence_dir)
 	_presence_dir.setup(_player, _companion, _scenery, _style)
+	# A brand-new player creates their look before the world seeds their save (see PresenceDirector).
+	_presence_dir.needs_creation.connect(_open_creation)
 
 	_ambient_dir = AmbientPalDirector.new()
 	add_child(_ambient_dir)
@@ -620,6 +627,7 @@ func _gather_gear_items() -> Array:
 	if _return_world != "" and Net.is_active():
 		items.append({ "id": "return", "label": _return_item_label() })
 	if Net.is_active():
+		items.append({ "id": "wardrobe", "label": "Wardrobe" })
 		items.append({ "id": "leave", "label": "Leave game" })
 	items.append({ "id": "dbg", "label": "DBG" })
 	return items
@@ -644,8 +652,49 @@ func _on_gear_item(id: String) -> void:
 	match id:
 		"new_companion": _on_reset_pressed()
 		"return": _on_return_pressed()
+		"wardrobe": _open_wardrobe()
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
+
+
+## First-run CREATION: a brand-new player picks their look before the world seeds their save. Opens the
+## customizer in "create" mode (the overlay pauses the world under it, since the lobby just faded) so they
+## dress before wandering. On confirm, PresenceDirector.apply_local_look performs the first push_save.
+func _open_creation() -> void:
+	_open_customizer("create")
+
+
+## Reopen the wardrobe from the gear menu to restyle mid-play. Same overlay, "wardrobe" mode: Done applies
+## + persists (and friends re-render us via the identity relay), Cancel backs out with no change.
+func _open_wardrobe() -> void:
+	_open_customizer("wardrobe")
+
+
+func _open_customizer(mode: String) -> void:
+	if _customizer != null:
+		return  # already dressing
+	if _cosmetics == null:
+		_cosmetics = CosmeticsCatalog.load_catalog(_player.cosmetics_path)
+	# Seed from the live look. In "create" mode that live look is the fresh default (nothing saved yet).
+	var start := PlayerAppearance.from_dict(_player.appearance_dict(), _cosmetics)
+	_customizer = AvatarCustomizer.new()
+	_customizer.process_mode = Node.PROCESS_MODE_ALWAYS   # animate + take input even while paused
+	_customizer.setup(_cosmetics, start, mode)
+	_customizer.confirmed.connect(func(look: Dictionary) -> void:
+		_presence_dir.apply_local_look(look)
+		_close_customizer())
+	if mode == "wardrobe":
+		_customizer.canceled.connect(_close_customizer)
+	$UI.add_child(_customizer)
+	get_tree().paused = true   # a modal: freeze the world so nothing wanders off behind the overlay
+
+
+func _close_customizer() -> void:
+	if _customizer == null:
+		return
+	get_tree().paused = false
+	_customizer.queue_free()
+	_customizer = null
 
 
 ## Leave the session on purpose. Persist the companion one last time (the graceful close in

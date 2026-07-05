@@ -9,6 +9,11 @@ extends Node
 ## their own input/brain; remotes are pure puppets, driven only by what arrives over Net. Everything here
 ## is a no-op until the player actually Hosts/Joins (Net guards broadcast/push), so it's harmless offline.
 
+## A brand-new player (no appearance stored on the server yet) needs to CREATE their look before the
+## world seeds their save. The world listens for this to open the first-run customizer; on confirm it
+## calls apply_local_look(), which is the first push_save that makes the chosen look canonical.
+signal needs_creation
+
 const NET_SEND_INTERVAL := 1.0 / 20.0  # how often we broadcast our pair's transforms (~20 Hz)
 const SAVE_INTERVAL := 15.0            # how often to push the companion/wardrobe to the server (sole save)
 const PLAYER_SCENE := preload("res://scenes/player.tscn")
@@ -121,20 +126,34 @@ func _on_save_loaded(companion, appearance) -> void:
 	_apply_server_save(companion, appearance)
 
 
-## Adopt a loaded save; if we're a brand-new player (no stored save), seed the server with the
-## placeholder companion + default look we started with, so next time it loads.
+## Adopt a loaded save. A returning player's stored companion + look are applied and re-broadcast.
+## A brand-new player (no appearance stored yet) is instead sent through first-run CREATION: we hold
+## off seeding the server and raise needs_creation, and the world drives apply_local_look() on confirm
+## — so the FIRST thing saved is the look the player actually chose, not a silent default.
 func _apply_server_save(companion, appearance) -> void:
-	var had_save := false
-	if companion is Dictionary and not (companion as Dictionary).is_empty():
+	var had_companion := companion is Dictionary and not (companion as Dictionary).is_empty()
+	var had_appearance := appearance is Dictionary and not (appearance as Dictionary).is_empty()
+	if had_companion:
 		_companion.replace_self(companion)
-		had_save = true
-	if appearance is Dictionary and not (appearance as Dictionary).is_empty():
+	if had_appearance:
 		_player.apply_appearance(appearance)
-		had_save = true
-	if not had_save:
-		push_save()
+	if not had_appearance:
+		# Brand-new player: let the world run creation; it will apply_local_look() (first push_save).
+		needs_creation.emit()
+		return
 	# Our relayed presentation identity may have changed (loaded look) — refresh it for peers.
 	Net.set_local_identity(_local_identity())
+	if not had_companion:
+		push_save()  # rare partial save: seed the companion self we started with
+
+
+## Adopt a look the player just chose (first-run creation OR a wardrobe change): dress the live avatar,
+## re-broadcast our identity so friends re-render us, and persist it to the server as the canonical save.
+## The single write path both entry points share.
+func apply_local_look(look: Dictionary) -> void:
+	_player.apply_appearance(look)
+	Net.set_local_identity(_local_identity())
+	push_save()
 
 
 ## A peer arrived: spawn its puppet pair (a remote Player + Companion) into the y-sorted Scenery

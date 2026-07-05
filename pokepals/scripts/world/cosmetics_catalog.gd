@@ -58,9 +58,22 @@ func slots_by_z() -> Array:
 	return ids
 
 
-## The color (palette) slots: [ { id, applies_to, default, ramps } ].
+## The color (palette) slots: [ { id, applies_to, default, ramps, swatches } ].
 func color_slots() -> Array:
 	return _color_slots
+
+
+## The base [r,g,b] (0..1) for a color slot's ramp — the swatch the recolor maps a
+## grayscale layer's luminance onto (see AvatarCompositor). Returns [] if the slot or
+## ramp has no swatch declared, so the compositor can skip recoloring and draw natively.
+func ramp_color(color_slot: String, ramp: String) -> Array:
+	for cs in _color_slots:
+		if String(cs.get("id", "")) == color_slot:
+			var swatches: Variant = cs.get("swatches", {})
+			if swatches is Dictionary and swatches.has(ramp):
+				return (swatches[ramp] as Array).duplicate()
+			return []
+	return []
 
 
 ## Is this a real slot id?
@@ -99,6 +112,16 @@ func has_item(id: String) -> bool:
 ## The slot an item fills, or "" if the item is unknown.
 func item_slot(id: String) -> String:
 	return String(_items.get(id, {}).get("slot", ""))
+
+
+## Every item id that fills a slot, in catalog (insertion) order — the wardrobe UI's per-tab
+## list. Pure query; ownership is applied by the caller (PlayerAppearance.is_owned).
+func items_in_slot(slot: String) -> Array:
+	var out: Array = []
+	for id in _items:
+		if String(_items[id].get("slot", "")) == slot:
+			out.append(id)
+	return out
 
 
 ## Every base item id — the cosmetics owned by every player from the start.
