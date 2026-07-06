@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c44hmyq0oart0"
-path="res://.godot/imported/bird_0.png-788c72d9d94e3449c67d15608c43a367.ctex"
+uid="uid://dkoomwybwk6ii"
+path="res://.godot/imported/walk_tank.png-a6f7f8928edac8b1c15594e9b2407735.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/pals/bird_0.png"
-dest_files=["res://.godot/imported/bird_0.png-788c72d9d94e3449c67d15608c43a367.ctex"]
+source_file="res://tools/pixelart/previews/walk_tank.png"
+dest_files=["res://.godot/imported/walk_tank.png-a6f7f8928edac8b1c15594e9b2407735.ctex"]
 
 [params]
 

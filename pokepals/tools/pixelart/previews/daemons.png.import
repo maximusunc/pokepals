@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c44hmyq0oart0"
-path="res://.godot/imported/bird_0.png-788c72d9d94e3449c67d15608c43a367.ctex"
+uid="uid://chbagxd1lahsb"
+path="res://.godot/imported/daemons.png-781543352e07d3cd5a7e22cdc556bc3c.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/pals/bird_0.png"
-dest_files=["res://.godot/imported/bird_0.png-788c72d9d94e3449c67d15608c43a367.ctex"]
+source_file="res://tools/pixelart/previews/daemons.png"
+dest_files=["res://.godot/imported/daemons.png-781543352e07d3cd5a7e22cdc556bc3c.ctex"]
 
 [params]
 

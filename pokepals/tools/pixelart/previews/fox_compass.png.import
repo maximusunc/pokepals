@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c44hmyq0oart0"
-path="res://.godot/imported/bird_0.png-788c72d9d94e3449c67d15608c43a367.ctex"
+uid="uid://cuxs40p7e55qm"
+path="res://.godot/imported/fox_compass.png-d4a70f1318313a7ce0300db6f865039d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/pals/bird_0.png"
-dest_files=["res://.godot/imported/bird_0.png-788c72d9d94e3449c67d15608c43a367.ctex"]
+source_file="res://tools/pixelart/previews/fox_compass.png"
+dest_files=["res://.godot/imported/fox_compass.png-d4a70f1318313a7ce0300db6f865039d.ctex"]
 
 [params]
 
