@@ -55,6 +55,14 @@ cd pokepals
 godot --headless --export-release "Web" ../server/priv/static/index.html
 ```
 
+Or just run the wrapper script in the server dir, which does exactly this export
+(override the binary with `GODOT=/path/to/godot` if it isn't on your PATH):
+
+```bash
+cd server
+./build-web.sh
+```
+
 That writes `index.html`, `index.js`, `index.wasm`, `index.pck`, and friends into
 `server/priv/static/`. These are build artifacts — **gitignored**, not committed.
 
@@ -132,6 +140,26 @@ platform, and only shows a **Retry** button if the connection can't be made:
 ```
 
 ---
+
+## Landscape on mobile web
+
+The game is designed for a wide 640×360 viewport and doesn't read well in a tall
+portrait phone window, so the Web preset's `html/head_include` (in
+[`export_presets.cfg`](../pokepals/export_presets.cfg)) injects a small CSS+JS
+snippet into the exported `index.html` that enforces landscape on **mobile
+browsers only**:
+
+- It attempts `screen.orientation.lock('landscape')` where the browser allows it
+  (Android Chrome, etc. — needs the game to be fullscreen; harmless no-op otherwise).
+- Because iOS Safari can't lock orientation from a web page at all, the reliable
+  guarantee is a **full-screen "please rotate your device" overlay** shown whenever a
+  mobile device is held in portrait. It hides itself the moment the phone is turned to
+  landscape. Desktop browsers are unaffected (the overlay never triggers).
+
+This is web-only; native iOS/Android builds get their orientation from the project's
+handheld orientation settings, not this snippet. Edit the snippet in the `Web` preset
+(Godot editor → *Project → Export → Web → Options → HTML → Head Include*, or the
+`html/head_include=` line in the cfg) if you want to tweak the overlay copy or logic.
 
 ## Notes / gotchas
 
