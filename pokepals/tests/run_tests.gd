@@ -22,6 +22,7 @@ func _init() -> void:
 	failures += TestCompanionAppraisal.run_all()
 	failures += TestPlayerAppearance.run_all()
 	failures += TestCompanionLook.run_all()
+	failures += TestCompanionForm.run_all()
 	failures += TestSolids.run_all()
 	failures += TestSalamanderHunt.run_all()
 	failures += TestNetCodec.run_all()

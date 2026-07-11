@@ -9,6 +9,10 @@ extends Node2D
 ## It never decides behavior itself — that's the brain's job. It only renders the
 ## brain's intent.
 
+## Emitted when the LOCAL companion shifts daemon form (a new animal), so the world can
+## re-broadcast our identity and friends re-render the change. Never fired by a remote puppet.
+signal form_changed
+
 @export var config_path := "res://data/companion.json"
 
 const SELF_SAVE_PATH := "user://companion_self.json"
@@ -43,6 +47,16 @@ var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
 var _style: ArtStyle
 var _sprite_tex: Texture2D = null  # set if the user dropped in their own companion art
+# DAEMON FORM — the companion wears a real animal (cat/fox/rabbit/bird/wolf from data/pals.json) and
+# occasionally shifts into a different one, like a His Dark Materials daemon. The LOCAL companion owns
+# a CompanionForm that decides WHEN to shift; a remote puppet just renders whatever form its owner
+# broadcast (apply_remote_form). _form_tex non-null means "draw as this animal" and takes precedence
+# over the procedural rig. _form_sheet caches that species' sheet layout for PalSprite.
+var _form: CompanionForm = null
+var _form_species := ""
+var _form_variant := 0
+var _form_tex: Texture2D = null
+var _form_sheet: Dictionary = {}
 var _solids: Array = []
 var _bounds := Rect2()
 var _body_radius := 6.0
@@ -113,6 +127,18 @@ func apply_remote_look(look: Dictionary) -> void:
 	_look_eye = clampf(float(look.get("eye_lift", 0.0)), 0.0, 20.0)
 	_look_coat = clampf(float(look.get("coat_warm", 0.0)), 0.0, 1.0)
 	_look_scale = clampf(float(look.get("body_scale", 1.0)), 0.25, 4.0)
+
+
+## This companion's current DAEMON FORM as plain data, for the world's identity packet, so a friend
+## renders our companion as the same animal we see. Empty species = "no form" (procedural fallback).
+func companion_form_payload() -> Dictionary:
+	return { "species": _form_species, "variant": _form_variant }
+
+
+## Apply a friend's daemon form to this puppet (remote only). UNTRUSTED input — an unknown or
+## un-drawable species simply clears the form and falls back to the procedural rig, never crashes.
+func apply_remote_form(species: String, variant: int) -> void:
+	_set_form(species, variant)
 
 
 ## Feed a remote puppet the owner's latest transform: where it is, and where it's attending. Stored
@@ -247,6 +273,7 @@ func _ready() -> void:
 		# immediately — and so headless/smoke runs work with no server attached.
 		var placeholder := CompanionSelf.make_random(_cfg, RandomNumberGenerator.new())
 		_brain = CompanionBrain.new(_cfg, 0, placeholder)
+		_init_daemon_form()
 	if _style == null:
 		_style = ArtStyle.load_style()
 
@@ -278,6 +305,7 @@ func _process(delta: float) -> void:
 	_apply_reactions(intent["reactions"])
 	_apply_feeling(intent.get("feeling", {}), delta)
 	_apply_look(delta)
+	_update_daemon_form(delta)
 	_decay_animation(delta)
 	queue_redraw()
 
@@ -360,6 +388,69 @@ func replace_self(data: Dictionary) -> void:
 	_brain = CompanionBrain.new(_cfg, 0, CompanionSelf.from_dict(data, _cfg))
 	_autosave_accum = 0.0
 	_look_inited = false
+
+
+## Build the LOCAL companion's daemon form from the pal registry: the animals whose sheets are
+## actually imported become the pool it shifts between. With none available (no art in a bare
+## headless run), _form is inert and the companion keeps its procedural rig. Tuned by the
+## "daemon_form" block in companion.json.
+func _init_daemon_form() -> void:
+	_form = CompanionForm.new(_available_forms(), _cfg.get("daemon_form", {}), RandomNumberGenerator.new())
+	if _form.species() != "":
+		_set_form(_form.species(), _form.variant())
+
+
+## The drawable animal forms: each pal-registry species whose sheet(s) imported, with how many
+## coat variants are available. Empty when no pal art is present.
+func _available_forms() -> Array:
+	var out: Array = []
+	var species: Dictionary = PalView.registry().get("species", {})
+	for sp in species:
+		var declared := int(species[sp].get("variants", 1))
+		var n := 0
+		while n < declared and PalView.supported(sp, n):
+			n += 1
+		if n > 0:
+			out.append({ "species": String(sp), "variants": n })
+	return out
+
+
+## Tick the local form's shift timer; on a shift, wear the new animal and sell it with a little
+## perk pop + a delight glyph, then tell the world so friends re-render us as the new form.
+func _update_daemon_form(delta: float) -> void:
+	if _form == null:
+		return
+	if _form.update(delta):
+		_set_form(_form.species(), _form.variant())
+		_perk = 1.0
+		_spawn_emote("delight")
+		form_changed.emit()
+
+
+## Wear a species + coat: validate it's drawable, load the sheet, and cache that species' layout for
+## PalSprite. An unknown/un-drawable species clears the form so the procedural rig takes over again.
+func _set_form(species: String, variant: int) -> void:
+	if species == "" or not PalView.supported(species, variant):
+		_form_species = ""
+		_form_variant = 0
+		_form_tex = null
+		_form_sheet = {}
+		return
+	var reg := PalView.registry()
+	# Clamp the coat to the species' real range (mirrors PalView._sheet_path), so an out-of-range or
+	# untrusted remote variant lands on a valid sheet instead of a missing file.
+	var declared := int((reg.get("species", {}) as Dictionary).get(species, {}).get("variants", 1))
+	_form_species = species
+	_form_variant = clampi(variant, 0, maxi(1, declared) - 1)
+	_form_tex = load("res://assets/pals/%s_%d.png" % [species, _form_variant]) as Texture2D
+	var frame: Array = reg.get("frame", [32, 32])
+	_form_sheet = {
+		"frame": frame,
+		"fps": float(reg.get("fps", 10.0)),
+		"cols": int(reg.get("move_frames", 8)),
+		"rows": reg.get("rows", {}),
+		"fly_row": int((reg.get("species", {}) as Dictionary).get(species, {}).get("fly_row", -1)),
+	}
 
 
 func _apply_movement(intent: Dictionary, delta: float) -> void:
@@ -510,6 +601,26 @@ func _draw() -> void:
 	var facing := _look_dir
 	if velocity.length() > 6.0:
 		facing = velocity.normalized()
+	# DAEMON FORM takes precedence over every other rig: the companion IS a real animal right now, so
+	# draw its pal sheet (shared with the ambient pals). The rich per-part mood language of the
+	# procedural rig doesn't map onto a flat sheet, but the reaction beats still read — a perk pops it
+	# up, a hop dips it — and the idle/walk bounce keeps it breathing. Emergent coat warmth still tints
+	# the whole sprite at a high bond, exactly as the pixel-rig path does.
+	if _form_tex != null:
+		var spd := velocity.length()
+		var moving := spd > 6.0
+		var bounce := -absf(sin(_time * 8.0)) * 1.6 if moving else sin(_time * 2.4) * 0.6
+		self_modulate = _coat_modulate()
+		PalSprite.draw(self, _form_tex, {
+			"look": facing,
+			"speed": spd,
+			"time": _time,
+			"bounce": bounce,
+			"squash": 0.16 * _perk - 0.12 * _hop_squash,
+		}, _form_sheet)
+		_draw_emotes()
+		_draw_point_alert()
+		return
 	var expr: Dictionary = _cfg.get("expression", {})
 	var arousal01 := clampf((_mood_a + 1.0) * 0.5, 0.0, 1.0)
 	var pos_valence := clampf(_mood_v, 0.0, 1.0)   # only positive valence reads as "happy"

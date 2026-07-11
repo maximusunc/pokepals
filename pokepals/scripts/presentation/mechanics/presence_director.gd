@@ -43,6 +43,9 @@ func setup(player: PlayerView, companion: CompanionView, scenery: Node2D, style:
 	_scenery = scenery
 	_style = style
 	Net.set_local_identity(_local_identity())
+	# Re-publish our identity whenever our companion shifts daemon form, so friends re-render the
+	# new animal (the same refresh path a wardrobe change uses).
+	_companion.form_changed.connect(_on_local_form_changed)
 	Net.peer_joined.connect(_on_peer_joined)
 	Net.peer_left.connect(_on_peer_left)
 	Net.identity_received.connect(_on_identity_received)
@@ -118,7 +121,13 @@ func _local_identity() -> Dictionary:
 		"name": "Friend",
 		"appearance": _player.appearance_dict(),
 		"companion_look": _companion.resting_look_payload(),
+		"companion_form": _companion.companion_form_payload(),
 	}
+
+
+## Our companion just changed daemon form: refresh the relayed identity so peers re-render it.
+func _on_local_form_changed() -> void:
+	Net.set_local_identity(_local_identity())
 
 
 ## Our canonical save arrived from the server (or nulls for a brand-new player).
@@ -225,6 +234,10 @@ func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
 	var look: Variant = payload.get("companion_look", {})
 	if look is Dictionary:
 		(pair["companion"] as CompanionView).apply_remote_look(look)
+	var form: Variant = payload.get("companion_form", {})
+	if form is Dictionary:
+		(pair["companion"] as CompanionView).apply_remote_form(
+			String((form as Dictionary).get("species", "")), int((form as Dictionary).get("variant", 0)))
 
 
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped

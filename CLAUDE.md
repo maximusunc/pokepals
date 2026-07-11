@@ -73,7 +73,16 @@ FEEL-first philosophy still governs.
 > tools-only dependency; PNGs stay committed). `tools/gen_wardrobe.py` exports per-layer 8-frame dye
 > sheets for the paper-doll wardrobe; `tools/gen_pals.py` bakes real animal species (cat/fox/rabbit/
 > bird/wolf) for ambient pals, rendered client-side by `PalView` when a seed pal names a `species`
-> (companion-puppet fallback otherwise). The bonded companion's rig art is deliberately untouched.
+> (companion-puppet fallback otherwise).
+
+> **Daemon form (2026-07):** the bonded companion now WEARS one of those real animals and, in the
+> spirit of a His Dark Materials daemon, occasionally shifts into a different one. The species is
+> cosmetic and ephemeral (re-rolled each session, never saved, never touching the brain/bond/grown
+> self), decided by a small presentation-agnostic `CompanionForm` (`scripts/world`) and drawn by
+> `CompanionView` through the shared `PalSprite` core (refactored out of `PalView`, so pals and the
+> companion draw identically). It IS relayed over the identity packet so a shared world stays coherent
+> (friends see the same animal). Tuned by `daemon_form` in `data/companion.json` (`enabled:false`
+> restores the classic procedural rig, which is still the fallback when no pal art is present).
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping

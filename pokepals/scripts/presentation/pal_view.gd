@@ -14,8 +14,6 @@ extends Node2D
 
 const REMOTE_LERP_RATE := 14.0  # match CompanionView's remote easing so pals move alike
 const LOOK_LERP_RATE := 6.0
-const MOVE_GATE := 4.0          # px/sec of eased motion that counts as "moving"
-const FOOT_Y := 8.0             # feet sit at origin+8, like SpriteActor/SpriteSlot
 
 static var _registry: Dictionary = {}
 
@@ -101,37 +99,13 @@ func _process(delta: float) -> void:
 	queue_redraw()
 
 
-## The right-handed facing row for a look vector, plus whether to mirror (left family).
-func _facing_row(dir: Vector2) -> Array:
-	var octant := roundi(dir.angle() / (PI / 4.0))  # 0=right, positive = screen-down
-	match octant:
-		0: return [int(_rows.get("right", 2)), false]
-		1: return [int(_rows.get("down_right", 1)), false]
-		2: return [int(_rows.get("down", 0)), false]
-		3: return [int(_rows.get("down_right", 1)), true]
-		-1: return [int(_rows.get("up_right", 3)), false]
-		-2: return [int(_rows.get("up", 4)), false]
-		-3: return [int(_rows.get("up_right", 3)), true]
-		_: return [int(_rows.get("right", 2)), true]  # 4/-4 = left
-
-
 func _draw() -> void:
-	if _tex == null:
-		return
-	var moving := _speed > MOVE_GATE
-	var rf := _facing_row(_look)
-	var row := int(rf[0])
-	var flip := bool(rf[1])
-	if moving and _fly_row >= 0:
-		# Airborne cycle reads as a profile: face strictly left/right of travel.
-		row = _fly_row
-		flip = _look.x < 0.0
-	var col := int(_time * _fps) % _cols if moving else 0
-	var region := Rect2(col * _fw, row * _fh, _fw, _fh)
-	var dest := Rect2(-_fw * 0.5, FOOT_Y - _fh, _fw, _fh)
-	if flip:
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1.0, 1.0))
-		draw_texture_rect_region(_tex, dest, region)
-		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	else:
-		draw_texture_rect_region(_tex, dest, region)
+	# The shared animal-sheet rig (PalSprite) picks the facing row + motion frame and blits it. An
+	# ambient pal passes no bounce/squash, so it renders exactly as the hand-rolled draw did before.
+	PalSprite.draw(self, _tex, { "look": _look, "speed": _speed, "time": _time }, {
+		"frame": [_fw, _fh],
+		"fps": _fps,
+		"cols": _cols,
+		"rows": _rows,
+		"fly_row": _fly_row,
+	})
