@@ -15,6 +15,7 @@ static func run_all() -> int:
 	fails += _test_decode_arrays_to_vectors()
 	fails += _test_round_trip_preserves_transforms()
 	fails += _test_decode_leaves_non_pair_arrays_alone()
+	fails += _test_decode_ambient_carries_pos_and_form()
 	return fails
 
 
@@ -88,4 +89,21 @@ static func _test_decode_leaves_non_pair_arrays_alone() -> int:
 	var fails := 0
 	fails += _ok(dec["trio"] is Array and (dec["trio"] as Array).size() == 3, "a 3-element array is not mistaken for a Vector2")
 	fails += _ok(dec["words"] is Array, "a 2-element non-number array is left as an array")
+	return fails
+
+
+static func _test_decode_ambient_carries_pos_and_form() -> int:
+	# The ambient-pal batch: id + position + facing, plus the pal's current animal form (s/v), which the
+	# server can shift over time. A blank/absent species means a formless pal; malformed entries drop.
+	var wire := [
+		{ "id": "pal_1", "p": [10.0, 20.0], "l": [1, 0], "s": "fox", "v": 2 },
+		{ "id": "pal_2", "p": [0, 0], "l": [0, 1] },          # no form → formless
+		{ "p": [5, 5], "l": [0, 1] },                          # no id → dropped
+	]
+	var dec: Array = NetScript._decode_ambient(wire)
+	var fails := 0
+	fails += _ok(dec.size() == 2, "the id-less entry is dropped, the rest survive")
+	fails += _ok((dec[0]["pos"] as Vector2).is_equal_approx(Vector2(10.0, 20.0)), "pal position decodes to a Vector2")
+	fails += _ok(String(dec[0]["species"]) == "fox" and int(dec[0]["variant"]) == 2, "the pal's form (species + coat) decodes")
+	fails += _ok(String(dec[1]["species"]) == "" and int(dec[1]["variant"]) == 0, "a pal with no form decodes as formless")
 	return fails

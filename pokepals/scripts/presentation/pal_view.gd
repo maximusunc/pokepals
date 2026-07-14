@@ -24,6 +24,9 @@ var _fps := 10.0
 var _cols := 8
 var _fly_row := -1
 var _rows: Dictionary = {}
+var _species := ""      # the animal currently worn — the server can shift it over time (apply_form)
+var _variant := 0
+var _pop := 0.0         # 0..1, decays; a little squash-pop when the pal shifts form
 
 var _target_pos := Vector2.ZERO
 var _look := Vector2.DOWN
@@ -74,8 +77,22 @@ func setup_species(species: String, variant: int) -> bool:
 	_cols = int(reg.get("move_frames", 8))
 	_rows = reg.get("rows", {})
 	_fly_row = int((reg.get("species", {}) as Dictionary).get(species, {}).get("fly_row", -1))
+	_species = species
+	_variant = variant
 	queue_redraw()
 	return true
+
+
+## Shift this pal to a new server-decided form (its daemon-style rotation). A no-op when the form is
+## unchanged or un-drawable (keeping the current animal), so a garbled species never blanks the pal.
+## A real change pops the sprite so the shift is felt, mirroring the companion's morph beat.
+func apply_form(species: String, variant: int) -> void:
+	if species == _species and variant == _variant:
+		return
+	if not supported(species, variant):
+		return
+	if setup_species(species, variant):
+		_pop = 1.0
 
 
 ## The server's latest authoritative spot for this pal (same contract as the puppet).
@@ -96,13 +113,15 @@ func _process(delta: float) -> void:
 	_speed = (position - before).length() / maxf(delta, 0.0001)
 	_look = _look.lerp(_target_look, 1.0 - exp(-LOOK_LERP_RATE * delta)).normalized()
 	_time += delta
+	_pop = maxf(0.0, _pop - delta * 2.0)
 	queue_redraw()
 
 
 func _draw() -> void:
-	# The shared animal-sheet rig (PalSprite) picks the facing row + motion frame and blits it. An
-	# ambient pal passes no bounce/squash, so it renders exactly as the hand-rolled draw did before.
-	PalSprite.draw(self, _tex, { "look": _look, "speed": _speed, "time": _time }, {
+	# The shared animal-sheet rig (PalSprite) picks the facing row + motion frame and blits it. Apart from
+	# the brief pop when it shifts form, an ambient pal passes no bounce/squash — so at rest it renders
+	# exactly as the hand-rolled draw did before.
+	PalSprite.draw(self, _tex, { "look": _look, "speed": _speed, "time": _time, "squash": 0.18 * _pop }, {
 		"frame": [_fw, _fh],
 		"fps": _fps,
 		"cols": _cols,

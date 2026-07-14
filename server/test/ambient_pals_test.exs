@@ -34,6 +34,51 @@ defmodule Server.AmbientPalsTest do
     assert length(list) == 2
     assert Enum.map(list, & &1.id) == ["a", "b"]
     assert Enum.all?(list, fn p -> match?([_, _], p.p) and match?([_, _], p.l) end)
+    # Every entry carries its current form (formless pals report an empty species).
+    assert Enum.all?(list, fn p -> Map.has_key?(p, :s) and Map.has_key?(p, :v) end)
+  end
+
+  test "a seeded species is reported, and a formless pal stays formless forever" do
+    extra = %{
+      "ambient_pals" => [
+        %{"id" => "cat", "home" => [0, 0], "roam_radius" => 20, "species" => "cat", "variant" => 2},
+        %{"id" => "none", "home" => [0, 0], "roam_radius" => 20}
+      ]
+    }
+
+    state = AmbientPals.new(core(extra))
+    seeded = AmbientPals.to_list(state)
+    assert Enum.find(seeded, &(&1.id == "cat")) |> Map.take([:s, :v]) == %{s: "cat", v: 2}
+    assert Enum.find(seeded, &(&1.id == "none")).s == ""
+
+    # Over a long run the formless pal never sprouts a species (the client can't swap puppet kinds).
+    {_final, frames} = run(state, 3000)
+
+    assert Enum.all?(frames, fn frame ->
+             Enum.find(frame, &(&1.id == "none")).s == ""
+           end)
+  end
+
+  test "a species pal eventually shifts into a DIFFERENT known animal" do
+    known = ~w(cat fox rabbit bird wolf)
+
+    extra = %{
+      "ambient_pals" => [
+        %{"id" => "a", "home" => [0, 0], "roam_radius" => 20, "species" => "fox", "variant" => 0}
+      ]
+    }
+
+    state = AmbientPals.new(core(extra))
+
+    # Run well past the max morph window (120s = 1200 ticks) so at least one shift is guaranteed.
+    {_final, frames} = run(state, 2000)
+    forms = frames |> Enum.map(fn f -> hd(f) |> Map.take([:s, :v]) end)
+
+    species_seen = forms |> Enum.map(& &1.s) |> Enum.uniq()
+    assert length(species_seen) >= 2, "the pal never shifted species"
+    assert Enum.all?(species_seen, &(&1 in known)), "shifted to an unknown species: #{inspect(species_seen)}"
+    # A coat is always in the shifted species' real range (cat/rabbit/bird/wolf: 0..3, fox: 0..2).
+    assert Enum.all?(forms, fn %{s: s, v: v} -> v >= 0 and v < Map.fetch!(%{"cat" => 4, "fox" => 3, "rabbit" => 4, "bird" => 4, "wolf" => 4}, s) end)
   end
 
   test "pals start at home when nothing blocks it" do

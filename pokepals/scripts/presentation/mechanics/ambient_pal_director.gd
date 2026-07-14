@@ -86,3 +86,8 @@ func _on_ambient_state(pals: Array) -> void:
 				clampf(pos.x, _bounds.position.x, _bounds.end.x),
 				clampf(pos.y, _bounds.position.y, _bounds.end.y))
 		rc.set_remote_state(pos, p.get("look", Vector2.DOWN))
+		# A species pal can SHIFT form over time (server-decided, so every client agrees). Only the
+		# PalView puppet wears a species; the companion-puppet fallback ignores it. apply_form is a
+		# no-op when the form is unchanged, so this stays cheap on the common (steady) tick.
+		if rc is PalView:
+			(rc as PalView).apply_form(String(p.get("species", "")), int(p.get("variant", 0)))

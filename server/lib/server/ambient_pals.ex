@@ -25,8 +25,10 @@ defmodule Server.AmbientPals do
   (they exist just in the maze, which has no pals). A pal that gets wedged abandons its target after a
   moment (the stuck-guard) rather than grinding into a trunk forever.
 
-  Wire shape (`to_list/1`): `[%{id: String, p: [x, y], l: [lx, ly]}]` — position and a facing unit
-  vector, the same `[x, y]` JSON encoding the live-transform fan-out uses.
+  Wire shape (`to_list/1`): `[%{id: String, p: [x, y], l: [lx, ly], s: String, v: integer}]` — position,
+  a facing unit vector (the same `[x, y]` JSON encoding the live-transform fan-out uses), and the pal's
+  current animal `s`pecies + coat `v`ariant so every client renders (and re-renders, on a shift) the same
+  form. A formless pal (no seed species — the client's companion-puppet fallback) reports `s: ""`.
   """
 
   @speed 26.0          # px/sec while roaming — an unhurried amble
@@ -39,6 +41,15 @@ defmodule Server.AmbientPals do
   @target_tries 8      # how many times to re-roll a wander target that lands in a solid
   @stuck_limit 1.2     # seconds of no progress before a wedged pal gives up its target
   @default_radius 8.0  # fallback pal body radius if the spec has no collision block
+
+  # Daemon-style FORM ROTATION: a species-bearing pal occasionally shifts into a DIFFERENT animal, in the
+  # spirit of the bonded companion's daemon form. It's decided HERE, in the shared sim, so every client
+  # sees the same animal at the same moment (the sim is the one source of truth, like the positions).
+  # The species table must mirror the client's data/pals.json variant counts exactly, the same way
+  # @solid_types mirrors the client's Solids.SOLID_TYPES.
+  @species %{"cat" => 4, "fox" => 3, "rabbit" => 4, "bird" => 4, "wolf" => 4}
+  @morph_min 45.0      # seconds between shifts — a random point in this window, per pal
+  @morph_max 120.0
 
   # Built-in "solid" prop types and their blocking radii — must match the client's `Solids.SOLID_TYPES`.
   @solid_types %{
@@ -84,17 +95,17 @@ defmodule Server.AmbientPals do
   @doc "Whether this world has any ambient pals (so `Server.World` can skip ticking when it doesn't)."
   def any?(%__MODULE__{pals: pals}), do: pals != []
 
-  @doc "Advance every pal by `dt` seconds, returning the new sim state."
+  @doc "Advance every pal by `dt` seconds (wander + form rotation), returning the new sim state."
   def tick(%__MODULE__{pals: pals} = state, dt) when is_number(dt) do
-    %{state | pals: Enum.map(pals, &step(&1, dt, state))}
+    %{state | pals: Enum.map(pals, fn p -> p |> morph_step(dt) |> step(dt, state) end)}
   end
 
-  @doc "The current pal transforms as the client wire shape: `[%{id, p: [x, y], l: [lx, ly]}]`."
+  @doc "The current pal transforms as the client wire shape: `[%{id, p: [x, y], l: [lx, ly], s, v}]`."
   def to_list(%__MODULE__{pals: pals}) do
     Enum.map(pals, fn p ->
       {px, py} = p.pos
       {lx, ly} = p.facing
-      %{id: p.id, p: [px, py], l: [lx, ly]}
+      %{id: p.id, p: [px, py], l: [lx, ly], s: p.species, v: p.variant}
     end)
   end
 
@@ -106,6 +117,13 @@ defmodule Server.AmbientPals do
     roam = num(Map.get(d, "roam_radius", @default_roam))
     rng = :rand.seed_s(:exsp, {:erlang.phash2(id), i + 1, 1})
     {pause, rng} = rand_range(rng, @pause_min, @pause_max)
+    species = to_string(Map.get(d, "species", ""))
+    variant = int(Map.get(d, "variant", 0))
+    # Only a pal that already wears a KNOWN animal rotates; a formless one (the client's companion-puppet
+    # fallback) stays formless, since the client can't swap puppet KINDS mid-stream. morph = nil disables it.
+    {morph, rng} =
+      if Map.has_key?(@species, species), do: rand_range(rng, @morph_min, @morph_max), else: {nil, rng}
+
     # Start clear of any solid the home happens to sit on (e.g. a pal placed by a log).
     pos = resolve(home, geom)
 
@@ -120,6 +138,9 @@ defmodule Server.AmbientPals do
       phase: :pause,
       timer: pause,
       stuck: 0.0,
+      species: species,
+      variant: variant,
+      morph: morph,
       rng: rng
     }
   end
@@ -180,6 +201,40 @@ defmodule Server.AmbientPals do
     {u, rng2} = :rand.uniform_s(rng1)
     radius = roam * :math.sqrt(u)
     {{hx + radius * :math.cos(ang), hy + radius * :math.sin(ang)}, rng2}
+  end
+
+  # --- form rotation (the daemon-style shift, decided in the shared sim) ---
+
+  # A formless pal never shifts. A species-bearing one counts its morph timer down and, when it fires,
+  # becomes a DIFFERENT animal (random coat) and re-arms — carried on the pal's own reproducible rng.
+  defp morph_step(%{morph: nil} = pal, _dt), do: pal
+
+  defp morph_step(%{morph: t, rng: rng} = pal, dt) do
+    t = t - dt
+
+    if t <= 0.0 do
+      {species, variant, rng} = roll_form(pal.species, rng)
+      {next, rng} = rand_range(rng, @morph_min, @morph_max)
+      %{pal | species: species, variant: variant, morph: next, rng: rng}
+    else
+      %{pal | morph: t}
+    end
+  end
+
+  # Pick a species other than `current` (so a shift is always visible) and a random coat within it.
+  defp roll_form(current, rng) do
+    names = Map.keys(@species) -- [current]
+    names = if names == [], do: Map.keys(@species), else: names
+    {i, rng} = uniform_int(rng, length(names))
+    species = Enum.at(names, i)
+    {v, rng} = uniform_int(rng, Map.fetch!(@species, species))
+    {species, v, rng}
+  end
+
+  # A uniform integer in 0..n-1, threading the pal's rng (n >= 1).
+  defp uniform_int(rng, n) do
+    {r, rng} = :rand.uniform_s(n, rng)
+    {r - 1, rng}
   end
 
   # --- collision: the Elixir port of the client's Solids.build / Solids.resolve (circles only) ---
@@ -303,4 +358,7 @@ defmodule Server.AmbientPals do
 
   defp num(n) when is_number(n), do: n * 1.0
   defp num(_), do: 0.0
+
+  defp int(n) when is_number(n), do: trunc(n)
+  defp int(_), do: 0
 end

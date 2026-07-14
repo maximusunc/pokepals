@@ -665,8 +665,10 @@ static func _is_number(v: Variant) -> bool:
 	return v is float or v is int
 
 
-## A server ambient-pal batch ([{ id, p: [x,y], l: [lx,ly] }]) → [{ id, pos: Vector2, look: Vector2 }].
-## Skips malformed entries so one bad packet can't break the render. Pure + static, unit-testable.
+## A server ambient-pal batch ([{ id, p:[x,y], l:[lx,ly], s, v }]) → [{ id, pos, look, species, variant }].
+## `s`/`v` are the pal's current animal form (it can shift over time, like the companion's daemon form);
+## missing/blank species means a formless pal. Skips malformed entries so one bad packet can't break the
+## render. Pure + static, unit-testable.
 static func _decode_ambient(pals: Array) -> Array:
 	var out: Array = []
 	for p in pals:
@@ -675,7 +677,13 @@ static func _decode_ambient(pals: Array) -> Array:
 		var id := String(p.get("id", ""))
 		if id == "":
 			continue
-		out.append({ "id": id, "pos": _arr_to_vec2(p.get("p")), "look": _arr_to_vec2(p.get("l")) })
+		out.append({
+			"id": id,
+			"pos": _arr_to_vec2(p.get("p")),
+			"look": _arr_to_vec2(p.get("l")),
+			"species": String(p.get("s", "")),
+			"variant": int(p.get("v", 0)),
+		})
 	return out
 
 

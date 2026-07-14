@@ -66,7 +66,10 @@ FEEL-first philosophy still governs.
 > **border treeline is now generated server-side too** (`Server.WorldBorder`, baked into each spec as
 > `border_trees`) and consumed by the client for drawing + its avatar collision — one source of truth,
 > no client-side ring generation. It's atmosphere only: no bonding, no interaction. The companion
-> "finding" beat (bonding to one of them) remains out of scope.
+> "finding" beat (bonding to one of them) remains out of scope. Each species pal also **shifts form**
+> over time (daemon-style), decided in the same server sim (`AmbientPals` owns a per-pal morph timer +
+> species table) and relayed in the `s`/`v` fields of the ambient tick, so every client sees the same
+> animal at the same moment; the client `PalView.apply_form` swaps the sheet (with a little pop).
 
 > **Pixel-art pipeline (2026-07):** player wardrobe art and ambient-pal sprites are now generated
 > from the hand-authored ASCII pixel maps in `pokepals/tools/pixelart/` (see its README — Pillow is a
