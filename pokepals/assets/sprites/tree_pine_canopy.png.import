@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cp3wtg0teil"
-path="res://.godot/imported/great_tree.png-0090f3e0e72febd66b5306ff045a7391.ctex"
+uid="uid://c2obli2kbi56f"
+path="res://.godot/imported/tree_pine_canopy.png-4e327ddbf3b45b75ef298c2766bcc059.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/great_tree.png"
-dest_files=["res://.godot/imported/great_tree.png-0090f3e0e72febd66b5306ff045a7391.ctex"]
+source_file="res://assets/sprites/tree_pine_canopy.png"
+dest_files=["res://.godot/imported/tree_pine_canopy.png-4e327ddbf3b45b75ef298c2766bcc059.ctex"]
 
 [params]
 

@@ -17,10 +17,14 @@ extends RefCounted
 ##    "sprite":"res://assets/sprites/companion.svg"}. Set render back to "procedural" to
 ##    return to the built-in look.
 
-static func resolve(cfg: Dictionary) -> Texture2D:
+## Resolve the image at config key `key` (default "sprite") to a texture, or null.
+## The `key` lets one entity name several images — e.g. a tree splits its art into a
+## stationary "trunk" and a wind-swayed "canopy" so only the crown catches the wind
+## (see TreeView). A missing/absent file still degrades silently to procedural.
+static func resolve(cfg: Dictionary, key := "sprite") -> Texture2D:
 	if String(cfg.get("render", "procedural")) != "sprite":
 		return null
-	var path := String(cfg.get("sprite", ""))
+	var path := String(cfg.get(key, ""))
 	if path == "" or not ResourceLoader.exists(path):
 		return null
 	return ResourceLoader.load(path) as Texture2D

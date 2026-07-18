@@ -1,5 +1,5 @@
 {
-	"_comment": "Art direction for Kithbound — the one place to re-skin the whole game. 'palette' is the shared set of colors the world AND the characters draw from; edit these to change the entire look. 'light.dir' is a single direction everything is lit from (up-left by default), which is what makes the scene feel cohesive — highlights land on that side, shadows fall opposite. 'characters'/'entities' choose procedural drawing or your own art: set render to 'sprite' and point 'sprite' at a res:// image to drop in art you made yourself (a missing file silently falls back to procedural). Colors are [r,g,b] or [r,g,b,a] in 0..1. Presentation-only: none of this touches game logic.",
+	"_comment": "Art direction for Kithbound — the one place to re-skin the whole game. 'palette' is the shared set of colors the world AND the characters draw from; edit these to change the entire look. 'light.dir' is a single direction everything is lit from (up-left by default), which is what makes the scene feel cohesive — highlights land on that side, shadows fall opposite. 'characters'/'entities' choose procedural drawing or your own art: set render to 'sprite' and point 'sprite' at a res:// image to drop in art you made yourself (a missing file silently falls back to procedural). Trees take it further: instead of one 'sprite' they can name a 'trunk' and a 'canopy' image, and only the canopy sways in the wind while the trunk stays planted (see tools/gen_trees.py). Colors are [r,g,b] or [r,g,b,a] in 0..1. Presentation-only: none of this touches game logic.",
 	"palette": {
 		"ground_top": [0.49, 0.63, 0.40],
 		"ground_bottom": [0.37, 0.51, 0.31],
@@ -17,8 +17,8 @@
 		"companion": { "render": "sprite", "sprite": "res://assets/sprites/companion.png", "frame": [32, 32], "fps": 8, "walk_frames": 4, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }, "ear_row": 3, "tail_row": 4, "tail_sway_px": 3.5, "body": [0.55, 0.40, 0.27], "accent": [0.72, 0.56, 0.38] }
 	},
 	"entities": {
-		"tree": { "render": "sprite", "sprite": "res://assets/sprites/tree.png" },
-		"great_tree": { "render": "sprite", "sprite": "res://assets/sprites/great_tree.png" }
+		"tree": { "render": "sprite", "trunk": "res://assets/sprites/tree_trunk.png", "canopy": "res://assets/sprites/tree_canopy.png" },
+		"great_tree": { "render": "sprite", "trunk": "res://assets/sprites/great_tree_trunk.png", "canopy": "res://assets/sprites/great_tree_canopy.png" }
 	},
 	"_daycycle_comment": "A slow ambient drift from day to dusk and back, driving the warm wash (DayTint) and the vignette. enabled=false freezes it at the first stop (today's static look). period_sec is one full day->dusk->day round trip when loop=true. Set enabled=false to turn it off.",
 	"daycycle": {

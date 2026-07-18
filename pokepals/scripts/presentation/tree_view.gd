@@ -14,7 +14,13 @@ extends Node2D
 var phase := 0.0          # per-tree wind offset so the grove doesn't sway in lockstep
 var is_great := false      # great-tree (landmark) vs. an ordinary tree
 var style: ArtStyle
-var tex: Texture2D = null  # optional user-supplied sprite (absent → procedural art)
+# Optional drop-in art, in order of preference (each absent → next fallback):
+#  • trunk_tex + canopy_tex: two layers — trunk stays planted, only the canopy sways.
+#  • tex: one whole-tree sprite — the whole thing sways together.
+#  • none: the procedural circles below.
+var tex: Texture2D = null
+var trunk_tex: Texture2D = null
+var canopy_tex: Texture2D = null
 var wind_strength := 2.6
 var wind_speed := 1.15
 
@@ -48,9 +54,7 @@ func _draw() -> void:
 func _draw_normal() -> void:
 	var cs := _sway(1.0)  # canopy catches the most wind
 	_draw_shadow(Vector2(0, 4), 18.0, 0.20)
-	if tex != null:
-		var sz := tex.get_size()
-		draw_texture(tex, Vector2(cs - sz.x * 0.5, 6.0 - sz.y))
+	if _draw_sprite(cs, 6.0):
 		return
 	var bark := style.color("bark")
 	var f_dark := style.color("foliage_dark")
@@ -72,9 +76,7 @@ func _draw_normal() -> void:
 func _draw_great() -> void:
 	var sway := _sway(1.4)
 	_draw_shadow(Vector2(0, 8), 36.0, 0.22)
-	if tex != null:
-		var gsz := tex.get_size()
-		draw_texture(tex, Vector2(sway - gsz.x * 0.5, 8.0 - gsz.y))
+	if _draw_sprite(sway, 8.0):
 		return
 	var bark := style.color("bark")
 	var f_dark := style.color("foliage_dark")
@@ -86,6 +88,28 @@ func _draw_great() -> void:
 	draw_circle(Vector2(28 + sway, -40), 30.0, f_dark)
 	draw_circle(Vector2(sway, -50), 44.0, f_mid)
 	style.draw_blob(self, Vector2(sway * 0.8, -60), 32.0, f_light)
+
+
+## Draw the tree from drop-in sprite art if any is set; return true if it did (so the
+## caller skips the procedural fallback). Split trunk/canopy art is preferred: the trunk
+## is drawn at rest and only the canopy is shifted by `canopy_sway`, so the base stays
+## planted while the crown leans in the wind. A single whole-tree `tex` sways as one
+## piece (the older, less lively path). All parts are bottom-anchored at `base_y` so
+## their feet meet the ground at the node origin — the same anchor SpriteSlot.draw uses.
+func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
+	if trunk_tex != null and canopy_tex != null:
+		_blit(trunk_tex, 0.0, base_y)
+		_blit(canopy_tex, canopy_sway, base_y)
+		return true
+	if tex != null:
+		_blit(tex, canopy_sway, base_y)
+		return true
+	return false
+
+
+func _blit(t: Texture2D, off_x: float, base_y: float) -> void:
+	var sz := t.get_size()
+	draw_texture(t, Vector2(off_x - sz.x * 0.5, base_y - sz.y))
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as

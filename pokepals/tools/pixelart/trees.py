@@ -195,32 +195,48 @@ def _add_outline(px, solid, w, h):
         px[x, y] = OUTLINE
 
 
-def make_tree(kind="tree", variant="summer"):
-    """Render one tree sprite (RGBA Image). `kind` picks a LAYOUT, `variant` a RAMP."""
-    layout = LAYOUTS[kind]
-    ramp = RAMPS[variant]
-    w, h = layout["size"]
+def _paint_part(shade, mask, ramp3):
+    """One part (trunk or canopy) on its OWN full-size canvas, painted + outlined.
 
-    canopy = _canopy_mask(layout)
-    trunk = _trunk_mask(layout)
-    canopy_shade = _shade_canopy(canopy)
-    trunk_shade = _shade_trunk(trunk)
-
+    Keeping each part on the full canvas (not cropped) is what lets the client draw
+    them as two layers that line up perfectly: both are bottom-anchored at the same
+    origin, so the only difference at draw time is the canopy's horizontal wind
+    offset. Each part carries its own outline so its silhouette stays crisp when the
+    canopy slides off the trunk in the wind."""
+    h, w = len(mask), len(mask[0])
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     px = img.load()
-    # trunk first, canopy painted over it (leaves hide the upper trunk)
     for y in range(h):
         for x in range(w):
-            if trunk_shade[y][x]:
-                px[x, y] = ramp["bark"][trunk_shade[y][x] - 1] + (255,)
-    for y in range(h):
-        for x in range(w):
-            if canopy_shade[y][x]:
-                px[x, y] = ramp["foliage"][canopy_shade[y][x] - 1] + (255,)
+            if shade[y][x]:
+                px[x, y] = ramp3[shade[y][x] - 1] + (255,)
+    _add_outline(px, mask, w, h)
+    return img
 
-    solid = [[1 if (canopy[y][x] or trunk[y][x]) else 0
-              for x in range(w)] for y in range(h)]
-    _add_outline(px, solid, w, h)
+
+def make_tree_parts(kind="tree", variant="summer"):
+    """The two independently-drawable layers of a tree: (trunk_img, canopy_img).
+
+    The trunk is baked whole (including the stretch the canopy normally hides), so it
+    stays complete when the canopy sways aside. `kind` picks a LAYOUT, `variant` a RAMP."""
+    layout = LAYOUTS[kind]
+    ramp = RAMPS[variant]
+    trunk = _trunk_mask(layout)
+    canopy = _canopy_mask(layout)
+    trunk_img = _paint_part(_shade_trunk(trunk), trunk, ramp["bark"])
+    canopy_img = _paint_part(_shade_canopy(canopy), canopy, ramp["foliage"])
+    return trunk_img, canopy_img
+
+
+def make_tree(kind="tree", variant="summer"):
+    """The whole tree as one image (trunk with the canopy composited over it).
+
+    This is the at-rest look for previews/tooling; the game draws the two parts from
+    `make_tree_parts` separately so only the canopy catches the wind."""
+    trunk_img, canopy_img = make_tree_parts(kind, variant)
+    img = Image.new("RGBA", trunk_img.size, (0, 0, 0, 0))
+    img.alpha_composite(trunk_img)
+    img.alpha_composite(canopy_img)
     return img
 
 

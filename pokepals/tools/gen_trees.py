@@ -3,19 +3,28 @@
 
 The ART lives in tools/pixelart/trees.py (canopy lobes + derived lit-blob shading +
 the shared 1px outline). This tool only bakes it into the shape the client reads:
-a single bottom-anchored sprite per tree kind, dropped where TreeView already looks
-for optional art.
+TWO bottom-anchored sprites per tree kind -- a stationary TRUNK and a separate
+CANOPY -- dropped where TreeView looks for optional art.
 
-Why this exists: TreeView already supports drop-in art -- if data/art.json's
-`entities.tree` / `entities.great_tree` set `render: "sprite"` and point at an image
-that exists, Scenery loads it (SpriteSlot.resolve) and TreeView draws it feet-on-the-
-ground instead of the procedural circles. So "move the grove off engine circles onto
-pixel art" is: bake these PNGs, then flip those two art.json entries to "sprite".
+Why two parts: TreeView draws the trunk fixed and offsets only the canopy by the
+wind, so the tree sways from the crown while its base stays planted (a single
+sprite would slide the whole trunk). Both parts share the tree's full canvas and are
+bottom-anchored at the same origin, so they line up with nothing but that horizontal
+canopy offset between them.
 
-Output (res://assets/sprites/, beside player.png / companion.png):
-    tree.png            great_tree.png            <- "summer", what art.json points at
-    tree_pine.png       great_tree_pine.png       <- ramp swaps, ready to wire when
-    tree_autumn.png     great_tree_autumn.png        the grove wants variety
+Why this exists at all: TreeView already supports drop-in art -- if data/art.json's
+`entities.tree` / `entities.great_tree` set `render: "sprite"` and name `trunk` +
+`canopy` images that exist, Scenery loads them (SpriteSlot.resolve) and TreeView
+draws them instead of the procedural circles. So "move the grove off engine circles
+onto pixel art" is: bake these PNGs, then point those two art.json entries at them.
+
+Output (res://assets/sprites/, beside player.png / companion.png) -- per kind, a
+`_trunk` and a `_canopy` PNG; "summer" is the default (no ramp suffix) that
+art.json points at, the others are ramp swaps ready to wire when the grove wants
+variety:
+    tree_trunk.png         tree_canopy.png          great_tree_trunk.png ...
+    tree_pine_trunk.png    tree_pine_canopy.png     ...
+    tree_autumn_trunk.png  tree_autumn_canopy.png   ...
 
 Each PNG gets a committed .import sidecar (lossless, nearest-neighbour friendly, no
 mipmaps -- identical to the pal/cosmetic sheets), so the game never needs Python and
@@ -88,17 +97,21 @@ def import_text(res_path):
     )
 
 
+def _save(img, name):
+    path = os.path.join(OUT_DIR, name)
+    img.save(path)
+    with open(path + ".import", "w") as f:
+        f.write(import_text("res://assets/sprites/%s" % name))
+    print("wrote", os.path.relpath(path, os.path.join(HERE, "..")))
+
+
 def export_all():
     os.makedirs(OUT_DIR, exist_ok=True)
     for kind in trees.LAYOUTS:
         for variant, suffix in VARIANT_SUFFIX.items():
-            name = "%s%s.png" % (kind, suffix)
-            path = os.path.join(OUT_DIR, name)
-            trees.make_tree(kind, variant).save(path)
-            res = "res://assets/sprites/%s" % name
-            with open(path + ".import", "w") as f:
-                f.write(import_text(res))
-            print("wrote", os.path.relpath(path, os.path.join(HERE, "..")))
+            trunk_img, canopy_img = trees.make_tree_parts(kind, variant)
+            _save(trunk_img, "%s%s_trunk.png" % (kind, suffix))
+            _save(canopy_img, "%s%s_canopy.png" % (kind, suffix))
 
 
 def preview(path):
