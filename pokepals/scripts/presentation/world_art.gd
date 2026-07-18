@@ -30,6 +30,16 @@ var _ground_noise: ImageTexture = null
 var _style: ArtStyle
 var _ground_grad: GradientTexture2D = null
 
+# Optional pixel-art water tiles (tools/gen_water.py). Each is a seamless square the
+# world tiles across a body of water; `world_tile` is how many world units it spans.
+# Absent → the flat procedural fill below (so the smoke test stays green with no art).
+var _pond_tex: Texture2D = null
+var _river_tex: Texture2D = null
+var _pool_tex: Texture2D = null
+var _pond_world_tile := 64.0
+var _river_world_tile := 64.0
+var _pool_world_tile := 64.0
+
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_style = style if style != null else ArtStyle.load_style()
@@ -39,6 +49,22 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_bounds = Rect2(bmin, bmax - bmin)
 	# A soft top→bottom ground gradient (palette), baked once, drawn under the dapple.
 	_ground_grad = _style.make_vertical_gradient_texture(_style.color("ground_top"), _style.color("ground_bottom"))
+
+	# Optional pixel-art water tiles. When present, ponds/river/pools draw as a tiled,
+	# gently-scrolling pixel surface instead of a flat fill; when absent, the procedural
+	# fill below still runs. texture_repeat must be ON for the UVs to tile (they run past
+	# 0..1 across a body of water); it's harmless for the non-tiling ground/gradient draws.
+	var water_cfg: Dictionary = _style.entity("water")
+	var river_cfg: Dictionary = _style.entity("river")
+	var pool_cfg: Dictionary = _style.entity("pool")
+	_pond_tex = SpriteSlot.resolve(water_cfg, "tile")
+	_river_tex = SpriteSlot.resolve(river_cfg, "tile")
+	_pool_tex = SpriteSlot.resolve(pool_cfg, "tile")
+	_pond_world_tile = float(water_cfg.get("world_tile", 64.0))
+	_river_world_tile = float(river_cfg.get("world_tile", 64.0))
+	_pool_world_tile = float(pool_cfg.get("world_tile", 64.0))
+	if _pond_tex != null or _river_tex != null or _pool_tex != null:
+		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -299,30 +325,39 @@ func _draw() -> void:
 	# the Vein: the sunken dry channel, drawn under everything else (props sit on its bed)
 	_draw_vein()
 
-	# the river: a long water band with a lit upper edge and a few ripples drifting downstream
+	# the river: a long water band. With a pixel-art tile, fill it with tiled water drifting
+	# downstream; otherwise the flat fill with a couple of drifting ripple lines. Either way a
+	# soft brighter rim marks the bank-side (top) edge where land meets water.
 	if not _river.is_empty():
 		var rrect: Rect2 = _river["rect"]
-		draw_rect(rrect, _river["color"])
-		# a soft brighter rim along the bank-side (top) edge where land meets water
+		if _river_tex != null:
+			var corners := PackedVector2Array([rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), rrect.end, rrect.position + Vector2(0.0, rrect.size.y)])
+			_fill_water(corners, _river_tex, _river_world_tile, _water_scroll(_river_tex, true))
+		else:
+			draw_rect(rrect, _river["color"])
+			for k in 3:
+				var ry := rrect.position.y + 16.0 + float(k) * 26.0
+				var drift := fposmod(_time * 12.0 + float(k) * 40.0, rrect.size.x)
+				var rip := Color(0.85, 0.92, 0.95, 0.16)
+				draw_line(rrect.position + Vector2(drift, ry - rrect.position.y), rrect.position + Vector2(minf(drift + 70.0, rrect.size.x), ry - rrect.position.y), rip, 1.5)
 		draw_line(rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
-		for k in 3:
-			var ry := rrect.position.y + 16.0 + float(k) * 26.0
-			var drift := fposmod(_time * 12.0 + float(k) * 40.0, rrect.size.x)
-			var rip := Color(0.85, 0.92, 0.95, 0.16)
-			draw_line(rrect.position + Vector2(drift, ry - rrect.position.y), rrect.position + Vector2(minf(drift + 70.0, rrect.size.x), ry - rrect.position.y), rip, 1.5)
 
-	# ponds, each with a lighter rim and a couple of slow, breathing ripples
+	# ponds: a tiled pixel-water surface if we have art, else a flat fill with breathing
+	# ripples. Both keep a lighter rim where the bank meets the water.
 	for pond in _ponds:
 		var center: Vector2 = pond["center"]
 		var radius: float = pond["radius"]
 		if cull and not vis.intersects(Rect2(center - Vector2(radius, radius), Vector2(radius, radius) * 2.0)):
 			continue
-		draw_circle(center, radius, pond["color"])
+		if _pond_tex != null:
+			_fill_water(_circle_points(center, radius), _pond_tex, _pond_world_tile, _water_scroll(_pond_tex, false))
+		else:
+			draw_circle(center, radius, pond["color"])
+			for k in 2:
+				var t := fposmod(_time * 0.25 + float(k) * 0.5, 1.0)
+				var rr := radius * (0.25 + 0.7 * t)
+				draw_arc(center, rr, 0.0, TAU, 40, Color(0.85, 0.92, 0.95, 0.22 * (1.0 - t)), 1.5)
 		draw_arc(center, radius, 0.0, TAU, 48, Color(0.78, 0.86, 0.88, 0.5), 2.0)
-		for k in 2:
-			var t := fposmod(_time * 0.25 + float(k) * 0.5, 1.0)
-			var rr := radius * (0.25 + 0.7 * t)
-			draw_arc(center, rr, 0.0, TAU, 40, Color(0.85, 0.92, 0.95, 0.22 * (1.0 - t)), 1.5)
 
 	# flowers (a petal dot with a bright center), nodding in the breeze
 	for f in _flowers:
@@ -388,6 +423,43 @@ func _draw() -> void:
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
 	# companion can pass behind/in front of them by ground position. This pass renders
 	# only the always-underneath backdrop (ground, grass, flowers, paths, ponds, props).
+
+
+## --- pixel-art water --------------------------------------------------------------------
+## Fill a convex polygon with a tiled, scrolling water texture. Each vertex's UV is its
+## world position in tile-units (world_tile world units == one tile), so the pixel grid is
+## locked to the world and only `scroll` animates it; texture_repeat (enabled in
+## render_world) wraps the past-1 UVs into a seamless tiling. A no-op with no texture.
+func _fill_water(points: PackedVector2Array, tex: Texture2D, world_tile: float, scroll: Vector2) -> void:
+	if tex == null or points.is_empty():
+		return
+	var uvs := PackedVector2Array()
+	for p in points:
+		uvs.append(p / world_tile + scroll)
+	draw_colored_polygon(points, Color(1, 1, 1, 1), uvs, tex)
+
+
+## A ring of points approximating a circle — a pond/pool outline as a polygon, so the tiled
+## water clips to the round shape (draw_colored_polygon fills the convex fan).
+func _circle_points(center: Vector2, radius: float, segments := 40) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	for i in segments:
+		var a := TAU * float(i) / float(segments)
+		pts.append(center + Vector2(cos(a), sin(a)) * radius)
+	return pts
+
+
+## The animated water scroll, in tile-units, QUANTIZED to whole texels so the surface steps
+## crisply (pixel-art) instead of smearing. Still water (ponds/pools) shimmers in place with a
+## slow lissajous wobble; a `flowing` river drifts steadily downstream along its long axis (+x).
+func _water_scroll(tex: Texture2D, flowing: bool) -> Vector2:
+	var s: Vector2
+	if flowing:
+		s = Vector2(_time * 0.12, sin(_time * 0.6) * 0.02)
+	else:
+		s = Vector2(sin(_time * 0.42) * 0.035, cos(_time * 0.30) * 0.030)
+	var tw := maxf(1.0, float(tex.get_width()))  # uv 1.0 spans the whole tile (tw texels)
+	return Vector2(round(s.x * tw) / tw, round(s.y * tw) / tw)
 
 
 ## The Vein — the sunken dry riverbed. A dusty channel band with darker sunken banks top and bottom,
@@ -854,15 +926,19 @@ func _draw_rubble_pile(p: Vector2, color: Color) -> void:
 
 
 ## A still, dark POOL in the Sunken Grove — rain gathered where the ceiling fell. Drawn like a pond but
-## colder and darker, with a pale patch where the daylight shaft falls in. Solid (its spec collision_radius
-## is the real footprint; the art radius here just needs to read close to it). Placeholder for a real water asset.
+## colder and darker (the "pool" water tile when present, else a flat fill), with a pale patch where the
+## daylight shaft falls in. Solid (its spec collision_radius is the real footprint; the art radius here
+## just needs to read close to it).
 func _draw_pool(p: Vector2, color: Color) -> void:
 	var rad := 88.0
-	draw_circle(p, rad, color)
+	if _pool_tex != null:
+		_fill_water(_circle_points(p, rad), _pool_tex, _pool_world_tile, _water_scroll(_pool_tex, false))
+	else:
+		draw_circle(p, rad, color)
+		for k in 2:                                                        # slow, breathing ripples
+			var t := fposmod(_time * 0.16 + float(k) * 0.5, 1.0)
+			draw_arc(p, rad * (0.3 + 0.6 * t), 0.0, TAU, 40, Color(0.8, 0.9, 0.95, 0.14 * (1.0 - t)), 1.5)
 	draw_arc(p, rad, 0.0, TAU, 48, Color(0.5, 0.6, 0.62, 0.32), 2.0)   # a faint stone rim
-	for k in 2:                                                        # slow, breathing ripples
-		var t := fposmod(_time * 0.16 + float(k) * 0.5, 1.0)
-		draw_arc(p, rad * (0.3 + 0.6 * t), 0.0, TAU, 40, Color(0.8, 0.9, 0.95, 0.14 * (1.0 - t)), 1.5)
 	# the pale reflected glow where the light-shaft strikes the water
 	draw_circle(p + Vector2(-4, -10), 22.0, Color(0.88, 0.93, 0.82, 0.10))
 	draw_circle(p + Vector2(-4, -10), 9.0, Color(0.95, 0.97, 0.9, 0.10))
