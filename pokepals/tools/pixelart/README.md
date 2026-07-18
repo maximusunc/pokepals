@@ -26,6 +26,7 @@ python animals.py         # daemons.png       (species x color variants)
 python walk.py            # walk sheets + walk_demo.gif
 python directions.py      # fox_compass.png + daemon_directions.png
 python animal_motion.py   # animal_motion.png + animal_motion.gif
+python trees.py           # trees.png (tree + great tree, ramp variants)
 ```
 
 ## File guide
@@ -37,6 +38,7 @@ python animal_motion.py   # animal_motion.png + animal_motion.gif
 | `walk.py` | Player 8-frame walk cycles in 4 directions, arm swing poses, side/back view maps, `character_frames()`; daemon hop `daemon_frames()` |
 | `directions.py` | 8-directional daemon facing (`make_daemon_facing()`), derived back/diagonal views, hand-drawn fox profile |
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |
+| `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
 
 ## Core concepts
 
@@ -177,6 +179,23 @@ make no sense from behind (glasses) are skipped for the up direction in
 4. Optional -- locomotion: split the profile into body + leg poses like
    the fox in `animal_motion.py` (stretch/gather adapts to most quadrupeds;
    rabbits should hop with ear follow-through instead).
+
+### Reshape or recolor a tree (`trees.py`)
+Trees aren't hand-shaded pixel maps -- a canopy is too round for that to stay
+clean -- so each one is a `LAYOUT`: a few foliage `lobes` `(cx, cy, r)` plus a
+trunk box. The lit-blob shading and the outline are *derived* from that (like the
+daemon back-views are derived), so:
+- **Reshape:** edit a kind's `lobes`/`trunk` in `LAYOUTS`. More, smaller lobes =
+  a bushier crown; a taller trunk box = a lankier tree. Rerun, check `trees.png`.
+- **Recolor / new season:** add a `(dark, base, light)` foliage+bark entry to
+  `RAMPS` (there's `summer`/`pine`/`autumn` already).
+- **New kind (e.g. a stump, a sapling):** add a `LAYOUTS` entry; `make_tree()`
+  and the baker pick it up with no other changes.
+
+These feed `tools/gen_trees.py`, which bakes `assets/sprites/{tree,great_tree}.png`
+(+ ramp variants) and their `.import` sidecars. The game uses them the moment
+`data/art.json`'s `entities.tree` / `entities.great_tree` point at those files
+(`render: "sprite"`); set them back to `procedural` for the old engine circles.
 
 ### Add an animation pose
 Draw the pose map, add it to the relevant pose table

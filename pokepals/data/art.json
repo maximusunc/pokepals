@@ -17,8 +17,8 @@
 		"companion": { "render": "sprite", "sprite": "res://assets/sprites/companion.png", "frame": [32, 32], "fps": 8, "walk_frames": 4, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }, "ear_row": 3, "tail_row": 4, "tail_sway_px": 3.5, "body": [0.55, 0.40, 0.27], "accent": [0.72, 0.56, 0.38] }
 	},
 	"entities": {
-		"tree": { "render": "procedural", "sprite": "" },
-		"great_tree": { "render": "procedural", "sprite": "" }
+		"tree": { "render": "sprite", "sprite": "res://assets/sprites/tree.png" },
+		"great_tree": { "render": "sprite", "sprite": "res://assets/sprites/great_tree.png" }
 	},
 	"_daycycle_comment": "A slow ambient drift from day to dusk and back, driving the warm wash (DayTint) and the vignette. enabled=false freezes it at the first stop (today's static look). period_sec is one full day->dusk->day round trip when loop=true. Set enabled=false to turn it off.",
 	"daycycle": {
