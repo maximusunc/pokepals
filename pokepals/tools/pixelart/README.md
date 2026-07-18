@@ -27,6 +27,7 @@ python walk.py            # walk sheets + walk_demo.gif
 python directions.py      # fox_compass.png + daemon_directions.png
 python animal_motion.py   # animal_motion.png + animal_motion.gif
 python trees.py           # trees.png (tree + great tree, ramp variants)
+python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 ```
 
 ## File guide
@@ -39,6 +40,7 @@ python trees.py           # trees.png (tree + great tree, ramp variants)
 | `directions.py` | 8-directional daemon facing (`make_daemon_facing()`), derived back/diagonal views, hand-drawn fox profile |
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |
 | `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
+| `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
 
 ## Core concepts
 
@@ -191,6 +193,25 @@ daemon back-views are derived), so:
   `RAMPS` (there's `summer`/`pine`/`autumn` already).
 - **New kind (e.g. a stump, a sapling):** add a `LAYOUTS` entry; `make_tree()`
   and the baker pick it up with no other changes.
+
+### Reshape or recolor water (`water.py`)
+Water is a SURFACE, not a silhouette, so its unit is one SEAMLESS TILE the client tiles
+across a pond or river of any size and scrolls a texel at a time (one tile is the whole
+animation). The ripples are *derived* from a `WAVES` field — a couple of horizontal wave
+bands summed at INTEGER frequencies, which is what makes the tile repeat with no seam:
+- **Calmer / busier water:** edit the `WAVES` entries. Lower `amp` = flatter bands; add a
+  wave or raise a `weight` for more chop. `GLINT`/`TROUGH` set how often the surface tips
+  into a bright sparkle or a dark trough. Rerun, eyeball `water.png` (it's tiled 2×2 so any
+  seam jumps out).
+- **Recolor / new kind of water:** add a `(dark, base, light)` entry to `RAMPS` (there's
+  `pond`/`river`/`pool`). `pond` is tuned to `data/art.json`'s palette `water`.
+
+These feed `tools/gen_water.py`, which bakes one tile per variant —
+`assets/sprites/water_{pond,river,pool}.png` — with `.import` sidecars. The game uses them
+the moment `data/art.json`'s `entities.water` / `river` / `pool` name a `tile` image
+(`render: "sprite"`); `world_tile` there sets how many world units one tile spans (bigger =
+chunkier pixels). Remove the entries (or the files) and the water falls back to the old flat
+engine fill. WorldArt enables `texture_repeat` so the tile wraps across the shape.
 
 These feed `tools/gen_trees.py`, which bakes each kind as TWO layers —
 `assets/sprites/{kind}_trunk.png` and `{kind}_canopy.png` (+ ramp variants) — with
