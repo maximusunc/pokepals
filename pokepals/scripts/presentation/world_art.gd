@@ -501,10 +501,10 @@ func _river_bank(rect: Rect2, base_y: float, seed: float) -> PackedVector2Array:
 
 
 ## The vertical wobble of a river bank at world-x `x` — two summed sines (a long lazy bend plus
-## a shorter ripple), a couple dozen px at most. `seed` shifts the phase so the top and bottom
-## banks wave independently instead of mirroring each other.
+## a shorter ripple), only ~10px at most so the shore is subtly uneven, not a pronounced curve.
+## `seed` shifts the phase so the top and bottom banks wave independently, not mirroring.
 func _river_bank_offset(x: float, seed: float) -> float:
-	return 13.0 * sin(x * 0.019 + seed) + 7.0 * sin(x * 0.011 - seed * 1.6)
+	return 7.0 * sin(x * 0.017 + seed) + 3.5 * sin(x * 0.011 - seed * 1.6)
 
 
 ## The Vein — the sunken dry riverbed. A dusty channel band with darker sunken banks top and bottom,
