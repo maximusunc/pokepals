@@ -51,7 +51,7 @@ var _prop_base := {}   # type: String -> Texture2D
 var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
 # These props still animate (flame/glow), so they blit their baked vessel inside their own
 # draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
-const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true }
+const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true }
 
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
@@ -737,19 +737,19 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 				draw_colored_polygon(band, stall_awning if stripe % 2 == 0 else stall_awning_alt)
 			draw_line(p + Vector2(-22, -10), p + Vector2(22, -10), color.darkened(0.25), 1.5)
 		"shopkeeper":
-			# a friendly standing figure behind the counter: an apron-coloured body, a warm head, a
-			# little idle sway so they read as alive rather than a prop
-			var keeper_skin := Color(0.92, 0.76, 0.62)
+			# a friendly standing figure behind the counter, with a little idle bob so they read
+			# as alive rather than a prop. Baked sprite (bobbing) if we have it, else procedural.
 			var keeper_bob := sin(_time * 1.6 + _phase_for(p)) * 1.0
-			# body (apron/robe)
-			var keeper_body := PackedVector2Array([
-				p + Vector2(-7, 8), p + Vector2(7, 8), p + Vector2(5, -8 + keeper_bob), p + Vector2(-5, -8 + keeper_bob)])
-			draw_colored_polygon(keeper_body, color)
-			draw_line(p + Vector2(0, -6 + keeper_bob), p + Vector2(0, 6), color.darkened(0.2), 1.0)
-			# head
-			draw_circle(p + Vector2(0, -14 + keeper_bob), 5.0, keeper_skin)
-			# a little hood/cap of the apron colour
-			draw_arc(p + Vector2(0, -14 + keeper_bob), 5.0, PI, TAU, 12, color.darkened(0.1), 3.0)
+			if _prop_base.has("shopkeeper"):
+				_blit_prop_sprite("shopkeeper", p, color, keeper_bob)
+			else:
+				var keeper_skin := Color(0.92, 0.76, 0.62)
+				var keeper_body := PackedVector2Array([
+					p + Vector2(-7, 8), p + Vector2(7, 8), p + Vector2(5, -8 + keeper_bob), p + Vector2(-5, -8 + keeper_bob)])
+				draw_colored_polygon(keeper_body, color)
+				draw_line(p + Vector2(0, -6 + keeper_bob), p + Vector2(0, 6), color.darkened(0.2), 1.0)
+				draw_circle(p + Vector2(0, -14 + keeper_bob), 5.0, keeper_skin)
+				draw_arc(p + Vector2(0, -14 + keeper_bob), 5.0, PI, TAU, 12, color.darkened(0.1), 3.0)
 		"portal":
 			# an upright shimmering doorway, gently breathing, with sparks circling its rim
 			var center := p + Vector2(0, -18)

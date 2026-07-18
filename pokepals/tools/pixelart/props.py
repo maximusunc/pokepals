@@ -317,6 +317,62 @@ def _b_signpost(c):
     c.outline()
 
 
+def _b_crate(c):
+    # a stacked pair of crates, the whole thing tinted by the crate's own wood colour
+    def box(x0, y0, w, h):
+        for y in range(y0, y0 + h):
+            for x in range(x0, x0 + w):
+                if y == y0:
+                    role = "3"                                   # lit top edge
+                elif x in (x0 + w // 2, x0) or y == y0 + h // 2:
+                    role = "1"                                   # plank seams + left edge
+                else:
+                    role = "2"
+                c.tint_px(x, y, role)
+    box(2, 11, 20, 13)   # main crate on the ground
+    box(5, 2, 13, 10)    # a smaller one stacked on top
+    c.outline()
+
+
+def _b_notice_board(c):
+    # a framed board on two posts, pinned with pale notes (base — its colour barely varies)
+    board = (0.55, 0.45, 0.32)
+    frame = (0.40, 0.32, 0.22)
+    post = (0.32, 0.24, 0.16)
+    for x in range(3, 43):
+        for y in range(2, 30):
+            c.base_px(x, y, _shade(board, 0, y - 16, 16))
+    for x in range(3, 43):                       # top + bottom frame rails
+        c.base_px(x, 2, frame)
+        c.base_px(x, 29, frame)
+    for lx in (6, 39):                           # the two posts
+        for y in range(28, 42):
+            c.base_px(lx, y, post)
+            c.base_px(lx + 1, y, (0.38, 0.29, 0.19))
+    for nx, ny in [(8, 7), (26, 6), (15, 17), (29, 18)]:   # pinned notes, cream w/ a red tack
+        for x in range(nx, nx + 9):
+            for y in range(ny, ny + 8):
+                c.base_px(x, y, (0.93, 0.89, 0.79) if (x > nx and y < ny + 7) else (0.82, 0.78, 0.68))
+        c.base_px(nx + 4, ny + 1, (0.74, 0.22, 0.20))
+    c.outline()
+
+
+def _b_shopkeeper(c):
+    # a friendly figure behind the counter: a tinted apron/robe body, a warm head + a little cap
+    skin = (0.92, 0.76, 0.62)
+    for y in range(11, 24):                       # apron body, widening toward the hem (tint)
+        half = 3 + (y - 11) // 3
+        for x in range(9 - half, 9 + half + 1):
+            role = "3" if x < 9 - half + 2 else ("1" if x > 9 + half - 2 else "2")
+            c.tint_px(x, y, role)
+    c.disc(9, 7, 3.1, lambda x, y, dx, dy: c.base_px(x, y, _shade(skin, dx, dy, 3)))   # head
+    for x in range(6, 13):                        # a little cap of the apron colour
+        c.base_px(x, 4, (0.50, 0.40, 0.30))
+    c.base_px(6, 5, (0.50, 0.40, 0.30))
+    c.base_px(12, 5, (0.50, 0.40, 0.30))
+    c.outline()
+
+
 BUILDERS = {
     "chime_stone": _b_chime_stone,
     "wildflowers": _b_wildflowers,
@@ -326,6 +382,9 @@ BUILDERS = {
     "basin": _b_basin,
     "bench": _b_bench,
     "signpost": _b_signpost,
+    "crate": _b_crate,
+    "notice_board": _b_notice_board,
+    "shopkeeper": _b_shopkeeper,
 }
 
 # Canvas size per builder prop (w, h).
@@ -338,6 +397,9 @@ BUILDER_SIZE = {
     "basin": (22, 18),
     "bench": (26, 16),
     "signpost": (20, 21),
+    "crate": (24, 26),
+    "notice_board": (46, 42),
+    "shopkeeper": (19, 26),
 }
 
 
