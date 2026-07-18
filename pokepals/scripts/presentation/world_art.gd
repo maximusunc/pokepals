@@ -325,22 +325,28 @@ func _draw() -> void:
 	# the Vein: the sunken dry channel, drawn under everything else (props sit on its bed)
 	_draw_vein()
 
-	# the river: a long water band. With a pixel-art tile, fill it with tiled water drifting
-	# downstream; otherwise the flat fill with a couple of drifting ripple lines. Either way a
-	# soft brighter rim marks the bank-side (top) edge where land meets water.
+	# the river: a long water band with gently undulating banks (not a dead-straight edge). With
+	# a pixel-art tile, fill the band with tiled water drifting downstream; otherwise the flat
+	# fill with a couple of drifting ripple lines. Either way a soft brighter rim traces the near
+	# (top) bank where land meets water.
 	if not _river.is_empty():
 		var rrect: Rect2 = _river["rect"]
+		var top_bank := _river_bank(rrect, rrect.position.y, _phase_for(rrect.position))
+		var bot_bank := _river_bank(rrect, rrect.end.y, _phase_for(rrect.end))
+		var band := PackedVector2Array()
+		band.append_array(top_bank)
+		for i in range(bot_bank.size() - 1, -1, -1):  # bottom bank right→left, closing the loop
+			band.append(bot_bank[i])
 		if _river_tex != null:
-			var corners := PackedVector2Array([rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), rrect.end, rrect.position + Vector2(0.0, rrect.size.y)])
-			_fill_water(corners, _river_tex, _river_world_tile, _water_scroll(_river_tex, true))
+			_fill_water(band, _river_tex, _river_world_tile, _water_scroll(_river_tex, true))
 		else:
-			draw_rect(rrect, _river["color"])
+			draw_colored_polygon(band, _river["color"])
 			for k in 3:
 				var ry := rrect.position.y + 16.0 + float(k) * 26.0
 				var drift := fposmod(_time * 12.0 + float(k) * 40.0, rrect.size.x)
 				var rip := Color(0.85, 0.92, 0.95, 0.16)
 				draw_line(rrect.position + Vector2(drift, ry - rrect.position.y), rrect.position + Vector2(minf(drift + 70.0, rrect.size.x), ry - rrect.position.y), rip, 1.5)
-		draw_line(rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
+		draw_polyline(top_bank, Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
 
 	# ponds: a tiled pixel-water surface if we have art, else a flat fill with breathing
 	# ripples. Both keep a lighter rim where the bank meets the water.
@@ -478,6 +484,27 @@ func _water_scroll(tex: Texture2D, flowing: bool) -> Vector2:
 		s = Vector2(sin(_time * 0.42) * 0.035, cos(_time * 0.30) * 0.030)
 	var tw := maxf(1.0, float(tex.get_width()))  # uv 1.0 spans the whole tile (tw texels)
 	return Vector2(round(s.x * tw) / tw, round(s.y * tw) / tw)
+
+
+## Sample one river bank (its top or bottom edge) as a gently undulating line of points along
+## the river's length, so the shore waves a little instead of running dead straight. `base_y`
+## is the straight edge; the wobble comes from _river_bank_offset. Points run left→right, one
+## every ~48px, with the exact right end appended so the band always spans the full width.
+func _river_bank(rect: Rect2, base_y: float, seed: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var x := rect.position.x
+	while x < rect.end.x:
+		pts.append(Vector2(x, base_y + _river_bank_offset(x, seed)))
+		x += 48.0
+	pts.append(Vector2(rect.end.x, base_y + _river_bank_offset(rect.end.x, seed)))
+	return pts
+
+
+## The vertical wobble of a river bank at world-x `x` — two summed sines (a long lazy bend plus
+## a shorter ripple), a couple dozen px at most. `seed` shifts the phase so the top and bottom
+## banks wave independently instead of mirroring each other.
+func _river_bank_offset(x: float, seed: float) -> float:
+	return 13.0 * sin(x * 0.019 + seed) + 7.0 * sin(x * 0.011 - seed * 1.6)
 
 
 ## The Vein — the sunken dry riverbed. A dusty channel band with darker sunken banks top and bottom,
