@@ -43,6 +43,16 @@ var _pool_world_tile := 64.0
 # own colour). Absent → the procedural shimmering ovals in _draw_prop's "portal" case.
 var _portal_tex: Texture2D = null
 
+# Optional pixel-art prop sprites (tools/gen_props.py), keyed by prop type. Each has a BASE
+# layer (fixed materials) and, when its colour is data, a grayscale TINT layer drawn with the
+# instance's colour. Absent for a type → that prop's procedural drawing below. Loaded from the
+# `entities.props` list in art.json (convention: prop_<type>_base/_tint.png).
+var _prop_base := {}   # type: String -> Texture2D
+var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
+# These props still animate (flame/glow), so they blit their baked vessel inside their own
+# draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
+const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true }
+
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_style = style if style != null else ArtStyle.load_style()
@@ -69,6 +79,23 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	if _pond_tex != null or _river_tex != null or _pool_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_portal_tex = SpriteSlot.resolve(_style.entity("portal"), "sprite")
+
+	# Pixel-art prop sprites: for each type listed in entities.props, load its base (and tint)
+	# by convention if the files exist. Missing files just leave the type on procedural drawing.
+	_prop_base.clear()
+	_prop_tint.clear()
+	var props_cfg: Dictionary = _style.entity("props")
+	if String(props_cfg.get("render", "")) == "sprite":
+		var prefix := String(props_cfg.get("prefix", "res://assets/sprites/prop_"))
+		for t in props_cfg.get("types", []):
+			var ty := String(t)
+			var base_path := prefix + ty + "_base.png"
+			if not ResourceLoader.exists(base_path):
+				continue
+			_prop_base[ty] = ResourceLoader.load(base_path)
+			var tint_path := prefix + ty + "_tint.png"
+			if ResourceLoader.exists(tint_path):
+				_prop_tint[ty] = ResourceLoader.load(tint_path)
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -391,6 +418,10 @@ func _draw() -> void:
 		var pulse: float = it["pulse"]
 		if pulse > 0.0:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
+		# stateless props with baked pixel-art get drawn from the sprite and skip the match;
+		# stateful/animated ones (rock, slab, torch, …) fall through to their procedural draw
+		if _try_blit_prop(it):
+			continue
 		match String(it["type"]):
 			"rock":
 				_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
@@ -591,6 +622,33 @@ func _draw_glow(type: String, p: Vector2) -> void:
 	for k in 3:
 		var rr := (34.0 - float(k) * 9.0) * breathe
 		draw_circle(top, rr, Color(warm.r, warm.g, warm.b, 0.07))
+
+
+## Blit a baked prop's sprite, bottom-centred on its ground point `p` (feet on the ground,
+## like the trees/characters). Draws the fixed BASE layer, then the grayscale TINT layer
+## modulated by the instance's `color` (so a lantern globe / mushroom cap / crystal takes the
+## prop's own colour). No-op if this type has no baked base. `lift` nudges it up (an idle bob).
+func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0) -> void:
+	var base: Texture2D = _prop_base.get(type)
+	if base == null:
+		return
+	var sz := base.get_size()
+	var origin := p + Vector2(-sz.x * 0.5, 2.0 - sz.y - lift)
+	draw_texture(base, origin)
+	var tint: Texture2D = _prop_tint.get(type)
+	if tint != null:
+		draw_texture(tint, origin, color)
+
+
+## True (and drawn) if this prop is a plain static type with baked pixel-art — those are drawn
+## straight from the sprite. Animated/stateful types (flame vessels, the hunt rocks, Ruin gates)
+## return false so they keep their procedural draw (the flame ones blit their vessel themselves).
+func _try_blit_prop(it: Dictionary) -> bool:
+	var t := String(it["type"])
+	if _PROP_OVERLAY.has(t) or not _prop_base.has(t):
+		return false
+	_blit_prop_sprite(t, it["pos"], it["color"])
+	return true
 
 
 ## Draw a single interactable prop, shaped by its 'type'. Each is a small, readable
@@ -837,8 +895,11 @@ func _draw_nook(p: Vector2, color: Color, opened: bool, vertical: bool = false) 
 ## you can find it in the gloom, but it reads as spent). KINDLED (opened): it wakes into a bright,
 ## breathing coal with a mote of light hovering above — the thing the companion can carry.
 func _draw_ember(p: Vector2, color: Color, kindled: bool) -> void:
-	# the cracked bowl
-	draw_arc(p + Vector2(0, 2), 9.0, 0.1, PI - 0.1, 14, Color(0.34, 0.30, 0.26), 3.0)
+	# the cracked bowl (baked sprite if we have it, else the procedural arc)
+	if _prop_base.has("ember"):
+		_blit_prop_sprite("ember", p, color)
+	else:
+		draw_arc(p + Vector2(0, 2), 9.0, 0.1, PI - 0.1, 14, Color(0.34, 0.30, 0.26), 3.0)
 	if kindled:
 		var breathe := 0.78 + 0.22 * sin(_time * 3.0)
 		for k in 3:
@@ -857,11 +918,14 @@ func _draw_ember(p: Vector2, color: Color, kindled: bool) -> void:
 ## The Cistern's brazier — a bowl on a stand. COLD: dark and dead. LIT (opened): full of warm flame
 ## with a breathing glow, the moment the companion's carried light catches and the dark lifts.
 func _draw_brazier(p: Vector2, color: Color, lit: bool) -> void:
-	# stand + bowl
-	draw_rect(Rect2(p + Vector2(-2.5, -2), Vector2(5, 16)), color.darkened(0.25))
-	draw_rect(Rect2(p + Vector2(-9, 12), Vector2(18, 3)), color.darkened(0.2))
-	var bowl := PackedVector2Array([p + Vector2(-11, -8), p + Vector2(11, -8), p + Vector2(7, 0), p + Vector2(-7, 0)])
-	draw_colored_polygon(bowl, color.darkened(0.1))
+	# stand + bowl (baked sprite if we have it, else the procedural stand/bowl)
+	if _prop_base.has("brazier"):
+		_blit_prop_sprite("brazier", p, color)
+	else:
+		draw_rect(Rect2(p + Vector2(-2.5, -2), Vector2(5, 16)), color.darkened(0.25))
+		draw_rect(Rect2(p + Vector2(-9, 12), Vector2(18, 3)), color.darkened(0.2))
+		var bowl := PackedVector2Array([p + Vector2(-11, -8), p + Vector2(11, -8), p + Vector2(7, 0), p + Vector2(-7, 0)])
+		draw_colored_polygon(bowl, color.darkened(0.1))
 	if lit:
 		var warm := Color(1.0, 0.78, 0.40)
 		var breathe := 0.8 + 0.2 * sin(_time * _glow_pulse_speed)
@@ -949,7 +1013,10 @@ func _draw_torch(p: Vector2, color: Color) -> void:
 	var flick := 0.72 + 0.18 * sin(_time * 11.0 + p.x) + 0.10 * sin(_time * 23.0 + p.y)
 	for k in 3:                                          # the glow pool
 		draw_circle(p + Vector2(0, -10), (46.0 - float(k) * 13.0) * flick, Color(color.r, color.g, color.b, 0.07))
-	draw_rect(Rect2(p + Vector2(-2, -8), Vector2(4, 14)), Color(0.28, 0.22, 0.16))   # bracket
+	if _prop_base.has("torch"):
+		_blit_prop_sprite("torch", p, color)             # baked bracket + torch head
+	else:
+		draw_rect(Rect2(p + Vector2(-2, -8), Vector2(4, 14)), Color(0.28, 0.22, 0.16))   # bracket
 	var f := sin(_time * 9.0 + p.x) * 1.6
 	draw_colored_polygon(PackedVector2Array([p + Vector2(-4, -8), p + Vector2(4, -8), p + Vector2(f, -22 - 4.0 * flick)]), Color(1.0, 0.64, 0.26))
 	draw_colored_polygon(PackedVector2Array([p + Vector2(-2, -8), p + Vector2(2, -8), p + Vector2(f * 0.5, -16 - 2.0 * flick)]), Color(1.0, 0.86, 0.5))
