@@ -28,6 +28,7 @@ python directions.py      # fox_compass.png + daemon_directions.png
 python animal_motion.py   # animal_motion.png + animal_motion.gif
 python trees.py           # trees.png (tree + great tree, ramp variants)
 python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
+python portal.py          # portal.png (neutral oval + tint swatches)
 ```
 
 ## File guide
@@ -41,6 +42,7 @@ python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |
 | `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
+| `portal.py` | World doorways: a neutral (grayscale) radial energy oval, ordered-dithered into chunky pixel bands, tinted per-portal in the client, `make_portal()` |
 
 ## Core concepts
 
@@ -212,6 +214,22 @@ the moment `data/art.json`'s `entities.water` / `river` / `pool` name a `tile` i
 (`render: "sprite"`); `world_tile` there sets how many world units one tile spans (bigger =
 chunkier pixels). Remove the entries (or the files) and the water falls back to the old flat
 engine fill. WorldArt enables `texture_repeat` so the tile wraps across the shape.
+
+### Recolor or reshape a portal (`portal.py`)
+A portal is the odd one out: it's baked GRAYSCALE, because every portal in the world carries
+its own color as data (a gold sun-warmed archway, a green hedge-gap, a purple shimmer, a blue
+way-home). The client tints the one neutral sprite per-portal with `modulate`, so a value-v
+pixel becomes `v * color` — the bright core lands on the full hue, the dark rim on a deep shade
+of it. Unlike a solid object it's shaded RADIALLY (it's energy, not lit from a side), and the
+bands are ordered-dithered so the gradient reads as chunky pixels; the edge feathers out with a
+stipple. The breathing pulse and the orbiting sparks stay procedural in WorldArt.
+- **Bigger / rounder / brighter:** edit `W,H`/`RX,RY` (the oval), `LEVELS` (how many value
+  bands), or the `1.0 - 0.72*d` falloff and the `d < 0.22` solid core. Rerun, eyeball
+  `portal.png` (it renders the neutral sprite plus real-color tint swatches on grass).
+
+This feeds `tools/gen_portal.py`, which bakes `assets/sprites/portal.png` with a `.import`
+sidecar. The game uses it the moment `data/art.json`'s `entities.portal` names a `sprite`
+(`render: "sprite"`); remove it and portals fall back to the procedural shimmering ovals.
 
 These feed `tools/gen_trees.py`, which bakes each kind as TWO layers —
 `assets/sprites/{kind}_trunk.png` and `{kind}_canopy.png` (+ ramp variants) — with
