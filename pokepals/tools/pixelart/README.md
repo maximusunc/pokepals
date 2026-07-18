@@ -29,6 +29,7 @@ python animal_motion.py   # animal_motion.png + animal_motion.gif
 python trees.py           # trees.png (tree + great tree, ramp variants)
 python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 python portal.py          # portal.png (neutral oval + tint swatches)
+python props.py           # props.png (every small prop, demo-tinted, on grass)
 ```
 
 ## File guide
@@ -43,6 +44,7 @@ python portal.py          # portal.png (neutral oval + tint swatches)
 | `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
 | `portal.py` | World doorways: a neutral (grayscale) radial energy oval, ordered-dithered into chunky pixel bands, tinted per-portal in the client, `make_portal()` |
+| `props.py` | The world's small hand-placed things (lanterns, crystals, mushrooms, benches, crates, stonework…): ASCII maps + a procedural Canvas, each baked into a BASE layer + an optional grayscale TINT layer, `make_prop_parts()` |
 
 ## Core concepts
 
@@ -230,6 +232,33 @@ stipple. The breathing pulse and the orbiting sparks stay procedural in WorldArt
 This feeds `tools/gen_portal.py`, which bakes `assets/sprites/portal.png` with a `.import`
 sidecar. The game uses it the moment `data/art.json`'s `entities.portal` names a `sprite`
 (`render: "sprite"`); remove it and portals fall back to the procedural shimmering ovals.
+
+### Add or edit a small prop (`props.py`)
+The world's small hand-placed things share one module with a **two-layer** output, mirroring
+the tree trunk/canopy split: a **base** layer of fixed materials (wood, stone) plus the shared
+1px outline, and an optional **tint** layer — the one part whose colour is *data* on the prop
+(a lantern globe, a mushroom cap, a signpost board, a crate), authored grayscale and drawn by
+the client with `modulate = the instance's colour`. A prop with no coloured part has no tint
+layer; a prop that's all colour (a crystal) has a base holding only the outline.
+
+Two ways to author, both producing the same base/tint pair:
+- **ASCII map** (`PROPS`): '.' transparent, letters → a fixed palette colour, digits `1/2/3`
+  → tint dark/base/light. Best for boxy, deliberate shapes (the lantern, the fire vessels).
+  Miscount a row and the import assert says exactly which one.
+- **Procedural `Canvas`** (`BUILDERS` + `BUILDER_SIZE`): `disc`/`rect` primitives with
+  `_role`/`_shade` for top-left lit shading. Best for round/organic shapes (cairn, log, basin,
+  mushrooms, stonework) where hand-counting curves is error-prone.
+
+Animated props keep their motion procedural in WorldArt and only bake the still part: the
+flame **vessels** (torch/ember/brazier) blit their bowl/bracket then draw the flame; the
+**shopkeeper** blits with a `lift` for the idle bob; the **carving** blits then draws its
+catch-light. These are listed in WorldArt's `_PROP_OVERLAY`.
+
+These feed `tools/gen_props.py`, which bakes `assets/sprites/prop_<name>_base.png` (+ `_tint`)
+with `.import` sidecars. The game uses a prop the moment its type is in `data/art.json`'s
+`entities.props.types`; drop a type from that list (or delete the file) and it falls back to
+that prop's procedural drawing. Everything is bottom-anchored (feet on the prop's ground point,
+like the trees). `rock` and `stall` are intentionally still procedural (multi-state / animated).
 
 These feed `tools/gen_trees.py`, which bakes each kind as TWO layers —
 `assets/sprites/{kind}_trunk.png` and `{kind}_canopy.png` (+ ramp variants) — with
