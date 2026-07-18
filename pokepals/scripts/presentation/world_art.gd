@@ -898,6 +898,9 @@ func _draw_nook(p: Vector2, color: Color, opened: bool, vertical: bool = false) 
 ## breathing coal with a mote of light hovering above — the thing the companion can carry.
 func _draw_ember(p: Vector2, color: Color, kindled: bool) -> void:
 	# the cracked bowl (baked sprite if we have it, else the procedural arc)
+	# the coals/mote follow the bowl: when we blit the baked bowl (dropped to the p+8 ground
+	# plane) they drop with it so they stay in the bowl rather than hovering above it.
+	var bp := (p + Vector2(0, 6.0)) if _prop_base.has("ember") else p
 	if _prop_base.has("ember"):
 		_blit_prop_sprite("ember", p, color)
 	else:
@@ -905,22 +908,25 @@ func _draw_ember(p: Vector2, color: Color, kindled: bool) -> void:
 	if kindled:
 		var breathe := 0.78 + 0.22 * sin(_time * 3.0)
 		for k in 3:
-			draw_circle(p + Vector2(0, -2), (16.0 - float(k) * 5.0) * breathe, Color(color.r, color.g, color.b, 0.10))
-		draw_circle(p + Vector2(0, -1), 5.5, color)
-		draw_circle(p + Vector2(-1, -2), 2.5, Color(1, 0.95, 0.8))
+			draw_circle(bp + Vector2(0, -2), (16.0 - float(k) * 5.0) * breathe, Color(color.r, color.g, color.b, 0.10))
+		draw_circle(bp + Vector2(0, -1), 5.5, color)
+		draw_circle(bp + Vector2(-1, -2), 2.5, Color(1, 0.95, 0.8))
 		# the carryable mote, hovering
 		var bob := sin(_time * 2.2) * 2.0
-		draw_circle(p + Vector2(0, -16 + bob), 3.0, Color(1.0, 0.92, 0.7, 0.9))
-		draw_circle(p + Vector2(0, -16 + bob), 6.0, Color(1.0, 0.9, 0.6, 0.18))
+		draw_circle(bp + Vector2(0, -16 + bob), 3.0, Color(1.0, 0.92, 0.7, 0.9))
+		draw_circle(bp + Vector2(0, -16 + bob), 6.0, Color(1.0, 0.9, 0.6, 0.18))
 	else:
-		draw_circle(p + Vector2(0, -1), 5.0, Color(0.22, 0.16, 0.14))
-		draw_circle(p + Vector2(-1, -2), 1.6, Color(0.55, 0.22, 0.14, 0.7 + 0.2 * sin(_time * 1.5)))
+		draw_circle(bp + Vector2(0, -1), 5.0, Color(0.22, 0.16, 0.14))
+		draw_circle(bp + Vector2(-1, -2), 1.6, Color(0.55, 0.22, 0.14, 0.7 + 0.2 * sin(_time * 1.5)))
 
 
 ## The Cistern's brazier — a bowl on a stand. COLD: dark and dead. LIT (opened): full of warm flame
 ## with a breathing glow, the moment the companion's carried light catches and the dark lifts.
 func _draw_brazier(p: Vector2, color: Color, lit: bool) -> void:
 	# stand + bowl (baked sprite if we have it, else the procedural stand/bowl)
+	# the flame/coals follow the bowl: when we blit the baked bowl (dropped to the p+8 ground
+	# plane) they drop with it so the fire sits in the bowl rather than above it.
+	var fp := (p + Vector2(0, 6.0)) if _prop_base.has("brazier") else p
 	if _prop_base.has("brazier"):
 		_blit_prop_sprite("brazier", p, color)
 	else:
@@ -932,16 +938,16 @@ func _draw_brazier(p: Vector2, color: Color, lit: bool) -> void:
 		var warm := Color(1.0, 0.78, 0.40)
 		var breathe := 0.8 + 0.2 * sin(_time * _glow_pulse_speed)
 		for k in 3:
-			draw_circle(p + Vector2(0, -10), (40.0 - float(k) * 11.0) * breathe, Color(warm.r, warm.g, warm.b, 0.08))
+			draw_circle(fp + Vector2(0, -10), (40.0 - float(k) * 11.0) * breathe, Color(warm.r, warm.g, warm.b, 0.08))
 		# a couple of flame tongues
 		var f := sin(_time * 6.0) * 2.0
-		draw_colored_polygon(PackedVector2Array([p + Vector2(-6, -8), p + Vector2(0, -8), p + Vector2(-2 + f, -22)]), Color(1.0, 0.66, 0.28))
-		draw_colored_polygon(PackedVector2Array([p + Vector2(0, -8), p + Vector2(7, -8), p + Vector2(3 + f, -19)]), Color(1.0, 0.80, 0.42))
-		draw_circle(p + Vector2(0, -9), 4.0, Color(1, 0.95, 0.8))
+		draw_colored_polygon(PackedVector2Array([fp + Vector2(-6, -8), fp + Vector2(0, -8), fp + Vector2(-2 + f, -22)]), Color(1.0, 0.66, 0.28))
+		draw_colored_polygon(PackedVector2Array([fp + Vector2(0, -8), fp + Vector2(7, -8), fp + Vector2(3 + f, -19)]), Color(1.0, 0.80, 0.42))
+		draw_circle(fp + Vector2(0, -9), 4.0, Color(1, 0.95, 0.8))
 	else:
 		# cold coals
-		draw_circle(p + Vector2(-3, -7), 2.2, Color(0.18, 0.18, 0.18))
-		draw_circle(p + Vector2(3, -7), 2.2, Color(0.16, 0.16, 0.16))
+		draw_circle(fp + Vector2(-3, -7), 2.2, Color(0.18, 0.18, 0.18))
+		draw_circle(fp + Vector2(3, -7), 2.2, Color(0.16, 0.16, 0.16))
 
 
 ## A wall carving. LOST IN THE DARK: barely-there scratches. REVEALED (opened, once the brazier lights):
@@ -1017,18 +1023,21 @@ func _draw_carving(p: Vector2, color: Color) -> void:
 
 ## A wall TORCH — sconce + a flickering warm flame and a breathing glow pool (animation). Placeholder.
 func _draw_torch(p: Vector2, color: Color) -> void:
+	# the flame follows the vessel: when we blit the baked bracket (dropped to the p+8 ground
+	# plane) the flame drops with it, so it keeps sitting on the torch head, not floating above.
+	var fp := (p + Vector2(0, 6.0)) if _prop_base.has("torch") else p
 	# a fast, irregular flicker from two out-of-phase sines (cheap "fire")
 	var flick := 0.72 + 0.18 * sin(_time * 11.0 + p.x) + 0.10 * sin(_time * 23.0 + p.y)
 	for k in 3:                                          # the glow pool
-		draw_circle(p + Vector2(0, -10), (46.0 - float(k) * 13.0) * flick, Color(color.r, color.g, color.b, 0.07))
+		draw_circle(fp + Vector2(0, -10), (46.0 - float(k) * 13.0) * flick, Color(color.r, color.g, color.b, 0.07))
 	if _prop_base.has("torch"):
 		_blit_prop_sprite("torch", p, color)             # baked bracket + torch head
 	else:
 		draw_rect(Rect2(p + Vector2(-2, -8), Vector2(4, 14)), Color(0.28, 0.22, 0.16))   # bracket
 	var f := sin(_time * 9.0 + p.x) * 1.6
-	draw_colored_polygon(PackedVector2Array([p + Vector2(-4, -8), p + Vector2(4, -8), p + Vector2(f, -22 - 4.0 * flick)]), Color(1.0, 0.64, 0.26))
-	draw_colored_polygon(PackedVector2Array([p + Vector2(-2, -8), p + Vector2(2, -8), p + Vector2(f * 0.5, -16 - 2.0 * flick)]), Color(1.0, 0.86, 0.5))
-	draw_circle(p + Vector2(0, -9), 2.2, Color(1, 0.95, 0.8))
+	draw_colored_polygon(PackedVector2Array([fp + Vector2(-4, -8), fp + Vector2(4, -8), fp + Vector2(f, -22 - 4.0 * flick)]), Color(1.0, 0.64, 0.26))
+	draw_colored_polygon(PackedVector2Array([fp + Vector2(-2, -8), fp + Vector2(2, -8), fp + Vector2(f * 0.5, -16 - 2.0 * flick)]), Color(1.0, 0.86, 0.5))
+	draw_circle(fp + Vector2(0, -9), 2.2, Color(1, 0.95, 0.8))
 
 
 ## ROOTS prying up the old flagstones — the wood reclaiming the stone. Non-solid overgrowth.
