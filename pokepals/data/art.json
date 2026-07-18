@@ -25,6 +25,8 @@
 		"pool": { "render": "sprite", "tile": "res://assets/sprites/water_pool.png", "world_tile": 64 },
 		"_portal_comment": "A neutral (grayscale) energy oval (tools/gen_portal.py); WorldArt tints it per-portal with the portal's own color and keeps the breathing pulse + orbiting sparks procedural. A missing file falls back to the procedural shimmering ovals.",
 		"portal": { "render": "sprite", "sprite": "res://assets/sprites/portal.png" },
+		"_hedge_comment": "A seamless leafy tile (tools/gen_hedge.py) tiled along the maze's axis-aligned hedge walls: the shaded front face (tile darkened) + the sunlit top (tile shifted up). world_tile is how many world units one tile spans. A missing file falls back to the flat-green procedural hedges.",
+		"hedge": { "render": "sprite", "tile": "res://assets/sprites/hedge.png", "world_tile": 44 },
 		"_props_comment": "Small hand-placed props as baked pixel-art (tools/gen_props.py). For each type listed, WorldArt loads prop_<type>_base.png (fixed materials) and, if present, prop_<type>_tint.png (the part whose color is data, drawn tinted by the prop's own color). Any missing file falls back to that prop's procedural drawing. Remove a type from the list to force procedural.",
 		"props": { "render": "sprite", "prefix": "res://assets/sprites/prop_", "types": ["crystal", "lantern", "torch", "ember", "brazier", "chime_stone", "wildflowers", "mushrooms", "berry_bush", "log", "basin", "bench", "signpost", "crate", "notice_board", "shopkeeper", "column", "broken_pillar", "rubble_pile", "carving"] }
 	},

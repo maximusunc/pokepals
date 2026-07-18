@@ -39,6 +39,10 @@ var _pool_tex: Texture2D = null
 var _pond_world_tile := 64.0
 var _river_world_tile := 64.0
 var _pool_world_tile := 64.0
+# Optional seamless leafy hedge tile (tools/gen_hedge.py), tiled along the maze walls.
+# Absent → the flat-green procedural hedges below.
+var _hedge_tex: Texture2D = null
+var _hedge_world_tile := 44.0
 # Optional grayscale portal sprite — tinted per-portal at draw time (each portal carries its
 # own colour). Absent → the procedural shimmering ovals in _draw_prop's "portal" case.
 var _portal_tex: Texture2D = null
@@ -76,7 +80,10 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_pond_world_tile = float(water_cfg.get("world_tile", 64.0))
 	_river_world_tile = float(river_cfg.get("world_tile", 64.0))
 	_pool_world_tile = float(pool_cfg.get("world_tile", 64.0))
-	if _pond_tex != null or _river_tex != null or _pool_tex != null:
+	var hedge_cfg: Dictionary = _style.entity("hedge")
+	_hedge_tex = SpriteSlot.resolve(hedge_cfg, "tile")
+	_hedge_world_tile = float(hedge_cfg.get("world_tile", 44.0))
+	if _pond_tex != null or _river_tex != null or _pool_tex != null or _hedge_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_portal_tex = SpriteSlot.resolve(_style.entity("portal"), "sprite")
 
@@ -586,12 +593,49 @@ func _draw_hedges() -> void:
 	var hi := Color(0.41, 0.61, 0.34)
 	for h in _hedges:
 		draw_line(h["a"] + Vector2(5, 8), h["b"] + Vector2(5, 8), shadow, float(h["t"]) + 2.0)
+	if _hedge_tex != null:
+		# leafy pixel foliage: the shaded front face (tile darkened), then the sunlit top
+		# (same tile, shifted up), then the thin bright top edge.
+		for h in _hedges:
+			_fill_hedge_seg(h, Vector2.ZERO, Color(0.62, 0.62, 0.62))
+		for h in _hedges:
+			_fill_hedge_seg(h, lift, Color(1, 1, 1))
+		for h in _hedges:
+			draw_line(h["a"] + lift + Vector2(0, -1), h["b"] + lift + Vector2(0, -1), hi, float(h["t"]) * 0.42)
+		return
+	# flat-green fallback: front face, sunlit top (shifted up), thin top highlight
 	for h in _hedges:
 		draw_line(h["a"], h["b"], front, float(h["t"]))
 	for h in _hedges:
 		draw_line(h["a"] + lift, h["b"] + lift, top, float(h["t"]))
 	for h in _hedges:
 		draw_line(h["a"] + lift + Vector2(0, -1), h["b"] + lift + Vector2(0, -1), hi, float(h["t"]) * 0.42)
+
+
+## The world-space rectangle a hedge run covers (its thick line as a rect). Every maze run is
+## axis-aligned, so this is just the segment grown by half its thickness across its short axis.
+func _hedge_rect(h: Dictionary) -> Rect2:
+	var a: Vector2 = h["a"]
+	var b: Vector2 = h["b"]
+	var t: float = h["t"]
+	if absf(a.y - b.y) < 0.5:   # horizontal run
+		var x0 := minf(a.x, b.x)
+		return Rect2(x0, a.y - t * 0.5, maxf(a.x, b.x) - x0, t)
+	var y0 := minf(a.y, b.y)    # vertical run
+	return Rect2(a.x - t * 0.5, y0, t, maxf(a.y, b.y) - y0)
+
+
+## Fill a hedge run's rect (shifted by `offset` for the raised top) with the tiled leafy
+## texture, modulated by `mod` (the front face darkens it). UVs are world position in
+## tile-units so the foliage flows continuously across abutting runs (texture_repeat wraps).
+func _fill_hedge_seg(h: Dictionary, offset: Vector2, mod: Color) -> void:
+	var r := _hedge_rect(h)
+	r.position += offset
+	var pts := PackedVector2Array([r.position, r.position + Vector2(r.size.x, 0.0), r.end, r.position + Vector2(0.0, r.size.y)])
+	var uvs := PackedVector2Array()
+	for p in pts:
+		uvs.append(p / _hedge_world_tile)
+	draw_colored_polygon(pts, mod, uvs, _hedge_tex)
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as
