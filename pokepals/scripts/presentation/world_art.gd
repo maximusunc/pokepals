@@ -633,7 +633,9 @@ func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0) -> v
 	if base == null:
 		return
 	var sz := base.get_size()
-	var origin := p + Vector2(-sz.x * 0.5, 2.0 - sz.y - lift)
+	# Feet at p + 8, matching the player/companion ground plane (SpriteSlot.draw), so props
+	# sit ON the ground next to the characters instead of floating a few px above it.
+	var origin := p + Vector2(-sz.x * 0.5, 8.0 - sz.y - lift)
 	draw_texture(base, origin)
 	var tint: Texture2D = _prop_tint.get(type)
 	if tint != null:
