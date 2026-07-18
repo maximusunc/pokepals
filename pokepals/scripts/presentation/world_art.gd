@@ -39,6 +39,9 @@ var _pool_tex: Texture2D = null
 var _pond_world_tile := 64.0
 var _river_world_tile := 64.0
 var _pool_world_tile := 64.0
+# Optional grayscale portal sprite — tinted per-portal at draw time (each portal carries its
+# own colour). Absent → the procedural shimmering ovals in _draw_prop's "portal" case.
+var _portal_tex: Texture2D = null
 
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
@@ -65,6 +68,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_pool_world_tile = float(pool_cfg.get("world_tile", 64.0))
 	if _pond_tex != null or _river_tex != null or _pool_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	_portal_tex = SpriteSlot.resolve(_style.entity("portal"), "sprite")
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -689,17 +693,28 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# a little hood/cap of the apron colour
 			draw_arc(p + Vector2(0, -14 + keeper_bob), 5.0, PI, TAU, 12, color.darkened(0.1), 3.0)
 		"portal":
-			# an upright shimmering oval doorway, gently breathing, with sparks circling its rim
-			var sway := 0.9 + 0.1 * sin(_time * 2.0)
+			# an upright shimmering doorway, gently breathing, with sparks circling its rim
 			var center := p + Vector2(0, -18)
-			draw_set_transform(center, 0.0, Vector2(1.0, 1.9))
-			draw_circle(Vector2.ZERO, 13.0, Color(color.r, color.g, color.b, 0.22))
-			draw_circle(Vector2.ZERO, 10.0 * sway, Color(color.r, color.g, color.b, 0.5))
-			draw_circle(Vector2.ZERO, 6.0 * sway, Color(1, 1, 1, 0.35))
-			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-			for k in 3:
-				var ang := _time * 1.6 + float(k) * TAU / 3.0
-				draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
+			if _portal_tex != null:
+				# the baked pixel-art energy oval, tinted this portal's colour; its alpha breathes
+				var breathe := 0.82 + 0.18 * sin(_time * 2.0)
+				var sz := _portal_tex.get_size()
+				draw_texture(_portal_tex, center - sz * 0.5, Color(color.r, color.g, color.b, breathe))
+				draw_circle(center, 3.0 + 0.8 * sin(_time * 2.0), Color(1, 1, 1, 0.5))  # hot core pulse
+				for k in 3:
+					var ang := _time * 1.6 + float(k) * TAU / 3.0
+					draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
+			else:
+				# procedural fallback: upright shimmering ovals, gently breathing, sparks circling
+				var sway := 0.9 + 0.1 * sin(_time * 2.0)
+				draw_set_transform(center, 0.0, Vector2(1.0, 1.9))
+				draw_circle(Vector2.ZERO, 13.0, Color(color.r, color.g, color.b, 0.22))
+				draw_circle(Vector2.ZERO, 10.0 * sway, Color(color.r, color.g, color.b, 0.5))
+				draw_circle(Vector2.ZERO, 6.0 * sway, Color(1, 1, 1, 0.35))
+				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+				for k in 3:
+					var ang := _time * 1.6 + float(k) * TAU / 3.0
+					draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
 		# ── The Thousand-Knot Bazaar: the five Vanes (one tall landmark per Knot, the skyline compass),
 		# the Knuckle furniture (dry well, notice-board, shrine), the wet-boots wanderer, and cargo crates.
 		# Each is a small placeholder silhouette; the Vanes are drawn tall so they read as "steer by me".

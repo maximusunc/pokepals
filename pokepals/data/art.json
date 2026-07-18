@@ -22,7 +22,9 @@
 		"_water_comment": "Water is a SURFACE, not a silhouette: one seamless tile (tools/gen_water.py) that WorldArt tiles across each pond/river/pool and scrolls a texel at a time. 'tile' names the image; 'world_tile' is how many world units one tile spans (bigger = chunkier pixels); a missing tile falls back to the old flat fill. See tools/pixelart/water.py.",
 		"water": { "render": "sprite", "tile": "res://assets/sprites/water_pond.png", "world_tile": 64 },
 		"river": { "render": "sprite", "tile": "res://assets/sprites/water_river.png", "world_tile": 64 },
-		"pool": { "render": "sprite", "tile": "res://assets/sprites/water_pool.png", "world_tile": 64 }
+		"pool": { "render": "sprite", "tile": "res://assets/sprites/water_pool.png", "world_tile": 64 },
+		"_portal_comment": "A neutral (grayscale) energy oval (tools/gen_portal.py); WorldArt tints it per-portal with the portal's own color and keeps the breathing pulse + orbiting sparks procedural. A missing file falls back to the procedural shimmering ovals.",
+		"portal": { "render": "sprite", "sprite": "res://assets/sprites/portal.png" }
 	},
 	"_daycycle_comment": "A slow ambient drift from day to dusk and back, driving the warm wash (DayTint) and the vignette. enabled=false freezes it at the first stop (today's static look). period_sec is one full day->dusk->day round trip when loop=true. Set enabled=false to turn it off.",
 	"daycycle": {
