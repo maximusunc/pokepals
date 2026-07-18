@@ -373,6 +373,59 @@ def _b_shopkeeper(c):
     c.outline()
 
 
+def _b_column(c):
+    # a stout stone stump with a jagged broken crown, and a toppled drum at its base (tint stone)
+    x0, w = 4, 16
+    tops = [10, 8, 9, 7, 8, 9, 8, 10, 9, 8, 7, 9, 8, 9, 10, 8]
+    for i in range(w):
+        for y in range(tops[i], 33):
+            role = "3" if i < 3 else ("1" if i > w - 4 else "2")
+            c.tint_px(x0 + i, y, role)
+    c.disc(27.0, 29.0, 4.4, lambda x, y, dx, dy: c.tint_px(x, y, _role(dx, dy, 4.4)))
+    c.tint_px(27, 29, "1")   # the drum's hollow end
+    c.outline()
+
+
+def _b_broken_pillar(c):
+    # a fallen column lying on its side: a long drum, a near end-face, and the stump it broke from
+    for x in range(6, 38):
+        for y in range(6, 14):
+            c.tint_px(x, y, "3" if y == 6 else ("1" if y >= 12 else "2"))
+    c.disc(6.0, 10.0, 4.2, lambda x, y, dx, dy: c.tint_px(x, y, _role(dx, dy, 4.2)))  # end-face
+    c.tint_px(6, 10, "1")
+    for x in range(38, 44):                       # the broken stump at the far end
+        for y in range(4, 16):
+            c.tint_px(x, y, "3" if x == 38 else "2")
+    c.outline()
+
+
+def _b_rubble_pile(c):
+    # a low heap of fallen stone (tint stone)
+    for cx, cy, r in [(6.0, 15.0, 5.0), (22.0, 16.0, 4.6), (14.0, 12.0, 5.6),
+                      (10.0, 9.0, 3.0), (19.0, 11.0, 2.7)]:
+        c.disc(cx, cy, r, lambda x, y, dx, dy, rr=r: c.tint_px(x, y, _role(dx, dy, rr)))
+    c.outline()
+
+
+def _b_carving(c):
+    # a recessed wall relief: two figures + a companion in stone (base — the "look here"
+    # catch-light stays procedural in _draw_carving). Baked in fixed stone tones.
+    panel = (0.46, 0.48, 0.48)
+    recess = (0.30, 0.32, 0.32)
+    fig = (0.58, 0.60, 0.58)
+    for x in range(2, 34):
+        for y in range(2, 42):
+            edge = x < 4 or x > 31 or y < 4 or y > 39
+            c.base_px(x, y, panel if edge else recess)
+    for sx in (12, 23):                           # two figures side by side
+        for y in range(20, 34):
+            for dx in (-1, 0, 1):
+                c.base_px(sx + dx, y, fig)
+        c.disc(sx, 17.0, 2.3, lambda x, y, dx, dy: c.base_px(x, y, fig))
+    c.disc(17.0, 34.0, 2.2, lambda x, y, dx, dy: c.base_px(x, y, fig))  # a companion between them
+    c.outline()
+
+
 BUILDERS = {
     "chime_stone": _b_chime_stone,
     "wildflowers": _b_wildflowers,
@@ -385,6 +438,10 @@ BUILDERS = {
     "crate": _b_crate,
     "notice_board": _b_notice_board,
     "shopkeeper": _b_shopkeeper,
+    "column": _b_column,
+    "broken_pillar": _b_broken_pillar,
+    "rubble_pile": _b_rubble_pile,
+    "carving": _b_carving,
 }
 
 # Canvas size per builder prop (w, h).
@@ -400,6 +457,10 @@ BUILDER_SIZE = {
     "crate": (24, 26),
     "notice_board": (46, 42),
     "shopkeeper": (19, 26),
+    "column": (34, 35),
+    "broken_pillar": (46, 18),
+    "rubble_pile": (28, 20),
+    "carving": (36, 44),
 }
 
 

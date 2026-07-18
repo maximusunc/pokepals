@@ -51,7 +51,7 @@ var _prop_base := {}   # type: String -> Texture2D
 var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
 # These props still animate (flame/glow), so they blit their baked vessel inside their own
 # draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
-const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true }
+const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true, "carving": true }
 
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
@@ -996,15 +996,21 @@ func _draw_stairs(p: Vector2, color: Color) -> void:
 ## A wall CARVING / relief panel — the ruin's story, told in stone. Two figures and a companion shape,
 ## faint until you're close. Examinable (the spec label carries the line). Placeholder for a real relief.
 func _draw_carving(p: Vector2, color: Color) -> void:
-	draw_rect(Rect2(p + Vector2(-17, -24), Vector2(34, 42)), color.darkened(0.35))   # the recessed panel
-	draw_rect(Rect2(p + Vector2(-15, -22), Vector2(30, 38)), color.darkened(0.18))
-	var c := Color(color.r, color.g, color.b, 0.85)
-	for sx in [-7, 7]:                                  # two figures, side by side
-		draw_rect(Rect2(p + Vector2(sx - 2, -12), Vector2(4, 13)), c)
-		draw_circle(p + Vector2(sx, -15), 2.6, c)
-	draw_circle(p + Vector2(0, 6), 2.6, c)             # a companion shape between/below them
-	# a faint catch-light so it reads as "look here"
-	draw_arc(p + Vector2(0, -3), 13.0, PI * 1.1, PI * 1.9, 14, Color(0.9, 0.86, 0.7, 0.10 + 0.06 * sin(_time * 1.3)), 1.5)
+	# a faint catch-light so it reads as "look here" (procedural over sprite or fallback); its
+	# height differs because the sprite is feet-anchored while the fallback is centred on p.
+	var glint := Color(0.9, 0.86, 0.7, 0.10 + 0.06 * sin(_time * 1.3))
+	if _prop_base.has("carving"):
+		_blit_prop_sprite("carving", p, color)
+		draw_arc(p + Vector2(0, -22), 13.0, PI * 1.1, PI * 1.9, 14, glint, 1.5)
+	else:
+		draw_rect(Rect2(p + Vector2(-17, -24), Vector2(34, 42)), color.darkened(0.35))   # the recessed panel
+		draw_rect(Rect2(p + Vector2(-15, -22), Vector2(30, 38)), color.darkened(0.18))
+		var c := Color(color.r, color.g, color.b, 0.85)
+		for sx in [-7, 7]:                                  # two figures, side by side
+			draw_rect(Rect2(p + Vector2(sx - 2, -12), Vector2(4, 13)), c)
+			draw_circle(p + Vector2(sx, -15), 2.6, c)
+		draw_circle(p + Vector2(0, 6), 2.6, c)             # a companion shape between/below them
+		draw_arc(p + Vector2(0, -3), 13.0, PI * 1.1, PI * 1.9, 14, glint, 1.5)
 
 
 ## A wall TORCH — sconce + a flickering warm flame and a breathing glow pool (animation). Placeholder.
