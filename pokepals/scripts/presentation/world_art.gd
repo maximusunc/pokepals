@@ -325,39 +325,47 @@ func _draw() -> void:
 	# the Vein: the sunken dry channel, drawn under everything else (props sit on its bed)
 	_draw_vein()
 
-	# the river: a long water band. With a pixel-art tile, fill it with tiled water drifting
-	# downstream; otherwise the flat fill with a couple of drifting ripple lines. Either way a
-	# soft brighter rim marks the bank-side (top) edge where land meets water.
+	# the river: a long water band with gently undulating banks (not a dead-straight edge). With
+	# a pixel-art tile, fill the band with tiled water drifting downstream; otherwise the flat
+	# fill with a couple of drifting ripple lines. Either way a soft brighter rim traces the near
+	# (top) bank where land meets water.
 	if not _river.is_empty():
 		var rrect: Rect2 = _river["rect"]
+		var top_bank := _river_bank(rrect, rrect.position.y, _phase_for(rrect.position))
+		var bot_bank := _river_bank(rrect, rrect.end.y, _phase_for(rrect.end))
+		var band := PackedVector2Array()
+		band.append_array(top_bank)
+		for i in range(bot_bank.size() - 1, -1, -1):  # bottom bank right→left, closing the loop
+			band.append(bot_bank[i])
 		if _river_tex != null:
-			var corners := PackedVector2Array([rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), rrect.end, rrect.position + Vector2(0.0, rrect.size.y)])
-			_fill_water(corners, _river_tex, _river_world_tile, _water_scroll(_river_tex, true))
+			_fill_water(band, _river_tex, _river_world_tile, _water_scroll(_river_tex, true))
 		else:
-			draw_rect(rrect, _river["color"])
+			draw_colored_polygon(band, _river["color"])
 			for k in 3:
 				var ry := rrect.position.y + 16.0 + float(k) * 26.0
 				var drift := fposmod(_time * 12.0 + float(k) * 40.0, rrect.size.x)
 				var rip := Color(0.85, 0.92, 0.95, 0.16)
 				draw_line(rrect.position + Vector2(drift, ry - rrect.position.y), rrect.position + Vector2(minf(drift + 70.0, rrect.size.x), ry - rrect.position.y), rip, 1.5)
-		draw_line(rrect.position, rrect.position + Vector2(rrect.size.x, 0.0), Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
+		draw_polyline(top_bank, Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
 
 	# ponds: a tiled pixel-water surface if we have art, else a flat fill with breathing
 	# ripples. Both keep a lighter rim where the bank meets the water.
 	for pond in _ponds:
 		var center: Vector2 = pond["center"]
 		var radius: float = pond["radius"]
-		if cull and not vis.intersects(Rect2(center - Vector2(radius, radius), Vector2(radius, radius) * 2.0)):
+		var rmax := radius * 1.25  # the organic bank can bulge past the nominal radius
+		if cull and not vis.intersects(Rect2(center - Vector2(rmax, rmax), Vector2(rmax, rmax) * 2.0)):
 			continue
+		var ring := _organic_ring(center, radius, _phase_for(center))
 		if _pond_tex != null:
-			_fill_water(_circle_points(center, radius), _pond_tex, _pond_world_tile, _water_scroll(_pond_tex, false))
+			_fill_water(ring, _pond_tex, _pond_world_tile, _water_scroll(_pond_tex, false))
 		else:
-			draw_circle(center, radius, pond["color"])
+			draw_colored_polygon(ring, pond["color"])
 			for k in 2:
 				var t := fposmod(_time * 0.25 + float(k) * 0.5, 1.0)
 				var rr := radius * (0.25 + 0.7 * t)
 				draw_arc(center, rr, 0.0, TAU, 40, Color(0.85, 0.92, 0.95, 0.22 * (1.0 - t)), 1.5)
-		draw_arc(center, radius, 0.0, TAU, 48, Color(0.78, 0.86, 0.88, 0.5), 2.0)
+		_draw_ring_rim(ring, Color(0.78, 0.86, 0.88, 0.5), 2.0)
 
 	# flowers (a petal dot with a bright center), nodding in the breeze
 	for f in _flowers:
@@ -439,14 +447,30 @@ func _fill_water(points: PackedVector2Array, tex: Texture2D, world_tile: float, 
 	draw_colored_polygon(points, Color(1, 1, 1, 1), uvs, tex)
 
 
-## A ring of points approximating a circle — a pond/pool outline as a polygon, so the tiled
-## water clips to the round shape (draw_colored_polygon fills the convex fan).
-func _circle_points(center: Vector2, radius: float, segments := 40) -> PackedVector2Array:
+## A closed, gently irregular ring around `center` — a pond/pool shoreline that reads as an
+## organic bank instead of a perfect circle. The radius is nudged in and out by a few INTEGER
+## harmonics (integer frequencies are what let the loop close seamlessly at a == TAU) whose
+## phases are offset by `seed`, so every body of water keeps its own stable, distinct shape.
+## Amplitudes are small enough to stay pond-like, not blobby; draw_colored_polygon fills the
+## (mildly concave) result directly, and the water UVs stay correct because they're just a
+## linear function of world position.
+func _organic_ring(center: Vector2, radius: float, seed: float, segments := 56) -> PackedVector2Array:
 	var pts := PackedVector2Array()
 	for i in segments:
 		var a := TAU * float(i) / float(segments)
-		pts.append(center + Vector2(cos(a), sin(a)) * radius)
+		var wobble := 0.11 * sin(3.0 * a + seed) + 0.06 * sin(5.0 * a - seed * 1.7) + 0.035 * sin(8.0 * a + seed * 2.3)
+		pts.append(center + Vector2(cos(a), sin(a)) * radius * (1.0 + wobble))
 	return pts
+
+
+## Trace a closed outline (an organic shoreline) as a thin line — the waterline where the
+## bank meets the water. Copies the ring (COW) and closes it back to the first point.
+func _draw_ring_rim(ring: PackedVector2Array, color: Color, width: float) -> void:
+	if ring.size() < 2:
+		return
+	var loop := ring
+	loop.append(ring[0])
+	draw_polyline(loop, color, width)
 
 
 ## The animated water scroll, in tile-units, QUANTIZED to whole texels so the surface steps
@@ -460,6 +484,27 @@ func _water_scroll(tex: Texture2D, flowing: bool) -> Vector2:
 		s = Vector2(sin(_time * 0.42) * 0.035, cos(_time * 0.30) * 0.030)
 	var tw := maxf(1.0, float(tex.get_width()))  # uv 1.0 spans the whole tile (tw texels)
 	return Vector2(round(s.x * tw) / tw, round(s.y * tw) / tw)
+
+
+## Sample one river bank (its top or bottom edge) as a gently undulating line of points along
+## the river's length, so the shore waves a little instead of running dead straight. `base_y`
+## is the straight edge; the wobble comes from _river_bank_offset. Points run left→right, one
+## every ~48px, with the exact right end appended so the band always spans the full width.
+func _river_bank(rect: Rect2, base_y: float, seed: float) -> PackedVector2Array:
+	var pts := PackedVector2Array()
+	var x := rect.position.x
+	while x < rect.end.x:
+		pts.append(Vector2(x, base_y + _river_bank_offset(x, seed)))
+		x += 48.0
+	pts.append(Vector2(rect.end.x, base_y + _river_bank_offset(rect.end.x, seed)))
+	return pts
+
+
+## The vertical wobble of a river bank at world-x `x` — two summed sines (a long lazy bend plus
+## a shorter ripple), only ~10px at most so the shore is subtly uneven, not a pronounced curve.
+## `seed` shifts the phase so the top and bottom banks wave independently, not mirroring.
+func _river_bank_offset(x: float, seed: float) -> float:
+	return 7.0 * sin(x * 0.017 + seed) + 3.5 * sin(x * 0.011 - seed * 1.6)
 
 
 ## The Vein — the sunken dry riverbed. A dusty channel band with darker sunken banks top and bottom,
@@ -931,14 +976,15 @@ func _draw_rubble_pile(p: Vector2, color: Color) -> void:
 ## just needs to read close to it).
 func _draw_pool(p: Vector2, color: Color) -> void:
 	var rad := 88.0
+	var ring := _organic_ring(p, rad, _phase_for(p))
 	if _pool_tex != null:
-		_fill_water(_circle_points(p, rad), _pool_tex, _pool_world_tile, _water_scroll(_pool_tex, false))
+		_fill_water(ring, _pool_tex, _pool_world_tile, _water_scroll(_pool_tex, false))
 	else:
-		draw_circle(p, rad, color)
+		draw_colored_polygon(ring, color)
 		for k in 2:                                                        # slow, breathing ripples
 			var t := fposmod(_time * 0.16 + float(k) * 0.5, 1.0)
 			draw_arc(p, rad * (0.3 + 0.6 * t), 0.0, TAU, 40, Color(0.8, 0.9, 0.95, 0.14 * (1.0 - t)), 1.5)
-	draw_arc(p, rad, 0.0, TAU, 48, Color(0.5, 0.6, 0.62, 0.32), 2.0)   # a faint stone rim
+	_draw_ring_rim(ring, Color(0.5, 0.6, 0.62, 0.32), 2.0)             # a faint stone rim
 	# the pale reflected glow where the light-shaft strikes the water
 	draw_circle(p + Vector2(-4, -10), 22.0, Color(0.88, 0.93, 0.82, 0.10))
 	draw_circle(p + Vector2(-4, -10), 9.0, Color(0.95, 0.97, 0.9, 0.10))
