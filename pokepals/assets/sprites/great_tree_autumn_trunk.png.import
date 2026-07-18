@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c5e7zuwfzhj9z"
-path="res://.godot/imported/great_tree_autumn.png-9dace635f899ad79a146cd20fb7f630e.ctex"
+uid="uid://cn521hu8ifd2"
+path="res://.godot/imported/great_tree_autumn_trunk.png-12c93fbf22dae46e1849dc6e31f7a16a.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/great_tree_autumn.png"
-dest_files=["res://.godot/imported/great_tree_autumn.png-9dace635f899ad79a146cd20fb7f630e.ctex"]
+source_file="res://assets/sprites/great_tree_autumn_trunk.png"
+dest_files=["res://.godot/imported/great_tree_autumn_trunk.png-12c93fbf22dae46e1849dc6e31f7a16a.ctex"]
 
 [params]
 

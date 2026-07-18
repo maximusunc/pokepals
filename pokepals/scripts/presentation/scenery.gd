@@ -55,25 +55,40 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	var wind: Dictionary = atmo.get("wind", {})
 	var wind_strength := float(wind.get("strength", 2.6))
 	var wind_speed := float(wind.get("speed", 1.15))
-	var tree_tex := SpriteSlot.resolve(style.entity("tree"))
-	var great_tree_tex := SpriteSlot.resolve(style.entity("great_tree"))
+	# Optional drop-in art. A tree can be one whole "sprite" (the whole thing sways) or,
+	# preferred, a split "trunk" + "canopy" so the trunk stays planted and only the crown
+	# catches the wind. Resolve all three; TreeView uses whichever it's given (else circles).
+	var tree_cfg := style.entity("tree")
+	var great_cfg := style.entity("great_tree")
+	var tree_art := {
+		"tex": SpriteSlot.resolve(tree_cfg),
+		"trunk": SpriteSlot.resolve(tree_cfg, "trunk"),
+		"canopy": SpriteSlot.resolve(tree_cfg, "canopy"),
+	}
+	var great_art := {
+		"tex": SpriteSlot.resolve(great_cfg),
+		"trunk": SpriteSlot.resolve(great_cfg, "trunk"),
+		"canopy": SpriteSlot.resolve(great_cfg, "canopy"),
+	}
 
 	# Hand-placed trees, then the procedural border ring that frames the world.
 	for t in data.get("trees", []):
-		_spawn_tree(WorldData.to_vec2(t), false, tree_tex, style, wind_strength, wind_speed)
+		_spawn_tree(WorldData.to_vec2(t), false, tree_art, style, wind_strength, wind_speed)
 	for p in border_pts:
-		_spawn_tree(p, false, tree_tex, style, wind_strength, wind_speed)
+		_spawn_tree(p, false, tree_art, style, wind_strength, wind_speed)
 
 	# Landmarks: a few oversized, beckoning great trees you can see (and walk behind) from afar.
 	for lm in data.get("landmarks", []):
-		_spawn_tree(WorldData.to_vec2(lm["position"]), true, great_tree_tex, style, wind_strength, wind_speed)
+		_spawn_tree(WorldData.to_vec2(lm["position"]), true, great_art, style, wind_strength, wind_speed)
 
 
-func _spawn_tree(pos: Vector2, is_great: bool, tex: Texture2D, style: ArtStyle, wind_strength: float, wind_speed: float) -> void:
+func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle, wind_strength: float, wind_speed: float) -> void:
 	var tree: TreeView = TreeViewScript.new()
 	tree.position = pos
 	tree.is_great = is_great
-	tree.tex = tex
+	tree.tex = art["tex"]
+	tree.trunk_tex = art["trunk"]
+	tree.canopy_tex = art["canopy"]
 	tree.style = style
 	tree.wind_strength = wind_strength
 	tree.wind_speed = wind_speed

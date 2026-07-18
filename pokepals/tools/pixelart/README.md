@@ -192,10 +192,12 @@ daemon back-views are derived), so:
 - **New kind (e.g. a stump, a sapling):** add a `LAYOUTS` entry; `make_tree()`
   and the baker pick it up with no other changes.
 
-These feed `tools/gen_trees.py`, which bakes `assets/sprites/{tree,great_tree}.png`
-(+ ramp variants) and their `.import` sidecars. The game uses them the moment
-`data/art.json`'s `entities.tree` / `entities.great_tree` point at those files
-(`render: "sprite"`); set them back to `procedural` for the old engine circles.
+These feed `tools/gen_trees.py`, which bakes each kind as TWO layers —
+`assets/sprites/{kind}_trunk.png` and `{kind}_canopy.png` (+ ramp variants) — with
+`.import` sidecars. The split is what lets the trunk stay planted while only the
+canopy sways in the wind (TreeView draws them separately). The game uses them the
+moment `data/art.json`'s `entities.tree` / `entities.great_tree` name a `trunk` +
+`canopy` (`render: "sprite"`); set them back to `procedural` for the old engine circles.
 
 ### Add an animation pose
 Draw the pose map, add it to the relevant pose table
