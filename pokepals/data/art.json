@@ -26,7 +26,7 @@
 		"_portal_comment": "A neutral (grayscale) energy oval (tools/gen_portal.py); WorldArt tints it per-portal with the portal's own color and keeps the breathing pulse + orbiting sparks procedural. A missing file falls back to the procedural shimmering ovals.",
 		"portal": { "render": "sprite", "sprite": "res://assets/sprites/portal.png" },
 		"_props_comment": "Small hand-placed props as baked pixel-art (tools/gen_props.py). For each type listed, WorldArt loads prop_<type>_base.png (fixed materials) and, if present, prop_<type>_tint.png (the part whose color is data, drawn tinted by the prop's own color). Any missing file falls back to that prop's procedural drawing. Remove a type from the list to force procedural.",
-		"props": { "render": "sprite", "prefix": "res://assets/sprites/prop_", "types": ["crystal", "lantern", "torch", "ember", "brazier"] }
+		"props": { "render": "sprite", "prefix": "res://assets/sprites/prop_", "types": ["crystal", "lantern", "torch", "ember", "brazier", "chime_stone", "wildflowers", "mushrooms", "berry_bush", "log", "basin", "bench", "signpost"] }
 	},
 	"_daycycle_comment": "A slow ambient drift from day to dusk and back, driving the warm wash (DayTint) and the vignette. enabled=false freezes it at the first stop (today's static look). period_sec is one full day->dusk->day round trip when loop=true. Set enabled=false to turn it off.",
 	"daycycle": {

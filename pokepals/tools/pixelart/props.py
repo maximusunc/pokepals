@@ -150,6 +150,197 @@ PROPS = {
 }
 
 
+# --------------------------------------------------------------------------- builders
+# Geometric props (cairns, logs, basins…) are painted procedurally instead of hand-counted
+# ASCII — far less error-prone for round shapes — but produce the SAME two-layer output. A
+# Canvas offers disc/rect/line primitives onto a base image (fixed materials) and a tint
+# image (grayscale colour-is-data), tracks the solid mask, and shares the 1px outline.
+class Canvas:
+    def __init__(self, w, h):
+        self.w, self.h = w, h
+        self.base = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        self.tint = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        self.bpx, self.tpx = self.base.load(), self.tint.load()
+        self.solid = [[0] * w for _ in range(h)]
+        self.has_tint = False
+
+    def _mark(self, x, y):
+        if 0 <= x < self.w and 0 <= y < self.h:
+            self.solid[y][x] = 1
+            return True
+        return False
+
+    def base_px(self, x, y, rgb):
+        if self._mark(x, y):
+            self.bpx[x, y] = _c(rgb)
+
+    def tint_px(self, x, y, role):
+        if self._mark(x, y):
+            v = round(TINT_VALUE[role] * 255)
+            self.tpx[x, y] = (v, v, v, 255)
+            self.has_tint = True
+
+    def disc(self, cx, cy, r, fn, top_only=False):
+        for y in range(int(cy - r), int(cy + r) + 1):
+            for x in range(int(cx - r), int(cx + r) + 1):
+                dx, dy = x - cx, y - cy
+                if dx * dx + dy * dy <= r * r and (not top_only or dy <= 0):
+                    fn(x, y, dx, dy)
+
+    def rect(self, x0, y0, w, h, fn):
+        for y in range(y0, y0 + h):
+            for x in range(x0, x0 + w):
+                fn(x, y, x - x0, y - y0)
+
+    def outline(self):
+        _add_outline(self.bpx, self.solid, self.w, self.h)
+
+
+def _role(dx, dy, r):
+    """A lit-blob shade role from an offset: bright up/left ('3'), dark down/right ('1')."""
+    t = (-dx - dy) / max(1.0, r * 1.3)
+    return "3" if t > 0.32 else ("1" if t < -0.34 else "2")
+
+
+def _shade(rgb, dx, dy, r):
+    """Same idea for a fixed material: lighten up/left, darken down/right."""
+    t = (-dx - dy) / max(1.0, r * 1.3)
+    if t > 0.32:
+        return tuple(min(1.0, c + 0.12) for c in rgb)
+    if t < -0.34:
+        return tuple(max(0.0, c - 0.14) for c in rgb)
+    return rgb
+
+
+def _b_chime_stone(c):
+    # a little cairn: three settling stones, all tint (the stone colour is data)
+    for cx, cy, r in [(7.0, 13.0, 4.3), (6.0, 8.0, 3.4), (7.0, 3.6, 2.6)]:
+        c.disc(cx, cy, r, lambda x, y, dx, dy, rr=r: c.tint_px(x, y, _role(dx, dy, rr)))
+    c.outline()
+
+
+def _b_wildflowers(c):
+    # a small clustered patch: green stems (base) topped with tinted blossoms
+    for sx, by, h in [(4, 12, 4), (8, 13, 5), (12, 11, 4)]:
+        for yy in range(by - h, by + 1):
+            c.base_px(sx, yy, LEAF["g"])
+    for bx, byy, r in [(4.0, 7.0, 2.3), (8.0, 7.5, 2.6), (12.0, 6.5, 2.3)]:
+        c.disc(bx, byy, r, lambda x, y, dx, dy, rr=r: c.tint_px(x, y, _role(dx, dy, rr)))
+        c.tint_px(int(bx), int(byy), "3")  # bright pip at each centre
+    c.outline()
+
+
+def _b_mushrooms(c):
+    # a tiny ring of spotted toadstools: white stalks (base), tinted caps with real white spots
+    shrooms = [(4.0, 12, 2.6, [(-1, -1)]), (9.0, 12, 3.1, [(1, -1), (-1, 0)]), (13.0, 12, 2.2, [(0, -1)])]
+    for mx, by, cr, spots in shrooms:
+        for yy in range(by - 2, by + 1):
+            c.base_px(int(mx), yy, WHITE["O"])
+        spot_cells = {(int(mx) + sx, int(by - cr) + sy) for sx, sy in spots}
+
+        def paint(x, y, dx, dy, cr=cr, cells=spot_cells):
+            if (x, y) in cells:
+                c.base_px(x, y, WHITE["O"])   # white spot: base, so the tint leaves it alone
+            else:
+                c.tint_px(x, y, _role(dx, dy, cr))
+        c.disc(mx, by - cr, cr, paint, top_only=True)
+    c.outline()
+
+
+def _b_berry_bush(c):
+    # a rounded shrub (base green, baked in — its colour barely varies) dotted with red berries
+    for cx, cy, r in [(6.0, 10.0, 5.0), (12.0, 10.0, 5.0), (9.0, 7.0, 5.4)]:
+        c.disc(cx, cy, r, lambda x, y, dx, dy, rr=r: c.base_px(x, y, _shade(LEAF["G"], dx, dy, rr)))
+    for bx, by in [(4, 8), (11, 6), (14, 9), (8, 11), (9, 8)]:
+        c.base_px(bx, by, (0.80, 0.22, 0.26))
+        c.base_px(bx, by - 1, (0.90, 0.34, 0.36))
+    c.outline()
+
+
+def _b_log(c):
+    # a fallen, mossy log on its side (base, baked): a wood drum with an end-face and a moss cap
+    for x in range(2, 26):
+        for y in range(6, 14):
+            c.base_px(x, y, _shade(WOOD["w"], 0, y - 10, 5))
+    for y in range(6, 14):  # lit top edge
+        c.base_px(2 + (y - 6), 6, WOOD["W"])
+    c.disc(4.0, 10.0, 4.2, lambda x, y, dx, dy: c.base_px(x, y, _shade(WOOD["W"], dx, dy, 4)))  # near end-face
+    c.base_px(4, 10, WOOD["w"])
+    c.base_px(4, 9, (0.30, 0.22, 0.15))  # the heart-rings dot
+    for mx in range(9, 24, 3):           # moss tufts along the top
+        c.base_px(mx, 5, LEAF["G"])
+        c.base_px(mx + 1, 5, LEAF["g"])
+    c.outline()
+
+
+def _b_basin(c):
+    # a small stone basin holding still water (base, baked): a stone rim ellipse + a blue pool
+    for x in range(2, 20):
+        dx = (x - 11) / 9.0
+        for y in range(6, 16):
+            dy = (y - 11) / 5.0
+            if dx * dx + dy * dy <= 1.0:
+                c.base_px(x, y, _shade(STONE["s"], x - 11, y - 11, 9))
+    for x in range(4, 18):               # the water surface, inset
+        dx = (x - 11) / 7.0
+        for y in range(7, 13):
+            dy = (y - 10) / 3.0
+            if dx * dx + dy * dy <= 1.0:
+                c.base_px(x, y, (0.40, 0.56, 0.64))
+    c.base_px(7, 8, (0.85, 0.92, 0.95))  # a glint
+    c.base_px(8, 8, (0.85, 0.92, 0.95))
+    c.outline()
+
+
+def _b_bench(c):
+    # a simple weathered seat (base wood, baked): a seat plank, a backrest rail, two legs
+    for x in range(2, 24):
+        c.base_px(x, 8, WOOD["W"])
+        c.base_px(x, 9, WOOD["w"])
+    for x in range(2, 24):
+        c.base_px(x, 4, WOOD["W"])       # backrest rail
+    for lx in (4, 21):
+        for y in range(10, 15):
+            c.base_px(lx, y, DARKWOOD["k"])
+        c.base_px(lx, 5, WOOD["w"])       # back uprights
+        c.base_px(lx, 6, WOOD["w"])
+        c.base_px(lx, 7, WOOD["w"])
+    c.outline()
+
+
+def _b_signpost(c):
+    # a leaning post (base wood) with a board whose colour is data (tint)
+    for y in range(6, 20):
+        c.base_px(9, y, WOOD["w"])
+        c.base_px(10, y, WOOD["W"])
+    c.rect(3, 4, 14, 7, lambda x, y, lx, ly: c.tint_px(x, y, "3" if ly < 2 or lx < 2 else "2"))
+    c.outline()
+
+
+BUILDERS = {
+    "chime_stone": _b_chime_stone,
+    "wildflowers": _b_wildflowers,
+    "mushrooms": _b_mushrooms,
+    "berry_bush": _b_berry_bush,
+    "log": _b_log,
+    "basin": _b_basin,
+    "bench": _b_bench,
+    "signpost": _b_signpost,
+}
+
+# Canvas size per builder prop (w, h).
+BUILDER_SIZE = {
+    "chime_stone": (15, 18),
+    "wildflowers": (17, 15),
+    "mushrooms": (18, 14),
+    "berry_bush": (18, 16),
+    "log": (30, 17),
+    "basin": (22, 18),
+    "bench": (26, 16),
+    "signpost": (20, 21),
+}
+
+
 def _grid(name):
     rows = PROPS[name]["map"]
     w = len(rows[0])
@@ -175,7 +366,13 @@ def _add_outline(px, solid, w, h):
 
 def make_prop_parts(name):
     """(base_img, tint_img_or_None) for a prop -- base carries fixed materials + outline,
-    tint carries the grayscale colour-is-data part (or None if the prop has no tint chars)."""
+    tint carries the grayscale colour-is-data part (or None if the prop has none). Works for
+    both ASCII-map props (PROPS) and procedurally-built ones (BUILDERS)."""
+    if name in BUILDERS:
+        w, h = BUILDER_SIZE[name]
+        c = Canvas(w, h)
+        BUILDERS[name](c)
+        return c.base, (c.tint if c.has_tint else None)
     spec = PROPS[name]
     pal = spec["palette"]
     rows, w, h = _grid(name)
@@ -202,12 +399,19 @@ def make_prop_parts(name):
     return base, (tint if has_tint else None)
 
 
+def all_names():
+    """Every prop name, ASCII-map and procedural, in a stable order."""
+    return list(PROPS) + list(BUILDERS)
+
+
 def preview_grid(scale=6):
     """Every prop composited (base + a demo-tinted tint) on a green ground, for eyeballing."""
     demo = {"crystal": (0.62, 0.80, 0.82), "lantern": (0.95, 0.80, 0.45),
             "torch": (1.0, 0.66, 0.30), "ember": (0.95, 0.62, 0.30),
-            "brazier": (0.75, 0.55, 0.35)}
-    names = list(PROPS)
+            "brazier": (0.75, 0.55, 0.35), "chime_stone": (0.66, 0.70, 0.78),
+            "wildflowers": (0.74, 0.55, 0.85), "mushrooms": (0.86, 0.34, 0.32),
+            "signpost": (0.44, 0.56, 0.74)}
+    names = all_names()
     cell = 40
     cols = min(6, len(names))
     import_rows = (len(names) + cols - 1) // cols

@@ -85,7 +85,7 @@ def _save(img, name):
 
 def export_all():
     os.makedirs(OUT_DIR, exist_ok=True)
-    for name in props.PROPS:
+    for name in props.all_names():
         base, tint = props.make_prop_parts(name)
         _save(base, "prop_%s_base.png" % name)
         if tint is not None:
