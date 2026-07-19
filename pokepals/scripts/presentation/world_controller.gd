@@ -237,6 +237,9 @@ func _build_world(data: Dictionary) -> void:
 
 	# Dev-only companion/bond readout. Toggled from the gear menu's "DBG" item (and F3 on desktop).
 	_debug.setup(_companion, _player)
+	# The companion's nav-route polyline shows and hides with the same overlay.
+	_debug.visibility_changed.connect(func() -> void: _companion.debug_draw_nav = _debug.visible)
+	_companion.debug_draw_nav = _debug.visible
 
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real hint (a whistle, lore, a portal step) cancels the fade and shows.

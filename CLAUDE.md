@@ -75,6 +75,17 @@ FEEL-first philosophy still governs.
 > bird/wolf) for ambient pals, rendered client-side by `PalView` when a seed pal names a `species`
 > (companion-puppet fallback otherwise).
 
+> **Companion path planning (2026-07):** the companion can now route AROUND walls instead of only
+> sliding along them (the maze was the acid test). Two pure-logic `scripts/world` modules in the
+> `Solids` mold — `NavGrid` (a walkability grid rasterized per world from the same solid list,
+> plus grid A* and an exact clearance line-of-sight test) and `NavAgent` (a small stateful
+> route-keeper: throttled replanning, waypoint string-pulling, a stuck fallback) — consumed at the
+> body's one steering choke point (`CompanionView._apply_movement`). The brain stays geometry-blind;
+> direct steering remains the default whenever the straight line is clear, so open-field feel is
+> untouched, and every behavior (follow, come, lead, wander) gains routing for free. Tuned by the
+> `nav` block in `data/companion.json` (`enabled:false` restores pure wall-sliding); the debug
+> overlay draws the live route as a polyline.
+
 > **Daemon form (2026-07):** the bonded companion now WEARS one of those real animals and, in the
 > spirit of a His Dark Materials daemon, occasionally shifts into a different one. The species is
 > cosmetic and ephemeral (re-rolled each session, never saved, never touching the brain/bond/grown

@@ -94,6 +94,12 @@ func _format(d: Dictionary) -> String:
 			float(eff.get("clinginess", 0.0)), float(t.get("clinginess", 0.0)),
 		])
 
+	# Route-keeping: >0 means the straight line to its target is blocked and it's
+	# steering through that many remaining corners of a planned path (see the polyline).
+	var nav_corners := int(d.get("nav_corners", 0))
+	if nav_corners > 0:
+		lines.append("nav  routing %d corner%s" % [nav_corners, "" if nav_corners == 1 else "s"])
+
 	# Each drive's bid this frame, strongest-first, winner starred — the "why".
 	var scores: Dictionary = d.get("scores", {})
 	var winner := str(d.get("winner", ""))
