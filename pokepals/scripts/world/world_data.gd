@@ -18,6 +18,13 @@ static func to_vec2(arr: Array) -> Vector2:
 	return Vector2(float(arr[0]), float(arr[1]))
 
 
+## The world's playable area as a Rect2, from the spec's bounds {"min": [x,y], "max": [x,y]}.
+static func bounds_rect(data: Dictionary) -> Rect2:
+	var bmin := to_vec2(data["bounds"]["min"])
+	var bmax := to_vec2(data["bounds"]["max"])
+	return Rect2(bmin, bmax - bmin)
+
+
 ## Helper: turn an [r, g, b] (optionally [r,g,b,a]) JSON array into a Color.
 static func to_color(arr: Array) -> Color:
 	var a := 1.0 if arr.size() < 4 else float(arr[3])

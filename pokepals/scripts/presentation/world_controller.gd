@@ -161,9 +161,7 @@ func _build_world(data: Dictionary) -> void:
 	# Fade in from black if we arrived through a portal; otherwise start fully clear.
 	_setup_fade()
 
-	var bmin := WorldData.to_vec2(data["bounds"]["min"])
-	var bmax := WorldData.to_vec2(data["bounds"]["max"])
-	var bounds_rect := Rect2(bmin, bmax - bmin)
+	var bounds_rect := WorldData.bounds_rect(data)
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
@@ -237,6 +235,9 @@ func _build_world(data: Dictionary) -> void:
 
 	# Dev-only companion/bond readout. Toggled from the gear menu's "DBG" item (and F3 on desktop).
 	_debug.setup(_companion, _player)
+	# The companion's nav-route polyline shows and hides with the same overlay.
+	_debug.visibility_changed.connect(func() -> void: _companion.debug_draw_nav = _debug.visible)
+	_companion.debug_draw_nav = _debug.visible
 
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real hint (a whistle, lore, a portal step) cancels the fade and shows.

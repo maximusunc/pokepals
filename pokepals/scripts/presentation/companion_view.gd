@@ -62,6 +62,12 @@ var _bounds := Rect2()
 var _body_radius := 6.0
 var _margin := 2.0
 var _collide := false
+# Route-keeper around walls (local companion only). The brain stays geometry-blind: it
+# still just names a point it wants to be at, and this is the body knowing how to get
+# there — same layer as Solids collision. Null when nav is disabled in companion.json.
+var _nav_agent: NavAgent = null
+var _nav_behavior := ""      # last behavior routed for; a switch (whistle!) replans at once
+var debug_draw_nav := false  # world controller flips this with the debug overlay
 # Eased read of the brain's feeling surface, so body language glides instead of twitching.
 var _mood_v := 0.0
 var _mood_a := 0.0
@@ -150,12 +156,25 @@ func set_remote_state(pos: Vector2, look: Vector2) -> void:
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
+## The local companion also rasterizes them into its walkability grid here, so it can
+## route AROUND walls (the maze) instead of only sliding along them. Re-calling this
+## with changed solids (the Ruin's rising slabs) rebuilds the grid and drops any path
+## planned against the old geometry.
 func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float) -> void:
 	_solids = solids
 	_bounds = bounds
 	_body_radius = body_radius
 	_margin = margin
 	_collide = true
+	if _is_local:
+		var nav_cfg: Dictionary = _cfg.get("nav", {})
+		if bool(nav_cfg.get("enabled", true)):
+			if _nav_agent == null:
+				_nav_agent = NavAgent.new(nav_cfg)
+			_nav_agent.set_grid(NavGrid.build(solids, bounds, body_radius, margin,
+				float(nav_cfg.get("cell_size", 24.0))))
+		else:
+			_nav_agent = null
 
 
 ## Called by the world to hand the companion its player to follow.
@@ -356,6 +375,8 @@ func debug_state() -> Dictionary:
 		"ear": _look_ear, "bounce": _look_bounce, "wag": _look_wag,
 		"eye": _look_eye, "coat": _look_coat, "scale": _look_scale,
 	}
+	# How many corners the route-keeper is currently steering through (0 = direct line).
+	d["nav_corners"] = _nav_agent.active_path().size() if _nav_agent != null else 0
 	return d
 
 
@@ -456,6 +477,21 @@ func _set_form(species: String, variant: int) -> void:
 func _apply_movement(intent: Dictionary, delta: float) -> void:
 	var target: Vector2 = intent["move_target"]
 	var speed: float = intent["desired_speed"]
+	# Route the brain's wish through the nav agent: while the straight line is clear this
+	# returns the target untouched (open-field behavior is byte-identical to before); when
+	# a wall is in the way it returns the next corner of a path around it instead. Not
+	# while deliberately still (idle intent, or the point-hold below) — a frozen body that
+	# "means to move" would trip the stuck detector into pointless replanning — and a
+	# behavior switch (a whistle mid-route!) drops the old goal's route the same frame.
+	if _nav_agent != null and _collide:
+		var behavior := String(intent.get("behavior", ""))
+		if behavior != _nav_behavior:
+			_nav_behavior = behavior
+			_nav_agent.reset()
+		if speed > 0.0 and _point_t <= 0.0:
+			target = _nav_agent.steer_target(position, target, delta)
+		elif not _nav_agent.active_path().is_empty():
+			_nav_agent.reset()
 	var to_target := target - position
 	var desired_velocity := Vector2.ZERO
 	if to_target.length() > 2.0 and speed > 0.0:
@@ -469,7 +505,9 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 	velocity = velocity.lerp(desired_velocity, 1.0 - exp(-float(_cfg["accel"]) * delta))
 	var before := position
 	position += velocity * delta
-	# Keep out of barriers; the companion slides around obstacles (no path-finding).
+	# Keep out of barriers. With the nav agent steering around walls this is the last-inch
+	# safety net (residual clearance the grid doesn't model); without it, it's the old
+	# slide-along-obstacles behavior.
 	if _collide:
 		position = Solids.resolve(position, _body_radius, _solids, _bounds, _margin)
 		velocity = (position - before) / maxf(delta, 0.0001)
@@ -593,6 +631,17 @@ func _decay_animation(delta: float) -> void:
 
 
 func _draw() -> void:
+	# Dev-only: the route the nav agent is currently steering through, drawn as a faint
+	# polyline from the body to the goal — so a playtester can see WHY it's cutting
+	# around a hedge. Only visible alongside the debug overlay.
+	if debug_draw_nav and _nav_agent != null:
+		var route: Array = _nav_agent.active_path()
+		var prev := Vector2.ZERO  # local origin = the body itself
+		for p in route:
+			var lp := to_local(p)
+			draw_line(prev, lp, Color(0.45, 0.9, 1.0, 0.45), 1.5)
+			draw_circle(lp, 2.5, Color(0.45, 0.9, 1.0, 0.55))
+			prev = lp
 	# It faces where it walks when moving, and where it's looking (attending) when
 	# still; the brain-driven hop/perk become the actor's squash/stretch, and the
 	# eased eye_offset keeps the eyes tracking whatever it's attending to. The eased

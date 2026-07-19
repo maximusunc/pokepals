@@ -420,15 +420,16 @@ class WanderAction extends CompanionAction:
 		if companion_pos.distance_to(_target) > float(cfg["curiosity_stop_distance"]):
 			move_target = _target
 			speed = float(cfg["walk_speed"])
-			# Stuck-guard. A roam target can land beyond a barrier the companion can't get
-			# past — the border treeline, a solid prop, the map edge — and it has no
-			# path-finding: the body just slides along the obstacle while the edge clamps it.
-			# Without this it grinds there forever, because it never reaches
-			# curiosity_stop_distance to begin its linger, and the player-left give-up in
-			# score() never trips while the player stands by. So watch our OWN body: if we
-			# mean to walk yet barely move for a moment, the way is blocked — abandon the
-			# roam and pause. (Pure self-observation, so the brain stays geometry-blind: it
-			# reads its own position each frame, never the world's solids.)
+			# Stuck-guard. A roam target can land somewhere genuinely unreachable — beyond
+			# the border treeline, deep in a pond, past the map edge. The BODY routes
+			# around ordinary walls on its own now (the view's NavAgent, see the "nav"
+			# block in companion.json), so this guard is the brain-level GIVE-UP for
+			# targets no route can reach: if we mean to walk yet barely move for a moment,
+			# abandon the roam and pause rather than grinding forever. wander_stuck_time is
+			# tuned LONGER than nav's stuck_time, so the body always gets its repair
+			# attempt (a re-plan) in before we give up on the destination. (Pure
+			# self-observation, so the brain stays geometry-blind: it reads its own
+			# position each frame, never the world's solids.)
 			if _has_prev:
 				var moved := companion_pos.distance_to(_prev_pos)
 				var expected := float(cfg["walk_speed"]) * delta
