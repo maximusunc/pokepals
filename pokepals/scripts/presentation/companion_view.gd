@@ -149,6 +149,29 @@ func apply_remote_form(species: String, variant: int) -> void:
 	_set_form(species, variant)
 
 
+## The player has INSTRUCTED a specific daemon form (from the radial). Switch to it and hold it — the
+## hold length scales with bond inside CompanionForm, so a bonded companion "listens" longer. Local
+## only; a no-op if the species isn't drawable. On a real switch we re-render and emit form_changed so
+## peers re-render us too — the same path a drift shift uses, so the net relay is untouched.
+func instruct_form(species: String) -> void:
+	if not _is_local or _form == null or _brain == null:
+		return
+	if _form.instruct(species, _brain.get_self().bond):
+		_set_form(_form.species(), _form.variant())
+		_perk = 1.0
+		_spawn_emote("delight")
+		form_changed.emit()
+
+
+## The species the local companion can actually wear right now (sheets imported), for the radial to
+## offer as instruct options. Empty in a bare headless run with no pal art.
+func available_form_species() -> Array:
+	var out: Array = []
+	for f in _available_forms():
+		out.append(String(f["species"]))
+	return out
+
+
 ## Feed a remote puppet the owner's latest transform: where it is, and where it's attending. Stored
 ## only; _process eases the body toward it so motion stays smooth between the ~20 Hz samples.
 func set_remote_state(pos: Vector2, look: Vector2) -> void:
@@ -446,7 +469,10 @@ func _available_forms() -> Array:
 func _update_daemon_form(delta: float) -> void:
 	if _form == null:
 		return
-	if _form.update(delta):
+	# Bond + identity steer the drift's pull toward the temperament-derived signature form (see
+	# CompanionForm._drift_pick); a directed hold, if active, overrides the drift from inside update().
+	var s := _brain.get_self()
+	if _form.update(delta, s.bond, s.identity):
 		_set_form(_form.species(), _form.variant())
 		_perk = 1.0
 		_spawn_emote("delight")

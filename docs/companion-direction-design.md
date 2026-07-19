@@ -85,9 +85,13 @@ not as a plan to act on.
   right-of-center. (Authoring convention more than code.)
 
 ### Form system
-- ⬜ **F-1 — Reframe "form": cosmetic → functional (keystone).** Does the functional form system
-  replace, extend, or run beside the cosmetic daemon-form? *Anchor:* `companion_form.gd`,
-  `daemon_form` in `data/companion.json`.
+- 🔶 **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
+  autonomous drift. You *instruct* a form (via the companion radial); it holds for a **bond-scaled**
+  duration (low bond = brief, always obeys), then **releases back to the drift**; and as bond grows
+  the drift **biases toward a temperament-derived signature form**. This is form *control*, not yet
+  form *function* (capabilities = F-2/C-1). **Built** in `companion_form.gd` (pure layer + tests),
+  `companion_view.gd` (`instruct_form`), `world_controller.gd` (radial picker), and the `daemon_form`
+  config. **Awaiting playtest** (the real bar) — go play it, then mark ✅.
 - ⬜ **F-2 — Form as a verb.** Each form = one command-band `CompanionAction`. *Reuse:* the action
   seam (no arbiter change).
 - ⬜ **F-3 — Contextual filtering.** Own ~20 forms, see 3 at a time, filtered by object `tags` +

@@ -592,13 +592,18 @@ func _process(delta: float) -> void:
 		_examine_prompt.hide_prompt()
 
 	# Companion radial: Pet and Call are core (always there); Go look joins the arc only in a Ruin
-	# with a ward still to open. The chip's dot warms with the live bond.
+	# with a ward still to open; then one entry per drawable FORM the player can instruct it into
+	# (F-1's temporary picker — the proper contextual UI comes with the tap-an-object item). The
+	# chip's dot warms with the live bond.
 	_radial.set_bond(_companion.bond_value())
-	_radial.set_actions([
+	var radial_actions: Array = [
 		{ "id": "pet", "label": "Pet", "enabled": true },
 		{ "id": "call", "label": "Call", "enabled": true },
 		{ "id": "seek", "label": "Go look", "enabled": _ruin.has_unopened_ward() },
-	])
+	]
+	for sp in _companion.available_form_species():
+		radial_actions.append({ "id": "form:" + String(sp), "label": String(sp).capitalize(), "enabled": true })
+	_radial.set_actions(radial_actions)
 
 	# Gear menu: the meta actions, each shown only when it applies — New Companion once fully bonded,
 	# Return-to-the-Vale in a world that declares one while connected, Leave while in a session, DBG
@@ -640,8 +645,12 @@ func _return_item_label() -> String:
 	return _return_label if _return_label != "" else "Return to the Vale"
 
 
-## Map a companion-radial tap to the SAME handler its old button used.
+## Map a companion-radial tap to the SAME handler its old button used. A "form:<species>" id is a
+## directed-form instruction (F-1) — tell the companion to assume that form.
 func _on_radial_action(id: String) -> void:
+	if id.begins_with("form:"):
+		_companion.instruct_form(id.substr(5))
+		return
 	match id:
 		"pet": _try_pet()
 		"call": _try_call()
