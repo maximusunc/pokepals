@@ -66,6 +66,7 @@ var _collide := false
 # still just names a point it wants to be at, and this is the body knowing how to get
 # there — same layer as Solids collision. Null when nav is disabled in companion.json.
 var _nav_agent: NavAgent = null
+var _nav_grid: NavGrid = null  # the agent's grid, kept for player-anchored goal clamping
 var _nav_behavior := ""      # last behavior routed for; a switch (whistle!) replans at once
 var debug_draw_nav := false  # world controller flips this with the debug overlay
 # Eased read of the brain's feeling surface, so body language glides instead of twitching.
@@ -171,10 +172,12 @@ func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float)
 		if bool(nav_cfg.get("enabled", true)):
 			if _nav_agent == null:
 				_nav_agent = NavAgent.new(nav_cfg)
-			_nav_agent.set_grid(NavGrid.build(solids, bounds, body_radius, margin,
-				float(nav_cfg.get("cell_size", 24.0))))
+			_nav_grid = NavGrid.build(solids, bounds, body_radius, margin,
+				float(nav_cfg.get("cell_size", 24.0)))
+			_nav_agent.set_grid(_nav_grid)
 		else:
 			_nav_agent = null
+			_nav_grid = null
 
 
 ## Called by the world to hand the companion its player to follow.
@@ -488,6 +491,13 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 		if behavior != _nav_behavior:
 			_nav_behavior = behavior
 			_nav_agent.reset()
+		# The follow point is picked geometry-blind behind the player (perception), so in
+		# a maze it can land across a hedge — a phantom goal in a neighboring corridor.
+		# Clamp it to the PLAYER's walled region first: the companion then trails to the
+		# hedge on the player's side instead of setting off around the maze. Only follow
+		# is player-anchored like this (come/checkin target the player's own position).
+		if behavior == "follow" and _player != null:
+			target = _nav_grid.clamp_to_visible(_player.position, target)
 		if speed > 0.0 and _point_t <= 0.0:
 			target = _nav_agent.steer_target(position, target, delta)
 		elif not _nav_agent.active_path().is_empty():

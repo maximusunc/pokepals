@@ -20,6 +20,7 @@ static func run_all() -> int:
 	fails += _test_unsnappable_goal_reaches_the_shore()
 	fails += _test_goal_inside_solid_snaps()
 	fails += _test_smooth_collapses_visible_waypoints()
+	fails += _test_clamp_to_visible()
 	fails += _test_maze_fixture_is_solvable()
 	return fails
 
@@ -154,6 +155,26 @@ static func _test_smooth_collapses_visible_waypoints() -> int:
 	var out := g.smooth(Vector2.ZERO, staircase)
 	return _check("smoothing collapses mutually-visible waypoints",
 		out.size() == 1 and (out[0] as Vector2).is_equal_approx(Vector2(96, 48)))
+
+
+static func _test_clamp_to_visible() -> int:
+	# The follow-point guard: a player-anchored point that crosses a hedge is pulled back
+	# to the player's side; an unobstructed one passes through untouched.
+	var hedge := { "a": Vector2(-150, 100), "b": Vector2(150, 100), "radius": 14.0 }
+	var g := _grid([hedge])
+	var anchor := Vector2(0, 0)        # the "player", north of the hedge
+	var beyond := Vector2(0, 220)      # trailing point that landed south of the hedge
+	var open := Vector2(120, -80)      # trailing point with nothing in the way
+	var kept := g.clamp_to_visible(anchor, open)
+	var clamped := g.clamp_to_visible(anchor, beyond)
+	var same_side: bool = clamped.y < 100.0 - 14.0 and g.line_clear(anchor, clamped)
+	var between: bool = clamped.distance_to(anchor) < beyond.distance_to(anchor)
+	# Anchor pressed right against the hedge band: even the first step south is blocked,
+	# so the clamp collapses to (about) the anchor itself rather than crossing.
+	var wedged := g.clamp_to_visible(Vector2(0, 70), Vector2(0, 220))
+	var stays: bool = wedged.distance_to(Vector2(0, 70)) < 12.0
+	return _check("clamp_to_visible keeps a player-anchored point on the player's side",
+		kept.is_equal_approx(open) and same_side and between and stays)
 
 
 static func _test_maze_fixture_is_solvable() -> int:
