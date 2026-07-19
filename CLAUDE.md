@@ -24,7 +24,7 @@ the core feeling is real.
 
 -----
 
-## Phase status — Rung 3 complete ✅ · now in Rung 4 (step 1: a minimal authoritative server)
+## Phase status — Rung 4 complete ✅ · now exploring the next direction: cozy shared *mini-worlds* + a directed-and-delegated, shape-shifting companion
 
 **Where we are (2026-06):** the single-player core (Rungs 1–2) is proven and locked in, and
 first two-player shared presence (Rung 3) proved out. The bar for every rung is *feel*,
@@ -46,7 +46,7 @@ validated by playtest — never a feature checklist.
 **Deliberately deferred (not blockers):** persistent coat *mark*, favorite-place memory,
 deeper behavioral legibility — pickup-able whenever we deepen the single-player loop again.
 
-**Next — we are now in Rung 4** (a small persistent shared world). We take it one step at a time.
+**Rung 4 ✅ — a small persistent shared world — is done.** We took it one step at a time.
 **Step 1 ✅:** swapped the transport for raw WebSockets and stood up a *minimal authoritative
 server* (Elixir/Phoenix, Bandit + WebSock) that assigns ids and relays presence. **Step 2 ✅:**
 the roster now runs on **Phoenix.Presence** (a CRDT — robust crash/disconnect detection, multi-node
@@ -54,8 +54,21 @@ ready); the server adapts Presence diffs into the unchanged client wire protocol
 client was untouched. **Step 3 ✅ (a deliberate pivot):** the game is now **online-only** — the
 companion's grown self and the wardrobe live **server-side** (PostgreSQL via Ecto), keyed by a local
 identity *token* (`user://player_id.json`); there is **no local game save and no solo/offline mode**.
-Connecting to a server is required to play. **Remaining Rung-4 step:** proximity text chat. The
-FEEL-first philosophy still governs.
+Connecting to a server is required to play. Since then the shared world has *grown* well past the
+original "minimal server" scope: **several worlds** (the Vale plus authored destinations), the
+**Ruin** — a companion-as-actor co-op puzzle world with server-authoritative shared state — a
+**bazaar/economy with player trading**, server-side **inventory/wardrobe**, and
+**server-authoritative ambient pals**. The FEEL-first philosophy still governs.
+
+**Next — an exploratory direction (not yet a locked rung):** author more **cozy shared
+mini-worlds** people drop into and enjoy, *like the Ruin*, and give the companion a **directed,
+shape-shifting form system** — it shifts into functional forms, and you both **direct** it (tap an
+object = an order via its current form) *and* **delegate** to it ("Go look," never steer); the two
+coexist. Still **cozy, online-only, no fail states** — challenge is opt-in, a place-not-a-task. The
+design is being broken into one-at-a-time action items in
+[`docs/companion-direction-design.md`](docs/companion-direction-design.md); nothing there is built
+yet. **Proximity text chat** was the last-named Rung-4 step; it was never built and is **deferred,
+not a blocker** — pick it up if/when a shared world wants it.
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
@@ -100,27 +113,30 @@ FEEL-first philosophy still governs.
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as
 > historical — superseded by the online-only model.
 
-### In scope now (Rung 4, step 1)
+### In scope now (the exploratory next direction)
 
-- The proven single-player world, companion, movement, camera, and cozy interactions — the
-  living base everything shared is layered on top of.
-- A **minimal authoritative server** (Elixir/Phoenix) and a **raw-WebSocket + JSON** client
-  transport: the server assigns ids, holds the roster, and relays each player’s presentation
-  state (avatar + companion transforms, identity/appearance) to the others.
-- Two (or a few) players sharing the same space, seeing each other’s avatar and companion
-  move — the shared-presence feel from Rung 3, now over the real client↔server topology.
-- A **server-canonical companion + wardrobe** (Postgres), loaded on connect and saved back, keyed
-  by a local identity token. The game is **online-only** — no solo/offline path, no local game save.
+- The proven shared online world — companion, movement, camera, cozy interactions, the
+  authoritative server + persistence — is the **living base** everything new layers on top of.
+- **Cozy shared mini-worlds:** more for-fun authored destinations people visit, in the mold of the
+  **Ruin** — solvable-alone/better-together, **no fail states**, challenge opt-in. A place, not a
+  task.
+- **A directed-and-delegated, shape-shifting companion:** the companion shifts into **functional
+  forms**; the player both **directs** it (tap an object = an order resolved through the current
+  form) and **delegates** to it ("Go look," never steer). The two command styles coexist.
+- All of the above is captured as **one-at-a-time action items** in
+  `docs/companion-direction-design.md` — **every item is still open/undecided**; we build only what
+  we've explicitly agreed to, one at a time.
 
-### Explicitly OUT of scope now (later Rung-4 steps, or further out)
+### Explicitly OUT of scope now (deferred, or further out)
 
-- Phoenix **Presence**, **Postgres/Ecto persistence** (server-canonical companion/wardrobe
-  save), and **proximity text chat** — these are the *next* Rung-4 steps, not this one.
-- Accounts / authentication, and any server-side game simulation or world-mutation authority
-  beyond id assignment + relay.
-- World-building or any user-generated-content tools.
+- **Proximity text chat** — deferred (was the last-named Rung-4 step, never built); pick up when a
+  shared world wants it.
+- Accounts / real **authentication** beyond the local identity token.
+- **World-building / UGC tools** — authoring the mini-worlds ourselves is in scope; giving *players*
+  tools to build worlds is the Rung-5 north star, not now.
 - 3D or VR anything.
-- Battling, catching, collecting multiple creatures, stats, or progression systems.
+- Battling, catching, collecting multiple creatures, stats, or **progression systems** with fail
+  states (form *unlocks* tied to the cozy worlds are fine; punishing progression is not).
 - Art and audio polish beyond what’s needed to feel the mood.
 
 ### How we’ll know it’s working
@@ -216,11 +232,17 @@ for 3D/VR worlds — all without a rewrite.
    subtly evolves to reflect the player, local save.
 1. **[DONE ✅]** Two players sharing a space for the first time — seeing each other and each
    other’s companions (Godot ENet, behind a swappable transport seam).
-1. **[DONE ]** A small persistent shared world. Done: WebSockets + a minimal
+1. **[DONE ✅]** A small persistent shared world. Done: WebSockets + a minimal
    authoritative Elixir/Phoenix server (step 1), Phoenix.Presence roster (step 2), and Postgres
    persistence of a now **server-resident companion** — which made the game **online-only** (step 3).
-1. World-building / UGC tools, and only much later, other presentations (3D/VR). The
-   “world-of-worlds” north star.
+   Since grown well past "minimal": several worlds, the Ruin co-op puzzle world, a bazaar/economy +
+   trading, server-side inventory/wardrobe, ambient pals.
+1. **[EXPLORING now — precedes the north star below]** Cozy shared **mini-worlds** (authored, like
+   the Ruin) + a **directed-and-delegated, shape-shifting companion form system**. Authored content
+   and companion capability on the shared-world foundation — *not* UGC tooling. Broken into
+   one-at-a-time items in `docs/companion-direction-design.md`.
+1. World-building / **UGC tools** (players building worlds), and only much later, other
+   presentations (3D/VR). The “world-of-worlds” north star.
 
 -----
 

@@ -22,10 +22,10 @@ a question doesn't reach the owner, stop and wait — no best-guessing.
   bond-gated commands (Pet / Call / "Go look").
 - This spec is a **large gameplay-direction expansion**: the player *directs* a companion that
   *shape-shifts into functional forms*, and orders it to act on objects by tapping them.
-- **Two tensions to resolve, not assume** (see the framing decisions): the spec **directs** the
-  companion while the shipped **Ruin** deliberately **delegates** ("Go look," never steer it); and
-  the spec's "finish the game / levels" language reads single-player-campaign while the game is
-  online-only + cozy.
+- **Two tensions, now resolved** (see the framing decisions): direction vs. delegation → **they
+  coexist** (D2); campaign vs. cozy-shared → **cozy shared mini-worlds, no fail states** (D3). The
+  spec **directs** the companion (tap = order) while the shipped **Ruin** **delegates** ("Go look,"
+  never steer) — both are valid command styles on one surface.
 
 ### What the current code already provides (reuse surface)
 
@@ -49,17 +49,20 @@ recall-by-tapping-companion.
 
 ---
 
-## Framing decisions (settle these first — they reshape everything after)
+## Framing decisions (settled — these anchor everything after)
 
-- ⬜ **D1 — Scope & timing vs. Rung 4.** Active pivot now, plan-now-build-after, or parallel
-  groundwork alongside networking?
-- ⬜ **D2 — Command model: direction vs. delegation.** Reconcile the spec's "tap = order" with the
-  Ruin's "Go look, never steer." Direction supersedes / coexists with / defers to delegation?
-  (Note: the spec's taps target *objects, not ground*, and keep autonomous idle-following — so the
-  real fork is whether the player names the *verb* or the companion still chooses.)
-- ⬜ **D3 — Game framing: cozy shared world vs. authored campaign.** Authored content inside the
-  shared online world (no fail states, like the Ruin), or a directed single-player progression
-  reconciled with online-only later?
+- ✅ **D1 — Scope & timing.** **Firmly out of Rung 4.** Rung 4 (the persistent shared world) is
+  done and has grown past its original scope; `CLAUDE.md`'s phase status was updated to reflect
+  this. This companion-direction work is the exploratory next direction (proximity text chat is
+  deferred, not a blocker).
+- ✅ **D2 — Command model: coexist.** Direction (tap an object = an order resolved through the
+  current form) and delegation ("Go look," never steer) **both live**; neither supersedes the
+  other. "Go look" reads as the form/verb with an implicit target — one point on the same
+  command surface, not a rival paradigm.
+- ✅ **D3 — Game framing: cozy shared world, no fail states.** Forms/puzzles are **for-fun authored
+  mini-worlds people visit, like the Ruin** — content inside the shared online world, solvable
+  alone / better together, challenge opt-in. **Not** a single-player campaign; the spec's
+  "finish the game / levels" language is reframed as these cozy mini-worlds.
 
 ---
 
