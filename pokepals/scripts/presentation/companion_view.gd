@@ -68,6 +68,7 @@ var _collide := false
 var _nav_agent: NavAgent = null
 var _nav_grid: NavGrid = null  # the agent's grid, kept for player-anchored goal clamping
 var _nav_behavior := ""      # last behavior routed for; a switch (whistle!) replans at once
+var _nav_wander_detour := 2.0  # wander's route-length cap (x straight line); 0 = unlimited
 var debug_draw_nav := false  # world controller flips this with the debug overlay
 # Eased read of the brain's feeling surface, so body language glides instead of twitching.
 var _mood_v := 0.0
@@ -172,6 +173,7 @@ func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float)
 		if bool(nav_cfg.get("enabled", true)):
 			if _nav_agent == null:
 				_nav_agent = NavAgent.new(nav_cfg)
+			_nav_wander_detour = float(nav_cfg.get("wander_detour_ratio", 2.0))
 			_nav_grid = NavGrid.build(solids, bounds, body_radius, margin,
 				float(nav_cfg.get("cell_size", 24.0)))
 			_nav_agent.set_grid(_nav_grid)
@@ -499,7 +501,10 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 		if behavior == "follow" and _player != null:
 			target = _nav_grid.clamp_to_visible(_player.position, target)
 		if speed > 0.0 and _point_t <= 0.0:
-			target = _nav_agent.steer_target(position, target, delta)
+			# Wandering also declines long-way-around routes (see steer_target) — an idle
+			# amble to a spot across a hedge shouldn't become a trek around the maze.
+			var detour := _nav_wander_detour if behavior == "wander" else 0.0
+			target = _nav_agent.steer_target(position, target, delta, detour)
 		elif not _nav_agent.active_path().is_empty():
 			_nav_agent.reset()
 	var to_target := target - position

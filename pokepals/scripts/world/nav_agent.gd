@@ -77,7 +77,14 @@ func _drop_route() -> void:
 ## Given where the body is and where it wants to end up, return the point to steer
 ## toward THIS frame. Returns `goal` itself whenever a straight walk works (the common
 ## case); otherwise the next corner of a planned route around the obstacles.
-func steer_target(pos: Vector2, goal: Vector2, delta: float) -> Vector2:
+##
+## `detour_ratio` > 0 caps how far around the route may go, as a multiple of the
+## straight-line distance (plus a couple of cells of slack, so rounding a nearby bench
+## is never unfairly capped). A route past the cap is DECLINED — the caller steers
+## straight, slides at the wall, and its own give-up (the wander stuck-guard) takes it
+## from there. This is for idle, self-directed goals (wandering): ambling somewhere is
+## not worth a trek around the maze, while follow/come keep routing unlimited.
+func steer_target(pos: Vector2, goal: Vector2, delta: float, detour_ratio: float = 0.0) -> Vector2:
 	if _grid == null:
 		return goal
 	# Close enough that arrival easing should take over — never route micro-distances.
@@ -113,6 +120,12 @@ func steer_target(pos: Vector2, goal: Vector2, delta: float) -> Vector2:
 		var reached := (not _path.is_empty()) \
 			and (_path.back() as Vector2).distance_to(goal) <= _grid.cell_size() * 2.0
 		_repath_t = _repath_interval if reached else _fruitless_backoff
+		if detour_ratio > 0.0 and not _path.is_empty():
+			var allowance := pos.distance_to(goal) * detour_ratio + _grid.cell_size() * 2.0
+			if _route_length(pos) > allowance:
+				_drop_route()
+				_repath_t = _fruitless_backoff
+				return goal
 	if _path.is_empty():
 		# Nowhere better to route from here — press on directly and let the collision
 		# slide; the next plan attempt comes after the backoff.
@@ -138,6 +151,16 @@ func steer_target(pos: Vector2, goal: Vector2, delta: float) -> Vector2:
 		_drop_route()
 		return goal
 	return _path[0]
+
+
+## Total walking distance of the current route, from `pos` through every waypoint.
+func _route_length(pos: Vector2) -> float:
+	var length := 0.0
+	var prev := pos
+	for p in _path:
+		length += prev.distance_to(p)
+		prev = p
+	return length
 
 
 ## While route-following, watch for a body that wants to move but isn't. Returns true
