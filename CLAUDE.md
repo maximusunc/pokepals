@@ -193,6 +193,10 @@ for 3D/VR worlds — all without a rewrite.
 
 ## How to work with me
 
+- **Never assume a decision, or do something before you've actually gotten confirmation from
+  me** — e.g. you send questions that don't actually go through, but you make best guesses
+  anyway and go ahead and do what you think is best. If a question or approval doesn't reach me,
+  stop and wait; do not proceed on a guess.
 - I used Godot a few years ago and have forgotten most of it. Briefly explain
   Godot-specific concepts (nodes, scenes, signals, resources, the scene tree, tweens) as
   they come up.
