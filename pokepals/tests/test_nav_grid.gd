@@ -17,6 +17,7 @@ static func run_all() -> int:
 	fails += _test_line_clear()
 	fails += _test_path_around_wall()
 	fails += _test_partial_path_when_sealed()
+	fails += _test_unsnappable_goal_reaches_the_shore()
 	fails += _test_goal_inside_solid_snaps()
 	fails += _test_smooth_collapses_visible_waypoints()
 	fails += _test_maze_fixture_is_solvable()
@@ -34,6 +35,19 @@ static func _big_bounds() -> Rect2:
 
 static func _grid(solids: Array) -> NavGrid:
 	return NavGrid.build(solids, _big_bounds(), BODY, MARGIN, CELL)
+
+
+## The path-validity contract: every leg of a returned route, including the approach from
+## `from`, must itself be a clear straight walk. Empty paths vacuously hold.
+static func _legs_clear(g: NavGrid, from: Vector2, path: Array) -> bool:
+	if path.is_empty():
+		return true
+	if not g.line_clear(from, path[0]):
+		return false
+	for i in range(path.size() - 1):
+		if not g.line_clear(path[i], path[i + 1]):
+			return false
+	return true
 
 
 static func _test_circle_rasterization() -> int:
@@ -83,12 +97,8 @@ static func _test_path_around_wall() -> int:
 	if path.is_empty() or g.line_clear(from, to):
 		return _check("routes around a blocking wall", false)
 	var ends_at_goal: bool = (path.back() as Vector2).distance_to(to) < 1.0
-	# Every leg of the smoothed path must itself be walkable in a straight line.
-	var legs_clear := g.line_clear(from, path[0])
-	for i in range(path.size() - 1):
-		legs_clear = legs_clear and g.line_clear(path[i], path[i + 1])
 	return _check("routes around a blocking wall, all legs clear, ends at goal",
-		ends_at_goal and legs_clear)
+		ends_at_goal and _legs_clear(g, from, path))
 
 
 static func _test_partial_path_when_sealed() -> int:
@@ -108,6 +118,22 @@ static func _test_partial_path_when_sealed() -> int:
 		return _check("sealed goal still yields a partial path", false)
 	var closer: bool = (path.back() as Vector2).distance_to(to) < from.distance_to(to)
 	return _check("sealed goal still yields a partial path that makes progress", closer)
+
+
+static func _test_unsnappable_goal_reaches_the_shore() -> int:
+	# A goal so deep inside a pond that goal-snapping can't rescue it must still produce
+	# a partial path that walks to the shore near the point — never [] (which would leave
+	# the follower grinding at the water's edge with no route at all).
+	var pond := { "center": Vector2(200, 0), "radius": 150.0 }
+	var g := _grid([pond])
+	var from := Vector2(-300, 0)
+	var path := g.find_path(from, pond["center"], 6000)
+	if path.is_empty():
+		return _check("goal deep in a pond yields a shore-approach partial path", false)
+	var terminus := path.back() as Vector2
+	var closer: bool = terminus.distance_to(pond["center"]) < from.distance_to(pond["center"])
+	return _check("goal deep in a pond yields a shore-approach partial path",
+		closer and _legs_clear(g, from, path))
 
 
 static func _test_goal_inside_solid_snaps() -> int:
@@ -135,11 +161,8 @@ static func _test_maze_fixture_is_solvable() -> int:
 	# assert the router can take the companion from its spawn to the heart at (0,0).
 	var data := WorldData.load_json("res://tests/world_fixtures/maze.json")
 	var ccfg: Dictionary = data.get("collision", {})
-	var bmin: Vector2 = WorldData.to_vec2(data["bounds"]["min"])
-	var bmax: Vector2 = WorldData.to_vec2(data["bounds"]["max"])
-	var bounds := Rect2(bmin, bmax - bmin)
 	var solids := Solids.build(data, [], ccfg)
-	var g := NavGrid.build(solids, bounds,
+	var g := NavGrid.build(solids, WorldData.bounds_rect(data),
 		float(ccfg.get("body_radius", 6.0)), float(ccfg.get("margin", 2.0)), CELL)
 	var spawn := WorldData.to_vec2(data["companion_spawn"])
 	var heart := Vector2.ZERO
@@ -147,7 +170,5 @@ static func _test_maze_fixture_is_solvable() -> int:
 	if path.is_empty():
 		return _check("maze: spawn -> heart path exists", false)
 	var reached: bool = (path.back() as Vector2).distance_to(heart) < CELL * 2.0
-	var legs_clear := g.line_clear(spawn, path[0])
-	for i in range(path.size() - 1):
-		legs_clear = legs_clear and g.line_clear(path[i], path[i + 1])
-	return _check("maze: spawn -> heart path exists and every leg is clear", reached and legs_clear)
+	return _check("maze: spawn -> heart path exists and every leg is clear",
+		reached and _legs_clear(g, spawn, path))

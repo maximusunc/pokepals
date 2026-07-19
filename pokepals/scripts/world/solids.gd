@@ -65,6 +65,15 @@ static func _pond_solid(pond: Dictionary) -> Dictionary:
 	return { "center": WorldData.to_vec2(pond["center"]), "radius": float(pond["radius"]) }
 
 
+## The point of solid `s` nearest to `p` — the blocking point a body is pushed away from.
+## Circle solids carry a "center"; segment solids (hedges) carry "a"/"b", and for those the
+## blocking point is the closest point on the segment. The ONE definition of the solid-dict
+## shape, shared by the resolver here and by NavGrid's rasterizer — so a new solid shape
+## can't silently mean different things to collision and to routing.
+static func nearest_point(s: Dictionary, p: Vector2) -> Vector2:
+	return Geometry2D.get_closest_point_to_segment(p, s["a"], s["b"]) if s.has("a") else s["center"]
+
+
 ## Keep a body of the given radius inside `bounds` and out of every solid. Clamps to
 ## the map edge, then pushes out of any overlapping circle (a couple of passes for
 ## corner stability). Only the into-the-obstacle component is corrected, so motion
@@ -75,9 +84,7 @@ static func resolve(pos: Vector2, radius: float, solids: Array, bounds: Rect2, m
 	p = _clamp_bounds(p, r, bounds)
 	for _pass in 2:
 		for s in solids:
-			# Circle solids carry a "center"; segment solids (hedges) carry "a"/"b" — for those
-			# the blocking point is the closest point on the segment to the body.
-			var center: Vector2 = Geometry2D.get_closest_point_to_segment(p, s["a"], s["b"]) if s.has("a") else s["center"]
+			var center := nearest_point(s, p)
 			var min_dist := r + float(s["radius"])
 			var d := p - center
 			var dist := d.length()

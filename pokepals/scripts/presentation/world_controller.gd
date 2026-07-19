@@ -161,9 +161,7 @@ func _build_world(data: Dictionary) -> void:
 	# Fade in from black if we arrived through a portal; otherwise start fully clear.
 	_setup_fade()
 
-	var bmin := WorldData.to_vec2(data["bounds"]["min"])
-	var bmax := WorldData.to_vec2(data["bounds"]["max"])
-	var bounds_rect := Rect2(bmin, bmax - bmin)
+	var bounds_rect := WorldData.bounds_rect(data)
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world

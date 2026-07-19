@@ -28,8 +28,9 @@ var _waypoint_reach := 12.0
 var _los_interval := 0.15
 var _repath_interval := 0.35
 var _repath_target_drift := 60.0
-var _stuck_time := 0.6
+var _stuck_time := 0.4
 var _stuck_min_move := 4.0
+var _fruitless_backoff := 1.0
 var _max_expansions := 6000
 var _goal_snap_radius := 4
 
@@ -42,6 +43,7 @@ func _init(cfg: Dictionary = {}) -> void:
 	_repath_target_drift = float(cfg.get("repath_target_drift", _repath_target_drift))
 	_stuck_time = float(cfg.get("stuck_time", _stuck_time))
 	_stuck_min_move = float(cfg.get("stuck_min_move", _stuck_min_move))
+	_fruitless_backoff = float(cfg.get("fruitless_backoff", _fruitless_backoff))
 	_max_expansions = int(cfg.get("max_expansions", _max_expansions))
 	_goal_snap_radius = int(cfg.get("goal_snap_radius", _goal_snap_radius))
 
@@ -54,17 +56,22 @@ func set_grid(grid: NavGrid) -> void:
 
 
 func reset() -> void:
-	_path.clear()
+	_drop_route()
 	_has_los = false
 	_los_t = 0.0
 	_repath_t = 0.0
-	_stuck_t = 0.0
-	_stuck_from = Vector2.INF
 
 
 ## The current route, for the debug overlay only.
 func active_path() -> Array:
 	return _path
+
+
+## Forget the current route and stuck window (the goal is direct, gone, or replaced).
+## `_update_stuck` re-seeds `_stuck_t` from the INF sentinel, so this is the full reset.
+func _drop_route() -> void:
+	_path.clear()
+	_stuck_from = Vector2.INF
 
 
 ## Given where the body is and where it wants to end up, return the point to steer
@@ -75,9 +82,7 @@ func steer_target(pos: Vector2, goal: Vector2, delta: float) -> Vector2:
 		return goal
 	# Close enough that arrival easing should take over — never route micro-distances.
 	if pos.distance_to(goal) <= _direct_distance:
-		_path.clear()
-		_stuck_t = 0.0
-		_stuck_from = Vector2.INF
+		_drop_route()
 		return goal
 
 	_los_t -= delta
@@ -88,43 +93,49 @@ func steer_target(pos: Vector2, goal: Vector2, delta: float) -> Vector2:
 		_has_los = _grid.line_clear(pos, goal)
 
 	if _has_los:
-		_path.clear()
-		_stuck_t = 0.0
-		_stuck_from = Vector2.INF
+		_drop_route()
 		return goal
 
 	# Blocked. A body that means to move but barely does (pressed into a corner the
-	# grid path didn't anticipate) forces a fresh plan past the throttle.
+	# grid path didn't anticipate) forces a fresh plan ahead of the normal throttle —
+	# but never ahead of the fruitless backoff: when planning itself keeps failing to
+	# reach the goal (a sealed pocket), re-searching harder won't unwedge us, so those
+	# retries are spaced out instead of burning a worst-case A* every stuck window.
 	var force := _update_stuck(pos, delta)
 
 	var drifted := (not _path.is_empty()) and _path_goal.distance_to(goal) > _repath_target_drift
-	if (_path.is_empty() or drifted or force) and (_repath_t <= 0.0 or force):
-		_repath_t = _repath_interval
+	var want_plan := _path.is_empty() or drifted or force
+	var may_plan := _repath_t <= 0.0 or (force and _repath_t <= _repath_interval)
+	if want_plan and may_plan:
 		plan_count += 1
 		_path = _grid.find_path(pos, goal, _max_expansions, _goal_snap_radius)
 		_path_goal = goal
+		var reached := (not _path.is_empty()) \
+			and (_path.back() as Vector2).distance_to(goal) <= _grid.cell_size() * 2.0
+		_repath_t = _repath_interval if reached else _fruitless_backoff
 	if _path.is_empty():
-		# Nowhere to route from here (start couldn't be placed) — press on directly and
-		# let the collision slide; the next plan attempt comes after the throttle.
+		# Nowhere better to route from here — press on directly and let the collision
+		# slide; the next plan attempt comes after the backoff.
 		return goal
 
-	# Advance past waypoints we've reached; on LOS ticks also skip every waypoint we can
-	# already see straight to — continuous string-pulling that rounds the corners.
-	while _path.size() > 1 and pos.distance_to(_path[0]) <= _waypoint_reach:
-		_path.remove_at(0)
-	if los_tick and _path.size() > 1:
-		var far := -1
-		for j in range(_path.size() - 1, 0, -1):
+	# Consume the route from the front: drop every waypoint already reached, and on LOS
+	# ticks every waypoint we can see straight past — continuous string-pulling, so the
+	# body rounds corners instead of touching each one. A single slice keeps the
+	# invariant visible: _path always starts at the next corner to steer at.
+	var keep := 0
+	while keep < _path.size() - 1 and pos.distance_to(_path[keep]) <= _waypoint_reach:
+		keep += 1
+	if los_tick:
+		for j in range(_path.size() - 1, keep, -1):
 			if _grid.line_clear(pos, _path[j]):
-				far = j
+				keep = j
 				break
-		if far > 0:
-			for _i in far:
-				_path.remove_at(0)
+	if keep > 0:
+		_path = _path.slice(keep)
 	if _path.size() == 1 and pos.distance_to(_path[0]) <= _waypoint_reach:
 		# Route exhausted at a partial-path terminus short of the goal (sealed pocket or
-		# expansion cap): steer at the goal until the throttle lets us plan again.
-		_path.clear()
+		# expansion cap): steer at the goal until the backoff lets us plan again.
+		_drop_route()
 		return goal
 	return _path[0]
 

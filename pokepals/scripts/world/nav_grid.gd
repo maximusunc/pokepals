@@ -38,15 +38,23 @@ static func build(solids: Array, bounds: Rect2, body_radius: float, margin: floa
 
 	# The map edge blocks like a wall: centers the body couldn't stand at (clamped by
 	# Solids._clamp_bounds) are unwalkable, so paths never hug an edge they'd be pushed off.
+	# Only cells in the outermost band can fail this (inflate < cell size), so visit just those.
+	var interior := bounds.grow(-g._inflate)
+	var band := maxi(1, int(ceilf(g._inflate / g._cell_size)))
 	for col in g._cols:
 		for row in g._rows:
-			var c := g.center_of(Vector2i(col, row))
-			if c.x < bounds.position.x + g._inflate or c.x > bounds.end.x - g._inflate \
-					or c.y < bounds.position.y + g._inflate or c.y > bounds.end.y - g._inflate:
+			if col >= band and col < g._cols - band and row >= band and row < g._rows - band:
+				continue
+			if not interior.has_point(g.center_of(Vector2i(col, row))):
 				g._walk[row * g._cols + col] = 0
 
+	# A solid smaller than the half-cell diagonal could slip between cell CENTERS and go
+	# unseen by the grid (a lone tree near a cell corner), letting A* plan a leg through
+	# its clearance band. Rasterize with at least that radius so every solid blocks the
+	# cell(s) it sits in; the exact line_clear test still uses the true radii.
+	var min_raster_r := g._cell_size * 0.7072  # half diagonal, a hair over sqrt(2)/2
 	for s in solids:
-		var r := float(s["radius"]) + g._inflate
+		var r := maxf(float(s["radius"]) + g._inflate, min_raster_r)
 		var lo: Vector2
 		var hi: Vector2
 		if s.has("a"):
@@ -69,10 +77,13 @@ static func build(solids: Array, bounds: Rect2, body_radius: float, margin: floa
 				if g._walk[idx] == 0:
 					continue
 				var center := g.center_of(Vector2i(col, row))
-				var near: Vector2 = Geometry2D.get_closest_point_to_segment(center, s["a"], s["b"]) if s.has("a") else s["center"]
-				if center.distance_to(near) < r:
+				if center.distance_to(Solids.nearest_point(s, center)) < r:
 					g._walk[idx] = 0
 	return g
+
+
+func cell_size() -> float:
+	return _cell_size
 
 
 func cell_of(pos: Vector2) -> Vector2i:
@@ -91,20 +102,30 @@ func is_walkable(cell: Vector2i) -> bool:
 	return _walk[cell.y * _cols + cell.x] == 1
 
 
-## Spiral outward from `cell` (rings of growing Chebyshev radius) to the nearest walkable
-## cell. Returns the input if it's already walkable, or (-1,-1) if nothing within max_rings —
-## the caller treats that as "can't path from/to here".
-func nearest_walkable(cell: Vector2i, max_rings: int) -> Vector2i:
+## Spiral outward from `near` (rings of growing Chebyshev radius) to a walkable cell,
+## preferring the candidate whose center is closest to `near` itself — NOT the first hit
+## in scan order, which would bias toward one side and could snap a point that's inside
+## a hedge band to the wrong side of the hedge. Returns the input cell if it's already
+## walkable, or (-1,-1) if nothing within max_rings ("can't path from/to here").
+func nearest_walkable(near: Vector2, max_rings: int) -> Vector2i:
+	var cell := cell_of(near)
 	if is_walkable(cell):
 		return cell
 	for ring in range(1, max_rings + 1):
+		var best := Vector2i(-1, -1)
+		var best_d := INF
 		for dy in range(-ring, ring + 1):
 			for dx in range(-ring, ring + 1):
 				if maxi(absi(dx), absi(dy)) != ring:
 					continue
 				var c := cell + Vector2i(dx, dy)
 				if is_walkable(c):
-					return c
+					var d := center_of(c).distance_squared_to(near)
+					if d < best_d:
+						best_d = d
+						best = c
+		if best.x >= 0:
+			return best
 	return Vector2i(-1, -1)
 
 
@@ -136,15 +157,21 @@ func line_clear(a: Vector2, b: Vector2) -> bool:
 ## open, so a path never clips a wall corner). Returns smoothed world-space waypoints
 ## ENDING at `to` when reachable. When `to` isn't reachable (sealed pocket, expansion cap),
 ## returns the path to the closest point the search DID reach — a best partial path — so a
-## follower presses toward its goal rather than freezing. [] only when `from` itself can't
-## be placed on the grid.
+## follower presses toward its goal rather than freezing. [] when `from` can't be placed on
+## the grid, or when no reachable cell is closer to the goal than where we already stand
+## (nowhere better to go — the caller should ease off, not spin).
 func find_path(from: Vector2, to: Vector2, max_expansions: int, snap_rings: int = 4) -> Array:
-	var start := nearest_walkable(cell_of(from), snap_rings)
+	var start := nearest_walkable(from, snap_rings)
 	if start.x < 0:
 		return []
-	var goal := nearest_walkable(cell_of(to), snap_rings)
+	# A goal that can't snap to walkable ground (a point deep inside a pond) keeps its raw
+	# cell: the search can never terminate ON it, so it flows toward it and returns the
+	# best partial path — the companion trots to the shore nearest the point, not nowhere.
+	var goal_reachable := true
+	var goal := nearest_walkable(to, snap_rings)
 	if goal.x < 0:
-		goal = start
+		goal = cell_of(to)
+		goal_reachable = false
 
 	var count := _cols * _rows
 	var g_score := PackedFloat32Array()
@@ -207,12 +234,17 @@ func find_path(from: Vector2, to: Vector2, max_expansions: int, snap_rings: int 
 	while walk_i != -1 and walk_i != start_i:
 		points.push_front(center_of(_cell_at(walk_i)))
 		walk_i = parent[walk_i]
-	# End the route at the true goal point (not its cell center) when the search reached it
-	# and a body can actually stand there — otherwise the last cell center is the terminus.
-	if best_i == goal_i and cell_of(to) == goal and points.size() > 0:
-		points[points.size() - 1] = to
-	elif best_i == goal_i and cell_of(to) == goal and points.is_empty():
-		points.append(to)
+	# End the route at the true goal point (not its cell center) when the search reached its
+	# cell, that cell wasn't snapped elsewhere, AND the exact point is actually attainable
+	# (the final leg is clear) — a goal 10px from a trunk keeps the cell center instead of
+	# steering the body at a spot the collision resolver will never let it occupy.
+	if goal_reachable and best_i == goal_i and cell_of(to) == goal:
+		var leg_from: Vector2 = points[points.size() - 2] if points.size() > 1 else from
+		if line_clear(leg_from, to):
+			if points.is_empty():
+				points.append(to)
+			else:
+				points[points.size() - 1] = to
 	return smooth(from, points)
 
 

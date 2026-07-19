@@ -61,9 +61,7 @@ const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkee
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_style = style if style != null else ArtStyle.load_style()
 	_ground_color = WorldData.to_color(data["ground_color"])
-	var bmin := WorldData.to_vec2(data["bounds"]["min"])
-	var bmax := WorldData.to_vec2(data["bounds"]["max"])
-	_bounds = Rect2(bmin, bmax - bmin)
+	_bounds = WorldData.bounds_rect(data)
 	# A soft top→bottom ground gradient (palette), baked once, drawn under the dapple.
 	_ground_grad = _style.make_vertical_gradient_texture(_style.color("ground_top"), _style.color("ground_bottom"))
 

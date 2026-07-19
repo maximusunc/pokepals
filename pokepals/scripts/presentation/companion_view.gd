@@ -66,6 +66,7 @@ var _collide := false
 # still just names a point it wants to be at, and this is the body knowing how to get
 # there — same layer as Solids collision. Null when nav is disabled in companion.json.
 var _nav_agent: NavAgent = null
+var _nav_behavior := ""      # last behavior routed for; a switch (whistle!) replans at once
 var debug_draw_nav := false  # world controller flips this with the debug overlay
 # Eased read of the brain's feeling surface, so body language glides instead of twitching.
 var _mood_v := 0.0
@@ -478,9 +479,19 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 	var speed: float = intent["desired_speed"]
 	# Route the brain's wish through the nav agent: while the straight line is clear this
 	# returns the target untouched (open-field behavior is byte-identical to before); when
-	# a wall is in the way it returns the next corner of a path around it instead.
-	if _nav_agent != null and _collide and speed > 0.0:
-		target = _nav_agent.steer_target(position, target, delta)
+	# a wall is in the way it returns the next corner of a path around it instead. Not
+	# while deliberately still (idle intent, or the point-hold below) — a frozen body that
+	# "means to move" would trip the stuck detector into pointless replanning — and a
+	# behavior switch (a whistle mid-route!) drops the old goal's route the same frame.
+	if _nav_agent != null and _collide:
+		var behavior := String(intent.get("behavior", ""))
+		if behavior != _nav_behavior:
+			_nav_behavior = behavior
+			_nav_agent.reset()
+		if speed > 0.0 and _point_t <= 0.0:
+			target = _nav_agent.steer_target(position, target, delta)
+		elif not _nav_agent.active_path().is_empty():
+			_nav_agent.reset()
 	var to_target := target - position
 	var desired_velocity := Vector2.ZERO
 	if to_target.length() > 2.0 and speed > 0.0:
