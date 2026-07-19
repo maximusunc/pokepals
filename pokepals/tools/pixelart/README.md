@@ -30,6 +30,7 @@ python trees.py           # trees.png (tree + great tree, ramp variants)
 python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 python portal.py          # portal.png (neutral oval + tint swatches)
 python props.py           # props.png (every small prop, demo-tinted, on grass)
+python hedge.py           # hedge.png (leafy tile, tiled 2x2, lit + face)
 ```
 
 ## File guide
@@ -45,6 +46,7 @@ python props.py           # props.png (every small prop, demo-tinted, on grass)
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
 | `portal.py` | World doorways: a neutral (grayscale) radial energy oval, ordered-dithered into chunky pixel bands, tinted per-portal in the client, `make_portal()` |
 | `props.py` | The world's small hand-placed things (lanterns, crystals, mushrooms, benches, crates, stonework…): ASCII maps + a procedural Canvas, each baked into a BASE layer + an optional grayscale TINT layer, `make_prop_parts()` |
+| `hedge.py` | The maze walls: one SEAMLESS leafy tile (a dappled integer-frequency clump field, dithered into leaf shades) the client tiles along each axis-aligned hedge run, `make_hedge_tile()` |
 
 ## Core concepts
 
@@ -259,6 +261,22 @@ with `.import` sidecars. The game uses a prop the moment its type is in `data/ar
 `entities.props.types`; drop a type from that list (or delete the file) and it falls back to
 that prop's procedural drawing. Everything is bottom-anchored (feet on the prop's ground point,
 like the trees). `rock` and `stall` are intentionally still procedural (multi-state / animated).
+
+### Reshape or recolor the maze hedges (`hedge.py`)
+Like water, a hedge is a SURFACE, not a silhouette, so its unit is one SEAMLESS tile the client
+lays along each maze wall (the maze is a grid, so every run is an axis-aligned rectangle). The
+tile is baked in the LIT (top) greens; the client draws the sunlit top with it as-is and the
+shaded front face with `modulate` darkened — one tile, both faces. The dapple is a `CLUMPS`
+field (sine products at INTEGER frequencies, so it repeats with no seam) ordered-dithered into
+leaf shades.
+- **Bushier / sparser leaves:** edit `CLUMPS` (more/higher-frequency = smaller, busier clumps)
+  or `HIGHLIGHT`/`SHADOW` (how often a leaf catches sun or falls dark). Rerun, eyeball
+  `hedge.png` (tiled 2×2, with the darkened front-face copy beside it).
+- **Recolor:** swap the `RAMP` `(dark, base, light)` greens.
+
+This feeds `tools/gen_hedge.py`, which bakes `assets/sprites/hedge.png` with a `.import`
+sidecar. The game uses it the moment `data/art.json`'s `entities.hedge` names a `tile`
+(`world_tile` sets the chunkiness); remove it and the maze falls back to flat-green walls.
 
 These feed `tools/gen_trees.py`, which bakes each kind as TWO layers —
 `assets/sprites/{kind}_trunk.png` and `{kind}_canopy.png` (+ ramp variants) — with
