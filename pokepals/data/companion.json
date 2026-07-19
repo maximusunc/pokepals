@@ -10,7 +10,7 @@
 	"walk_speed": 64.0,
 	"run_speed": 132.0,
 	"accel": 7.5,
-	"_nav_comment": "Route-finding around walls (the maze!). The companion steers STRAIGHT at its target whenever the line is clear — open-field feel is untouched — and only consults a walkability grid (cell_size px, rebuilt per world from the same solids it collides with) when blocked, then cuts corners along the smoothed path. direct_distance: goals closer than this are never routed (arrival easing owns the last step). waypoint_reach: how close counts as 'rounded that corner'. los_interval/repath_interval: seconds between line-of-sight checks / how often it may re-plan while the target drifts (repath_target_drift px triggers it). stuck_time/stuck_min_move: wedged for this long having moved less than this forces an early re-plan — keep stuck_time UNDER wander_stuck_time so the body gets its repair attempt in before the brain's roam give-up trips. fruitless_backoff: seconds between retries once planning itself can't reach the goal (sealed pocket, target deep in a pond) — searching harder won't help, so don't burn CPU trying. max_expansions caps a single search (blocked-off targets yield a best-effort partial path instead). goal_snap_radius: cells searched to pull an in-wall target out to walkable ground. enabled:false restores the old slide-along-walls behavior.",
+	"_nav_comment": "Route-finding around walls (the maze!). The companion steers STRAIGHT at its target whenever the line is clear — open-field feel is untouched — and only consults a walkability grid (cell_size px, rebuilt per world from the same solids it collides with) when blocked, then cuts corners along the smoothed path. direct_distance: goals closer than this are never routed (arrival easing owns the last step). waypoint_reach: how close counts as 'rounded that corner'. los_interval/repath_interval: seconds between line-of-sight checks / how often it may re-plan while the target drifts (repath_target_drift px triggers it). stuck_time/stuck_min_move: wedged for this long having moved less than this forces an early re-plan — keep stuck_time UNDER wander_stuck_time so the body gets its repair attempt in before the brain's roam give-up trips. fruitless_backoff: seconds between retries once planning itself can't reach the goal (sealed pocket, target deep in a pond) — searching harder won't help, so don't burn CPU trying. wander_detour_ratio: while WANDERING, a route longer than straight-line x this (+ two cells slack) is declined — ambling somewhere is not worth a trek around the maze, so it nudges the wall briefly and the wander stuck-guard picks a new spot; follow/come always route no matter how far around. 0 = wander routes unlimited too. max_expansions caps a single search (blocked-off targets yield a best-effort partial path instead). goal_snap_radius: cells searched to pull an in-wall target out to walkable ground. enabled:false restores the old slide-along-walls behavior.",
 	"nav": {
 		"enabled": true,
 		"cell_size": 24.0,
@@ -22,6 +22,7 @@
 		"stuck_time": 0.4,
 		"stuck_min_move": 4.0,
 		"fruitless_backoff": 1.0,
+		"wander_detour_ratio": 2.0,
 		"max_expansions": 6000,
 		"goal_snap_radius": 4
 	},

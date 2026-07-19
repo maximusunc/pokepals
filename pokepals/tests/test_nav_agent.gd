@@ -17,6 +17,7 @@ static func run_all() -> int:
 	fails += _test_blocked_returns_reachable_waypoint()
 	fails += _test_repath_is_throttled()
 	fails += _test_grid_swap_drops_the_path()
+	fails += _test_wander_detour_cap()
 	fails += _test_escapes_a_u_pocket()
 	return fails
 
@@ -89,6 +90,31 @@ static func _test_grid_swap_drops_the_path() -> int:
 	agent.set_grid(_grid([]))  # the world's solids changed (a slab dropped)
 	return _check("swapping the grid invalidates the cached path",
 		had_path and agent.active_path().is_empty())
+
+
+static func _test_wander_detour_cap() -> int:
+	# A long wall forces a route several times the straight-line distance. With the cap,
+	# wandering DECLINES it (steers straight, no route); follow-style unlimited routing
+	# still takes it. A short hop behind a small obstacle stays routable under the cap
+	# (the two-cell slack), so open-field obstacle-rounding keeps its charm.
+	var long_wall := [{ "a": Vector2(0, -400), "b": Vector2(0, 60), "radius": 14.0 }]
+	var g := _grid(long_wall)
+	var pos := Vector2(-60, -200)
+	var goal := Vector2(60, -200)   # just across the wall; route must go ~500px around
+	var capped := _agent(g)
+	var out := capped.steer_target(pos, goal, 1.0 / 60.0, 2.0)
+	var declined: bool = out.is_equal_approx(goal) and capped.active_path().is_empty()
+	var unlimited := _agent(g)
+	unlimited.steer_target(pos, goal, 1.0 / 60.0)
+	var routed: bool = not unlimited.active_path().is_empty()
+	# Small obstacle, short hop: straight 80px, route only slightly longer.
+	var g2 := _grid([{ "center": Vector2(0, 0), "radius": 16.0 }])
+	var near_agent := _agent(g2)
+	var out2 := near_agent.steer_target(Vector2(-40, 2), Vector2(40, -2), 1.0 / 60.0, 2.0)
+	var still_rounds: bool = not out2.is_equal_approx(Vector2(40, -2)) \
+		or not near_agent.active_path().is_empty()
+	return _check("wander detour cap declines the trek, keeps the short round-about",
+		declined and routed and still_rounds)
 
 
 static func _test_escapes_a_u_pocket() -> int:
