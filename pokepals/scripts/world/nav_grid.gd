@@ -153,6 +153,27 @@ func line_clear(a: Vector2, b: Vector2) -> bool:
 	return true
 
 
+## The farthest point along anchor→point that is still in ANCHOR's walled region (i.e.
+## line_clear from the anchor). Used to keep a player-anchored goal — the follow point,
+## which perception picks geometry-blind behind the player — on the player's own side of
+## a hedge, so the follower never departs for a phantom spot in a neighboring corridor.
+## Returns `point` unchanged when the line is clear (the open-field common case), and
+## `anchor` itself when even the first step is blocked. Bisection, so ~7 line_clear
+## calls (each AABB broad-phase filtered) in the blocked case.
+func clamp_to_visible(anchor: Vector2, point: Vector2) -> Vector2:
+	if line_clear(anchor, point):
+		return point
+	var lo := 0.0  # farthest t known clear
+	var hi := 1.0  # nearest t known blocked
+	for _i in 7:
+		var mid := (lo + hi) * 0.5
+		if line_clear(anchor, anchor.lerp(point, mid)):
+			lo = mid
+		else:
+			hi = mid
+	return anchor.lerp(point, lo)
+
+
 ## A* over the grid, 8-connected (diagonals only when both flanking orthogonal cells are
 ## open, so a path never clips a wall corner). Returns smoothed world-space waypoints
 ## ENDING at `to` when reachable. When `to` isn't reachable (sealed pocket, expansion cap),
