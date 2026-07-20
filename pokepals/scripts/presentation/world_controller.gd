@@ -745,11 +745,12 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
 		_try_interact()
 		return
-	# A press outside the walking stick and outside the HUD (HUD Controls consume their own clicks
-	# upstream) is a COMPANION ORDER: send it to the tapped interactable. Left mouse covers desktop
-	# clicks and — via emulate_mouse_from_touch — mobile taps; the stick guards its own corner.
+	# A press outside the walking stick AND outside the HUD is a COMPANION ORDER: send it to the tapped
+	# interactable. Left mouse covers desktop clicks and — via emulate_mouse_from_touch — mobile taps.
+	# The stick owns its corner, and the HUD owns its own tap surfaces (the diegetic Examine bubble, the
+	# radial, the gear) — a press there is never an order, so Examine stays a SOLE player interaction.
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if not _joystick.contains_point(event.position):
+		if not _joystick.contains_point(event.position) and not _tap_on_hud(event.position):
 			_on_world_tap(event.position)
 		return
 	# Desktop convenience keys, matching the project's physical-key convention (no InputMap):
@@ -759,6 +760,19 @@ func _unhandled_input(event: InputEvent) -> void:
 			_try_call()
 		elif event.physical_keycode == KEY_E:
 			_try_pet()
+
+
+## True if a screen press lands on a HUD tap surface — the diegetic Examine bubble, the companion
+## radial, or the gear menu. Those are player/HUD interactions and must never ALSO fire a companion
+## order (the Examine bubble in particular stays a sole player interaction). Checked against the same
+## tap_targets() the views expose; is_visible_in_tree() so a faded-out prompt doesn't guard stale
+## space. A small pad makes the bubble thumb-friendly to hit cleanly.
+func _tap_on_hud(screen_pos: Vector2) -> bool:
+	for target in _examine_prompt.tap_targets() + _radial.tap_targets() + _gear.tap_targets():
+		var c := target as Control
+		if c != null and c.is_visible_in_tree() and c.get_global_rect().grow(6.0).has_point(screen_pos):
+			return true
+	return false
 
 
 ## A companion ORDER: the player tapped somewhere in the world. Snap to the nearest interactable
