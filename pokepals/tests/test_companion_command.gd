@@ -25,6 +25,7 @@ static func run_all() -> int:
 	fails += _test_seek_sweeps_then_settles(cfg)
 	fails += _test_seek_times_out_when_fruitless(cfg)
 	fails += _test_call_breaks_off_a_search(cfg)
+	fails += _test_seek_repicks_a_walled_waypoint(cfg)
 	fails += _test_brain_routes_seek(cfg)
 	fails += _test_visit_goes_acknowledges_then_releases(cfg)
 	fails += _test_visit_cancelled_by_call(cfg)
@@ -356,6 +357,27 @@ static func _test_call_breaks_off_a_search(cfg: Dictionary) -> int:
 	fails += _ok(seek.score(_seek_percept("come", Vector2.ZERO, Vector2(100, 0)), s, cfg, rng) == 0.0,
 		"whistling 'come' breaks off the search so Call can take over (yields the command band)")
 	return fails
+
+
+# A swept waypoint can sit behind a maze wall the geometry-blind brain can't see. Pinned at the
+# origin (no progress), the search must give up on that waypoint after waypoint_patience and sweep
+# elsewhere — rather than grinding against the wall until the whole search times out.
+static func _test_seek_repicks_a_walled_waypoint(cfg: Dictionary) -> int:
+	var seek := CompanionActions.SeekAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var rng := _rng()
+	seek.score(_seek_percept("seek", Vector2.ZERO, Vector2.ZERO), s, cfg, rng)
+	seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)  # establish a waypoint
+	var target0: Vector2 = seek._target
+	var patience := float(cfg.get("seek", {}).get("waypoint_patience", 2.0))
+	var repicked := false
+	for _i in int(patience / 0.05) + 5:
+		seek.act(_seek_percept("", Vector2.ZERO, Vector2.ZERO), s, cfg, rng, 0.05)
+		if seek._target != target0:
+			repicked = true
+			break
+	return _ok(repicked, "a walled sweep (no progress toward the waypoint) gives up and sweeps elsewhere")
 
 
 # End-to-end: issue_command('seek') routes through the brain to a search beat (command band wins).
