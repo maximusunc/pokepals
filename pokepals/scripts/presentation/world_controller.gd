@@ -787,6 +787,12 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	if index < 0:
 		return
 	var entry: Dictionary = _interactables[index]
+	# A prop you're close enough to EXAMINE yourself is yours, not a companion order — so tapping the
+	# thing you're standing next to (or its Examine bubble) never also sends the companion. Companion
+	# orders are for things beyond your own reach, across the way. This is what keeps Examine a sole
+	# player interaction.
+	if _player.position.distance_to(entry["pos"]) <= INTERACT_RANGE:
+		return
 	_companion.issue_command("visit", entry["pos"])
 	_world_art.pulse_interactable(int(entry["render_index"]))
 
