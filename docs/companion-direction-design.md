@@ -72,10 +72,14 @@ Each item notes *reuse* (existing code) and *new* (to build) as information for 
 not as a plan to act on.
 
 ### Input & targeting
-- ⬜ **I-1 — Tap an interactable = an order.** Tap/click hit-tests interactables, snaps to nearest
-  within a generous radius, issues a companion order; empty-ground taps do nothing.
-  *Reuse:* `_interactables`, `issue_command`. *New:* object hit-testing (today: proximity +
-  fixed Examine bubble, no picking).
+- 🔶 **I-1 — Tap an interactable = an order.** Decided: a **fixed bottom-left joystick** walks the
+  player; a **click/tap anywhere else** commands the companion — it snaps to the nearest interactable
+  within a generous radius (`TAP_PICK_RADIUS`) and the companion paths there, noses it with a perk + a
+  targeting glow, then resumes (**go + acknowledge**; no world effect yet — that's F-2/C-1). **Coexists**
+  with the existing player-examine (Space/bubble). Built: fixed `virtual_joystick.gd`, world-order
+  capture in `world_controller.gd` (`_on_world_tap`/`_nearest_interactable_to_point`), and a new
+  `VisitAction` command verb (+ config + tests). Non-hit taps (I-3) and recall-by-tapping-the-companion
+  (I-4) deferred. **Awaiting playtest.**
 - ⬜ **I-2 — Keyboard-only desktop path.** Tab-cycle interactables + confirm key.
 - ⬜ **I-3 — Non-registering-tap tell.** A small "received, nothing to do" feedback.
   *Reuse:* `world_art.gd` pulse.
@@ -85,13 +89,13 @@ not as a plan to act on.
   right-of-center. (Authoring convention more than code.)
 
 ### Form system
-- 🔶 **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
+- ✅ **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
   autonomous drift. You *instruct* a form (via the companion radial); it holds for a **bond-scaled**
   duration (low bond = brief, always obeys), then **releases back to the drift**; and as bond grows
   the drift **biases toward a temperament-derived signature form**. This is form *control*, not yet
-  form *function* (capabilities = F-2/C-1). **Built** in `companion_form.gd` (pure layer + tests),
+  form *function* (capabilities = F-2/C-1). Built in `companion_form.gd` (pure layer + tests),
   `companion_view.gd` (`instruct_form`), `world_controller.gd` (radial picker), and the `daemon_form`
-  config. **Awaiting playtest** (the real bar) — go play it, then mark ✅.
+  config. **Playtested and confirmed working.**
 - ⬜ **F-2 — Form as a verb.** Each form = one command-band `CompanionAction`. *Reuse:* the action
   seam (no arbiter change).
 - ⬜ **F-3 — Contextual filtering.** Own ~20 forms, see 3 at a time, filtered by object `tags` +

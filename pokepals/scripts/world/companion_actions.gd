@@ -48,6 +48,7 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 		ComeAction.new(b_command),
 		PetAction.new(b_command),
 		SeekAction.new(b_command),
+		VisitAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
 		LeadAction.new(cfg, b_social),
@@ -1025,3 +1026,78 @@ class SeekAction extends CompanionAction:
 		var angle := rng.randf_range(0.0, TAU)
 		var dist := rng.randf_range(near, maxf(near + 1.0, far))
 		return player_pos + Vector2(cos(angle), sin(angle)) * dist
+
+
+## VISIT — a DIRECTED order (I-1). The player tapped an interactable, so the companion goes to that
+## specific point, acknowledges it with a perk, dwells a beat, then releases back to its own life. The
+## point-directed counterpart to Seek's delegated sweep: deterministic (an order always goes, no
+## bond/mood gate), routed there around walls by the body's NavAgent. What it actually DOES on arrival
+## is just "check it out" for now — a form's real verb will resolve here in a later item. A whistle
+## ("come") or a pet cancels the visit, so calling your companion back always works; a fresh "visit"
+## retargets. It rides the command band, so it preempts autonomous life while active and yields the
+## instant it releases.
+class VisitAction extends CompanionAction:
+	enum { GO, ARRIVE }
+	var _active := false
+	var _phase := GO
+	var _target := Vector2.ZERO
+	var _dwell_left := 0.0
+	var _arrived := false
+
+	func _init(band_value: int) -> void:
+		id = "visit"
+		band = band_value
+		behavior = "visit"
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func score(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator) -> float:
+		var command := String(perception.get("command", ""))
+		if command == "visit":
+			var pt: Variant = perception.get("command_point")
+			if pt is Vector2:
+				_active = true
+				_phase = GO
+				_target = pt
+				_arrived = false
+		elif _active and (command == "come" or command == "pet"):
+			# Called back (or petted): cancel the visit and yield the command band so Come/Pet take over
+			# cleanly — otherwise the still-active visit would resume the moment they finished.
+			_active = false
+		return 1.0 if _active else 0.0
+
+	func act(perception: Dictionary, s: CompanionSelf, cfg: Dictionary, rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var visit: Dictionary = cfg.get("visit", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var reactions: Array = []
+		var arrive := float(visit.get("arrive_distance", 34.0))
+		match _phase:
+			GO:
+				if companion_pos.distance_to(_target) > arrive:
+					move_target = _target
+					speed = float(visit.get("speed", cfg.get("walk_speed", 64.0)))
+				else:
+					_phase = ARRIVE
+					_dwell_left = float(visit.get("dwell_seconds", 1.4))
+					if not _arrived:
+						reactions.append("perk")   # "here it is" — the acknowledge beat
+						reactions.append("look")
+						_arrived = true
+			ARRIVE:
+				# Stand by the object, face it, breathe a beat, then let its own life resume.
+				move_target = _target
+				_dwell_left -= delta
+				if _dwell_left <= 0.0:
+					_active = false
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": _target,
+			"reactions": reactions,
+		}

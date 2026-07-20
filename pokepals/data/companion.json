@@ -220,6 +220,12 @@
 		"search_seconds": 14.0,
 		"hold_seconds": 3.0
 	},
+	"_visit_comment": "The DIRECTED order (I-1): the player taps an interactable and the companion goes to it, acknowledges with a perk, dwells, then resumes its own life. VisitAction on the command band; the point comes from world_controller.issue_command('visit', object_pos). Deterministic (an order always goes) — the point-directed counterpart to Seek's delegated sweep. speed: pace of the approach (px/s; a touch brisker than walk_speed since it's purposeful). arrive_distance: how near the object it stops. dwell_seconds: the beat it stands and looks before releasing. A 'come'/'pet' cancels a visit; another 'visit' retargets. (What it DOES on arrival is a plain check-it-out for now — a form's real verb resolves here in a later item.)",
+	"visit": {
+		"speed": 90.0,
+		"arrive_distance": 34.0,
+		"dwell_seconds": 1.4
+	},
 	"_lead_comment": "Companion-LED discovery — the deepest partnership beat, where the companion stops being a reactor and takes YOU somewhere. On its own initiative it picks an appealing, still-novel prop and leads you to it, glancing back to check you're following, then presents it with a delight and a shared-discovery bond/mood bump. Reserved for a FULLY bonded companion (min_bond, set to bond.max): leading you to share a find is something only a partner that completely trusts you does. On the social band with a CheckIn-like spacing. interval: seconds between attempts (deterministic, NOT rng — a lead is a considered, no-dice beat; also the initial delay so it doesn't fire on spawn). min_appeal: only leads to a prop it actually likes (appraised appeal). min_novelty: and only one still fresh — never drags you to something you've already examined together (novelty is keyed by the same prop id as Examine, so the two paths never double-pay). beckon_time: the 'come on!' beat before setting off. glance_interval/glance_pause: how often, and for how long, it stops to look back and check you're coming. follow_check_distance/patience: if you lag beyond follow_check_distance for patience seconds it gives up gracefully and goes back to its life. stop_distance: how close to the prop it leads before presenting. present_linger: how long it admires the find with you before the beat ends.",
 	"lead": {
 		"min_bond": 1.0,
