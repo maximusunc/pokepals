@@ -8,6 +8,10 @@ extends Node2D
 
 const ART_PATH := "res://data/art.json"
 const INTERACT_RANGE := 60.0
+# How near a companion ORDER tap must land to an interactable to snap onto it (thumbs are imprecise,
+# and an order can target something the player is NOT standing next to — so it's generous and
+# independent of the player's own INTERACT_RANGE).
+const TAP_PICK_RADIUS := 100.0
 # How close the player must be to the companion for the Pet affordance to appear. Mirrors the
 # brain's pet.range (companion.json) so the button only shows when a pet would actually land.
 const PET_RANGE := 56.0
@@ -214,10 +218,10 @@ func _build_world(data: Dictionary) -> void:
 	_ambient_dir.spawn_pals(data)
 
 	# The three HUD zones. Each is a self-contained view that reports what the player tapped; the
-	# controller maps that to the SAME handlers the old free-floating buttons used. Every tap surface
-	# is excluded from the movement thumbstick underneath (the components expose tap_targets() for
-	# exactly this — their full-screen "tap away to dismiss" catchers cover the fanned/dropped items
-	# too, so a tap on a menu never also spins up the joystick).
+	# controller maps that to the SAME handlers the old free-floating buttons used. (The walking stick
+	# is fixed in the bottom-left corner and only reacts within its own region, so HUD taps elsewhere
+	# never disturb it — no exclusion wiring needed. A press outside the stick and outside the HUD is a
+	# COMPANION ORDER, handled in _unhandled_input.)
 	#
 	# Diegetic Examine bubble: floats over the nearby prop and, when tapped, examines (Space/Enter
 	# still work via _unhandled_input). The contextual set is pushed each frame in _process.
@@ -230,8 +234,6 @@ func _build_world(data: Dictionary) -> void:
 	# Keep the two menus mutually exclusive — opening one dismisses the other.
 	_radial.opened.connect(_gear.close)
 	_gear.opened.connect(_radial.close)
-	for target in _examine_prompt.tap_targets() + _radial.tap_targets() + _gear.tap_targets():
-		_joystick.add_exclusion(target)
 
 	# Dev-only companion/bond readout. Toggled from the gear menu's "DBG" item (and F3 on desktop).
 	_debug.setup(_companion, _player)
@@ -742,13 +744,54 @@ func _unhandled_input(event: InputEvent) -> void:
 		return
 	if event.is_action_pressed("ui_accept"):
 		_try_interact()
+		return
+	# A press outside the walking stick and outside the HUD (HUD Controls consume their own clicks
+	# upstream) is a COMPANION ORDER: send it to the tapped interactable. Left mouse covers desktop
+	# clicks and — via emulate_mouse_from_touch — mobile taps; the stick guards its own corner.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		if not _joystick.contains_point(event.position):
+			_on_world_tap(event.position)
+		return
 	# Desktop convenience keys, matching the project's physical-key convention (no InputMap):
 	# C calls the companion over. Space/Enter stays Examine.
-	elif event is InputEventKey and event.pressed and not event.echo:
+	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_C:
 			_try_call()
 		elif event.physical_keycode == KEY_E:
 			_try_pet()
+
+
+## A companion ORDER: the player tapped somewhere in the world. Snap to the nearest interactable
+## within a generous radius and send the companion to it (it paths there on its own and acknowledges
+## with a perk — see VisitAction). A tap with nothing nearby does nothing for now (the "nothing to
+## do" tell is a later item). Taps are orders, never destinations: empty ground is never a target.
+func _on_world_tap(screen_pos: Vector2) -> void:
+	if _companion == null:
+		return
+	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
+	var index := _nearest_interactable_to_point(world)
+	if index < 0:
+		return
+	var entry: Dictionary = _interactables[index]
+	_companion.issue_command("visit", entry["pos"])
+	_world_art.pulse_interactable(int(entry["render_index"]))
+
+
+## Nearest interactable to an arbitrary WORLD point (an order's tap), within TAP_PICK_RADIUS. Sibling
+## of _scan_nearest_interactable, but measured from the tap rather than from the player, since an order
+## can target something across the clearing. Skips already-searched hunt rocks like the examine scan.
+func _nearest_interactable_to_point(world: Vector2) -> int:
+	var best := -1
+	var best_dist := TAP_PICK_RADIUS
+	for i in _interactables.size():
+		var e: Dictionary = _interactables[i]
+		if String(e.get("kind", "prop")) == "rock" and _hunt_dir.should_skip_rock(int(e["hunt_index"])):
+			continue
+		var d: float = world.distance_to(e["pos"])
+		if d <= best_dist:
+			best = i
+			best_dist = d
+	return best
 
 
 ## Whistle for the companion. Whether it hears, acknowledges, and actually comes is up to the

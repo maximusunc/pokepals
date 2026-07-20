@@ -26,6 +26,9 @@ static func run_all() -> int:
 	fails += _test_seek_times_out_when_fruitless(cfg)
 	fails += _test_call_breaks_off_a_search(cfg)
 	fails += _test_brain_routes_seek(cfg)
+	fails += _test_visit_goes_acknowledges_then_releases(cfg)
+	fails += _test_visit_cancelled_by_call(cfg)
+	fails += _test_brain_routes_visit(cfg)
 	return fails
 
 
@@ -363,3 +366,64 @@ static func _test_brain_routes_seek(cfg: Dictionary) -> int:
 	brain.issue_command("seek")
 	var intent := brain.update(_ctx(Vector2(0, 0), Vector2(40, 0)))
 	return _ok(intent["behavior"] == "seek", "issue_command('seek') routes through to a search beat")
+
+
+# A perception dict the VisitAction reads: the order, the target point, and positions.
+static func _visit_percept(command: String, companion_pos: Vector2, target = null) -> Dictionary:
+	return {
+		"command": command,
+		"command_point": target,
+		"companion_pos": companion_pos,
+		"player_pos": Vector2.ZERO,
+	}
+
+
+# A directed order (I-1): "visit" sends the companion to a specific point; away from it, it wants to
+# move; on arrival it gives the acknowledge perk, dwells a beat, then releases so its own life resumes.
+static func _test_visit_goes_acknowledges_then_releases(cfg: Dictionary) -> int:
+	var visit := CompanionActions.VisitAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var rng := _rng()
+	var target := Vector2(200, 0)
+	var fails := 0
+	fails += _ok(visit.score(_visit_percept("visit", Vector2.ZERO, target), s, cfg, rng) == 1.0, "issuing 'visit' latches the order")
+	# GO: standing away from the object, it wants to move toward it.
+	var moved := false
+	for _i in 10:
+		if float(visit.act(_visit_percept("", Vector2.ZERO, target), s, cfg, rng, 0.05)["desired_speed"]) > 0.0:
+			moved = true
+			break
+	fails += _ok(moved, "a 'visit' order sends the companion toward the object")
+	# Arrival: now standing on the object -> the acknowledge perk.
+	var arrival := visit.act(_visit_percept("", target, target), s, cfg, rng, 0.05)
+	fails += _ok("perk" in arrival["reactions"], "arriving at the object gives the acknowledge perk")
+	# It dwells a beat, then releases (score drops to 0 — autonomous life can resume).
+	var dwell := float(cfg.get("visit", {}).get("dwell_seconds", 1.4))
+	for _i in int(dwell / 0.05) + 5:
+		visit.act(_visit_percept("", target, target), s, cfg, rng, 0.05)
+	fails += _ok(visit.score(_visit_percept("", target, target), s, cfg, rng) == 0.0, "after acknowledging it releases back to its own life")
+	return fails
+
+
+# A whistle (or pet) mid-visit CANCELS it (yields the command band) so calling the companion back
+# always works — it never resumes the abandoned visit once Come/Pet finish.
+static func _test_visit_cancelled_by_call(cfg: Dictionary) -> int:
+	var visit := CompanionActions.VisitAction.new(5)
+	var s := CompanionSelf.make_default(cfg)
+	var rng := _rng()
+	visit.score(_visit_percept("visit", Vector2.ZERO, Vector2(200, 0)), s, cfg, rng)
+	var fails := 0
+	fails += _ok(visit.score(_visit_percept("", Vector2.ZERO, Vector2(200, 0)), s, cfg, rng) == 1.0, "the visit is active before the whistle")
+	fails += _ok(visit.score(_visit_percept("come", Vector2.ZERO, Vector2(200, 0)), s, cfg, rng) == 0.0, "whistling 'come' cancels the visit (yields the command band)")
+	return fails
+
+
+# End-to-end: issue_command('visit', point) routes through the brain to a visit beat (command band wins).
+static func _test_brain_routes_visit(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var brain := CompanionBrain.new(cfg, 1, s)
+	brain.issue_command("visit", Vector2(40, 0))
+	var intent := brain.update(_ctx(Vector2(0, 0), Vector2(200, 0)))
+	return _ok(intent["behavior"] == "visit", "issue_command('visit', point) routes through to a visit beat")
