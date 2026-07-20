@@ -108,6 +108,7 @@ var _bounds_rect := Rect2()
 
 
 func _ready() -> void:
+	_install_world_tap_catcher()
 	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a fresh
 	# boot). The spec is SERVER-CANONICAL — there is no bundled copy. We stay subscribed to both spec
 	# signals so the join can drive our build, and so a world that changes on the server while we're
@@ -218,13 +219,13 @@ func _build_world(data: Dictionary) -> void:
 	_ambient_dir.spawn_pals(data)
 
 	# The three HUD zones. Each is a self-contained view that reports what the player tapped; the
-	# controller maps that to the SAME handlers the old free-floating buttons used. (The walking stick
-	# is fixed in the bottom-left corner and only reacts within its own region, so HUD taps elsewhere
-	# never disturb it — no exclusion wiring needed. A press outside the stick and outside the HUD is a
-	# COMPANION ORDER, handled in _unhandled_input.)
+	# controller maps that to the SAME handlers the old free-floating buttons used. Tap routing is by GUI
+	# picking: these zones sit in FRONT of the world-tap catcher (installed once in _ready), so a tap on
+	# them is claimed here and a tap on open world falls through to the catcher as a companion order —
+	# nothing leaks. The walking stick keeps its own corner (consumed in _input, before the GUI).
 	#
-	# Diegetic Examine bubble: floats over the nearby prop and, when tapped, examines (Space/Enter
-	# still work via _unhandled_input). The contextual set is pushed each frame in _process.
+	# Diegetic Examine bubble: floats over the nearby prop and, when tapped, examines (Space/Enter also
+	# work via _unhandled_input). The contextual set is pushed each frame in _process.
 	_examine_prompt.pressed.connect(_try_interact)
 	# Companion radial: Pet / Call always, Go look when the Ruin has a ward to open (see _process).
 	# Desktop convenience keys stay: C calls, E pets (_unhandled_input).
@@ -745,22 +746,48 @@ func _unhandled_input(event: InputEvent) -> void:
 	if event.is_action_pressed("ui_accept"):
 		_try_interact()
 		return
-	# A press reaching _unhandled_input is one the HUD didn't consume — so it's a COMPANION ORDER (the
-	# Examine bubble, radial and gear are STOP surfaces that swallow their own taps, keeping Examine a
-	# sole player interaction). Left mouse covers desktop clicks and — via emulate_mouse_from_touch —
-	# mobile taps. The one thing still not GUI-consumed is the walking stick's corner (it reads raw
-	# _input), so guard that here.
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
-		if not _joystick.contains_point(event.position):
-			_on_world_tap(event.position)
-		return
-	# Desktop convenience keys, matching the project's physical-key convention (no InputMap):
-	# C calls the companion over. Space/Enter stays Examine.
+	# Desktop convenience keys, matching the project's physical-key convention (no InputMap): C calls
+	# the companion over, E pets, Space/Enter examines. (Tapping the WORLD to command the companion is
+	# NOT handled here — it's resolved by GUI picking through the world-tap catcher, so HUD taps can
+	# never leak into an order; see _install_world_tap_catcher / _on_world_catcher_input.)
 	if event is InputEventKey and event.pressed and not event.echo:
 		if event.physical_keycode == KEY_C:
 			_try_call()
 		elif event.physical_keycode == KEY_E:
 			_try_pet()
+
+
+## Set up the single WORLD-TAP CATCHER: a full-screen surface placed UNDER all the HUD (moved to the
+## back of the UI layer). Godot's GUI picking hands a tap to the front-most non-IGNORE control at that
+## point, so a tap on the Examine bubble / radial / gear is claimed by THEM, and only a tap on OPEN
+## WORLD reaches this catcher — which turns it into a companion order. This replaces the old
+## _unhandled_input approach, where an order fired on "anything the HUD didn't happen to consume" — a
+## brittle implicit negative that leaked through gaps like the Examine caret. The walking stick keeps
+## its own corner (it consumes in _input, before the GUI, so its taps never reach the catcher). Called
+## once from _ready.
+func _install_world_tap_catcher() -> void:
+	var catcher := Control.new()
+	catcher.name = "WorldTapCatcher"
+	catcher.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)  # fill the whole viewport
+	catcher.mouse_filter = Control.MOUSE_FILTER_STOP
+	catcher.gui_input.connect(_on_world_catcher_input)
+	$UI.add_child(catcher)
+	$UI.move_child(catcher, 0)  # behind every other HUD control
+	# The status labels are display-only — make sure they never swallow a world tap.
+	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+
+
+## A tap that fell through every HUD control down to the world-catcher is a COMPANION ORDER. Left mouse
+## covers desktop clicks and — via emulate_mouse_from_touch — mobile taps; the STOP catcher consumes the
+## paired ScreenTouch too, so a tap fires exactly one order. event.position is the catcher's local
+## coordinate, which — since it fills the viewport from the origin — equals the viewport point
+## _on_world_tap expects. Guarded until the world is built.
+func _on_world_catcher_input(event: InputEvent) -> void:
+	if not _world_built:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
+		_on_world_tap(event.position)
 
 
 ## A companion ORDER: the player tapped somewhere in the world. Snap to the nearest interactable
