@@ -218,7 +218,9 @@
 		"reach_high": 300.0,
 		"sniff_pause": 0.7,
 		"search_seconds": 14.0,
-		"hold_seconds": 3.0
+		"hold_seconds": 3.0,
+		"waypoint_patience": 2.0,
+		"progress_eps": 4.0
 	},
 	"_visit_comment": "The DIRECTED order (I-1): the player taps an interactable and the companion goes to it, acknowledges with a perk, dwells, then resumes its own life. VisitAction on the command band; the point comes from world_controller.issue_command('visit', object_pos). Deterministic (an order always goes) — the point-directed counterpart to Seek's delegated sweep. speed: pace of the approach (px/s; a touch brisker than walk_speed since it's purposeful). arrive_distance: how near the object it stops. dwell_seconds: the beat it stands and looks before releasing. A 'come'/'pet' cancels a visit; another 'visit' retargets. (What it DOES on arrival is a plain check-it-out for now — a form's real verb resolves here in a later item.)",
 	"visit": {

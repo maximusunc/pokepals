@@ -917,6 +917,13 @@ class SeekAction extends CompanionAction:
 	# "settle" once the nose finds something); this backstop lets it quit and return to its own
 	# life instead of getting stuck out there. Counted down in act() during SEARCH only.
 	var _search_left := 0.0
+	# Per-WAYPOINT patience: the closest we've come to the current sweep target, and how long we've
+	# gone without improving on it. In a maze a swept point can sit behind a wall the geometry-blind
+	# brain can't see — the NavAgent then only ever routes a partial path and the body grinds back and
+	# forth against that wall until the whole search times out. When progress stalls, we abandon this
+	# spot and sweep somewhere else instead of fixating on the wall.
+	var _wp_best := INF
+	var _wp_time := 0.0
 
 	func _init(band_value: int) -> void:
 		id = "seek"
@@ -938,6 +945,8 @@ class SeekAction extends CompanionAction:
 			_arrived = false
 			_just_triggered = true
 			_search_left = float(cfg.get("seek", {}).get("search_seconds", 14.0))
+			_wp_best = INF
+			_wp_time = 0.0
 			_target = _pick_sweep(perception, s, cfg, rng)
 		elif command == "settle":
 			# Go to (and stand on) a specific point: the controller pointing us at a revealed plate after
@@ -983,11 +992,27 @@ class SeekAction extends CompanionAction:
 				elif companion_pos.distance_to(_target) > stop:
 					move_target = _target
 					speed = float(cfg["walk_speed"])
+					# Watch progress toward this waypoint. While we keep getting closer, keep going;
+					# once a wall stalls us (no gain for waypoint_patience seconds), give up on this
+					# spot and sweep elsewhere — pure self-observation, no knowledge of the wall.
+					var d := companion_pos.distance_to(_target)
+					if d < _wp_best - float(seek.get("progress_eps", 4.0)):
+						_wp_best = d
+						_wp_time = 0.0
+					else:
+						_wp_time += delta
+						if _wp_time >= float(seek.get("waypoint_patience", 2.0)):
+							_target = _pick_sweep(perception, s, cfg, rng)
+							_wp_best = INF
+							_wp_time = 0.0
+							reactions.append("look")
 				else:
 					_dwell += delta
 					if _dwell >= float(seek.get("sniff_pause", 0.7)):
 						_dwell = 0.0
 						_target = _pick_sweep(perception, s, cfg, rng)
+						_wp_best = INF
+						_wp_time = 0.0
 						reactions.append("look")
 			GO:
 				# Amble the last bit onto the revealed plate.
