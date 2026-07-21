@@ -23,7 +23,7 @@ const CARET_H := 9.0
 const OBJECT_LIFT := 26.0  # px above the object's world point where the caret tip sits
 
 var _button: Button
-var _hitbox: Control   # full-bubble tap catcher (text + caret) so no tap leaks to the world underneath
+var _hitbox: Control   # full-bubble tap surface (text + caret) so no tap leaks to the world catcher
 var _target_world := Vector2.ZERO
 var _active := false
 var _fade: Tween
@@ -35,33 +35,21 @@ func _ready() -> void:
 	modulate.a = 0.0
 	visible = false
 
-	# The visual bubble: a styled "Examine" chip. Purely decorative — taps are handled by the hitbox in
-	# front of it, so the chip itself is IGNORE and never intercepts input. Added first (behind).
-	_button = Button.new()
-	_button.text = "Examine"  # constant — never names the object (see class docs)
-	_button.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	UiStyle.hud_button(_button, 10, 600, 8, 10.0, 3.0)
-	add_child(_button)
-
-	# A single tap catcher over the WHOLE bubble (the chip AND the caret hanging below it), in FRONT of
-	# the chip. MOUSE_FILTER_STOP + it accept_event()s, so a tap ANYWHERE on the prompt is caught HERE:
-	# it examines and is CONSUMED, never propagating down to the world's companion-order handler
-	# underneath. That's what keeps Examine a sole player interaction. Sized/placed each frame in
-	# _process.
+	# A STOP hit region covering the WHOLE bubble — the text button AND the caret pointer below it.
+	# Added FIRST (behind the button), no handler: it just makes the caret/gap a solid tap surface, so a
+	# tap there is claimed here by GUI picking rather than falling through to the world-tap catcher and
+	# firing a companion order. The button in front still takes its own taps and fires `pressed`; a tap
+	# on the bare caret is harmlessly swallowed. Sized each frame in _process.
 	_hitbox = Control.new()
 	_hitbox.mouse_filter = Control.MOUSE_FILTER_STOP
-	_hitbox.gui_input.connect(_on_hitbox_input)
 	add_child(_hitbox)
 
-
-## A tap landed on the bubble: examine, and consume the event so it never reaches the world's
-## companion-order handler underneath. Fires on press (mouse or touch) so it matches the world tap.
-func _on_hitbox_input(event: InputEvent) -> void:
-	var tapped := (event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed) \
-		or (event is InputEventScreenTouch and event.pressed)
-	if tapped:
-		pressed.emit()
-		accept_event()
+	_button = Button.new()
+	_button.text = "Examine"  # constant — never names the object (see class docs)
+	_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	UiStyle.hud_button(_button, 10, 600, 8, 10.0, 3.0)
+	_button.pressed.connect(func() -> void: pressed.emit())
+	add_child(_button)
 
 
 ## Point the prompt at a world object (the bubble text is the constant "Examine"). Fades in if it

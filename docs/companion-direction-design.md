@@ -76,10 +76,10 @@ not as a plan to act on.
   player; a **click/tap anywhere else** commands the companion — it snaps to the nearest interactable
   within a generous radius (`TAP_PICK_RADIUS`) and the companion paths there, noses it with a perk + a
   targeting glow, then resumes (**go + acknowledge**; no world effect yet — that's F-2/C-1). **Coexists**
-  with the existing player-examine (Space/bubble). Built: fixed `virtual_joystick.gd`, world-order
-  capture in `world_controller.gd` (`_on_world_tap`/`_nearest_interactable_to_point`), and a new
-  `VisitAction` command verb (+ config + tests). Non-hit taps (I-3) and recall-by-tapping-the-companion
-  (I-4) deferred. **Awaiting playtest.**
+  with the existing player-examine (Space/bubble). Built: fixed `virtual_joystick.gd`, a new
+  `VisitAction` command verb (+ config + tests), and world-tap routing via a single full-screen
+  **`WorldTapCatcher`** behind the HUD (GUI picking — see the architecture note below). Non-hit taps
+  (I-3) and recall-by-tapping-the-companion (I-4) deferred. **Awaiting playtest.**
 - ⬜ **I-2 — Keyboard-only desktop path.** Tab-cycle interactables + confirm key.
 - ⬜ **I-3 — Non-registering-tap tell.** A small "received, nothing to do" feedback.
   *Reuse:* `world_art.gd` pulse.
@@ -87,6 +87,18 @@ not as a plan to act on.
   following. *Reuse:* command-band order clearing the active task.
 - ⬜ **I-5 — Layout guardrail.** Keep interactables out of the bottom-left stick zone / bias camera
   right-of-center. (Authoring convention more than code.)
+
+> **📌 Input architecture — deferred "right" refactor (do it when a world-action multiplies).**
+> Tap *routing* is solid: GUI picking against a full-screen `WorldTapCatcher` at the back of the UI
+> layer cleanly answers "HUD vs world," and adding a new **HUD** action is trivial (put a `Control` in
+> front — it can't leak). What's still minimal-by-design is the **world-action layer**:
+> `world_controller._on_world_tap` is a single hardcoded path (press-gesture only → "visit the nearest
+> interactable"). As soon as world taps do *more than one thing*, split it along two seams: **(1)** a
+> small **gesture recognizer** in the catcher (tap / hold / long-press — it only knows "press" today,
+> needed for F-4's hold-radial) and **(2)** a **resolver** in place of the hardcoded verb —
+> `resolve(gesture, target, current_form) → intent` — so F-2/C-1 (form-as-verb), F-4 (hold-radial), and
+> I-4 (tap-companion) plug in without reshaping. Deliberately deferred until F-2/C-1 tells us the actual
+> gesture/verb vocabulary, so we don't abstract before we know its inputs.
 
 ### Form system
 - ✅ **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
