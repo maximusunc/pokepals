@@ -30,6 +30,8 @@ static func run_all() -> int:
 	fails += _test_visit_goes_acknowledges_then_releases(cfg)
 	fails += _test_visit_cancelled_by_call(cfg)
 	fails += _test_brain_routes_visit(cfg)
+	fails += _test_visit_performs_verb_on_arrival(cfg)
+	fails += _test_brain_routes_visit_verb(cfg)
 	return fails
 
 
@@ -391,10 +393,11 @@ static func _test_brain_routes_seek(cfg: Dictionary) -> int:
 
 
 # A perception dict the VisitAction reads: the order, the target point, and positions.
-static func _visit_percept(command: String, companion_pos: Vector2, target = null) -> Dictionary:
+static func _visit_percept(command: String, companion_pos: Vector2, target = null, verb: String = "") -> Dictionary:
 	return {
 		"command": command,
 		"command_point": target,
+		"command_meta": { "verb": verb } if verb != "" else {},
 		"companion_pos": companion_pos,
 		"player_pos": Vector2.ZERO,
 	}
@@ -438,6 +441,42 @@ static func _test_visit_cancelled_by_call(cfg: Dictionary) -> int:
 	var fails := 0
 	fails += _ok(visit.score(_visit_percept("", Vector2.ZERO, Vector2(200, 0)), s, cfg, rng) == 1.0, "the visit is active before the whistle")
 	fails += _ok(visit.score(_visit_percept("come", Vector2.ZERO, Vector2(200, 0)), s, cfg, rng) == 0.0, "whistling 'come' cancels the visit (yields the command band)")
+	return fails
+
+
+# F-2: a visit carrying a VERB (from command_meta) performs it on arrival — a happy "did the thing"
+# beat (delight + the verb name) — whereas a bare visit only gives the plain acknowledge perk.
+static func _test_visit_performs_verb_on_arrival(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var rng := _rng()
+	var target := Vector2(200, 0)
+	var fails := 0
+	# A verb-carrying order.
+	var perform := CompanionActions.VisitAction.new(5)
+	perform.score(_visit_percept("visit", Vector2.ZERO, target, "unearth"), s, cfg, rng)
+	var arrival := perform.act(_visit_percept("", target, target, "unearth"), s, cfg, rng, 0.05)
+	fails += _ok("delight" in arrival["reactions"], "arriving to perform a verb gives the delight beat")
+	fails += _ok("unearth" in arrival["reactions"], "the verb name is emitted for a form-specific animation to hook")
+	# A bare visit (no verb) stays the quiet acknowledge — no delight.
+	var bare := CompanionActions.VisitAction.new(5)
+	bare.score(_visit_percept("visit", Vector2.ZERO, target), s, cfg, rng)
+	var bare_arrival := bare.act(_visit_percept("", target, target), s, cfg, rng, 0.05)
+	fails += _ok(not ("delight" in bare_arrival["reactions"]), "a bare visit does not celebrate — just the acknowledge perk")
+	return fails
+
+
+# End-to-end: issue_command('visit', point, {verb}) carries the verb through the brain into the beat.
+static func _test_brain_routes_visit_verb(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	s.bond = 0.5
+	var brain := CompanionBrain.new(cfg, 1, s)
+	# Right on the object so it arrives and performs this same frame.
+	brain.issue_command("visit", Vector2(10, 0), { "verb": "unearth" })
+	var intent := brain.update(_ctx(Vector2(0, 0), Vector2(200, 0)))
+	var fails := 0
+	fails += _ok(intent["behavior"] == "visit", "issue_command('visit', point, meta) routes through to a visit beat")
+	fails += _ok("delight" in intent["reactions"], "the verb carried in meta drives the perform beat end-to-end")
 	return fails
 
 

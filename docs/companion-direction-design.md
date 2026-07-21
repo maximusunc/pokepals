@@ -112,8 +112,13 @@ not as a plan to act on.
 > small **gesture recognizer** in the catcher (tap / hold / long-press — it only knows "press" today,
 > needed for F-4's hold-radial) and **(2)** a **resolver** in place of the hardcoded verb —
 > `resolve(gesture, target, current_form) → intent` — so F-2/C-1 (form-as-verb), F-4 (hold-radial), and
-> I-4 (tap-companion) plug in without reshaping. Deliberately deferred until F-2/C-1 tells us the actual
-> gesture/verb vocabulary, so we don't abstract before we know its inputs.
+> I-4 (tap-companion) plug in without reshaping.
+> **Update (F-2/C-1 built):** seam **(2)** now exists in its first form — `_on_world_tap` resolves
+> `(worn_form, target) → verb` via `FormAffordance` instead of always issuing `visit`. It's still
+> **press-only** (no gesture argument yet) and the verb→effect table is a `match` in the controller, not
+> a general resolver object — enough for one verb. Seam **(1)** (the gesture recognizer) stays deferred
+> until F-4 actually needs hold vs. tap; generalize the verb→effect `match` into a real resolver when a
+> second/third verb lands (the follow-on to this slice).
 
 ### Form system
 - ✅ **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
@@ -123,8 +128,27 @@ not as a plan to act on.
   form *function* (capabilities = F-2/C-1). Built in `companion_form.gd` (pure layer + tests),
   `companion_view.gd` (`instruct_form`), `world_controller.gd` (radial picker), and the `daemon_form`
   config. **Playtested and confirmed working.**
-- ⬜ **F-2 — Form as a verb.** Each form = one command-band `CompanionAction`. *Reuse:* the action
-  seam (no arbiter change).
+- ✅ **F-2 — Form as a verb.** Decided & built (first slice). The verb a tap performs is decided by the
+  **worn form**, and rides the command as **data** (`command_meta.verb`) so a **single** generalized
+  command-band action covers every form's verb — the pragmatic reading of "each form = one
+  `CompanionAction`", with **no arbiter change** (chosen over a class-per-form). `VisitAction` was
+  generalized from I-1's "go and acknowledge" into "go and **perform**": with a verb it plays a happy
+  "did the thing" beat (and emits the verb name for a future form-specific animation to hook); without
+  one it stays the plain visit. The verb's **world effect** is applied controller-side, Ruin-referee
+  style (`world_controller._update_perform` watches the approach and fires on arrival), so the brain
+  stays world-effect-blind. Built: `command_meta` on the command channel (`companion_brain`), the
+  `VisitAction` generalization, and `test_companion_command.gd` coverage (verb performs on arrival;
+  routes end-to-end). **First slice only** — one wired verb (`unearth`); the full 5-animal vocabulary
+  is a follow-on. **Reasoned, not executed (no Godot in sandbox); needs a headless test run + playtest.**
+- ✅ **C-1 — One action per form per object.** Decided & built (first slice). An object AUTHORS an
+  explicit per-**form** `affordances` map (form species → verb, e.g. `{ "fox": "unearth" }`); a new
+  pure, node-free `scripts/world/form_affordance.gd` (`resolve(worn_form, object) → one verb or ""`,
+  unit-tested in `test_form_affordance.gd`) turns a tap into the one thing the worn form does there.
+  Because each form names at most one verb, resolution is **never ambiguous** — the design's "split the
+  object" rule, enforced by construction. The tap resolver lives in `world_controller._on_world_tap`
+  (form + object → verb, else a plain visit + a soft "this shape can't help" tell). **Explicit maps
+  only** — tag-based generalization ("a fox digs anything tagged diggable") is F-3, deliberately still
+  deferred. Also listed below under *Action & affordance system* since it's the C-series keystone.
 - ⬜ **F-3 — Contextual filtering.** Own ~20 forms, see 3 at a time, filtered by object `tags` +
   context. *Reuse:* neutral `tags` + `companion_appraisal` matching.
 - ⬜ **F-4 — Tap = smart default; hold = radial of 3–4 forms.** *Reuse:* `companion_radial.gd`
@@ -135,8 +159,11 @@ not as a plan to act on.
   stats/tooltips. (Art + design guardrail per form.)
 
 ### Action & affordance system
-- ⬜ **C-1 — One action per form per object.** Ambiguity = a level-design bug (split the object).
-  *New:* an optional per-form affordance map on props; resolved in `world_controller._try_interact`.
+- ✅ **C-1 — One action per form per object.** Decided & built (first slice) — see the full entry
+  under *Form system* above. An explicit per-form `affordances` map on props, resolved by the pure
+  `FormAffordance` module in `world_controller._on_world_tap`; ambiguity is impossible by construction.
+  First slice wires one object (a Vale dig-mound) affording `fox → unearth`; its world effect (reveal
+  an examinable curio) is applied controller-side. Tag-based affordance (F-3) still deferred.
 - ⬜ **C-2 — Held/durational states, generalized.** tap-to-start / tap-to-release, visible
   in-world. *Reuse:* the Ruin's persistent plate-hold (re-issued `settle`) → a reusable `task`-band
   held action.

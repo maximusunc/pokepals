@@ -163,6 +163,13 @@ func instruct_form(species: String) -> void:
 		form_changed.emit()
 
 
+## The animal the companion is WEARING right now — its current daemon form (F-1), whether instructed
+## or drifted-into. Drives F-2 affordance resolution: what a tap does depends on this form. "" when no
+## form is worn (procedural fallback), in which case a tapped object resolves no verb (a plain visit).
+func current_form_species() -> String:
+	return _form_species
+
+
 ## The species the local companion can actually wear right now (sheets imported), for the radial to
 ## offer as instruct options. Empty in a bare headless run with no pal art.
 func available_form_species() -> Array:
