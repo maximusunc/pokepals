@@ -12,6 +12,10 @@ const INTERACT_RANGE := 60.0
 # and an order can target something the player is NOT standing next to — so it's generous and
 # independent of the player's own INTERACT_RANGE).
 const TAP_PICK_RADIUS := 100.0
+# How close the companion must get to a tapped object before its form-verb effect fires (F-2). A hair
+# beyond VisitAction's own arrive_distance (companion.json visit, default 34) so the controller's
+# arrival-watch and the brain's "arrived" beat land together.
+const PERFORM_ARRIVE_DISTANCE := 40.0
 # How close the player must be to the companion for the Pet affordance to appear. Mirrors the
 # brain's pet.range (companion.json) so the button only shows when a pet would actually land.
 const PET_RANGE := 56.0
@@ -64,6 +68,11 @@ var _customizer: AvatarCustomizer
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
+# F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
+# whether its world effect has fired yet. The controller watches the companion approach (Ruin-referee
+# style) and applies the effect once it arrives, so the brain never touches world state. Cleared when
+# fired, when a new order supersedes it, or when the companion is called off. {} = nothing pending.
+var _pending_perform: Dictionary = {}
 # Cached so a raised ward slab's collider can be dropped when it opens (RuinController calls
 # rebuild_solids_dropping, which rebuilds Solids without the slab and re-hands them to both bodies).
 var _world_data: Dictionary = {}
@@ -410,6 +419,11 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			# An optional fragment of the world's story (a Knot's lore line, a notice-board, the
 			# wet-boots man). When present, Examining shows this instead of the generic perks-up line.
 			"lore": String(it.get("lore", "")),
+			# F-2/C-1 — an optional per-FORM affordance map (form species -> verb) authored on the prop,
+			# e.g. { "fox": "unearth" }. FormAffordance.resolve() reads this to turn a tap into the one
+			# thing the worn form does here; absent/empty means the object affords no form-verb (a plain
+			# visit). Carried through so the tap resolver needn't reach back into the raw world spec.
+			"affordances": it.get("affordances", {}),
 		}
 		_interactables.append(entry)
 		poi.append(entry["pos"])
@@ -619,6 +633,8 @@ func _process(delta: float) -> void:
 	_hunt_dir.update_detector(delta)
 	_maze_dir.update(delta)
 	_ruin.update(delta)
+	# F-2 form-verb order in flight: fire its world effect once the companion reaches the object.
+	_update_perform(delta)
 
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
 	_presence_dir.broadcast(delta)
@@ -791,9 +807,12 @@ func _on_world_catcher_input(event: InputEvent) -> void:
 
 
 ## A companion ORDER: the player tapped somewhere in the world. Snap to the nearest interactable
-## within a generous radius and send the companion to it (it paths there on its own and acknowledges
-## with a perk — see VisitAction). A tap with nothing nearby does nothing for now (the "nothing to
-## do" tell is a later item). Taps are orders, never destinations: empty ground is never a target.
+## within a generous radius, then RESOLVE what the companion's WORN FORM does to it (F-2/C-1): if this
+## form affords a verb on this object, send it to PERFORM that verb (VisitAction carries the verb and
+## the effect fires on arrival — see _update_perform); otherwise it just goes and acknowledges (a plain
+## visit) with a soft "can't do that in this shape" tell. A tap with nothing nearby does nothing (the
+## general "nothing to do" tell is a later item). Taps are orders, never destinations: empty ground is
+## never a target.
 func _on_world_tap(screen_pos: Vector2) -> void:
 	if _companion == null:
 		return
@@ -802,8 +821,84 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	if index < 0:
 		return
 	var entry: Dictionary = _interactables[index]
-	_companion.issue_command("visit", entry["pos"])
 	_world_art.pulse_interactable(int(entry["render_index"]))
+	var verb := FormAffordance.resolve(_companion.current_form_species(), entry)
+	if verb == "":
+		# This form can't act here — still go over and acknowledge, but note it can't (until B-2's
+		# expressive refusal, a one-line tell keeps a visible order from feeling dead). A bare visit
+		# already-performed on this object shouldn't re-nudge, so only hint on things with affordances.
+		_pending_perform = {}
+		_companion.issue_command("visit", entry["pos"])
+		if entry.get("affordances", {}) is Dictionary and not (entry["affordances"] as Dictionary).is_empty():
+			_show_hint("Your companion noses %s, but this shape can't help here." % entry["label"])
+		return
+	# A form-verb order: send the companion to perform it, and arm the referee to apply the effect the
+	# instant it arrives. object_id lets the effect find the same entry even if the list is rebuilt.
+	_companion.issue_command("visit", entry["pos"], { "verb": verb, "object_id": String(entry.get("id", "")) })
+	_pending_perform = { "index": index, "verb": verb, "id": String(entry.get("id", "")) }
+
+
+## Watch a form-verb order in flight and fire its WORLD EFFECT the moment the companion reaches the
+## object (the same referee shape RuinController uses for the "go look" search): the brain stays
+## world-effect-blind — it just walks over and performs — and the controller owns what actually changes.
+## Gated on the pending record so a companion merely wandering past an object in the right form never
+## triggers it. Cleared once the effect fires. Called every built frame from _process.
+func _update_perform(_delta: float) -> void:
+	if _pending_perform.is_empty() or _companion == null:
+		return
+	var index := int(_pending_perform.get("index", -1))
+	if index < 0 or index >= _interactables.size():
+		_pending_perform = {}
+		return
+	var entry: Dictionary = _interactables[index]
+	# Confirm the object under this index is still the one we ordered (the list can be rebuilt); if not,
+	# abandon the stale order rather than acting on the wrong prop.
+	if String(entry.get("id", "")) != String(_pending_perform.get("id", "")):
+		_pending_perform = {}
+		return
+	# Arrived? A touch beyond VisitAction's own arrive_distance (companion.json visit, default 34) so the
+	# effect lands right as the companion settles onto the object and performs.
+	if _companion.position.distance_to(entry["pos"]) > PERFORM_ARRIVE_DISTANCE:
+		return
+	var verb := String(_pending_perform.get("verb", ""))
+	_pending_perform = {}
+	_apply_form_effect(entry, index, verb)
+
+
+## Apply a performed verb's WORLD EFFECT. The one verb wired for this first slice is "unearth" (a fox
+## digging a mound of loose earth): reveal a small curio beside it that the player can then examine,
+## reusing the same add_interactable + append path as the hunt's completion portal. Non-repeatable —
+## the mound is marked so a second dig just notes it's already turned over.
+func _apply_form_effect(entry: Dictionary, _index: int, verb: String) -> void:
+	match verb:
+		"unearth":
+			if bool(entry.get("_unearthed", false)):
+				_show_hint("The earth here is already turned over.")
+				return
+			entry["_unearthed"] = true
+			# Reveal the uncovered find a little to one side of the mound, drawn with the existing
+			# chime-stone art (no new sprite needed), and add it to the examinable list so the player
+			# can walk over and examine what their companion dug up.
+			var find_pos: Vector2 = entry["pos"] + Vector2(22, -6)
+			var render_index := _world_art.add_interactable(find_pos, Color(0.66, 0.70, 0.78), "chime_stone")
+			_interactables.append({
+				"pos": find_pos,
+				"label": "a smooth, cool stone",
+				"id": "unearthed_curio",
+				"tags": ["shiny", "stone"],
+				"kind": "prop",
+				"render_index": render_index,
+				"lore": "A river-worn stone, still cool from the earth — your companion nosed it up with pride.",
+				"affordances": {},
+			})
+			_invalidate_nearest()
+			# Let the companion notice its own find and perk at it — the cozy discovery beat.
+			_companion.notify_interaction(find_pos, "unearthed_curio", ["shiny", "stone"])
+			_show_hint("Your fox-formed companion digs at the loose earth — and noses up a smooth, cool stone.")
+		_:
+			# An authored verb with no wired effect yet: the companion still went and performed the
+			# gesture (VisitAction), so acknowledge rather than silently drop it.
+			_show_hint("Your companion tends to %s." % entry["label"])
 
 
 ## Nearest interactable to an arbitrary WORLD point (an order's tap), within TAP_PICK_RADIUS. Sibling
@@ -826,6 +921,9 @@ func _nearest_interactable_to_point(world: Vector2) -> int:
 ## Whistle for the companion. Whether it hears, acknowledges, and actually comes is up to the
 ## brain and the bond (see ComeAction) — here we just issue the order and nudge the player.
 func _try_call() -> void:
+	# Whistling cancels any form-verb order in flight (Come/Pet preempt VisitAction in the brain), so
+	# abandon the referee too — otherwise it would still fire if the companion drifted back past the object.
+	_pending_perform = {}
 	_companion.issue_command("come")
 	_show_hint("You whistle for your companion.")
 
@@ -837,6 +935,8 @@ func _try_pet() -> void:
 	if _player.position.distance_to(_companion.position) > PET_RANGE:
 		_show_hint("Your companion is too far to reach — step closer.")
 		return
+	# A pet preempts a visit in the brain, so drop any form-verb order still in flight.
+	_pending_perform = {}
 	_companion.issue_command("pet")
 	_show_hint("You reach out to your companion.")
 

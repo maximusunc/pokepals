@@ -761,6 +761,14 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 2), 12.0, color)
 			draw_circle(p + Vector2(0, 0), 8.0, Color(0.40, 0.56, 0.64))
 			draw_arc(p + Vector2(0, 0), 8.0, 0.0, TAU, 20, Color(0.85, 0.92, 0.95, 0.6), 1.0)
+		"dig_mound":
+			# a low hump of loose, turned earth — a couple of overlapping mounds with a darker
+			# scuffed crown, reading as "something's been buried here" (a fox form can dig it up)
+			draw_circle(p + Vector2(-4, 3), 9.0, color.darkened(0.1))
+			draw_circle(p + Vector2(5, 3), 8.0, color)
+			draw_circle(p + Vector2(0, -1), 10.0, color.lightened(0.06))
+			for s in [Vector2(-3, -3), Vector2(3, -1), Vector2(0, 2)]:
+				draw_circle(p + s, 1.6, color.darkened(0.28))
 		"stall":
 			# a market stall: a timber counter under a striped, slightly billowing awning on two posts
 			var stall_awning := color

@@ -1053,14 +1053,16 @@ class SeekAction extends CompanionAction:
 		return player_pos + Vector2(cos(angle), sin(angle)) * dist
 
 
-## VISIT — a DIRECTED order (I-1). The player tapped an interactable, so the companion goes to that
-## specific point, acknowledges it with a perk, dwells a beat, then releases back to its own life. The
+## VISIT — a DIRECTED order (I-1), now the single generalized GO-AND-PERFORM action (F-2). The player
+## tapped an interactable, so the companion goes to that specific point, and on arrival either just
+## "checks it out" (a bare visit — no verb) or PERFORMS the form-resolved VERB the order carries
+## (e.g. a fox told to "unearth" a mound). The verb is data — it rides on command_meta.verb — so one
+## command-band action covers every form's verb with no arbiter change; the WORLD EFFECT of the verb
+## is applied controller-side (Ruin-referee style), keeping the brain world-effect-blind. The
 ## point-directed counterpart to Seek's delegated sweep: deterministic (an order always goes, no
-## bond/mood gate), routed there around walls by the body's NavAgent. What it actually DOES on arrival
-## is just "check it out" for now — a form's real verb will resolve here in a later item. A whistle
-## ("come") or a pet cancels the visit, so calling your companion back always works; a fresh "visit"
-## retargets. It rides the command band, so it preempts autonomous life while active and yields the
-## instant it releases.
+## bond/mood gate), routed there around walls by the body's NavAgent. A whistle ("come") or a pet
+## cancels it, so calling your companion back always works; a fresh "visit" retargets. It rides the
+## command band, so it preempts autonomous life while active and yields the instant it releases.
 class VisitAction extends CompanionAction:
 	enum { GO, ARRIVE }
 	var _active := false
@@ -1068,6 +1070,10 @@ class VisitAction extends CompanionAction:
 	var _target := Vector2.ZERO
 	var _dwell_left := 0.0
 	var _arrived := false
+	# The verb this order performs on arrival ("" = a plain visit / acknowledge). Only shapes the
+	# ARRIVE performance here — a verb reads as a little celebratory "did the thing" beat rather than
+	# a bare perk. The verb's actual world change is the controller's job, not the brain's.
+	var _verb := ""
 
 	func _init(band_value: int) -> void:
 		id = "visit"
@@ -1088,6 +1094,9 @@ class VisitAction extends CompanionAction:
 				_phase = GO
 				_target = pt
 				_arrived = false
+				# The verb (if any) rides in command_meta; a bare visit leaves it "".
+				var meta: Variant = perception.get("command_meta", {})
+				_verb = String((meta as Dictionary).get("verb", "")) if meta is Dictionary else ""
 		elif _active and (command == "come" or command == "pet"):
 			# Called back (or petted): cancel the visit and yield the command band so Come/Pet take over
 			# cleanly — otherwise the still-active visit would resume the moment they finished.
@@ -1112,6 +1121,12 @@ class VisitAction extends CompanionAction:
 					if not _arrived:
 						reactions.append("perk")   # "here it is" — the acknowledge beat
 						reactions.append("look")
+						# Performing a verb reads as a happy "did the thing"; a bare visit just perks.
+						# The verb name is also emitted so a future form-specific animation can hook it
+						# (unknown reactions are ignored by the view, so this is safe today).
+						if _verb != "":
+							reactions.append("delight")
+							reactions.append(_verb)
 						_arrived = true
 			ARRIVE:
 				# Stand by the object, face it, breathe a beat, then let its own life resume.
