@@ -23,26 +23,16 @@ const CARET_H := 9.0
 const OBJECT_LIFT := 26.0  # px above the object's world point where the caret tip sits
 
 var _button: Button
-var _hitbox: Control   # full-bubble tap surface (text + caret) so no tap leaks to the world catcher
 var _target_world := Vector2.ZERO
 var _active := false
 var _fade: Tween
 
 
 func _ready() -> void:
-	# The root is a passive anchor; a full-bubble hitbox and the text button take the taps.
+	# The root is a passive anchor — only the bubble Button takes taps.
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	modulate.a = 0.0
 	visible = false
-
-	# A STOP hit region covering the WHOLE bubble — the text button AND the caret pointer below it.
-	# Added FIRST (behind the button), no handler: it just makes the caret/gap a solid tap surface, so a
-	# tap there is claimed here by GUI picking rather than falling through to the world-tap catcher and
-	# firing a companion order. The button in front still takes its own taps and fires `pressed`; a tap
-	# on the bare caret is harmlessly swallowed. Sized each frame in _process.
-	_hitbox = Control.new()
-	_hitbox.mouse_filter = Control.MOUSE_FILTER_STOP
-	add_child(_hitbox)
 
 	_button = Button.new()
 	_button.text = "Examine"  # constant — never names the object (see class docs)
@@ -91,9 +81,6 @@ func _process(_delta: float) -> void:
 	_button.size = bsz
 	# Center the bubble over the tip, lifted by its height + the caret so the caret points down at it.
 	_button.position = Vector2(-bsz.x * 0.5, -bsz.y - CARET_H)
-	# The hitbox spans the whole bubble: the button's box plus the caret hanging below it to the tip.
-	_hitbox.position = Vector2(-bsz.x * 0.5, -bsz.y - CARET_H)
-	_hitbox.size = Vector2(bsz.x, bsz.y + CARET_H)
 	position = tip
 	queue_redraw()
 
