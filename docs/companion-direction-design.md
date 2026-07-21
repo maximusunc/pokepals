@@ -17,9 +17,10 @@ a question doesn't reach the owner, stop and wait — no best-guessing.
 
 ## Where this sits (context)
 
-- The game today is **cozy, online-only, mid-Rung-4** (networking; proximity text chat is the
-  last stated step). The companion is **autonomous**, influenced by the player only through a few
-  bond-gated commands (Pet / Call / "Go look").
+- The game today is **cozy, online-only**, with **Rung 4 (the persistent shared world) complete**
+  (see `CLAUDE.md`; proximity text chat was deferred). The companion is **autonomous**, influenced by
+  the player through a few bond-gated commands (Pet / Call / "Go look") — plus, now, the directed
+  layers below (F-1 form instruction, I-1 tap-to-order).
 - This spec is a **large gameplay-direction expansion**: the player *directs* a companion that
   *shape-shifts into functional forms*, and orders it to act on objects by tapping them.
 - **Two tensions, now resolved** (see the framing decisions): direction vs. delegation → **they
@@ -37,7 +38,7 @@ a question doesn't reach the owner, stop and wait — no best-guessing.
 | Interactables with stable `id`, neutral `tags`, `label`, `interactive` flag | world specs (`tests/world_fixtures/*.json`), `world_controller._setup_contents` | `tags` already feed `companion_appraisal.gd` |
 | Per-object glow/pulse | `scripts/presentation/world_art.gd` | Substrate for form-keyed highlighting |
 | Obstacle-routing for the companion | `scripts/world/nav_grid.gd`, `nav_agent.gd` | "Idle following paths around obstacles" is already true |
-| Companion drawn AS a real animal | `scripts/world/companion_form.gd`, `pal_sprite.gd` | **Cosmetic only** today (random, ephemeral) |
+| Companion drawn AS a real animal | `scripts/world/companion_form.gd`, `pal_sprite.gd` | Was cosmetic-only (random, ephemeral); **F-1 turned it into the directed form layer** |
 | Bond-gated refusal + 2D mood sim | `companion_self.gd`, Come/Pet actions; decline beat designed in `companion-design.md` | Refusal + emotional expression foundation |
 
 ### Genuinely new machinery the spec would need
@@ -72,14 +73,28 @@ Each item notes *reuse* (existing code) and *new* (to build) as information for 
 not as a plan to act on.
 
 ### Input & targeting
-- 🔶 **I-1 — Tap an interactable = an order.** Decided: a **fixed bottom-left joystick** walks the
-  player; a **click/tap anywhere else** commands the companion — it snaps to the nearest interactable
-  within a generous radius (`TAP_PICK_RADIUS`) and the companion paths there, noses it with a perk + a
-  targeting glow, then resumes (**go + acknowledge**; no world effect yet — that's F-2/C-1). **Coexists**
-  with the existing player-examine (Space/bubble). Built: fixed `virtual_joystick.gd`, a new
-  `VisitAction` command verb (+ config + tests), and world-tap routing via a single full-screen
-  **`WorldTapCatcher`** behind the HUD (GUI picking — see the architecture note below). Non-hit taps
-  (I-3) and recall-by-tapping-the-companion (I-4) deferred. **Awaiting playtest.**
+- 🔶 **I-1 — Tap an interactable = an order.** Decided & built: a **fixed bottom-left joystick** walks
+  the player; a **tap anywhere else** commands the companion — it snaps to the nearest interactable
+  within a generous radius (`TAP_PICK_RADIUS`) and paths there, noses it with a perk + a targeting glow,
+  then resumes (**go + acknowledge**; no world effect yet — that's F-2/C-1). Built: fixed
+  `virtual_joystick.gd`, a new `VisitAction` command verb (+ config + tests), and world-tap routing via
+  a single full-screen **`WorldTapCatcher`** behind the HUD (GUI picking — see the architecture note
+  below).
+  - **Examine coexists — and its notice-and-come-over stays (decided).** Player-examine (Space / the
+    bubble) is unchanged. We investigated a reported "examine also commands the companion" and found the
+    movement was the **pre-existing** "companion notices what you examine and ambles over"
+    (`InvestigateAction`, via `notify_interaction`), which reads as deterministic at high bond. We
+    considered decoupling it but **decided to KEEP it as-is** — it's a core cozy beat and disabling it
+    is a bigger change than warranted. So examining still draws a bonded companion over; that's
+    intended, not the tap-command.
+  - **Known trade-off — the caret leak (left as-is).** A tap directly on the Examine bubble's little
+    downward caret can still leak a world order to the catcher (only the text button is a solid tap
+    surface). Two attempts to cover the caret with a hit-region **broke the Examine button in-game**
+    (cause undiagnosable without running Godot), so it's **left alone** — minor, and nearly invisible
+    next to the kept come-over behavior. Revisit only if it bites; would need the Godot error console
+    to diagnose the hit-region breakage.
+  - Non-hit-tap tell (I-3) and recall-by-tapping-the-companion (I-4) deferred. **Awaiting final
+    playtest sign-off before ✅.**
 - ⬜ **I-2 — Keyboard-only desktop path.** Tab-cycle interactables + confirm key.
 - ⬜ **I-3 — Non-registering-tap tell.** A small "received, nothing to do" feedback.
   *Reuse:* `world_art.gd` pulse.
@@ -174,3 +189,20 @@ The bar is **feel**, validated by playtest (per CLAUDE.md). Pure logic (form res
 affordance mapping, autonomy gating) lands in `scripts/world/` as node-free `RefCounted` with unit
 tests in `tests/` (like `test_companion_form.gd`, `test_companion_command.gd`), run via
 `tests/run_tests.gd`. Feel items: run the game, playtest the specific beat, tune before moving on.
+
+> ⚠️ **Sandbox caveat:** the current dev environment has **no Godot binary** (and downloads are
+> proxy-blocked), so changes here are reasoned + unit-reasoned but **not executed**. Every build item
+> needs a real `godot --headless … res://tests/run_tests.gd` run and a playtest on the owner's side.
+
+## Side-fixes made along this direction's work (outside the item backlog)
+
+- **Ruin "go look" wall-oscillation (pre-existing).** Seek's SEARCH sweeps to points picked around the
+  player with a wall-blind brain; in the maze a swept point often sat behind a wall, so the companion
+  ground back-and-forth against it until the 14 s timeout. Fixed with a **per-waypoint patience** in
+  `SeekAction` (re-pick when progress stalls; open ground unaffected) — `companion_actions.gd`,
+  `data/companion.json` `seek.waypoint_patience`/`progress_eps`, + a test. (Also belongs in
+  `docs/puzzle-world-the-ruin-design.md` if we deepen the Ruin.)
+- **Input routing refactor (I-1).** Moved companion-order taps off `_unhandled_input`'s brittle
+  implicit-negative onto GUI picking via the `WorldTapCatcher`. See the 📌 architecture note above.
+- **CLAUDE.md working rule.** Added the "never assume a decision / act before confirmation" rule that
+  now governs this whole backlog.
