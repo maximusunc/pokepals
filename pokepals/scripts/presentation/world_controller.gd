@@ -822,20 +822,47 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	var entry: Dictionary = _interactables[index]
 	_world_art.pulse_interactable(int(entry["render_index"]))
+	# TEMP DIAGNOSTIC (remove once the beat works): report what the tap resolved so we can see whether
+	# the form, the object's affordance map, and the verb are what we expect.
+	var _dbg_form := _companion.current_form_species()
+	var _dbg_verb := FormAffordance.resolve(_dbg_form, entry)
+	_show_hint("[dbg] form=%s affords=%s verb=%s" % [
+		_dbg_form if _dbg_form != "" else "(none)",
+		"yes" if _has_affordances(entry) else "no",
+		_dbg_verb if _dbg_verb != "" else "(none)",
+	])
+	if _issue_form_order(entry, index):
+		return
+	# This form can't act here — still go over and acknowledge, but note it can't (until B-2's
+	# expressive refusal, a one-line tell keeps a visible order from feeling dead). Only hint on things
+	# that DO afford some form a verb, so tapping ordinary scenery stays quiet.
+	_pending_perform = {}
+	_companion.issue_command("visit", entry["pos"])
+	if _has_affordances(entry):
+		_show_hint("Your companion noses %s, but this shape can't help here." % entry["label"])
+
+
+## Resolve the worn form's verb on `entry` (F-2/C-1) and, if it affords one, send the companion to
+## PERFORM it: issue the verb-carrying visit and arm the referee (_update_perform) to apply the effect
+## on arrival. Returns true when an order was issued, false when this form affords nothing here (the
+## caller then falls back to its own default — a plain visit, or the cozy examine beat). Shared by the
+## world-tap path (tap open world) and the examine path (tap the object up close), so a fox digs the
+## mound whether you order it from afar or examine it at your feet.
+func _issue_form_order(entry: Dictionary, index: int) -> bool:
 	var verb := FormAffordance.resolve(_companion.current_form_species(), entry)
 	if verb == "":
-		# This form can't act here — still go over and acknowledge, but note it can't (until B-2's
-		# expressive refusal, a one-line tell keeps a visible order from feeling dead). A bare visit
-		# already-performed on this object shouldn't re-nudge, so only hint on things with affordances.
-		_pending_perform = {}
-		_companion.issue_command("visit", entry["pos"])
-		if entry.get("affordances", {}) is Dictionary and not (entry["affordances"] as Dictionary).is_empty():
-			_show_hint("Your companion noses %s, but this shape can't help here." % entry["label"])
-		return
-	# A form-verb order: send the companion to perform it, and arm the referee to apply the effect the
-	# instant it arrives. object_id lets the effect find the same entry even if the list is rebuilt.
+		return false
+	# object_id lets the effect re-find the same entry even if the list is rebuilt.
 	_companion.issue_command("visit", entry["pos"], { "verb": verb, "object_id": String(entry.get("id", "")) })
 	_pending_perform = { "index": index, "verb": verb, "id": String(entry.get("id", "")) }
+	return true
+
+
+## True if this object authors any per-form affordance at all (so a "can't help in this shape" tell is
+## meaningful — ordinary scenery has none and stays quiet).
+func _has_affordances(entry: Dictionary) -> bool:
+	var aff: Variant = entry.get("affordances", {})
+	return aff is Dictionary and not (aff as Dictionary).is_empty()
 
 
 ## Watch a form-verb order in flight and fire its WORLD EFFECT the moment the companion reaches the
@@ -960,6 +987,12 @@ func _try_interact() -> void:
 	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
 	# handled by the RuinController; if it claims this prop, we're done.
 	if _ruin.try_examine(entry):
+		return
+	# F-2/C-1: if the worn form can ACT on this object, examining it (tapping it up close, where the
+	# Examine bubble owns the tap) performs the verb — the companion comes over and does the thing —
+	# instead of only reading a line. So a fox digs the mound whether ordered from afar or examined here.
+	if _issue_form_order(entry, index):
+		_show_hint("Your companion moves in to help with %s." % entry["label"])
 		return
 	# A prop carrying a story fragment (a Knot's lore signpost, a Knuckle notice-board, the wet-boots
 	# man) reads out that line; everything else gets the cozy generic beat.
