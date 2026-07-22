@@ -802,6 +802,9 @@ func _install_world_tap_catcher() -> void:
 func _on_world_catcher_input(event: InputEvent) -> void:
 	if not _world_built:
 		return
+	# TEMP DIAGNOSTIC: prove the catcher receives taps at all (any tap type), independent of the
+	# left-button gate below. If this never prints, no tap is reaching the catcher.
+	print("[dbg] catcher input: ", event.get_class())
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_on_world_tap(event.position)
 
@@ -818,19 +821,21 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
 	var index := _nearest_interactable_to_point(world)
+	# TEMP DIAGNOSTIC (remove once the beat works): fire on EVERY world tap, before the found-object
+	# check, so we learn whether taps route here at all, where they land, and whether one snapped to an
+	# interactable. If you never see this line, the tap isn't reaching the world catcher.
+	var _dbg_form := _companion.current_form_species()
+	var _dbg_verb := "" if index < 0 else FormAffordance.resolve(_dbg_form, _interactables[index])
+	print("[dbg] world tap @ ", world, " idx=", index, " of ", _interactables.size(), " form=", _dbg_form, " verb=", _dbg_verb)
+	_show_hint("[dbg] tap idx=%d/%d form=%s verb=%s" % [
+		index, _interactables.size(),
+		_dbg_form if _dbg_form != "" else "(none)",
+		_dbg_verb if _dbg_verb != "" else "(none)",
+	])
 	if index < 0:
 		return
 	var entry: Dictionary = _interactables[index]
 	_world_art.pulse_interactable(int(entry["render_index"]))
-	# TEMP DIAGNOSTIC (remove once the beat works): report what the tap resolved so we can see whether
-	# the form, the object's affordance map, and the verb are what we expect.
-	var _dbg_form := _companion.current_form_species()
-	var _dbg_verb := FormAffordance.resolve(_dbg_form, entry)
-	_show_hint("[dbg] form=%s affords=%s verb=%s" % [
-		_dbg_form if _dbg_form != "" else "(none)",
-		"yes" if _has_affordances(entry) else "no",
-		_dbg_verb if _dbg_verb != "" else "(none)",
-	])
 	if _issue_form_order(entry, index):
 		return
 	# This form can't act here — still go over and acknowledge, but note it can't (until B-2's
