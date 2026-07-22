@@ -822,6 +822,15 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	var entry: Dictionary = _interactables[index]
 	_world_art.pulse_interactable(int(entry["render_index"]))
+	# TEMP DIAGNOSTIC (remove once the beat works): report what the tap resolved so we can see whether
+	# the form, the object's affordance map, and the verb are what we expect.
+	var _dbg_form := _companion.current_form_species()
+	var _dbg_verb := FormAffordance.resolve(_dbg_form, entry)
+	_show_hint("[dbg] form=%s affords=%s verb=%s" % [
+		_dbg_form if _dbg_form != "" else "(none)",
+		"yes" if _has_affordances(entry) else "no",
+		_dbg_verb if _dbg_verb != "" else "(none)",
+	])
 	if _issue_form_order(entry, index):
 		return
 	# This form can't act here — still go over and acknowledge, but note it can't (until B-2's
