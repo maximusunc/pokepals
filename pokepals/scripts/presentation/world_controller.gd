@@ -271,6 +271,14 @@ func _build_world(data: Dictionary) -> void:
 	# up yet — those callbacks early-return, so they never touch half-built state.
 	_world_built = true
 
+	# TEMP BUILD MARKER (remove once the dig works): an unmissable banner shown the instant a world
+	# finishes building — no tap or devtools needed. If you rebuild the web export and DON'T see this
+	# exact text after a refresh, you're running a STALE client (build-web.sh didn't produce a fresh
+	# export, or the browser cached the old one) — that alone would explain "nothing changes". If you DO
+	# see it, the new code is live and the problem is elsewhere (we debug the tap next).
+	print("[dbg] BUILD MARKER kithbound-dig-v5 — world built: ", String(data.get("world_id", "?")))
+	_show_hint("BUILD kithbound-dig-v5 — instruct Fox, then tap the mound")
+
 
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
 ## A child is freed with this node on a world hop, which auto-drops its Net signal connections — so a
