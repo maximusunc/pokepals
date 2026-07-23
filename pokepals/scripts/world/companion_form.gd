@@ -188,7 +188,7 @@ func _pick(avoid: int) -> void:
 func _wear_species(species: String) -> void:
 	if species == _species:
 		return
-	var form := _form_for(species)
+	var form: Variant = _form_for(species)
 	if form == null:
 		return
 	_species = species
