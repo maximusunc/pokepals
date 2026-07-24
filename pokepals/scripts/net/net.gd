@@ -117,6 +117,11 @@ var _my_id: String = ""
 var _was_open: bool = false
 # True once we've joined our CURRENT world channel (its 'welcome' arrived).
 var _joined: bool = false
+# True while a phx_join for the current desired world is SENT but not yet confirmed ('welcome' pending)
+# or rejected. Guards against firing a second join for a world we're already mid-handshake with — the
+# server pushes 'world_spec' BEFORE 'welcome', and building from that spec re-enters enter_world, which
+# would otherwise re-join (since _joined is still false) and race the original join's welcome/load.
+var _join_in_flight: bool = false
 # Monotonic message ref for the Phoenix protocol.
 var _ref: int = 0
 # The join_ref of our current world channel (reused as join_ref on its frames, phoenix.js-style).
@@ -223,6 +228,7 @@ func leave_world() -> void:
 	_current_world = ""
 	_desired_world = ""
 	_joined = false
+	_join_in_flight = false
 
 
 ## The cached spec for a world (its { core, profiles }), or {} if we haven't fetched it this session.
@@ -410,13 +416,19 @@ func _switch_to_world() -> void:
 	var wid := _desired_world
 	if wid == "" or not is_active():
 		return
-	if _current_world == wid and _joined:
+	# Already in the desired world, OR a join for it is still in flight — either way, don't re-join.
+	# The in-flight guard matters because the server sends 'world_spec' BEFORE 'welcome', and building
+	# from that spec re-enters enter_world() while _joined is still false; without this we'd fire a
+	# duplicate phx_join that races the original join's welcome/load and can wedge the client on the
+	# connect gate ("Connected! Loading…").
+	if _current_world == wid and (_joined or _join_in_flight):
 		return
 	# Leave the old world channel (using ITS join_ref) before switching.
 	if _current_world != "" and _current_world != wid:
 		_send_raw([_world_join_ref, _next_ref(), _world_topic(_current_world), "phx_leave", {}])
 	_current_world = wid
 	_joined = false
+	_join_in_flight = true
 	_world_join_ref = _next_ref()
 	_send_raw([_world_join_ref, _world_join_ref, _world_topic(wid), "phx_join", { "known_etag": _desired_known_etag }])
 
@@ -439,6 +451,7 @@ func _reset_socket() -> void:
 	_my_id = ""
 	_was_open = false
 	_joined = false
+	_join_in_flight = false
 	_ref = 0
 	_world_join_ref = ""
 	_current_world = ""
@@ -486,6 +499,7 @@ func _handle_reply(arr: Array, payload: Dictionary) -> void:
 	if response is Dictionary:
 		reason = String((response as Dictionary).get("reason", reason))
 	_joined = false
+	_join_in_flight = false
 	world_join_failed.emit(reason)
 
 
@@ -512,6 +526,7 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			# We're in the world: adopt our id, mark joined, flush identity, learn who's here.
 			_my_id = String(payload.get("id", ""))
 			_joined = true
+			_join_in_flight = false
 			_flush_identity()
 			var peers: Variant = payload.get("peers", [])
 			if peers is Array:

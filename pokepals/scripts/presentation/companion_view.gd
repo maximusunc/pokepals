@@ -307,9 +307,9 @@ func notify_interaction(world_position: Vector2, id: String = "", tags: Array = 
 ## or a "go look" search ("seek", and the controller's follow-up "settle" carrying the revealed
 ## plate point). Pure passthrough to the brain's command seam; the brain (and the bond) decide
 ## what actually happens.
-func issue_command(command: String, point = null) -> void:
+func issue_command(command: String, point = null, meta: Dictionary = {}) -> void:
 	if _brain != null:
-		_brain.issue_command(command, point)
+		_brain.issue_command(command, point, meta)
 
 
 func _ready() -> void:
