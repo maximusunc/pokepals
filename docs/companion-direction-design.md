@@ -73,7 +73,7 @@ Each item notes *reuse* (existing code) and *new* (to build) as information for 
 not as a plan to act on.
 
 ### Input & targeting
-- 🔶 **I-1 — Tap an interactable = an order.** Decided & built: a **fixed bottom-left joystick** walks
+- ✅ **I-1 — Tap an interactable = an order.** Decided, built, **playtested and signed off**: a **fixed bottom-left joystick** walks
   the player; a **tap anywhere else** commands the companion — it snaps to the nearest interactable
   within a generous radius (`TAP_PICK_RADIUS`) and paths there, noses it with a perk + a targeting glow,
   then resumes (**go + acknowledge**; no world effect yet — that's F-2/C-1). Built: fixed
@@ -93,8 +93,7 @@ not as a plan to act on.
     (cause undiagnosable without running Godot), so it's **left alone** — minor, and nearly invisible
     next to the kept come-over behavior. Revisit only if it bites; would need the Godot error console
     to diagnose the hit-region breakage.
-  - Non-hit-tap tell (I-3) and recall-by-tapping-the-companion (I-4) deferred. **Awaiting final
-    playtest sign-off before ✅.**
+  - Non-hit-tap tell (I-3) and recall-by-tapping-the-companion (I-4) remain deferred.
 - ⬜ **I-2 — Keyboard-only desktop path.** Tab-cycle interactables + confirm key.
 - ⬜ **I-3 — Non-registering-tap tell.** A small "received, nothing to do" feedback.
   *Reuse:* `world_art.gd` pulse.
@@ -171,8 +170,9 @@ not as a plan to act on.
     the server stores specs as opaque jsonb, so no server code changed.
     - **Verified:** headless suite green (21 new `TestFormEffect` assertions; the 9 pre-existing
       failures unchanged), plus a runtime harness that drove all five verbs over the real Vale spec and
-      rendered the revealed props. **Needs a playtest, and a server restart** — the Vale's new props
-      only reach the client once the seeds re-run (they do, idempotently, on container boot).
+      rendered the revealed props. **Playtested and signed off.** (Deploy note for future world edits:
+      the Vale's props only reach the client once the server's seeds re-run — they do, idempotently, on
+      container boot.)
     - **Known nuance (left as-is, flag if it bites):** examining a *spent* object while wearing its
       form still sends the companion over to report "already turned over", because `resolve()`
       deliberately keeps answering for spent objects. Cozy rather than wrong, but it's a behaviour
@@ -218,8 +218,9 @@ not as a plan to act on.
   over" line. Deliberately quiet: a hint you notice, not a quest marker.
   - **Verified:** headless suite green (`tests/test_form_affordance.gd` — 7 new assertions; the 9
     pre-existing failures in `TestPlayerAppearance`/`TestSolids` are unchanged from `main`), plus a
-    throwaway runtime harness that rendered the Vale and drew real frames with the layer on. **Awaiting
-    playtest sign-off.**
+    throwaway runtime harness that rendered the Vale and drew real frames with the layer on.
+    **Playtested and signed off** (alongside the F-2 vocabulary, which is what gave the layer enough
+    to say for the beat to be felt).
   - **📌 Known thinness (a decision for the owner, not a bug):** the Vale authors exactly **one**
     object with affordances (`dig_mound`, `fox → unearth`), so the layer currently lights one thing
     for one shape and nothing otherwise. The *switch-forms-and-the-world-answers* beat can't really be
