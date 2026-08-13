@@ -119,6 +119,11 @@ not as a plan to act on.
 > a general resolver object — enough for one verb. Seam **(1)** (the gesture recognizer) stays deferred
 > until F-4 actually needs hold vs. tap; generalize the verb→effect `match` into a real resolver when a
 > second/third verb lands (the follow-on to this slice).
+> **Update (F-2 vocabulary built):** that generalization is **done** — the controller's per-verb `match`
+> is gone, replaced by pure `FormEffect.plan(target, verb)` reading an effect the **object** authors.
+> The controller now only *executes* a plan, so it is verb-blind the way the brain is world-effect-blind,
+> and a new verb needs **no GDScript at all**. Seam **(1)** (the gesture recognizer) is still deferred to
+> F-4.
 
 ### Form system
 - ✅ **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
@@ -138,8 +143,40 @@ not as a plan to act on.
   style (`world_controller._update_perform` watches the approach and fires on arrival), so the brain
   stays world-effect-blind. Built: `command_meta` on the command channel (`companion_brain`), the
   `VisitAction` generalization, and `test_companion_command.gd` coverage (verb performs on arrival;
-  routes end-to-end). **First slice only** — one wired verb (`unearth`); the full 5-animal vocabulary
-  is a follow-on. **Reasoned, not executed (no Godot in sandbox); needs a headless test run + playtest.**
+  routes end-to-end). The first slice wired **one** verb (`unearth`) with its effect hardcoded in the
+  controller; the follow-on below replaced that with the full vocabulary and data-authored effects.
+  - ✅ **Follow-on built — the five-animal vocabulary, and effects as DATA.** Each drawable species now
+    has one verb, and the per-verb `match` in the controller is gone. A verb's consequence is
+    **authored on the object** (`form_effects`, beside its `affordances`): the line to say, an
+    optional `spent_hint`, and an optional `reveal` — placed by `offset` (beside the object) or by
+    `position` (anywhere in the world). A new pure `scripts/world/form_effect.gd`
+    (`plan(target, verb) → { already, spends, hint, reveal }`, unit-tested in `test_form_effect.gd`)
+    decides; `world_controller._apply_form_effect` only executes. **So a sixth verb needs no GDScript.**
+    An effect may reveal nothing at all — the cat's is a pure moment, deliberately.
+
+    | form | verb | object (the Vale) | what it does |
+    |---|---|---|---|
+    | fox | `unearth` | the mound of loose earth | noses up a smooth, cool stone |
+    | rabbit | `wriggle` | the mossy fallen log | backs out of the hollow with pale mushrooms |
+    | cat | `coax` | the berry bush | sits statue-still until the bush fills with birdsong (no object) |
+    | wolf | `heave` | a fallen stone *(new prop)* | shoulders it over — the underside is carved |
+    | bird | `survey` | a leaning pillar *(new prop)* | spots a hidden flush of blooms across the vale |
+
+    Each object's `lore` is written as the **hint toward its verb** ("Too narrow for a hand", "from the
+    top of it you could see the whole overlook"), so examining in the *wrong* shape teaches you the
+    right one — diegetic tutorialization (P-5) falling out for free. The two new props reuse existing
+    baked art (`rubble_pile`, `broken_pillar`) and are non-solid, so navigation and the server's pal
+    avoidance are untouched. Authored in **both** copies of the spec — `server/priv/world_seeds/vale.json`
+    (what the live game serves) and `pokepals/tests/world_fixtures/vale.json` (what tests build from);
+    the server stores specs as opaque jsonb, so no server code changed.
+    - **Verified:** headless suite green (21 new `TestFormEffect` assertions; the 9 pre-existing
+      failures unchanged), plus a runtime harness that drove all five verbs over the real Vale spec and
+      rendered the revealed props. **Needs a playtest, and a server restart** — the Vale's new props
+      only reach the client once the seeds re-run (they do, idempotently, on container boot).
+    - **Known nuance (left as-is, flag if it bites):** examining a *spent* object while wearing its
+      form still sends the companion over to report "already turned over", because `resolve()`
+      deliberately keeps answering for spent objects. Cozy rather than wrong, but it's a behaviour
+      choice worth confirming in playtest.
 - ✅ **C-1 — One action per form per object.** Decided & built (first slice). An object AUTHORS an
   explicit per-**form** `affordances` map (form species → verb, e.g. `{ "fox": "unearth" }`); a new
   pure, node-free `scripts/world/form_affordance.gd` (`resolve(worn_form, object) → one verb or ""`,

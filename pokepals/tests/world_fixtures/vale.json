@@ -72,16 +72,72 @@
 	"_props_comment": "Each has a stable 'id' — the companion keys its habituation/memory off it, so editing a prop's position or label keeps its identity (and the bond it earned). Keep ids unique and stable across edits. 'tags' are NEUTRAL descriptors of the thing; the companion's appraisal (see companion.json 'appraisal') decides how it feels about them — author tags freely without thinking about psychology. A prop is examinable only if it opts in with 'interactive': true. Everything else is STATIC SCENERY: world_art still draws it (by 'type') and it still blocks movement, but it's not examinable and the companion isn't drawn to it — it conveys what it is by appearance alone. Here each prop dresses one beat: the signpost/berry bush mark the grove where you wake, the chime stone sits among the pals, the crystal is the finding, the lantern is the always-lit Commons fire, the bench is the Overlook seat, the log rests in the Hollow, the wildflowers/basin line the Meadow shore.",
 	"props": [
 		{ "id": "signpost", "type": "signpost", "position": [470, -30], "color": [0.58, 0.43, 0.30], "label": "a leaning signpost", "tags": ["made"] },
-		{ "id": "dig_mound", "type": "dig_mound", "position": [370, -10], "color": [0.45, 0.34, 0.24], "label": "a mound of loose earth", "tags": ["earth", "odd"], "interactive": true, "lore": "The soil here is freshly turned and soft — something might be buried just under it. A digging shape could help.", "affordances": { "fox": "unearth" } },
-		{ "id": "berry_bush", "type": "berry_bush", "position": [600, -120], "color": [0.30, 0.46, 0.30], "label": "a bush heavy with berries", "tags": ["food", "plant"] },
+		{
+			"id": "dig_mound", "type": "dig_mound", "position": [370, -10], "color": [0.45, 0.34, 0.24], "label": "a mound of loose earth", "tags": ["earth", "odd"], "interactive": true,
+			"lore": "The soil here is freshly turned and soft — something might be buried just under it. A digging shape could help.",
+			"affordances": { "fox": "unearth" },
+			"form_effects": {
+				"unearth": {
+					"hint": "Your fox-formed companion digs at the loose earth — and noses up a smooth, cool stone.",
+					"spent_hint": "The earth here is already turned over.",
+					"reveal": { "id": "unearthed_curio", "label": "a smooth, cool stone", "type": "chime_stone", "color": [0.66, 0.70, 0.78], "tags": ["shiny", "stone"], "lore": "A river-worn stone, still cool from the earth — your companion nosed it up with pride.", "offset": [22, -6] }
+				}
+			}
+		},
+		{
+			"id": "berry_bush", "type": "berry_bush", "position": [600, -120], "color": [0.30, 0.46, 0.30], "label": "a bush heavy with berries", "tags": ["food", "plant"], "interactive": true,
+			"lore": "The branches are alive with small movement, and it all goes still when you step close.",
+			"affordances": { "cat": "coax" },
+			"form_effects": {
+				"coax": {
+					"hint": "Your cat-formed companion folds its paws and goes statue-still beneath the branches — until the bush forgets it's there and fills, all at once, with birdsong.",
+					"spent_hint": "The birds know that shape now. They keep their song to themselves."
+				}
+			}
+		},
 		{ "id": "chime_stone", "type": "chime_stone", "position": [250, 80], "color": [0.66, 0.70, 0.78], "label": "a humming stone", "tags": ["sound", "stone"] },
 		{ "id": "mushrooms", "type": "mushrooms", "position": [80, 300], "color": [0.86, 0.34, 0.32], "label": "a ring of red mushrooms", "tags": ["fungus", "odd"] },
 		{ "id": "crystal", "type": "crystal", "position": [-10, 200], "color": [0.62, 0.86, 0.80], "label": "a strange, warm light", "tags": ["shiny", "light"] },
 		{ "id": "lantern", "type": "lantern", "position": [-300, 290], "color": [0.95, 0.78, 0.42], "label": "the common fire", "tags": ["light", "made", "warm"] },
 		{ "id": "bench", "type": "bench", "position": [540, -330], "color": [0.55, 0.40, 0.28], "label": "a weathered bench", "tags": ["made", "rest"] },
-		{ "id": "log", "type": "log", "position": [410, 320], "color": [0.46, 0.34, 0.26], "label": "a mossy fallen log", "tags": ["wood", "rest"] },
+		{
+			"id": "log", "type": "log", "position": [410, 320], "color": [0.46, 0.34, 0.26], "label": "a mossy fallen log", "tags": ["wood", "rest"], "interactive": true,
+			"lore": "The trunk is hollow all the way through, and something pale is growing deep in the dark of it. Too narrow for a hand.",
+			"affordances": { "rabbit": "wriggle" },
+			"form_effects": {
+				"wriggle": {
+					"hint": "Your rabbit-formed companion folds itself into the hollow, wriggles, and backs out nosing a cluster of pale mushrooms into the light.",
+					"spent_hint": "The hollow is empty now — just cool wood and the smell of moss.",
+					"reveal": { "id": "hollow_mushrooms", "label": "a cluster of pale mushrooms", "type": "mushrooms", "color": [0.86, 0.84, 0.76], "tags": ["fungus", "odd"], "lore": "Pale as candle wax, and cold to the touch. They grew their whole lives in the dark of the log.", "offset": [-6, 20] }
+				}
+			}
+		},
 		{ "id": "wildflowers", "type": "wildflowers", "position": [-90, 470], "color": [0.88, 0.46, 0.58], "label": "a patch of wildflowers", "tags": ["flower", "fragrant"] },
-		{ "id": "basin", "type": "basin", "position": [-200, 500], "color": [0.70, 0.74, 0.80], "label": "a quiet stone basin", "tags": ["water", "still"] }
+		{ "id": "basin", "type": "basin", "position": [-200, 500], "color": [0.70, 0.74, 0.80], "label": "a quiet stone basin", "tags": ["water", "still"] },
+		{
+			"id": "fallen_stone", "type": "rubble_pile", "position": [-240, 380], "color": [0.56, 0.56, 0.58], "label": "a fallen stone, half-sunk in moss", "tags": ["stone", "old"], "interactive": true,
+			"lore": "It has lain here long enough for the moss to close over its edges. There's a seam of dry earth beneath the lip — it hasn't always lain face-down.",
+			"affordances": { "wolf": "heave" },
+			"form_effects": {
+				"heave": {
+					"hint": "Your wolf-formed companion sets its shoulder to the stone and heaves — and the underside comes up carved.",
+					"spent_hint": "The stone lies where your companion rolled it, carved face to the sky.",
+					"reveal": { "id": "uncovered_carving", "label": "a weathered carving", "type": "carving", "color": [0.60, 0.58, 0.54], "tags": ["made", "old", "odd"], "lore": "Two shapes walking, cut deep enough to outlast the weather — a tall one, and a low one at its heel. Whoever cut it knew the feeling.", "offset": [30, 10] }
+				}
+			}
+		},
+		{
+			"id": "leaning_pillar", "type": "broken_pillar", "position": [640, -280], "color": [0.68, 0.66, 0.62], "label": "a leaning pillar, broken off short", "tags": ["made", "old", "high"], "interactive": true,
+			"lore": "Whatever it held up is long gone. It stands a little taller than you can reach — from the top of it you could see the whole overlook.",
+			"affordances": { "bird": "survey" },
+			"form_effects": {
+				"survey": {
+					"hint": "Your bird-formed companion drops onto the pillar top, turns once against the sky, and comes back low and insistent — there's something out in the far grass.",
+					"spent_hint": "Your companion has already shown you what it saw from up there.",
+					"reveal": { "id": "spotted_blooms", "label": "a hidden flush of late blooms", "type": "wildflowers", "color": [0.92, 0.72, 0.84], "tags": ["flower", "fragrant", "hidden"], "lore": "Deep in the grass where nothing walks, a whole drift of them, opened for no one. You'd never have found this from the ground.", "position": [420, -450] }
+				}
+			}
+		}
 	],
 	"_portals_comment": "Doorways to other worlds — walk through one to travel. world_controller renders them (via world_art's 'portal' type) and watches for the player stepping into them; WorldRouter performs the scene swap and the arriving world sets you down beside its matching 'target_portal'. The four portal ids here (vale_portal/vale_bazaar_portal/vale_ruin_portal/vale_maze_portal) are the arrival anchors the other worlds point back to — keep them stable. All four are clustered at the western Threshold.",
 	"portals": [
