@@ -167,8 +167,27 @@ not as a plan to act on.
 - ⬜ **C-2 — Held/durational states, generalized.** tap-to-start / tap-to-release, visible
   in-world. *Reuse:* the Ruin's persistent plate-hold (re-issued `settle`) → a reusable `task`-band
   held action.
-- ⬜ **C-3 — Objects highlight in the current form's color.** Switching forms changes what lights
-  up (free hint layer). *Reuse:* `world_art.gd` glow.
+- ✅ **C-3 — Objects highlight in the current form's color.** Decided & built. Objects the **worn
+  form** could act on wear a soft, slowly breathing pool of that form's colour on the ground —
+  squashed onto the ground plane like the existing contact shadows, ringed by a thin arc so it reads
+  as deliberate rather than a smudge. It re-lights on **every** form change, instructed *or* drifted
+  (`companion_view.form_changed` already fired for both), so the world visibly answers the shape your
+  companion is wearing. Split along the usual seam: **which** objects qualify is pure logic
+  (`FormAffordance.actionable_indices`, unit-tested), the **colour** is art direction
+  (`art.json` → `form_highlight`, per-species with a neutral default; `alpha: 0` hides the layer),
+  and **how it's drawn** is `world_art._draw_form_highlight`. A performed verb marks its object
+  `_spent` — a general mark replacing the ad-hoc `_unearthed` — which drops it from the highlight set
+  so a finished object stops advertising itself, while a tap still reaches its own "already turned
+  over" line. Deliberately quiet: a hint you notice, not a quest marker.
+  - **Verified:** headless suite green (`tests/test_form_affordance.gd` — 7 new assertions; the 9
+    pre-existing failures in `TestPlayerAppearance`/`TestSolids` are unchanged from `main`), plus a
+    throwaway runtime harness that rendered the Vale and drew real frames with the layer on. **Awaiting
+    playtest sign-off.**
+  - **📌 Known thinness (a decision for the owner, not a bug):** the Vale authors exactly **one**
+    object with affordances (`dig_mound`, `fox → unearth`), so the layer currently lights one thing
+    for one shape and nothing otherwise. The *switch-forms-and-the-world-answers* beat can't really be
+    felt until 2–3 objects afford **different** forms. Authoring those is the **F-2 follow-on**
+    (the rest of the 5-animal verb vocabulary), not part of C-3.
 - ⬜ **C-4 — Escape-hatch long-press radial.** Two-option fallback with a strict usage budget
   (frequent need = form vocabulary too coarse).
 
@@ -217,9 +236,19 @@ affordance mapping, autonomy gating) lands in `scripts/world/` as node-free `Ref
 tests in `tests/` (like `test_companion_form.gd`, `test_companion_command.gd`), run via
 `tests/run_tests.gd`. Feel items: run the game, playtest the specific beat, tune before moving on.
 
-> ⚠️ **Sandbox caveat:** the current dev environment has **no Godot binary** (and downloads are
-> proxy-blocked), so changes here are reasoned + unit-reasoned but **not executed**. Every build item
-> needs a real `godot --headless … res://tests/run_tests.gd` run and a playtest on the owner's side.
+> ⚠️ **Sandbox caveat (now partly lifted).** Earlier items here were reasoned but **not executed** —
+> the dev sandbox had no Godot binary. As of C-3 the engine **does** download in the sandbox: fetch
+> `Godot_v4.6-stable_linux.x86_64` (matching `project.godot`'s `config/features`), import once with
+> `godot --headless --editor --quit-after 200 --path pokepals` to build the `class_name` cache, then
+> run `godot --headless --path pokepals --script res://tests/run_tests.gd`. Two caveats: the import
+> rewrites every `assets/**/*.png.import` file (revert that churn before committing), and the
+> `smoke_*.gd` SceneTree scripts **hang on `main` too** — their autoloads (`/root/Net`,
+> `/root/WorldRouter`) aren't registered under `--script`, so they're not a usable gate right now.
+> A **playtest on the owner's side is still the real bar** for every feel item.
+>
+> **Known-failing on `main` (pre-existing, unrelated to this backlog):** 8 assertions in
+> `TestPlayerAppearance` and 1 in `TestSolids`, plus `TestNetCodec` erroring on missing private
+> methods. Treat "9 failures" as the baseline, not a regression.
 
 ## Side-fixes made along this direction's work (outside the item backlog)
 

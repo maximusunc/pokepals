@@ -25,6 +25,23 @@ const DEFAULTS := {
 		"player": { "render": "procedural", "sprite": "", "body": [0.86, 0.52, 0.40], "accent": [0.96, 0.81, 0.67] },
 		"companion": { "render": "procedural", "sprite": "", "body": [0.56, 0.62, 0.86], "accent": [0.34, 0.37, 0.54] },
 	},
+	# C-3 — the hint layer's colours: objects the companion's CURRENT form could act on wear a soft
+	# ground halo in that form's colour, so switching shape changes what lights up. Kept here, in the
+	# art direction, because only the LOOK is presentation — which objects qualify is pure logic
+	# (FormAffordance.actionable_indices). `default` covers a species with no colour of its own.
+	"form_highlight": {
+		"alpha": 0.20,
+		"radius": 25.0,
+		"pulse_speed": 0.9,
+		"default": [0.98, 0.92, 0.62],
+		"colors": {
+			"fox": [0.98, 0.62, 0.34],
+			"cat": [0.82, 0.66, 0.96],
+			"rabbit": [0.72, 0.93, 0.70],
+			"bird": [0.62, 0.85, 1.00],
+			"wolf": [0.78, 0.85, 0.96],
+		},
+	},
 }
 
 var _palette: Dictionary
@@ -32,6 +49,7 @@ var _light: Dictionary
 var _characters: Dictionary
 var _entities: Dictionary
 var _daycycle: Dictionary
+var _form_highlight: Dictionary
 
 
 ## Load the style from art.json, falling back entirely to DEFAULTS if it's missing.
@@ -55,6 +73,12 @@ static func from_data(data: Dictionary) -> ArtStyle:
 		s._characters[key] = _merge(s._characters.get(key, {}), data["characters"][key])
 	s._entities = (data.get("entities", {}) as Dictionary).duplicate(true)
 	s._daycycle = (data.get("daycycle", {}) as Dictionary).duplicate(true)
+	# form_highlight merges one level deeper than the rest: naming a single species' colour in
+	# art.json shouldn't silently drop the other four, which a shallow merge of "colors" would do.
+	var fh_over: Dictionary = data.get("form_highlight", {})
+	var fh_colors_over: Dictionary = fh_over.get("colors", {})
+	s._form_highlight = _merge(DEFAULTS["form_highlight"], fh_over)
+	s._form_highlight["colors"] = _merge(DEFAULTS["form_highlight"]["colors"], fh_colors_over)
 	return s
 
 
@@ -96,6 +120,21 @@ func entity(key: String) -> Dictionary:
 ## The optional day→dusk cycle config (enabled/period_sec/loop/stops), or empty.
 func daycycle() -> Dictionary:
 	return _daycycle
+
+
+## C-3's hint-layer knobs: { alpha, radius, pulse_speed, default, colors }. world_art reads these
+## once per world and draws the halo itself.
+func form_highlight() -> Dictionary:
+	return _form_highlight
+
+
+## The halo colour for a worn form. An unknown species (or none) falls back to the neutral default,
+## so a newly-drawable animal lights objects up sensibly before anyone picks a colour for it.
+func form_highlight_color(species: String) -> Color:
+	var colors: Dictionary = _form_highlight.get("colors", {})
+	if colors.has(species):
+		return WorldData.to_color(colors[species])
+	return WorldData.to_color(_form_highlight.get("default", [0.98, 0.92, 0.62]))
 
 
 ## Draw a "lit blob": a filled base, a lightened cap shifted toward the light, and a

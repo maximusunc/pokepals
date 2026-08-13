@@ -30,6 +30,16 @@ var _ground_noise: ImageTexture = null
 var _style: ArtStyle
 var _ground_grad: GradientTexture2D = null
 
+# --- C-3: the form hint layer ---
+# Which interactables (by index into _interactables) the companion's CURRENT form could act on, and
+# the colour that form lights them in. Pushed by world_controller whenever the worn form shifts, so
+# switching shape changes what glows — the whole point of the layer. Empty = nothing highlighted.
+var _form_highlights := {}   # index: int -> true (a set; dictionary lookup beats an array scan per frame)
+var _form_highlight_color := Color(0.98, 0.92, 0.62)
+var _fh_alpha := 0.20
+var _fh_radius := 25.0
+var _fh_pulse_speed := 0.9
+
 # Optional pixel-art water tiles (tools/gen_water.py). Each is a seamless square the
 # world tiles across a body of water; `world_tile` is how many world units it spans.
 # Absent → the flat procedural fill below (so the smoke test stays green with no art).
@@ -101,6 +111,12 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			var tint_path := prefix + ty + "_tint.png"
 			if ResourceLoader.exists(tint_path):
 				_prop_tint[ty] = ResourceLoader.load(tint_path)
+
+	# C-3's halo knobs, from the art direction (the set of lit objects comes from the controller).
+	var fh: Dictionary = _style.form_highlight()
+	_fh_alpha = float(fh.get("alpha", 0.20))
+	_fh_radius = float(fh.get("radius", 25.0))
+	_fh_pulse_speed = float(fh.get("pulse_speed", 0.9))
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -183,6 +199,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_scatter_grass()
 
 	_interactables.clear()
+	_form_highlights.clear()   # the indices they keyed just went away with the old list
 	for it in data.get("props", []):
 		_interactables.append({
 			"pos": WorldData.to_vec2(it["position"]),
@@ -247,6 +264,20 @@ func _scatter_grass() -> void:
 			"color": Color(0.30 + shade, 0.46 + shade, 0.28 + shade, 0.85),
 			"phase": _phase_for(pos),
 		})
+
+
+## C-3 — light the objects the companion's CURRENT form could act on, in that form's colour. The
+## controller works out the set (pure FormAffordance logic) and pushes it here on every form shift;
+## this side only draws it. Passing an empty list clears the layer, which is what a form that affords
+## nothing here should look like: a quiet world.
+func set_form_highlights(indices: Array, color: Color) -> void:
+	_form_highlights.clear()
+	for i in indices:
+		var idx := int(i)
+		if idx >= 0 and idx < _interactables.size():
+			_form_highlights[idx] = true
+	_form_highlight_color = color
+	queue_redraw()
 
 
 ## Briefly glow the interactable at this index (called when it's touched).
@@ -414,11 +445,15 @@ func _draw() -> void:
 	# the maze's hedge walls (tall, rounded, slightly extruded so they read as height)
 	_draw_hedges()
 
-	# interactable props: contact shadow, optional warm glow, then the prop silhouette
-	for it in _interactables:
+	# interactable props: contact shadow, the form-hint halo, optional warm glow, then the silhouette.
+	# Indexed (not a plain for-in) because the C-3 highlight set is keyed by index.
+	for i in _interactables.size():
+		var it: Dictionary = _interactables[i]
 		if cull and not vis.has_point(it["pos"]):
 			continue
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
+		if _form_highlights.has(i):
+			_draw_form_highlight(it["pos"])
 		_draw_glow(it["type"], it["pos"])
 		var pulse: float = it["pulse"]
 		if pulse > 0.0:
@@ -643,6 +678,22 @@ func _draw_shadow(pos: Vector2, r: float, alpha: float) -> void:
 	var off := -_style.light_dir() * (r * 0.16)  # shadows fall away from the light
 	draw_set_transform(pos + off, 0.0, Vector2(1.0, 0.42))
 	draw_circle(Vector2.ZERO, r, Color(c.r, c.g, c.b, alpha))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## C-3 — the form hint: a soft, slowly breathing pool of the current form's colour on the ground
+## under an object that form could act on, ringed by a thin arc so it reads as deliberate rather
+## than a smudge. Squashed onto the ground plane by the same draw transform trick as _draw_shadow,
+## so it lies on the floor instead of floating. Deliberately quiet — the brief is a hint layer you
+## notice, not a quest marker that shouts; it should feel like the world warming to your shape.
+func _draw_form_highlight(p: Vector2) -> void:
+	var breathe := 0.80 + 0.20 * sin(_time * _fh_pulse_speed)
+	var c := _form_highlight_color
+	draw_set_transform(p + Vector2(0, 5), 0.0, Vector2(1.0, 0.42))
+	for k in 3:
+		var rr := (_fh_radius - float(k) * 6.0) * breathe
+		draw_circle(Vector2.ZERO, rr, Color(c.r, c.g, c.b, _fh_alpha * 0.30))
+	draw_arc(Vector2.ZERO, _fh_radius * breathe, 0.0, TAU, 32, Color(c.r, c.g, c.b, _fh_alpha), 1.5, true)
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

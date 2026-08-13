@@ -172,6 +172,13 @@ func _build_world(data: Dictionary) -> void:
 	_apply_atmosphere(data.get("atmosphere", {}))
 	_setup_daycycle(_style.daycycle())
 
+	# C-3 — the form hint layer. Light whatever the worn form can act on now, and re-light it every
+	# time the form shifts (instructed OR drifted — companion_view emits form_changed for both), so
+	# the world visibly answers the shape your companion is wearing. Connected here rather than in
+	# _ready because a world hop reloads the scene, so this runs exactly once per companion.
+	_companion.form_changed.connect(_refresh_form_highlights)
+	_refresh_form_highlights()
+
 	# Fade in from black if we arrived through a portal; otherwise start fully clear.
 	_setup_fade()
 
@@ -849,6 +856,23 @@ func _issue_form_order(entry: Dictionary, index: int) -> bool:
 	return true
 
 
+## C-3 — REFRESH THE FORM HINT LAYER: work out which interactables the companion's current form could
+## act on and hand world_art that set plus the form's colour. Pure logic decides the WHICH
+## (FormAffordance.actionable_indices, spent objects excluded); the art direction decides the COLOUR
+## (ArtStyle.form_highlight_color); world_art decides how it's drawn. Called on world build, on every
+## form shift, and whenever a performed verb changes the world (an object spent, a find revealed).
+## _interactables indices are mapped to world_art's render indices — the two lists aren't parallel
+## (non-interactive scenery occupies render slots, and rocks/portals are appended later).
+func _refresh_form_highlights() -> void:
+	if _companion == null or _world_art == null or _style == null:
+		return
+	var species := _companion.current_form_species()
+	var render_indices: Array = []
+	for i in FormAffordance.actionable_indices(species, _interactables):
+		render_indices.append(int(_interactables[i]["render_index"]))
+	_world_art.set_form_highlights(render_indices, _style.form_highlight_color(species))
+
+
 ## True if this object authors any per-form affordance at all (so a "can't help in this shape" tell is
 ## meaningful — ordinary scenery has none and stays quiet).
 func _has_affordances(entry: Dictionary) -> bool:
@@ -890,10 +914,13 @@ func _update_perform(_delta: float) -> void:
 func _apply_form_effect(entry: Dictionary, _index: int, verb: String) -> void:
 	match verb:
 		"unearth":
-			if bool(entry.get("_unearthed", false)):
+			# `_spent` is the general "this object's verb has been performed" mark: it keeps the dig
+			# non-repeatable AND drops the mound out of C-3's highlight set, so a finished object
+			# stops advertising itself while a tap still lands on its own "already done" line.
+			if bool(entry.get("_spent", false)):
 				_show_hint("The earth here is already turned over.")
 				return
-			entry["_unearthed"] = true
+			entry["_spent"] = true
 			# Reveal the uncovered find a little to one side of the mound, drawn with the existing
 			# chime-stone art (no new sprite needed), and add it to the examinable list so the player
 			# can walk over and examine what their companion dug up.
@@ -910,6 +937,9 @@ func _apply_form_effect(entry: Dictionary, _index: int, verb: String) -> void:
 				"affordances": {},
 			})
 			_invalidate_nearest()
+			# The world changed under the hint layer — the mound is spent, and there's a new object
+			# in the list — so re-light it.
+			_refresh_form_highlights()
 			# Let the companion notice its own find and perk at it — the cozy discovery beat.
 			_companion.notify_interaction(find_pos, "unearthed_curio", ["shiny", "stone"])
 			_show_hint("Your fox-formed companion digs at the loose earth — and noses up a smooth, cool stone.")
