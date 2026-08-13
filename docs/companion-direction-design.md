@@ -73,7 +73,7 @@ Each item notes *reuse* (existing code) and *new* (to build) as information for 
 not as a plan to act on.
 
 ### Input & targeting
-- 🔶 **I-1 — Tap an interactable = an order.** Decided & built: a **fixed bottom-left joystick** walks
+- ✅ **I-1 — Tap an interactable = an order.** Decided, built, **playtested and signed off**: a **fixed bottom-left joystick** walks
   the player; a **tap anywhere else** commands the companion — it snaps to the nearest interactable
   within a generous radius (`TAP_PICK_RADIUS`) and paths there, noses it with a perk + a targeting glow,
   then resumes (**go + acknowledge**; no world effect yet — that's F-2/C-1). Built: fixed
@@ -93,8 +93,7 @@ not as a plan to act on.
     (cause undiagnosable without running Godot), so it's **left alone** — minor, and nearly invisible
     next to the kept come-over behavior. Revisit only if it bites; would need the Godot error console
     to diagnose the hit-region breakage.
-  - Non-hit-tap tell (I-3) and recall-by-tapping-the-companion (I-4) deferred. **Awaiting final
-    playtest sign-off before ✅.**
+  - Non-hit-tap tell (I-3) and recall-by-tapping-the-companion (I-4) remain deferred.
 - ⬜ **I-2 — Keyboard-only desktop path.** Tab-cycle interactables + confirm key.
 - ⬜ **I-3 — Non-registering-tap tell.** A small "received, nothing to do" feedback.
   *Reuse:* `world_art.gd` pulse.
@@ -119,6 +118,11 @@ not as a plan to act on.
 > a general resolver object — enough for one verb. Seam **(1)** (the gesture recognizer) stays deferred
 > until F-4 actually needs hold vs. tap; generalize the verb→effect `match` into a real resolver when a
 > second/third verb lands (the follow-on to this slice).
+> **Update (F-2 vocabulary built):** that generalization is **done** — the controller's per-verb `match`
+> is gone, replaced by pure `FormEffect.plan(target, verb)` reading an effect the **object** authors.
+> The controller now only *executes* a plan, so it is verb-blind the way the brain is world-effect-blind,
+> and a new verb needs **no GDScript at all**. Seam **(1)** (the gesture recognizer) is still deferred to
+> F-4.
 
 ### Form system
 - ✅ **F-1 — Reframe "form": cosmetic → functional (keystone).** Decided: a **LAYER** over the
@@ -138,8 +142,41 @@ not as a plan to act on.
   style (`world_controller._update_perform` watches the approach and fires on arrival), so the brain
   stays world-effect-blind. Built: `command_meta` on the command channel (`companion_brain`), the
   `VisitAction` generalization, and `test_companion_command.gd` coverage (verb performs on arrival;
-  routes end-to-end). **First slice only** — one wired verb (`unearth`); the full 5-animal vocabulary
-  is a follow-on. **Reasoned, not executed (no Godot in sandbox); needs a headless test run + playtest.**
+  routes end-to-end). The first slice wired **one** verb (`unearth`) with its effect hardcoded in the
+  controller; the follow-on below replaced that with the full vocabulary and data-authored effects.
+  - ✅ **Follow-on built — the five-animal vocabulary, and effects as DATA.** Each drawable species now
+    has one verb, and the per-verb `match` in the controller is gone. A verb's consequence is
+    **authored on the object** (`form_effects`, beside its `affordances`): the line to say, an
+    optional `spent_hint`, and an optional `reveal` — placed by `offset` (beside the object) or by
+    `position` (anywhere in the world). A new pure `scripts/world/form_effect.gd`
+    (`plan(target, verb) → { already, spends, hint, reveal }`, unit-tested in `test_form_effect.gd`)
+    decides; `world_controller._apply_form_effect` only executes. **So a sixth verb needs no GDScript.**
+    An effect may reveal nothing at all — the cat's is a pure moment, deliberately.
+
+    | form | verb | object (the Vale) | what it does |
+    |---|---|---|---|
+    | fox | `unearth` | the mound of loose earth | noses up a smooth, cool stone |
+    | rabbit | `wriggle` | the mossy fallen log | backs out of the hollow with pale mushrooms |
+    | cat | `coax` | the berry bush | sits statue-still until the bush fills with birdsong (no object) |
+    | wolf | `heave` | a fallen stone *(new prop)* | shoulders it over — the underside is carved |
+    | bird | `survey` | a leaning pillar *(new prop)* | spots a hidden flush of blooms across the vale |
+
+    Each object's `lore` is written as the **hint toward its verb** ("Too narrow for a hand", "from the
+    top of it you could see the whole overlook"), so examining in the *wrong* shape teaches you the
+    right one — diegetic tutorialization (P-5) falling out for free. The two new props reuse existing
+    baked art (`rubble_pile`, `broken_pillar`) and are non-solid, so navigation and the server's pal
+    avoidance are untouched. Authored in **both** copies of the spec — `server/priv/world_seeds/vale.json`
+    (what the live game serves) and `pokepals/tests/world_fixtures/vale.json` (what tests build from);
+    the server stores specs as opaque jsonb, so no server code changed.
+    - **Verified:** headless suite green (21 new `TestFormEffect` assertions; the 9 pre-existing
+      failures unchanged), plus a runtime harness that drove all five verbs over the real Vale spec and
+      rendered the revealed props. **Playtested and signed off.** (Deploy note for future world edits:
+      the Vale's props only reach the client once the server's seeds re-run — they do, idempotently, on
+      container boot.)
+    - **Known nuance (left as-is, flag if it bites):** examining a *spent* object while wearing its
+      form still sends the companion over to report "already turned over", because `resolve()`
+      deliberately keeps answering for spent objects. Cozy rather than wrong, but it's a behaviour
+      choice worth confirming in playtest.
 - ✅ **C-1 — One action per form per object.** Decided & built (first slice). An object AUTHORS an
   explicit per-**form** `affordances` map (form species → verb, e.g. `{ "fox": "unearth" }`); a new
   pure, node-free `scripts/world/form_affordance.gd` (`resolve(worn_form, object) → one verb or ""`,
@@ -167,8 +204,28 @@ not as a plan to act on.
 - ⬜ **C-2 — Held/durational states, generalized.** tap-to-start / tap-to-release, visible
   in-world. *Reuse:* the Ruin's persistent plate-hold (re-issued `settle`) → a reusable `task`-band
   held action.
-- ⬜ **C-3 — Objects highlight in the current form's color.** Switching forms changes what lights
-  up (free hint layer). *Reuse:* `world_art.gd` glow.
+- ✅ **C-3 — Objects highlight in the current form's color.** Decided & built. Objects the **worn
+  form** could act on wear a soft, slowly breathing pool of that form's colour on the ground —
+  squashed onto the ground plane like the existing contact shadows, ringed by a thin arc so it reads
+  as deliberate rather than a smudge. It re-lights on **every** form change, instructed *or* drifted
+  (`companion_view.form_changed` already fired for both), so the world visibly answers the shape your
+  companion is wearing. Split along the usual seam: **which** objects qualify is pure logic
+  (`FormAffordance.actionable_indices`, unit-tested), the **colour** is art direction
+  (`art.json` → `form_highlight`, per-species with a neutral default; `alpha: 0` hides the layer),
+  and **how it's drawn** is `world_art._draw_form_highlight`. A performed verb marks its object
+  `_spent` — a general mark replacing the ad-hoc `_unearthed` — which drops it from the highlight set
+  so a finished object stops advertising itself, while a tap still reaches its own "already turned
+  over" line. Deliberately quiet: a hint you notice, not a quest marker.
+  - **Verified:** headless suite green (`tests/test_form_affordance.gd` — 7 new assertions; the 9
+    pre-existing failures in `TestPlayerAppearance`/`TestSolids` are unchanged from `main`), plus a
+    throwaway runtime harness that rendered the Vale and drew real frames with the layer on.
+    **Playtested and signed off** (alongside the F-2 vocabulary, which is what gave the layer enough
+    to say for the beat to be felt).
+  - **📌 Known thinness (a decision for the owner, not a bug):** the Vale authors exactly **one**
+    object with affordances (`dig_mound`, `fox → unearth`), so the layer currently lights one thing
+    for one shape and nothing otherwise. The *switch-forms-and-the-world-answers* beat can't really be
+    felt until 2–3 objects afford **different** forms. Authoring those is the **F-2 follow-on**
+    (the rest of the 5-animal verb vocabulary), not part of C-3.
 - ⬜ **C-4 — Escape-hatch long-press radial.** Two-option fallback with a strict usage budget
   (frequent need = form vocabulary too coarse).
 
@@ -217,9 +274,19 @@ affordance mapping, autonomy gating) lands in `scripts/world/` as node-free `Ref
 tests in `tests/` (like `test_companion_form.gd`, `test_companion_command.gd`), run via
 `tests/run_tests.gd`. Feel items: run the game, playtest the specific beat, tune before moving on.
 
-> ⚠️ **Sandbox caveat:** the current dev environment has **no Godot binary** (and downloads are
-> proxy-blocked), so changes here are reasoned + unit-reasoned but **not executed**. Every build item
-> needs a real `godot --headless … res://tests/run_tests.gd` run and a playtest on the owner's side.
+> ⚠️ **Sandbox caveat (now partly lifted).** Earlier items here were reasoned but **not executed** —
+> the dev sandbox had no Godot binary. As of C-3 the engine **does** download in the sandbox: fetch
+> `Godot_v4.6-stable_linux.x86_64` (matching `project.godot`'s `config/features`), import once with
+> `godot --headless --editor --quit-after 200 --path pokepals` to build the `class_name` cache, then
+> run `godot --headless --path pokepals --script res://tests/run_tests.gd`. Two caveats: the import
+> rewrites every `assets/**/*.png.import` file (revert that churn before committing), and the
+> `smoke_*.gd` SceneTree scripts **hang on `main` too** — their autoloads (`/root/Net`,
+> `/root/WorldRouter`) aren't registered under `--script`, so they're not a usable gate right now.
+> A **playtest on the owner's side is still the real bar** for every feel item.
+>
+> **Known-failing on `main` (pre-existing, unrelated to this backlog):** 8 assertions in
+> `TestPlayerAppearance` and 1 in `TestSolids`, plus `TestNetCodec` erroring on missing private
+> methods. Treat "9 failures" as the baseline, not a regression.
 
 ## Side-fixes made along this direction's work (outside the item backlog)
 

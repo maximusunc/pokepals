@@ -30,6 +30,20 @@
 		"_props_comment": "Small hand-placed props as baked pixel-art (tools/gen_props.py). For each type listed, WorldArt loads prop_<type>_base.png (fixed materials) and, if present, prop_<type>_tint.png (the part whose color is data, drawn tinted by the prop's own color). Any missing file falls back to that prop's procedural drawing. Remove a type from the list to force procedural.",
 		"props": { "render": "sprite", "prefix": "res://assets/sprites/prop_", "types": ["crystal", "lantern", "torch", "ember", "brazier", "chime_stone", "wildflowers", "mushrooms", "berry_bush", "log", "basin", "bench", "signpost", "crate", "notice_board", "shopkeeper", "column", "broken_pillar", "rubble_pile", "carving"] }
 	},
+	"_form_highlight_comment": "C-3 — the form HINT LAYER. Objects the companion's current daemon form could act on wear a soft, breathing pool of that form's colour on the ground, so switching shape changes what lights up. Which objects qualify is game logic (an object's per-form 'affordances' map); only the look lives here. 'colors' is keyed by species; anything unlisted uses 'default'. Turn the layer down by lowering 'alpha' (0 hides it entirely).",
+	"form_highlight": {
+		"alpha": 0.20,
+		"radius": 25.0,
+		"pulse_speed": 0.9,
+		"default": [0.98, 0.92, 0.62],
+		"colors": {
+			"fox": [0.98, 0.62, 0.34],
+			"cat": [0.82, 0.66, 0.96],
+			"rabbit": [0.72, 0.93, 0.70],
+			"bird": [0.62, 0.85, 1.00],
+			"wolf": [0.78, 0.85, 0.96]
+		}
+	},
 	"_daycycle_comment": "A slow ambient drift from day to dusk and back, driving the warm wash (DayTint) and the vignette. enabled=false freezes it at the first stop (today's static look). period_sec is one full day->dusk->day round trip when loop=true. Set enabled=false to turn it off.",
 	"daycycle": {
 		"enabled": true,

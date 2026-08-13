@@ -172,6 +172,13 @@ func _build_world(data: Dictionary) -> void:
 	_apply_atmosphere(data.get("atmosphere", {}))
 	_setup_daycycle(_style.daycycle())
 
+	# C-3 — the form hint layer. Light whatever the worn form can act on now, and re-light it every
+	# time the form shifts (instructed OR drifted — companion_view emits form_changed for both), so
+	# the world visibly answers the shape your companion is wearing. Connected here rather than in
+	# _ready because a world hop reloads the scene, so this runs exactly once per companion.
+	_companion.form_changed.connect(_refresh_form_highlights)
+	_refresh_form_highlights()
+
 	# Fade in from black if we arrived through a portal; otherwise start fully clear.
 	_setup_fade()
 
@@ -270,14 +277,6 @@ func _build_world(data: Dictionary) -> void:
 	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
 	# up yet — those callbacks early-return, so they never touch half-built state.
 	_world_built = true
-
-	# TEMP BUILD MARKER (remove once the dig works): an unmissable banner shown the instant a world
-	# finishes building — no tap or devtools needed. If you rebuild the web export and DON'T see this
-	# exact text after a refresh, you're running a STALE client (build-web.sh didn't produce a fresh
-	# export, or the browser cached the old one) — that alone would explain "nothing changes". If you DO
-	# see it, the new code is live and the problem is elsewhere (we debug the tap next).
-	print("[dbg] BUILD MARKER kithbound-dig-v5 — world built: ", String(data.get("world_id", "?")))
-	_show_hint("BUILD kithbound-dig-v5 — instruct Fox, then tap the mound")
 
 
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
@@ -432,6 +431,10 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			# thing the worn form does here; absent/empty means the object affords no form-verb (a plain
 			# visit). Carried through so the tap resolver needn't reach back into the raw world spec.
 			"affordances": it.get("affordances", {}),
+			# …and what each of those verbs DOES here — the authored line, and optionally the thing it
+			# uncovers. Read by FormEffect.plan() when the companion arrives and performs. Absent means
+			# the verb still plays its gesture and gets a generic acknowledgement.
+			"form_effects": it.get("form_effects", {}),
 		}
 		_interactables.append(entry)
 		poi.append(entry["pos"])
@@ -810,9 +813,6 @@ func _install_world_tap_catcher() -> void:
 func _on_world_catcher_input(event: InputEvent) -> void:
 	if not _world_built:
 		return
-	# TEMP DIAGNOSTIC: prove the catcher receives taps at all (any tap type), independent of the
-	# left-button gate below. If this never prints, no tap is reaching the catcher.
-	print("[dbg] catcher input: ", event.get_class())
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 		_on_world_tap(event.position)
 
@@ -829,17 +829,6 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
 	var index := _nearest_interactable_to_point(world)
-	# TEMP DIAGNOSTIC (remove once the beat works): fire on EVERY world tap, before the found-object
-	# check, so we learn whether taps route here at all, where they land, and whether one snapped to an
-	# interactable. If you never see this line, the tap isn't reaching the world catcher.
-	var _dbg_form := _companion.current_form_species()
-	var _dbg_verb := "" if index < 0 else FormAffordance.resolve(_dbg_form, _interactables[index])
-	print("[dbg] world tap @ ", world, " idx=", index, " of ", _interactables.size(), " form=", _dbg_form, " verb=", _dbg_verb)
-	_show_hint("[dbg] tap idx=%d/%d form=%s verb=%s" % [
-		index, _interactables.size(),
-		_dbg_form if _dbg_form != "" else "(none)",
-		_dbg_verb if _dbg_verb != "" else "(none)",
-	])
 	if index < 0:
 		return
 	var entry: Dictionary = _interactables[index]
@@ -869,6 +858,23 @@ func _issue_form_order(entry: Dictionary, index: int) -> bool:
 	_companion.issue_command("visit", entry["pos"], { "verb": verb, "object_id": String(entry.get("id", "")) })
 	_pending_perform = { "index": index, "verb": verb, "id": String(entry.get("id", "")) }
 	return true
+
+
+## C-3 — REFRESH THE FORM HINT LAYER: work out which interactables the companion's current form could
+## act on and hand world_art that set plus the form's colour. Pure logic decides the WHICH
+## (FormAffordance.actionable_indices, spent objects excluded); the art direction decides the COLOUR
+## (ArtStyle.form_highlight_color); world_art decides how it's drawn. Called on world build, on every
+## form shift, and whenever a performed verb changes the world (an object spent, a find revealed).
+## _interactables indices are mapped to world_art's render indices — the two lists aren't parallel
+## (non-interactive scenery occupies render slots, and rocks/portals are appended later).
+func _refresh_form_highlights() -> void:
+	if _companion == null or _world_art == null or _style == null:
+		return
+	var species := _companion.current_form_species()
+	var render_indices: Array = []
+	for i in FormAffordance.actionable_indices(species, _interactables):
+		render_indices.append(int(_interactables[i]["render_index"]))
+	_world_art.set_form_highlights(render_indices, _style.form_highlight_color(species))
 
 
 ## True if this object authors any per-form affordance at all (so a "can't help in this shape" tell is
@@ -905,40 +911,47 @@ func _update_perform(_delta: float) -> void:
 	_apply_form_effect(entry, index, verb)
 
 
-## Apply a performed verb's WORLD EFFECT. The one verb wired for this first slice is "unearth" (a fox
-## digging a mound of loose earth): reveal a small curio beside it that the player can then examine,
-## reusing the same add_interactable + append path as the hunt's completion portal. Non-repeatable —
-## the mound is marked so a second dig just notes it's already turned over.
+## Apply a performed verb's WORLD EFFECT — the generalized replacement for the first slice's per-verb
+## `match`. FormEffect (pure) reads the effect the OBJECT authored for this verb and returns a plan:
+## the line to say, whether the object is used up, and what it reveals. This function only EXECUTES
+## that plan, so a new verb is authored in world data alone — no GDScript. The brain stays
+## world-effect-blind; the controller now stays verb-blind too.
 func _apply_form_effect(entry: Dictionary, _index: int, verb: String) -> void:
-	match verb:
-		"unearth":
-			if bool(entry.get("_unearthed", false)):
-				_show_hint("The earth here is already turned over.")
-				return
-			entry["_unearthed"] = true
-			# Reveal the uncovered find a little to one side of the mound, drawn with the existing
-			# chime-stone art (no new sprite needed), and add it to the examinable list so the player
-			# can walk over and examine what their companion dug up.
-			var find_pos: Vector2 = entry["pos"] + Vector2(22, -6)
-			var render_index := _world_art.add_interactable(find_pos, Color(0.66, 0.70, 0.78), "chime_stone")
-			_interactables.append({
-				"pos": find_pos,
-				"label": "a smooth, cool stone",
-				"id": "unearthed_curio",
-				"tags": ["shiny", "stone"],
-				"kind": "prop",
-				"render_index": render_index,
-				"lore": "A river-worn stone, still cool from the earth — your companion nosed it up with pride.",
-				"affordances": {},
-			})
-			_invalidate_nearest()
-			# Let the companion notice its own find and perk at it — the cozy discovery beat.
-			_companion.notify_interaction(find_pos, "unearthed_curio", ["shiny", "stone"])
-			_show_hint("Your fox-formed companion digs at the loose earth — and noses up a smooth, cool stone.")
-		_:
-			# An authored verb with no wired effect yet: the companion still went and performed the
-			# gesture (VisitAction), so acknowledge rather than silently drop it.
-			_show_hint("Your companion tends to %s." % entry["label"])
+	var plan := FormEffect.plan(entry, verb)
+	# Already done: say its own line and change nothing (the object is spent but still tappable, so
+	# an order never feels dead).
+	if bool(plan["already"]):
+		_show_hint(String(plan["hint"]))
+		return
+	# `_spent` is the general "this object's verb has been performed" mark: it keeps an effect
+	# non-repeatable AND drops the object out of C-3's highlight set, so a finished thing stops
+	# advertising itself. Only an authored effect spends the object.
+	if bool(plan["spends"]):
+		entry["_spent"] = true
+	var reveal: Dictionary = plan["reveal"]
+	if not reveal.is_empty():
+		# Add what was uncovered — beside the object, or across the world for a survey — drawing it
+		# with existing prop art and folding it into the examinable list, the same add_interactable +
+		# append path the hunt's completion portal uses.
+		var find_pos: Vector2 = reveal["pos"]
+		var render_index := _world_art.add_interactable(find_pos, reveal["color"], String(reveal["type"]))
+		_interactables.append({
+			"pos": find_pos,
+			"label": String(reveal["label"]),
+			"id": String(reveal["id"]),
+			"tags": reveal["tags"],
+			"kind": "prop",
+			"render_index": render_index,
+			"lore": String(reveal["lore"]),
+			"affordances": {},
+		})
+		_invalidate_nearest()
+		# Let the companion notice its own find and perk at it — the cozy discovery beat.
+		_companion.notify_interaction(find_pos, String(reveal["id"]), reveal["tags"])
+	# The world may have changed under the hint layer — an object spent, a new one added — so re-light.
+	if bool(plan["spends"]):
+		_refresh_form_highlights()
+	_show_hint(String(plan["hint"]))
 
 
 ## Nearest interactable to an arbitrary WORLD point (an order's tap), within TAP_PICK_RADIUS. Sibling

@@ -32,3 +32,26 @@ static func resolve(form_species: String, target: Dictionary) -> String:
 ## call-sites that only need the yes/no (e.g. deciding between an order and a plain visit).
 static func can_act(form_species: String, target: Dictionary) -> bool:
 	return resolve(form_species, target) != ""
+
+
+## C-3 — WHICH OBJECTS THIS FORM COULD ACT ON: the indices into `targets` the worn form affords a
+## verb on, for the presentation to highlight. This is the whole hint layer in one pure call — the
+## view asks it again whenever the form shifts, and what lights up changes with the shape.
+##
+## It differs from can_act() in one way: a target already marked SPENT (`_spent`, set by the
+## controller once a verb's world effect has fired — the mound is dug) drops out of the set, so a
+## finished object stops advertising itself. resolve()/can_act() deliberately keep answering for it,
+## since a tap on a spent object should still reach its verb and say "already turned over" rather
+## than the wrong "this shape can't help here". Non-dictionary entries are skipped, never fatal.
+static func actionable_indices(form_species: String, targets: Array) -> Array:
+	var out: Array = []
+	if form_species == "":
+		return out
+	for i in targets.size():
+		var t: Variant = targets[i]
+		if not (t is Dictionary):
+			continue
+		var target: Dictionary = t
+		if can_act(form_species, target) and not bool(target.get("_spent", false)):
+			out.append(i)
+	return out
