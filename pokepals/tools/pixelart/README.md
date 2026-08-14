@@ -40,7 +40,7 @@ python hedge.py           # hedge.png (leafy tile, tiled 2x2, lit + face)
 | `generator.py` | Core: shade system, paint/outline functions, player layer maps (body, arms, garments, pants, shoes, hair, accessories), palettes, `make_character()` |
 | `animals.py` | The 5 daemon species (cat, fox, rabbit, bird, wolf) as single maps + natural color variants, `make_daemon()` |
 | `walk.py` | Player 8-frame walk cycles in 4 directions, arm swing poses, side/back view maps, `character_frames()`; daemon hop `daemon_frames()` |
-| `directions.py` | 8-directional daemon facing (`make_daemon_facing()`), derived back/diagonal views, hand-drawn fox profile |
+| `directions.py` | 8-directional daemon facing (`make_daemon_facing()`): hand-drawn standing 3/4 views (`DIAG_MAPS`) + profiles (`SIDE_MAPS`) for every quadruped, derived back views |
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |
 | `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
@@ -113,7 +113,8 @@ Frames and views are computed from shared maps, never drawn twice:
 - Back views = front maps with faces erased, hair filled over the head,
   collar closed, inner ears filled (+ per-species overlays like the
   rabbit's bobtail)
-- Diagonal daemon facings = head-band rows shifted 1px toward the facing
+- Daemon straight-back views = the front map with eyes/nose erased and
+  inner ears filled, plus a hand-placed `tail_overlay`
 - 1px auto-outline is applied to every finished frame
 
 Change a base map and every derived frame/direction updates with it.
@@ -139,9 +140,17 @@ don't slide.
 ### Daemon facing (directions.py)
 
 `make_daemon_facing(species, direction, variant)` with 8 directions
-(`"down"`, `"down_right"`, `"right"`, ... ). The fox has a hand-drawn
-profile; other species currently use a head-glance placeholder for pure
-side facing (see "Add a species profile" below).
+(`"down"`, `"down_right"`, `"right"`, ... ). Every quadruped STANDS in
+every facing: the front map shows head + chest over two front legs, and
+every quadruped has a hand-drawn profile in `SIDE_MAPS`. The diagonals
+are hand-drawn 3/4 views with a truly diagonal body axis: the back
+slopes toward the near end, and the four feet stagger down a diagonal
+ground line ending at the near foot on row 25. Facing toward the viewer
+(`DIAG_MAPS`) the head is low and near; facing away (`UDIAG_MAPS`) the
+slope reverses -- head high and far, tail at the near rear -- which is
+why the away-diagonals are drawn, not derived. Only the straight back
+is derived (from the front map). The bird perches instead, and turns
+mostly with its head, beak and tail wedge.
 
 ### Animal movement (animal_motion.py)
 
@@ -179,12 +188,14 @@ make no sense from behind (glasses) are skipped for the up direction in
 `character_frames()`.
 
 ### Add a daemon species
-1. `animals.py`: draw one front map, add a `(MAP, [ramps])` entry to
-   `SPECIES`.
-2. `directions.py`: add a `CONFIG` entry (head rows, nose rows, inner-ear
-   rows, optional back-view tail overlay). You now have 8 facings.
-3. Optional -- a true profile: add a side map to `SIDE_MAPS`.
-4. Optional -- locomotion: split the profile into body + leg poses like
+1. `animals.py`: draw a STANDING front map (head + chest over two front
+   legs, feet bottom on row 25), add a `(MAP, [ramps])` entry to `SPECIES`.
+2. `directions.py`: draw the two 3/4 views (`DIAG_MAPS` toward,
+   `UDIAG_MAPS` away -- sloped back, staggered feet) and the profile
+   (`SIDE_MAPS`), and add a `CONFIG` entry (nose rows, inner-ear rows,
+   back-view `tail_overlay`). The straight back is derived -- you have
+   8 facings.
+3. Optional -- locomotion: split the profile into body + leg poses like
    the fox in `animal_motion.py` (stretch/gather adapts to most quadrupeds;
    rabbits should hop with ear follow-through instead).
 
