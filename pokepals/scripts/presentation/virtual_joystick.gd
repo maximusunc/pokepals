@@ -43,8 +43,9 @@ func _layout() -> void:
 	queue_redraw()
 
 
-## True if a screen point is within the stick's grab region (base + a little pad). The world-order
-## handler defers to this so a press on the stick never doubles as a companion command.
+## True if a screen point is within the stick's grab region (base + a little pad). Gates both
+## grabbing the knob and swallowing the emulated mouse twin of a touch, so a press on the stick
+## never doubles as a companion command.
 func contains_point(point: Vector2) -> bool:
 	return point.distance_to(_center) <= max_radius + grab_pad
 
@@ -57,6 +58,14 @@ func _input(event: InputEvent) -> void:
 
 
 func _handle_touch(event: InputEvent) -> void:
+	# emulate_mouse_from_touch synthesizes a MOUSE twin of every touch, and handling the touch does
+	# NOT mark the twin handled — left alone it sails on into the GUI stage (the world-tap catcher,
+	# any HUD chip under the corner) and a stick press doubles as a tap behind the stick. Swallow
+	# every left-press that lands in the grab region; the touch branch below is what steers.
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT \
+			and event.pressed and contains_point(event.position):
+		get_viewport().set_input_as_handled()
+		return
 	if event is InputEventScreenTouch:
 		if event.pressed and not _active:
 			if not contains_point(event.position):
