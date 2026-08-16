@@ -43,6 +43,8 @@ static func run_all() -> int:
 	fails += _test_pet_lifts_mood(cfg)
 	fails += _test_pet_rebuff_no_bond_and_stays_above_floor(cfg)
 	fails += _test_pet_familiarity_round_trips(cfg)
+	fails += _test_met_round_trips(cfg)
+	fails += _test_met_defaults(cfg)
 	return fails
 
 
@@ -52,6 +54,23 @@ static func _ok(cond: bool, label: String) -> int:
 		return 0
 	print("  FAIL  ", label)
 	return 1
+
+
+static func _test_met_round_trips(cfg: Dictionary) -> int:
+	var s := CompanionSelf.make_default(cfg)
+	var fails := 0
+	fails += _ok(not CompanionSelf.from_dict(s.to_dict(), cfg).met, "an unmet self stays unmet across save")
+	s.met = true
+	fails += _ok(CompanionSelf.from_dict(s.to_dict(), cfg).met, "a met self stays met across save")
+	return fails
+
+
+static func _test_met_defaults(cfg: Dictionary) -> int:
+	var fails := 0
+	fails += _ok(not CompanionSelf.make_default(cfg).met, "a fresh self starts unmet (the finding beat plays)")
+	fails += _ok(CompanionSelf.from_dict({ "version": 1, "bond": 0.4 }, cfg).met,
+		"a legacy save without the key counts as met (never replays the finding)")
+	return fails
 
 
 static func _test_seeds_traits_from_personality(cfg: Dictionary) -> int:
