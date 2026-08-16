@@ -90,6 +90,31 @@
 		"coat": { "bond_start": 0.7, "warm": [0.06, 0.0, -0.05] },
 		"size": { "scale_floor": 0.85, "scale_exp": 0.8 }
 	},
+	"_encounter_comment": "THE FIRST MEETING (EncounterDirector/EncounterPal/WildWander). A brand-new or freshly reset companion (CompanionSelf.met false) starts hidden in a small flock of wild shape-shifting creatures milling around the player; every animal — the true one included — re-rolls its species every shift_interval seconds, so none can be told apart by its shape. Examining a wild one earns a line from lines_disinterest (%s = its current species) and it walks away (away_speed px/s, away_distance px) and refuses re-examines for examine_cooldown seconds; examining the TRUE one plays the bonding ceremony, the companion steps out of the flock wearing that very animal, and the bottom-right companion radial appears for the first time. flock_size: how many creatures (the companion is one of them). spawn_radius [lo,hi]: the ring around the player they appear in. wander_radius: how far a WILD one strays from its own home spot. The TRUE one instead roams a disc centred on the PLAYER of radius screen_radius_factor x the half-screen diagonal — a little bigger than the screen, so it is always somewhere near, sometimes just out of sight. amble_speed / pause [lo,hi] / arrive_distance: the milling-about gait. bond_seed: the bond the meeting itself grants, so the fresh companion starts a shade warmer than a stranger (0 keeps the old fully-fresh arc — tune to feel). enabled false: skip the beat entirely (companions are simply met, as before).",
+	"encounter": {
+		"enabled": true,
+		"flock_size": 7,
+		"shift_interval": [12.0, 18.0],
+		"spawn_radius": [120.0, 380.0],
+		"wander_radius": 140.0,
+		"screen_radius_factor": 1.15,
+		"amble_speed": 42.0,
+		"away_speed": 88.0,
+		"away_distance": [150.0, 230.0],
+		"arrive_distance": 10.0,
+		"pause": [1.2, 3.4],
+		"examine_cooldown": 5.0,
+		"bond_seed": 0.12,
+		"hint_search": "Wild creatures wander here, shifting shape as they go. One of them is waiting for you — walk up and Examine them.",
+		"hint_notice": "This one doesn't leave. It goes very still — and looks right back at you.",
+		"hint_bonded": "It was this one all along. Your companion — yours, and no one else's — falls in beside you.",
+		"lines_disinterest": [
+			"The %s looks you over politely, decides you're not who it's waiting for, and pads away.",
+			"The %s sniffs at your boots, loses interest, and wanders off.",
+			"A friendly once-over from the %s — no spark. It has somewhere else to be.",
+			"The %s tilts its head at you for a moment, then drifts away. Not this one."
+		]
+	},
 	"_daemon_form_comment": "The companion's DAEMON FORM — it wears a real animal (cat/fox/rabbit/bird/wolf, whichever pixel-art pal sheets from data/pals.json are present) and changes shape TWO ways: an AUTONOMOUS drift (in the spirit of a His Dark Materials daemon that shifts on its own) and a DIRECTED override the player invokes from the companion radial (F-1). It IS relayed to friends so a shared world stays coherent (they see the same animal, however it was chosen). CompanionForm owns the decision; CompanionView + PalSprite draw it. enabled: false keeps the classic procedural rig (the directed layer still works if invoked, it just won't drift). morph_interval [min,max]: seconds between autonomous shifts. DIRECTED LAYER: instructing a form switches immediately and HOLDS it for lerp(hold_low, hold_high, bond) seconds — a poorly-bonded companion 'doesn't listen well' (short hold), a bonded one holds it long; it always obeys, low bond is just brief. When the hold lapses it releases back to the drift. DRIFT BIAS: as bond grows the drift favors a SIGNATURE form with probability lerp(preferred_bias_low, preferred_bias_high, bond); the signature is the drawable species whose species_profiles temperament (curiosity/energy/clinginess, 0..1, same keys/scale as the companion's identity traits) is NEAREST the companion's grown identity — so a bonded companion left alone keeps returning to a self that reflects it. A species with no profile is never the signature (still instructable, still in the uniform drift pool). All values below are tuning to feel, not gospel.",
 	"daemon_form": {
 		"enabled": true,

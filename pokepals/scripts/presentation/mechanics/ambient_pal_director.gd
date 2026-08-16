@@ -18,6 +18,7 @@ var _scenery: Node2D
 var _style: ArtStyle
 var _bounds := Rect2()
 var _pals: Dictionary = {}  # id (String) -> puppet (CompanionView, or PalView for species pals)
+var _hidden := false        # true while the first-meeting search owns the world's animal life
 
 
 ## Wire up scene refs and start listening for the server's ambient-pal ticks.
@@ -67,6 +68,25 @@ func spawn_pals(data: Dictionary) -> void:
 		if look is Dictionary:
 			rc.apply_remote_look(look)
 		_pals[id] = rc
+
+
+## Stand the ambient pals aside (or bring them back) while the FIRST-MEETING search runs — so every
+## animal the searching player can see belongs to the search, and none of the set dressing reads as
+## a candidate that mysteriously won't respond. The server keeps driving positions underneath (the
+## sim is shared truth); this is purely local visibility. Un-hiding fades them gently back in, so
+## the world seems to breathe back to life around the newly met pair rather than popping.
+func set_hidden(hidden: bool) -> void:
+	if hidden == _hidden:
+		return
+	_hidden = hidden
+	for rc in _pals.values():
+		var n := rc as Node2D
+		if hidden:
+			n.visible = false
+		else:
+			n.visible = true
+			n.modulate.a = 0.0
+			n.create_tween().tween_property(n, "modulate:a", 1.0, 1.2)
 
 
 ## A batch of authoritative pal transforms from the server: ease each known puppet toward its new spot.

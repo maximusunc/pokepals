@@ -109,11 +109,12 @@ func preferred_species(identity: Dictionary) -> String:
 ## Player instructs a specific form: switch to it immediately and HOLD it. The hold length scales
 ## with bond via lerp(hold_low, hold_high, bond) — the same bond→willingness shape as
 ## ComeAction._come_chance. It ALWAYS obeys; a low bond just makes the hold short. Returns false
-## (a no-op) if the species isn't one of the drawable forms.
-func instruct(species: String, bond: float) -> bool:
+## (a no-op) if the species isn't one of the drawable forms. variant >= 0 pins that exact coat
+## (the first-meeting reveal); -1 (every prior caller) keeps the old roll-a-coat behavior.
+func instruct(species: String, bond: float, variant: int = -1) -> bool:
 	if not _has_species(species):
 		return false
-	_wear_species(species)
+	_wear_species(species, variant)
 	_directed = species
 	_hold_timer = maxf(0.0, lerpf(float(_hold[0]), float(_hold[1]), clampf(bond, 0.0, 1.0)))
 	return true
@@ -183,16 +184,19 @@ func _pick(avoid: int) -> void:
 	_variant = _rng.randi_range(0, maxi(1, int(form["variants"])) - 1)
 
 
-## Wear a specific species: set it and roll a fresh coat. Keeps the current coat if it's already this
-## species (no coat flicker on a re-instruct or a same-species drift). Shared by instruct + drift-bias.
-func _wear_species(species: String) -> void:
-	if species == _species:
+## Wear a specific species: set it and roll a fresh coat — or pin the exact coat when variant >= 0.
+## Keeps the current coat if it's already this species and no pin was asked (no coat flicker on a
+## re-instruct or a same-species drift, and no extra RNG draw — the seeded streams are untouched).
+## Shared by instruct + drift-bias.
+func _wear_species(species: String, variant: int = -1) -> void:
+	if species == _species and variant < 0:
 		return
 	var form: Variant = _form_for(species)
 	if form == null:
 		return
+	var n := maxi(1, int(form["variants"]))
 	_species = species
-	_variant = _rng.randi_range(0, maxi(1, int(form["variants"])) - 1)
+	_variant = clampi(variant, 0, n - 1) if variant >= 0 else _rng.randi_range(0, n - 1)
 
 
 ## True if `species` is one of the drawable forms.
