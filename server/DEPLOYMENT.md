@@ -85,7 +85,8 @@ docker run -d --restart unless-stopped -p 5000:5000 -e PORT=5000 --name pokepals
 
 **One-command redeploy.** From the repo root, `./redeploy.sh` does the whole upgrade loop: refuses to
 run over local edits, fast-forwards `main` from GitHub, re-exports the browser client
-(`build-web.sh`), `docker compose down` + `up -d --build`, and waits for `/health`. Pass a branch name
+(`build-web.sh`), builds the new image while the old server keeps running (so a failed build leaves
+it up), swaps it in with `docker compose up -d`, and waits for `/health`. Pass a branch name
 to deploy something else (`./redeploy.sh my-branch`), or `--no-web` to skip the web export. It never
 runs `down -v`, so saves are kept.
 

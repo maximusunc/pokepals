@@ -10,8 +10,10 @@
 #   1. make sure the checkout has no local edits (Godot's own .import churn is reset automatically)
 #   2. switch to the branch and fast-forward it from GitHub
 #   3. re-export the browser client into server/priv/static (server/build-web.sh)
-#   4. docker compose down, then up -d --build (the relay migrates + seeds the DB itself on boot)
-#   5. wait for /health to answer "ok"
+#   4. build the new server image — the old server keeps running meanwhile, so a broken build
+#      leaves it up and untouched
+#   5. swap the new image in (docker compose up -d; the relay migrates + seeds the DB itself on boot)
+#   6. wait for /health to answer "ok"
 #
 # Your saves are safe: it never runs `down -v`, so the Postgres volume is kept.
 # Godot binary for step 3: GODOT=/path/to/godot ./redeploy.sh (defaults to `godot` on PATH).
@@ -27,7 +29,7 @@ main() {
   for arg in "$@"; do
     case "$arg" in
       --no-web) web=0 ;;
-      -h|--help) sed -n '2,19p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
+      -h|--help) sed -n '3,20p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'; exit 0 ;;
       -*) fail "unknown option '$arg' (try --help)" ;;
       *) branch="$arg" ;;
     esac
@@ -46,7 +48,7 @@ main() {
     fail "docker compose isn't available on this machine"
   fi
 
-  step "1/5  Checking for local changes"
+  step "1/6  Checking for local changes"
   # Exporting with Godot rewrites its generated .import files; those are safe to throw away.
   local churn
   churn="$(git diff --name-only HEAD -- '*.import')"
@@ -59,7 +61,7 @@ main() {
     fail "the files above have local edits, so pulling could clobber them. Commit, stash ('git stash') or discard ('git checkout -- <file>') them, then rerun."
   fi
 
-  step "2/5  Pulling '$branch' from GitHub"
+  step "2/6  Pulling '$branch' from GitHub"
   local before
   before="$(git rev-parse --short HEAD)"
   git fetch origin "$branch" || fail "couldn't fetch '$branch' — check the branch name and the network"
@@ -77,18 +79,21 @@ main() {
   fi
 
   if [ "$web" = 1 ]; then
-    step "3/5  Re-exporting the browser client"
+    step "3/6  Re-exporting the browser client"
     ./server/build-web.sh || fail "the web export failed (see above). Rerun with --no-web to deploy without it."
   else
-    step "3/5  Skipping the browser client (--no-web)"
+    step "3/6  Skipping the browser client (--no-web)"
   fi
 
-  step "4/5  Rebuilding and restarting the server"
+  step "4/6  Building the new server (the current one keeps running)"
   cd "$root/server"
-  $compose down
-  $compose up -d --build || fail "docker compose couldn't start the stack (see above)"
+  $compose build || fail "the build failed (see above). Your current server is still running, untouched."
 
-  step "5/5  Waiting for the server to come up"
+  step "5/6  Swapping in the new server"
+  # `up -d` replaces only containers whose image changed (the relay); the database keeps running.
+  $compose up -d || fail "docker compose couldn't start the stack (see above)"
+
+  step "6/6  Waiting for the server to come up"
   local port="${PORT:-4000}"
   local i
   for i in $(seq 1 60); do
