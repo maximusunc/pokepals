@@ -15,7 +15,8 @@ defmodule Server.WorldChannel do
     * replay the world's transform `snapshot` so peers already moving appear at once.
 
   Thereafter: `identity` → Presence.update; `state` → cast to this world's `Server.World`; `save` →
-  persist by user_id; presence diffs → join/identity/leave frames. The sender id is always
+  persist by user_id; `list_worlds` → a `world_list` page of the directory (the Vale's Gateway);
+  presence diffs → join/identity/leave frames. The sender id is always
   server-stamped (the player's user_id); clients never send their own id.
   """
   use Phoenix.Channel
@@ -250,7 +251,35 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Browse the world DIRECTORY (the Vale's Gateway): a page of listed worlds matching `q`, each with
+  # how many people are in it right now (its Presence roster). The world we're asking from is left
+  # out. `req` is echoed back untouched so the client can drop answers to searches it has since
+  # replaced (typing fast fires several). Read-only — travelling is still just joining that world.
+  def handle_in("list_worlds", payload, socket) when is_map(payload) do
+    {cards, more} =
+      Worlds.directory(
+        q: payload["q"],
+        limit: int_param(payload["limit"], 30),
+        offset: int_param(payload["offset"], 0),
+        exclude: socket.assigns.world_id
+      )
+
+    worlds = Enum.map(cards, &Map.put(&1, :players, map_size(Presence.list("world:" <> &1.world_id))))
+
+    push(socket, "world_list", %{
+      req: payload["req"],
+      offset: int_param(payload["offset"], 0),
+      worlds: worlds,
+      more: more
+    })
+
+    {:noreply, socket}
+  end
+
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  defp int_param(v, _default) when is_integer(v), do: v
+  defp int_param(_v, default), do: default
 
   # The Ruin's ward defs from a world's spec (`ruin.wards`), or `[]` if it has no Ruin — what seeds the
   # shared ward state when the world process starts.

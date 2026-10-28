@@ -50,6 +50,41 @@ defmodule Server.WorldChannelTest do
     socket
   end
 
+  describe "list_worlds" do
+    test "returns the directory with live player counts, excluding the world we ask from" do
+      t = "dir#{System.unique_integer([:positive])}"
+      here = seed_world()
+      busy = Ecto.UUID.generate()
+
+      {:ok, _} =
+        Worlds.upsert(%{
+          world_id: busy,
+          name: "Busy #{t}",
+          blurb: "lively",
+          tags: [t],
+          display_types: ["2d"],
+          version: 1,
+          spec: %{"core" => %{}, "profiles" => %{"2d" => %{}}}
+        })
+
+      # Someone is already in the busy world, so it reports one player.
+      _friend = join_world("u-dir-friend", busy)
+      socket = join_world("u-dir", here)
+
+      push(socket, "list_worlds", %{"q" => t, "req" => 7})
+      assert_push "world_list", %{req: 7, offset: 0, more: false, worlds: [card]}
+      assert card.world_id == busy
+      assert card.name == "Busy #{t}"
+      assert card.players == 1
+      refute Map.has_key?(card, :spec)
+
+      # The world we're standing in never lists itself.
+      push(socket, "list_worlds", %{"q" => "", "req" => 8, "limit" => 100})
+      assert_push "world_list", %{req: 8, worlds: worlds}
+      refute Enum.any?(worlds, &(&1.world_id == here))
+    end
+  end
+
   describe "join" do
     test "joining an unknown world is rejected" do
       {:ok, socket} = connect(UserSocket, %{"token" => "u-unknown"})

@@ -21,13 +21,19 @@ defmodule Server.WorldDefinition do
     field :spec, :map
     field :visibility, :string, default: "public"
     field :status, :string, default: "active"
+    # The directory card (what the Vale's Gateway lists + searches; see Server.Worlds.directory/1).
+    field :blurb, :string, default: ""
+    field :tags, {:array, :string}, default: []
+    field :accent, {:array, :float}
+    field :featured, :boolean, default: false
+    field :listed, :boolean, default: true
     timestamps(type: :utc_datetime_usec)
   end
 
   @doc false
   def changeset(definition, attrs) do
     definition
-    |> cast(attrs, [:world_id, :slug, :name, :owner_id, :display_types, :version, :spec, :visibility, :status])
+    |> cast(attrs, [:world_id, :slug, :name, :owner_id, :display_types, :version, :spec, :visibility, :status, :blurb, :tags, :accent, :featured, :listed])
     |> validate_required([:name, :spec, :display_types, :version])
     |> unique_constraint(:slug)
   end
