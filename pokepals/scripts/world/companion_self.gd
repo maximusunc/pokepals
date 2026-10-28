@@ -53,6 +53,11 @@ var birth: Dictionary = {}
 var identity: Dictionary = {}
 var traits: Dictionary = {}
 var bond: float = 0.0
+# Whether the player has MET this companion yet — the first-meeting beat where it's found among
+# the wild flock (see EncounterDirector). A fresh self starts unmet; the meeting flips it once,
+# forever. Saves from before this field exist are treated as met (those companions were already
+# at the player's side), so the finding beat never replays for a returning player.
+var met: bool = false
 var observations: Dictionary = {}
 var mood_valence: float = 0.0
 var mood_arousal: float = 0.0
@@ -602,6 +607,7 @@ func to_dict() -> Dictionary:
 		"identity": identity.duplicate(true),
 		"birth": birth.duplicate(true),
 		"bond": bond,
+		"met": met,
 		"observations": observations.duplicate(true),
 		"mood_valence": mood_valence,
 		"mood_arousal": mood_arousal,
@@ -630,6 +636,9 @@ static func from_dict(data: Dictionary, cfg: Dictionary) -> CompanionSelf:
 		s.birth = s.identity.duplicate()
 	if data.has("bond"):
 		s.bond = clampf(float(data["bond"]), 0.0, 1.0)
+	# Missing key = a save from before the first-meeting beat existed: that companion was already
+	# bonded-in-progress at the player's side, so it counts as met (never replay the finding).
+	s.met = bool(data.get("met", true))
 	if data.get("observations") is Dictionary:
 		for key in data["observations"]:
 			s.observations[key] = float(data["observations"][key])

@@ -60,6 +60,7 @@ var _shop_dir: ShopDirector
 var _presence_dir: PresenceDirector
 var _ambient_dir: AmbientPalDirector
 var _ruin: RuinController
+var _encounter_dir: EncounterDirector
 
 # The dressing-room overlay (first-run creation + gear-menu wardrobe), created on demand. The shared
 # cosmetics catalog is loaded once and reused for both. See scripts/presentation/avatar_customizer.gd.
@@ -203,6 +204,9 @@ func _build_world(data: Dictionary) -> void:
 	var margin := float(ccfg.get("margin", 2.0))
 	_player.set_solids(solids, bounds_rect, body_radius, margin)
 	_companion.set_solids(solids, bounds_rect, body_radius, margin)
+	# The first-meeting flock (if it comes up this session) walks against the same barriers, and
+	# injects its creatures into the live examine list.
+	_encounter_dir.set_world(_interactables, solids, bounds_rect, body_radius, margin)
 
 	# Keep what the Ruin needs to REBUILD collisions when a slab rises (drop the slab's solid and
 	# re-hand the list to both bodies — see rebuild_solids_dropping). Harmless to cache without a ruin.
@@ -318,6 +322,15 @@ func _create_directors() -> void:
 	_ruin = RuinController.new()
 	add_child(_ruin)
 	_ruin.setup(self, _companion, _player, _world_art, _day_tint)
+
+	# The first-meeting search: a brand-new (or freshly reset) companion isn't at your side yet —
+	# it hides among a flock of wild shape-shifting creatures until you find it (see
+	# EncounterDirector). Inert until the server save settles, so offline/smoke runs are untouched.
+	_encounter_dir = EncounterDirector.new()
+	add_child(_encounter_dir)
+	_encounter_dir.setup(self, _player, _companion, _scenery)
+	_encounter_dir.search_started.connect(_on_search_started)
+	_encounter_dir.bonded.connect(_on_companion_found)
 
 
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
@@ -647,6 +660,16 @@ func _process(delta: float) -> void:
 	# F-2 form-verb order in flight: fire its world effect once the companion reaches the object.
 	_update_perform(delta)
 
+	# The first-meeting search (find-your-companion). While it runs the flock moves every frame, so
+	# the nearest-examinable cache must rescan; and the bottom-right companion radial stays out of
+	# sight — it appears for the first time at the bonding beat (_on_companion_found).
+	_encounter_dir.update(delta)
+	if _encounter_dir.is_searching():
+		_invalidate_nearest()
+		_radial.visible = false
+	elif not _radial.visible:
+		_radial.visible = true
+
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
 	_presence_dir.broadcast(delta)
 	_presence_dir.push_save_periodic(delta)
@@ -761,9 +784,32 @@ func _on_return_pressed() -> void:
 
 ## Start a fresh companion (immediate, no confirm — the item only appears once you have a fully bonded
 ## companion to start over from, and drops out of the gear menu again the next frame after reset).
+## The fresh self is UNMET, so the EncounterDirector notices on the very next frame and the
+## finding-your-companion search plays again — a new partner is found, never just issued.
 func _on_reset_pressed() -> void:
 	_companion.reset()
-	_show_hint("A new companion blinks into the world beside you.")
+	_show_hint("Your companion slips back into the wild… and somewhere nearby, a new one is waiting.")
+
+
+## The first-meeting search just began: the world empties down to the meeting itself. The ambient
+## pals stand aside (so every animal in sight is part of the search) and nothing glows for a form
+## the player has no companion to wear yet. The radial is held off per-frame in _process.
+func _on_search_started() -> void:
+	_ambient_dir.set_hidden(true)
+	_refresh_form_highlights()
+
+
+## The player found their true companion (or a settled save said the meeting already happened):
+## bring the ambient world back, light the form layer, fade the bottom-right companion radial in
+## for the very first time, and persist the met companion right away so the moment can't be lost.
+func _on_companion_found() -> void:
+	_ambient_dir.set_hidden(false)
+	_refresh_form_highlights()
+	_radial.modulate.a = 0.0
+	_radial.visible = true
+	create_tween().tween_property(_radial, "modulate:a", 1.0, 0.9)
+	if Net.is_active():
+		_presence_dir.push_save()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -778,6 +824,10 @@ func _unhandled_input(event: InputEvent) -> void:
 	# NOT handled here — it's resolved by GUI picking through the world-tap catcher, so HUD taps can
 	# never leak into an order; see _install_world_tap_catcher / _on_world_catcher_input.)
 	if event is InputEventKey and event.pressed and not event.echo:
+		# During the first-meeting search the companion isn't at your side yet: the call/pet keys
+		# stand down (like the hidden radial); Examine above is the whole verb set.
+		if _encounter_dir.is_searching():
+			return
 		if event.physical_keycode == KEY_C:
 			_try_call()
 		elif event.physical_keycode == KEY_E:
@@ -827,6 +877,10 @@ func _on_world_catcher_input(event: InputEvent) -> void:
 func _on_world_tap(screen_pos: Vector2) -> void:
 	if _companion == null:
 		return
+	# No orders while the first-meeting search runs — there's no companion at your side to order
+	# yet. (Walking and Examine carry the whole search.)
+	if _encounter_dir.is_searching():
+		return
 	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:
@@ -851,6 +905,10 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 ## world-tap path (tap open world) and the examine path (tap the object up close), so a fox digs the
 ## mound whether you order it from afar or examine it at your feet.
 func _issue_form_order(entry: Dictionary, index: int) -> bool:
+	# No form-verb orders while the first-meeting search runs (the companion isn't at your side to
+	# perform them); an examine falls through to its ordinary lore/generic beat instead.
+	if _encounter_dir.is_searching():
+		return false
 	var verb := FormAffordance.resolve(_companion.current_form_species(), entry)
 	if verb == "":
 		return false
@@ -869,6 +927,11 @@ func _issue_form_order(entry: Dictionary, index: int) -> bool:
 ## (non-interactive scenery occupies render slots, and rocks/portals are appended later).
 func _refresh_form_highlights() -> void:
 	if _companion == null or _world_art == null or _style == null:
+		return
+	# Mid-search nothing should glow for a companion the player hasn't met yet; the layer lights
+	# up (via the bonded refresh) the moment it's real.
+	if _encounter_dir != null and _encounter_dir.is_searching():
+		_world_art.set_form_highlights([], Color.WHITE)
 		return
 	var species := _companion.current_form_species()
 	var render_indices: Array = []
@@ -964,6 +1027,8 @@ func _nearest_interactable_to_point(world: Vector2) -> int:
 		var e: Dictionary = _interactables[i]
 		if String(e.get("kind", "prop")) == "rock" and _hunt_dir.should_skip_rock(int(e["hunt_index"])):
 			continue
+		if String(e.get("kind", "prop")) == "encounter_pal" and _encounter_dir.should_skip(e):
+			continue
 		var d: float = world.distance_to(e["pos"])
 		if d <= best_dist:
 			best = i
@@ -1004,6 +1069,12 @@ func _try_interact() -> void:
 	_invalidate_nearest()
 	if String(entry["kind"]) == "rock":
 		_hunt_dir.examine_rock(entry)
+		return
+	# A first-meeting flock creature: the director decides whether this one shrugs you off and
+	# leaves, or is THE one and begins the bonding. (Returns before the pulse below — the flock
+	# draws itself and holds no world_art render slot.)
+	if String(entry["kind"]) == "encounter_pal":
+		_encounter_dir.examine_pal(entry)
 		return
 	if String(entry["kind"]) == "shopkeeper":
 		_shop_dir.open_shop(entry)
@@ -1101,6 +1172,10 @@ func _scan_nearest_interactable() -> int:
 	for i in _interactables.size():
 		var e: Dictionary = _interactables[i]
 		if String(e.get("kind", "prop")) == "rock" and _hunt_dir.should_skip_rock(int(e["hunt_index"])):
+			continue
+		# A first-meeting flock creature that's mid-ceremony, walking off, or inside its rebuff
+		# cooldown doesn't prompt — so a just-examined animal can't be chain-poked as it leaves.
+		if String(e.get("kind", "prop")) == "encounter_pal" and _encounter_dir.should_skip(e):
 			continue
 		var d := _player.position.distance_to(e["pos"])
 		if d <= best_dist:

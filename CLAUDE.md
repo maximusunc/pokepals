@@ -108,6 +108,20 @@ not a blocker** — pick it up if/when a shared world wants it.
 > (friends see the same animal). Tuned by `daemon_form` in `data/companion.json` (`enabled:false`
 > restores the classic procedural rig, which is still the fallback when no pal art is present).
 
+> **The first meeting (2026-08):** a brand-new (or freshly reset) companion is no longer simply
+> *issued* — it's **found**. An unmet companion (`CompanionSelf.met`, server-saved) starts hidden in a
+> small flock of wild, **shape-shifting** creatures milling around the player (every animal re-rolls
+> its species on a ~15 s interval, so none can be told apart by looks); the true one — pre-assigned,
+> never player-picked — roams a disc centred on the player a little bigger than the screen. Examining
+> a wild one earns a polite "no spark" line and it walks off; examining the true one plays a little
+> bonding ceremony (it stills, meets your eye, bounds over, flickers ecstatically through its shapes,
+> settles with hearts), then the real companion steps out of the flock wearing that very animal, and
+> the bottom-right companion radial appears for the first time. Client-side and personal (a friend
+> just sees your ordinary companion while you search); ambient pals stand aside during the search so
+> every visible animal belongs to it. Built as `EncounterDirector` + `EncounterPal` (presentation)
+> over `WildWander` (pure logic, tested); tuned by the `encounter` block in `data/companion.json`
+> (`enabled:false` restores companions that are simply met). "New Companion" now replays the finding.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

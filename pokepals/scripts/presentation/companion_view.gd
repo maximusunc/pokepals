@@ -153,10 +153,12 @@ func apply_remote_form(species: String, variant: int) -> void:
 ## hold length scales with bond inside CompanionForm, so a bonded companion "listens" longer. Local
 ## only; a no-op if the species isn't drawable. On a real switch we re-render and emit form_changed so
 ## peers re-render us too — the same path a drift shift uses, so the net relay is untouched.
-func instruct_form(species: String) -> void:
+## variant >= 0 pins the exact coat (the first-meeting reveal keeps the very animal you bonded);
+## the default -1 rolls one, as every existing caller expects.
+func instruct_form(species: String, variant: int = -1) -> void:
 	if not _is_local or _form == null or _brain == null:
 		return
-	if _form.instruct(species, _brain.get_self().bond):
+	if _form.instruct(species, _brain.get_self().bond, variant):
 		_set_form(_form.species(), _form.variant())
 		_perk = 1.0
 		_spawn_emote("delight")
@@ -380,6 +382,29 @@ func _process_remote(delta: float) -> void:
 	queue_redraw()
 
 
+## Whether the player has MET this companion yet (the first-meeting beat — see EncounterDirector).
+## A remote puppet is always "met": its owner's meeting is none of our business, and answering true
+## keeps every is_met() gate a no-op for puppets.
+func is_met() -> bool:
+	if not _is_local or _brain == null:
+		return true
+	return _brain.get_self().met
+
+
+## The first meeting just happened: mark the self met (persisted with the next save push) and seed
+## the bond with the meeting's own small warmth, so the fresh companion starts a shade closer than
+## a stranger. Interactions queued while the body was hidden are dropped — the companion's life
+## with the player starts NOW, not with a backlog of events it never saw.
+func mark_met(bond_seed: float = 0.0) -> void:
+	if not _is_local or _brain == null:
+		return
+	var s := _brain.get_self()
+	s.met = true
+	if bond_seed > 0.0:
+		s.bond = maxf(s.bond, clampf(bond_seed, 0.0, float(_cfg.get("bond", {}).get("max", 1.0))))
+	_events.clear()
+
+
 ## Whether the bond has reached its maximum — used by the world to reveal the
 ## "start over" affordance only once there's a fully bonded companion to reset.
 func is_fully_bonded() -> bool:
@@ -459,16 +484,7 @@ func _init_daemon_form() -> void:
 ## The drawable animal forms: each pal-registry species whose sheet(s) imported, with how many
 ## coat variants are available. Empty when no pal art is present.
 func _available_forms() -> Array:
-	var out: Array = []
-	var species: Dictionary = PalView.registry().get("species", {})
-	for sp in species:
-		var declared := int(species[sp].get("variants", 1))
-		var n := 0
-		while n < declared and PalView.supported(sp, n):
-			n += 1
-		if n > 0:
-			out.append({ "species": String(sp), "variants": n })
-	return out
+	return PalView.available_forms()
 
 
 ## Tick the local form's shift timer; on a shift, wear the new animal and sell it with a little
@@ -488,28 +504,20 @@ func _update_daemon_form(delta: float) -> void:
 
 ## Wear a species + coat: validate it's drawable, load the sheet, and cache that species' layout for
 ## PalSprite. An unknown/un-drawable species clears the form so the procedural rig takes over again.
+## The coat is clamped to the species' real range inside sheet_info, so an out-of-range or untrusted
+## remote variant lands on a valid sheet instead of a missing file.
 func _set_form(species: String, variant: int) -> void:
-	if species == "" or not PalView.supported(species, variant):
+	var info := PalView.sheet_info(species, variant)
+	if species == "" or info.is_empty():
 		_form_species = ""
 		_form_variant = 0
 		_form_tex = null
 		_form_sheet = {}
 		return
-	var reg := PalView.registry()
-	# Clamp the coat to the species' real range (mirrors PalView._sheet_path), so an out-of-range or
-	# untrusted remote variant lands on a valid sheet instead of a missing file.
-	var declared := int((reg.get("species", {}) as Dictionary).get(species, {}).get("variants", 1))
 	_form_species = species
-	_form_variant = clampi(variant, 0, maxi(1, declared) - 1)
-	_form_tex = load("res://assets/pals/%s_%d.png" % [species, _form_variant]) as Texture2D
-	var frame: Array = reg.get("frame", [32, 32])
-	_form_sheet = {
-		"frame": frame,
-		"fps": float(reg.get("fps", 10.0)),
-		"cols": int(reg.get("move_frames", 8)),
-		"rows": reg.get("rows", {}),
-		"fly_row": int((reg.get("species", {}) as Dictionary).get(species, {}).get("fly_row", -1)),
-	}
+	_form_variant = int(info["variant"])
+	_form_tex = info["tex"]
+	_form_sheet = info["sheet"]
 
 
 func _apply_movement(intent: Dictionary, delta: float) -> void:

@@ -52,6 +52,44 @@ static func _sheet_path(reg: Dictionary, species: String, variant: int) -> Strin
 	return "res://assets/pals/%s_%d.png" % [species, clampi(variant, 0, n - 1)]
 
 
+## Everything needed to DRAW a species as pal art: its sheet texture, the (registry-clamped) coat
+## variant actually worn, and the PalSprite layout dict. {} when the species/variant can't be drawn.
+## The one home of the sheet convention for every non-PalView renderer of pal art — the companion's
+## daemon form and the first-meeting flock both draw through this.
+static func sheet_info(species: String, variant: int) -> Dictionary:
+	var reg := registry()
+	if not supported(species, variant):
+		return {}
+	var declared := int((reg.get("species", {}) as Dictionary).get(species, {}).get("variants", 1))
+	return {
+		"tex": load(_sheet_path(reg, species, variant)),
+		"variant": clampi(variant, 0, maxi(1, declared) - 1),
+		"sheet": {
+			"frame": reg.get("frame", [32, 32]),
+			"fps": float(reg.get("fps", 10.0)),
+			"cols": int(reg.get("move_frames", 8)),
+			"rows": reg.get("rows", {}),
+			"fly_row": int((reg.get("species", {}) as Dictionary).get(species, {}).get("fly_row", -1)),
+		},
+	}
+
+
+## The drawable animal forms — each registry species whose sheet(s) actually imported, with how
+## many coat variants are available: [{ species: String, variants: int }]. The shared pool both the
+## companion's daemon form and the first-meeting flock shift between. Empty with no pal art present.
+static func available_forms() -> Array:
+	var out: Array = []
+	var species: Dictionary = registry().get("species", {})
+	for sp in species:
+		var declared := int(species[sp].get("variants", 1))
+		var n := 0
+		while n < declared and supported(sp, n):
+			n += 1
+		if n > 0:
+			out.append({ "species": String(sp), "variants": n })
+	return out
+
+
 var _seeded := false
 
 
