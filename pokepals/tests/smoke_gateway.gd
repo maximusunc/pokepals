@@ -63,6 +63,8 @@ func _process(_delta: float) -> bool:
 	_world._show_world_picker(gw)
 	var picker = _world._picker
 	fails += _check(picker != null and paused, "the picker opens over a paused world")
+	fails += _check(picker._center.modulate.a < 0.01 and picker._backdrop.modulate.a < 0.01, "it starts invisible, to fade in softly")
+	fails += _check(picker.tint == gw["color"], "the backdrop takes the gate's colour")
 	var net := root.get_node("/root/Net")
 	var cards := [
 		{ "world_id": "r", "name": "The Ruin", "blurb": "doors", "featured": true, "players": 2, "accent": [0.5, 0.7, 0.5] },
@@ -73,7 +75,15 @@ func _process(_delta: float) -> bool:
 	net.emit_signal("world_list_received", 1, 0, cards, false)
 	fails += _check(_card_count(picker) == 2, "the server's cards are listed (%d)" % _card_count(picker))
 
-	# Backing out resumes the world and leaves the gateway quiet until we step away.
+	# Backing out fades away first (the world stays paused until it's gone)…
+	picker._close()
+	fails += _check(_world._picker == picker and paused, "backing out fades the picker before closing it")
+	# …then resumes the world and leaves the gateway quiet until we step away. (Re-open with the fade
+	# switched off so the close lands this frame; the fading one above is replaced.)
+	_world._dismiss_picker()
+	_world._show_world_picker(gw)
+	picker = _world._picker
+	picker.fade_out_time = 0.0
 	picker._close()
 	fails += _check(_world._picker == null and not paused, "backing out closes the picker and unpauses")
 	_world._update_portals(0.016)
@@ -85,13 +95,16 @@ func _process(_delta: float) -> bool:
 	fails += _check(_world._picker == null and paused, "a disconnect dismisses the picker, leaving the world paused for the lobby")
 	paused = false
 
-	# Picking a world closes the picker and starts the fade-out trip.
+	# Picking a world starts the fade-to-black trip; the picker melts away and the world stays paused
+	# until the very end, so nothing wanders mid-fade.
 	_world._show_world_picker(gw)
 	picker = _world._picker
 	net.emit_signal("world_list_received", 1, 0, cards, false)
 	picker._on_card_pressed("r", "The Ruin")
-	fails += _check(_world._picker == null and not paused, "choosing a world closes the picker")
-	fails += _check(_world._transitioning, "…and the trip begins")
+	fails += _check(_world._transitioning, "choosing a world begins the trip")
+	fails += _check(paused, "…with the world held paused through the fade")
+	picker._on_card_pressed("b", "The Bazaar")
+	fails += _check(String(_world._hint.text).contains("The Ruin"), "a second tap mid-fade can't redirect the trip")
 
 	# WorldRouter: the trip home after a gateway journey lands at the gateway, once.
 	router.gateway_departure = { "world": router.VALE_ID, "portal": router.HUB_GATEWAY_ID }
