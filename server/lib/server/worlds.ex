@@ -45,6 +45,81 @@ defmodule Server.Worlds do
   end
 
   @doc """
+  A page of the world DIRECTORY — what the Vale's Gateway lists and searches. Only public, active,
+  `listed` worlds; featured first, then by name. Returns `{cards, more?}`, where each card is the
+  lightweight `directory_card/1` (never the spec, so listing hundreds of worlds stays cheap).
+
+  Opts: `:q` (case-insensitive substring over name, blurb and tags; blank = everything), `:limit`
+  (default 30, capped at 100), `:offset` (default 0), `:exclude` (a world_id to leave out — the
+  world you're searching from).
+  """
+  @spec directory(keyword()) :: {[map()], boolean()}
+  def directory(opts \\ []) do
+    limit = opts |> Keyword.get(:limit, 30) |> max(1) |> min(100)
+    offset = opts |> Keyword.get(:offset, 0) |> max(0)
+
+    query =
+      from(w in WorldDefinition,
+        where: w.visibility == "public" and w.status == "active" and w.listed == true,
+        order_by: [desc: w.featured, asc: w.name, asc: w.world_id],
+        # One extra row tells us whether there's another page, without a COUNT(*).
+        limit: ^(limit + 1),
+        offset: ^offset
+      )
+
+    query =
+      case Keyword.get(opts, :exclude) do
+        id when is_binary(id) and id != "" -> from(w in query, where: w.world_id != ^id)
+        _ -> query
+      end
+
+    query =
+      case search_pattern(Keyword.get(opts, :q)) do
+        nil ->
+          query
+
+        pattern ->
+          from(w in query,
+            where:
+              ilike(w.name, ^pattern) or ilike(w.blurb, ^pattern) or
+                fragment("EXISTS (SELECT 1 FROM unnest(?) AS t WHERE t ILIKE ?)", w.tags, ^pattern)
+          )
+      end
+
+    rows = Repo.all(query)
+    {rows |> Enum.take(limit) |> Enum.map(&directory_card/1), length(rows) > limit}
+  end
+
+  @doc "The directory's lightweight view of a world: identity + its card, no spec."
+  @spec directory_card(WorldDefinition.t()) :: map()
+  def directory_card(%WorldDefinition{} = w) do
+    %{
+      world_id: w.world_id,
+      slug: w.slug,
+      name: w.name,
+      blurb: w.blurb || "",
+      tags: w.tags || [],
+      accent: w.accent,
+      featured: w.featured
+    }
+  end
+
+  # A trimmed search term → an ILIKE `%term%` pattern with its own wildcards escaped (so a typed `%`
+  # or `_` matches literally), or nil for a blank/missing term.
+  defp search_pattern(q) when is_binary(q) do
+    case String.trim(q) do
+      "" ->
+        nil
+
+      term ->
+        escaped = String.replace(term, ["\\", "%", "_"], fn ch -> "\\" <> ch end)
+        "%" <> escaped <> "%"
+    end
+  end
+
+  defp search_pattern(_), do: nil
+
+  @doc """
   The author-facing integer `version` of a world (cheap to fetch; human-meaningful metadata, NOT the
   cache validator — that is `etag/1`, which is content-derived). Returns the version or nil if the
   world is unknown.
@@ -79,7 +154,7 @@ defmodule Server.Worlds do
     %WorldDefinition{}
     |> WorldDefinition.changeset(attrs)
     |> Repo.insert(
-      on_conflict: {:replace, [:slug, :name, :owner_id, :display_types, :version, :spec, :visibility, :status, :updated_at]},
+      on_conflict: {:replace, [:slug, :name, :owner_id, :display_types, :version, :spec, :visibility, :status, :blurb, :tags, :accent, :featured, :listed, :updated_at]},
       conflict_target: :world_id
     )
   end

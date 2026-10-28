@@ -122,6 +122,15 @@ not a blocker** — pick it up if/when a shared world wants it.
 > over `WildWander` (pure logic, tested); tuned by the `encounter` block in `data/companion.json`
 > (`enabled:false` restores companions that are simply met). "New Companion" now replays the finding.
 
+> **The Gateway (2026-10):** the Vale is the one **hub**, and its door to the whole catalog is a single
+> big **Gateway** at the western Threshold (the spec's `gateway` block). Walking in opens a searchable
+> **world picker** (`WorldPicker` over the pure `WorldDirectory`) fed by the server's **world directory**
+> (`Server.Worlds.directory` via the channel's `list_worlds` → `world_list`: name/blurb/tags search over
+> new catalog card columns, `listed`/`featured`, plus a live per-world player count from Presence). A
+> world added to the catalog needs **no portal and no Vale edit**: you arrive at its spawn, and its way
+> home (any portal back, or the now-default "Return to the Vale") sets you down at the Gateway, since
+> `WorldRouter` remembers you left by it. The four small direct portals stay as shortcuts around it.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

@@ -22,6 +22,8 @@ const PET_RANGE := 56.0
 # How close the player must walk to a portal to step through it, and how far they must then
 # step away before a just-used portal re-arms (so arriving on a portal doesn't bounce you back).
 const PORTAL_RANGE := 22.0
+# The hub's Gateway is a much bigger doorway, so you walk into it from further out.
+const GATEWAY_RANGE := 32.0
 const PORTAL_ARM_BUFFER := 18.0
 
 # The world SPEC is fully SERVER-HOSTED: the client bundles NO world specs. Net fetches a world's spec
@@ -68,7 +70,9 @@ var _cosmetics: CosmeticsCatalog
 var _customizer: AvatarCustomizer
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
-var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed } ]
+var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed, gateway? } ]
+# The Gateway's world picker while it's open (the world is paused under it), else null.
+var _picker: WorldPicker
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
 # whether its world effect has fired yet. The controller watches the companion approach (Ruin-referee
 # style) and applies the effect once it arrives, so the brain never touches world state. Cleared when
@@ -472,6 +476,11 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		_return_portal = String(ret.get("portal", ""))
 		if ret.has("label"):
 			_return_label = String(ret["label"])
+	elif WorldRouter.current_world != WorldRouter.HUB_ID:
+		# Every world but the hub can always get home: one that declares no Return of its own goes back
+		# to the hub's Gateway — so a world added to the catalog needs no hand-made way back.
+		_return_world = WorldRouter.HUB_ID
+		_return_portal = WorldRouter.HUB_GATEWAY_ID
 
 	# Portals: walk-through doorways (not examinable). The one we arrived at starts DISARMED so
 	# we step OUT of it rather than straight back through. Remember where they lead "home" so a
@@ -490,6 +499,21 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		})
 		_home_world = String(pd["target_world"])
 		_home_portal = String(pd["target_portal"])
+
+	# The Gateway (only the hub's spec carries one): a big walk-in doorway that opens the world picker
+	# rather than leading anywhere itself. Drawn like a prop, tracked with the portals so it shares their
+	# arm/disarm rule — arriving at it, or backing out of the picker, leaves it quiet until you step clear.
+	var gw: Dictionary = data.get("gateway", {})
+	if gw.has("id"):
+		var g_render_index := combined.size()
+		combined.append({ "id": gw["id"], "type": "gateway", "position": gw["position"], "color": gw.get("color", [0.8, 0.74, 0.98]), "label": gw.get("label", "the great gate") })
+		_portals.append({
+			"id": String(gw["id"]),
+			"pos": WorldData.to_vec2(gw["position"]),
+			"gateway": true,
+			"render_index": g_render_index,
+			"armed": String(gw["id"]) != arrival_id,
+		})
 
 	data["props"] = combined
 
@@ -515,7 +539,10 @@ func _place_arrivals(data: Dictionary, arrival_id: String) -> void:
 	var p_spawn := WorldData.to_vec2(data["player_spawn"])
 	var c_spawn := WorldData.to_vec2(data["companion_spawn"])
 	if arrival_id != "":
-		for pd in data.get("portals", []):
+		var anchors: Array = data.get("portals", []).duplicate()
+		if data.has("gateway"):
+			anchors.append(data["gateway"])
+		for pd in anchors:
 			if String(pd["id"]) == arrival_id:
 				var ppos := WorldData.to_vec2(pd["position"])
 				# Default: step OUT to the south of the portal. A portal may override "arrival_offset"
@@ -1122,17 +1149,75 @@ func open_completion_portal(at: Vector2) -> void:
 func _update_portals(_delta: float) -> void:
 	if _transitioning:
 		return
+	if _picker != null:
+		return
 	for p in _portals:
 		var d := _player.position.distance_to(p["pos"])
+		var reach := GATEWAY_RANGE if p.get("gateway", false) else PORTAL_RANGE
 		if not bool(p["armed"]):
-			if d > PORTAL_RANGE + PORTAL_ARM_BUFFER:
+			if d > reach + PORTAL_ARM_BUFFER:
 				p["armed"] = true
-		elif d <= PORTAL_RANGE:
+		elif d <= reach and p.get("gateway", false):
+			_open_gateway(p)
+			return
+		elif d <= reach:
 			# Travel works whether solo or connected: each world is its own channel, so the world
 			# swap leaves this world's roster and joins the destination's (see Net.enter_world in
 			# _setup_net). Players in different worlds simply don't see each other.
 			_begin_transition(p)
 			return
+
+
+## Walk into the Gateway: open the world picker over a paused world. The gateway disarms at once, so
+## backing out leaves you standing in it without it reopening until you step clear. The picker asks
+## the server's directory through Net; choosing a world travels there (see _on_gateway_world_chosen).
+func _open_gateway(gateway: Dictionary) -> void:
+	gateway["armed"] = false
+	if not Net.is_active():
+		_show_hint("The great gate is still — it only opens while you're connected.")
+		return
+	_show_world_picker(gateway)
+
+
+## Put the world picker up for `gateway` (split from _open_gateway so the offline smoke test can drive it).
+func _show_world_picker(gateway: Dictionary) -> void:
+	_picker = WorldPicker.new()
+	_picker.process_mode = Node.PROCESS_MODE_ALWAYS  # animate + take input while the world is paused
+	_picker.fetch_requested.connect(func(query: String, req: int, offset: int) -> void: Net.list_worlds(query, req, offset))
+	_picker.world_chosen.connect(_on_gateway_world_chosen.bind(String(gateway["id"])))
+	_picker.closed.connect(_close_gateway)
+	Net.world_list_received.connect(_picker.receive)
+	# A dropped link brings the lobby gate up (and it takes over the pause), so the picker just steps aside.
+	if not Net.disconnected.is_connected(_dismiss_picker):
+		Net.disconnected.connect(_dismiss_picker)
+	$UI.add_child(_picker)
+	get_tree().paused = true  # a modal, like the wardrobe: nothing wanders off behind it
+
+
+func _close_gateway() -> void:
+	if _picker == null:
+		return
+	get_tree().paused = false
+	_dismiss_picker()
+
+
+## Take the picker down without touching the pause (the caller, or the lobby, owns that).
+func _dismiss_picker() -> void:
+	if _picker == null:
+		return
+	_picker.queue_free()  # freeing it drops its Net.world_list_received connection too
+	_picker = null
+
+
+## A world was picked at the Gateway: close the picker, fade out, and travel there (arriving at its own
+## spawn). WorldRouter remembers we left by this gateway, so the way home sets us back down here.
+func _on_gateway_world_chosen(world_id: String, world_name: String, gateway_id: String) -> void:
+	_close_gateway()
+	_transitioning = true
+	_show_hint("You step through the great gate toward %s…" % world_name)
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, 0.4)
+	tw.tween_callback(func() -> void: WorldRouter.go_via_gateway(world_id, gateway_id))
 
 
 ## Travel through a portal: fade to black, then hand off to WorldRouter to load the target world

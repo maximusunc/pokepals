@@ -25,6 +25,7 @@ extends Node
 ##       - identity (on join / change): appearance + companion resting-look.
 ##       - state (~20 Hz): live transforms of your player+companion (Vector2s marshalled to [x,y]).
 ##   • WORLD SPEC (server -> us, on join): world_spec / world_spec_unchanged.
+##   • WORLD DIRECTORY (the Vale's Gateway): list_worlds (us -> server) / world_list (server -> us).
 ##   • PERSISTENCE (point-to-point with the server; per-USER, same in every world):
 ##       - load (server -> us, on join): our canonical companion + wardrobe (or nulls for a new player).
 ##       - save (us -> server): the canonical write.
@@ -84,6 +85,11 @@ signal world_spec_unchanged(world_id: String)
 ## reason "unknown_world"; usually the server hasn't been seeded). The lobby surfaces this instead of
 ## hanging on "loading".
 signal world_join_failed(reason: String)
+
+## A page of the world DIRECTORY arrived (answering list_worlds): `req` echoes the request's number so a
+## stale answer can be told apart from the current search; `offset` is where this page starts. Each
+## world is { world_id, slug, name, blurb, tags, accent, featured, players } — a card, never a spec.
+signal world_list_received(req: int, offset: int, worlds: Array, more: bool)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -332,6 +338,15 @@ func send_ward_occupy(ward_id: String, on: bool, plate: String = "") -> void:
 	if not _can_send():
 		return
 	_push_event("ward", { "kind": "occupy", "ward": ward_id, "on": on, "plate": plate })
+
+
+## Ask the server for a page of the world directory (the Vale's Gateway): listed worlds matching
+## `query` (blank = all), each with a live player count. The answer arrives as world_list_received,
+## tagged with `req`. A no-op until we've joined a world (the directory is asked over its channel).
+func list_worlds(query: String, req: int, offset: int = 0, limit: int = 30) -> void:
+	if not _can_send():
+		return
+	_push_event("list_worlds", { "q": query, "req": req, "offset": offset, "limit": limit })
 
 
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
@@ -589,6 +604,13 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 		"ambient_state":
 			var pals: Variant = payload.get("pals", [])
 			ambient_state_received.emit(_decode_ambient(pals) if pals is Array else [])
+		"world_list":
+			var worlds: Variant = payload.get("worlds", [])
+			world_list_received.emit(
+				int(payload.get("req", 0)) if _is_number(payload.get("req")) else 0,
+				int(payload.get("offset", 0)) if _is_number(payload.get("offset")) else 0,
+				worlds if worlds is Array else [],
+				bool(payload.get("more", false)))
 
 
 ## Send one of OUR channel events on the current world topic (stable join_ref, fresh ref).

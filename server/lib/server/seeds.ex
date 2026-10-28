@@ -10,12 +10,23 @@ defmodule Server.Seeds do
   alias Server.{Accounts, Economy, ItemDefinition, Repo, Saves, Worlds}
 
   # Fixed ids for the seed worlds — must match the client (WorldRouter.VALE_ID / RIVERBANK_ID / BAZAAR_ID).
+  # Each also carries its DIRECTORY card — what the Vale's Gateway lists + searches (blurb, tags,
+  # accent colour, featured). The Vale is the hub you search FROM, so it stays unlisted.
   @seed_worlds [
-    %{world_id: "11111111-1111-1111-1111-111111111111", slug: "vale", name: "The Vale", file: "vale.json"},
-    %{world_id: "22222222-2222-2222-2222-222222222222", slug: "riverbank", name: "The Riverbank", file: "riverbank.json"},
-    %{world_id: "33333333-3333-3333-3333-333333333333", slug: "bazaar", name: "The Bazaar", file: "bazaar.json"},
-    %{world_id: "44444444-4444-4444-4444-444444444444", slug: "the-ruin", name: "The Ruin", file: "the-ruin.json"},
-    %{world_id: "55555555-5555-5555-5555-555555555555", slug: "maze", name: "The Hedge Maze", file: "maze.json"}
+    %{world_id: "11111111-1111-1111-1111-111111111111", slug: "vale", name: "The Vale", file: "vale.json",
+      listed: false, blurb: "The meadow everyone comes home to.", tags: ["hub", "meadow"], accent: [0.74, 0.66, 0.96]},
+    %{world_id: "22222222-2222-2222-2222-222222222222", slug: "riverbank", name: "The Riverbank", file: "riverbank.json",
+      blurb: "Turn over river stones with your companion and see who's hiding underneath.",
+      tags: ["river", "search", "salamanders"], accent: [0.66, 0.8, 0.96]},
+    %{world_id: "33333333-3333-3333-3333-333333333333", slug: "bazaar", name: "The Bazaar", file: "bazaar.json",
+      blurb: "A sun-warmed market of a thousand knots — dyes, wanderers, and trading with friends.",
+      tags: ["market", "shop", "trade", "colours"], accent: [0.96, 0.82, 0.5]},
+    %{world_id: "44444444-4444-4444-4444-444444444444", slug: "the-ruin", name: "The Ruin", file: "the-ruin.json",
+      blurb: "An overgrown ruin whose doors only open when companions work together.",
+      tags: ["puzzle", "co-op", "ancient"], accent: [0.55, 0.7, 0.55], featured: true},
+    %{world_id: "55555555-5555-5555-5555-555555555555", slug: "maze", name: "The Hedge Maze", file: "maze.json",
+      blurb: "Tall green walls and a quiet heart. Your companion knows the way.",
+      tags: ["maze", "explore", "hedges"], accent: [0.46, 0.66, 0.42]}
   ]
 
   # The currency the bazaar shop charges in.
@@ -93,7 +104,12 @@ defmodule Server.Seeds do
           version: 1,
           spec: %{"core" => core, "profiles" => %{"2d" => %{}}},
           visibility: "public",
-          status: "active"
+          status: "active",
+          blurb: Map.get(w, :blurb, ""),
+          tags: Map.get(w, :tags, []),
+          accent: Map.get(w, :accent),
+          featured: Map.get(w, :featured, false),
+          listed: Map.get(w, :listed, true)
         })
     end
   end

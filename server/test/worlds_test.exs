@@ -72,4 +72,69 @@ defmodule Server.WorldsTest do
     assert "ThreeD" in names
     refute "TwoD" in names
   end
+
+  describe "directory" do
+    # A unique word per test so other rows in the catalog (seeds, other tests) never collide.
+    defp tag, do: "t#{System.unique_integer([:positive])}"
+
+    test "lists listed public worlds as light cards (no spec), featured first" do
+      t = tag()
+      {:ok, _} = Worlds.upsert(attrs(%{name: "B #{t}", blurb: "a pond", tags: [t]}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "A #{t}", tags: [t]}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Z #{t}", tags: [t], featured: true, accent: [0.1, 0.2, 0.3]}))
+
+      {cards, more} = Worlds.directory(q: t)
+      assert Enum.map(cards, & &1.name) == ["Z #{t}", "A #{t}", "B #{t}"]
+      refute more
+
+      [z | _] = cards
+      assert z.featured
+      assert z.accent == [0.1, 0.2, 0.3]
+      refute Map.has_key?(z, :spec)
+    end
+
+    test "unlisted, private and inactive worlds stay out" do
+      t = tag()
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Shown #{t}"}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Hub #{t}", listed: false}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Secret #{t}", visibility: "private"}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Gone #{t}", status: "archived"}))
+
+      {cards, _} = Worlds.directory(q: t)
+      assert Enum.map(cards, & &1.name) == ["Shown #{t}"]
+    end
+
+    test "q matches name, blurb or a tag, case-insensitively, and wildcards match literally" do
+      t = tag()
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Mossy #{t}"}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Other", blurb: "a quiet #{t} glade"}))
+      {:ok, _} = Worlds.upsert(attrs(%{name: "Tagged", tags: [String.upcase(t)]}))
+
+      {cards, _} = Worlds.directory(q: "  #{String.upcase(t)} ")
+      assert length(cards) == 3
+
+      {cards, _} = Worlds.directory(q: "mossy " <> t)
+      assert Enum.map(cards, & &1.name) == ["Mossy #{t}"]
+
+      {cards, _} = Worlds.directory(q: t <> "%")
+      assert cards == []
+    end
+
+    test "pages with limit/offset and reports whether more remain; exclude drops a world" do
+      t = tag()
+      ids =
+        for n <- 1..3 do
+          a = attrs(%{name: "#{n} #{t}", tags: [t]})
+          {:ok, _} = Worlds.upsert(a)
+          a.world_id
+        end
+
+      {page1, true} = Worlds.directory(q: t, limit: 2)
+      {page2, false} = Worlds.directory(q: t, limit: 2, offset: 2)
+      assert Enum.map(page1 ++ page2, & &1.name) == ["1 #{t}", "2 #{t}", "3 #{t}"]
+
+      {cards, _} = Worlds.directory(q: t, exclude: hd(ids))
+      assert Enum.map(cards, & &1.name) == ["2 #{t}", "3 #{t}"]
+    end
+  end
 end
