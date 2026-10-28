@@ -57,6 +57,9 @@ func _process(_delta: float) -> bool:
 		fails += _check(d < 80.0, "player arrived beside the entry portal (%.0f px)" % d)
 		fails += _check(d > 22.0, "player arrived clear of the portal's trigger range (no instant bounce-back)")
 	fails += _check(not _world._transitioning, "arriving did not start a transition back")
+	# A world that declares no Return of its own still gets one: home to the hub's Gateway.
+	var router1 := root.get_node("/root/WorldRouter")
+	fails += _check(_world._return_world == router1.HUB_ID and _world._return_portal == router1.HUB_GATEWAY_ID, "a world with no declared Return goes home to the Gateway")
 
 	# A flip budget caps how many rocks you may turn over — so flipping all 24 is no longer the
 	# winning play. Flip exactly the salamander rocks (peeking at the hidden truth, as a perfect

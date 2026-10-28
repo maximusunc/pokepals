@@ -19,6 +19,11 @@ const BAZAAR_ID := "33333333-3333-3333-3333-333333333333"
 const RUIN_ID := "44444444-4444-4444-4444-444444444444"
 const MAZE_ID := "55555555-5555-5555-5555-555555555555"
 
+## The hub: the one world with a Gateway (its door to the whole catalog), and that gateway's id — the
+## default "Return to the Vale" target for any world that declares no return of its own.
+const HUB_ID := VALE_ID
+const HUB_GATEWAY_ID := "vale_gateway"
+
 ## The world the next (or current) load should enter. Defaults to the Vale for a fresh boot.
 var current_world := VALE_ID
 
@@ -32,13 +37,30 @@ var arrival_portal_id := ""
 var pending_transition := false
 
 
+## Where a Gateway trip set out from: { "world": world_id, "portal": gateway_id }, or {} if the last trip
+## wasn't through a gateway. The next trip BACK to that world arrives at the gateway (whichever portal
+## or Return item took you there), so "home" means where you actually left from — no destination world
+## has to know the hub's layout. Consumed by that return trip; any other trip leaves it standing.
+var gateway_departure: Dictionary = {}
+
+
 ## Travel to another world: remember the destination (its world_id) + which portal to arrive at,
 ## then reload the shared world scene. world_controller._ready() does the rest.
 func go_to(world_id: String, portal_id: String) -> void:
 	current_world = world_id
-	arrival_portal_id = portal_id
+	arrival_portal_id = resolve_arrival(world_id, portal_id)
 	pending_transition = true
 	get_tree().change_scene_to_file("res://scenes/world.tscn")
+
+
+## Where a trip to `world_id` should really arrive: back at the gateway we set out from, if this is the
+## trip home after a Gateway journey (consuming that memory), else the `portal_id` the caller asked for.
+func resolve_arrival(world_id: String, portal_id: String) -> String:
+	if not gateway_departure.is_empty() and world_id == String(gateway_departure["world"]):
+		var gateway_id := String(gateway_departure["portal"])
+		gateway_departure = {}
+		return gateway_id
+	return portal_id
 
 
 ## Consume the one-shot transition flag (returns whether this load arrived via a portal).
@@ -46,3 +68,11 @@ func take_pending_transition() -> bool:
 	var was := pending_transition
 	pending_transition = false
 	return was
+
+
+## Travel through a Gateway: set out from `gateway_id` in the current world to `world_id`, arriving at
+## that world's own spawn (a catalog world needn't have a portal pointing back at us). Remembered so
+## the way home sets you back down at the gateway.
+func go_via_gateway(world_id: String, gateway_id: String) -> void:
+	gateway_departure = { "world": current_world, "portal": gateway_id }
+	go_to(world_id, "")

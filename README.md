@@ -84,6 +84,7 @@ godot --headless --path pokepals --script res://tests/run_tests.gd
 # Scene smoke tests (drive the real scenes; verify wiring runs without errors):
 godot --headless --path pokepals --script res://tests/smoke_world.gd
 godot --headless --path pokepals --script res://tests/smoke_ui.gd
+godot --headless --path pokepals --script res://tests/smoke_gateway.gd
 ```
 
 Opening the project in the Godot editor once does the same import as the first
