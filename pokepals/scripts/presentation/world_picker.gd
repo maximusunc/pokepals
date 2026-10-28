@@ -9,6 +9,11 @@ extends Control
 ## shelving). It never talks to the network: it emits `fetch_requested` and the world controller relays
 ## that to Net.list_worlds, then hands the answer back through receive(). Choosing a world emits
 ## `world_chosen`; the controller does the actual travel. Built in code so it drops into any scene.
+##
+## It arrives and leaves SOFTLY: the world dims into a dusky wash of the gate's colour while the panel
+## fades in and settles, and backing out plays that in reverse. Picking a world melts the panel away
+## while the controller fades the screen to black for the trip. All of it is tweens on this node, which
+## runs while the world is paused (the controller gives it PROCESS_MODE_ALWAYS).
 
 ## Ask the server for a page of the directory (relayed to Net.list_worlds).
 signal fetch_requested(query: String, req: int, offset: int)
@@ -21,6 +26,15 @@ signal closed()
 const SEARCH_DEBOUNCE := 0.25
 const PANEL_W := 380.0
 const LIST_H := 190.0
+## How far the panel drifts up into place as it appears, and the scale it settles from.
+const SETTLE_RISE := 6.0
+const SETTLE_SCALE := 0.96
+
+## The arrival / back-out fade lengths in seconds (the smoke test sets these to 0 to skip the waits).
+var fade_in_time := 0.35
+var fade_out_time := 0.22
+## The gate's colour; the backdrop is a deep, dusky wash of it rather than a flat dark. Set before adding.
+var tint := Color(0.8, 0.74, 0.98)
 
 var _dir := WorldDirectory.new()
 var _search: LineEdit
@@ -28,6 +42,8 @@ var _list: VBoxContainer
 var _scroll: ScrollContainer
 var _status: Label
 var _debounce: Timer
+var _backdrop: ColorRect
+var _center: CenterContainer
 var _chosen := false  # latched once a world is picked, so a double-tap can't fire two trips
 
 
@@ -36,6 +52,7 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_STOP
 	_build_ui()
 	_render()
+	_fade_in()
 	# On a keyboard device, land straight in the search box; on touch, don't pop the on-screen keyboard
 	# until the player actually taps the box.
 	if not DisplayServer.is_touchscreen_available():
@@ -64,13 +81,15 @@ func _unhandled_input(event: InputEvent) -> void:
 # --- building -----------------------------------------------------------------------------
 
 func _build_ui() -> void:
-	var backdrop := ColorRect.new()
-	backdrop.color = Color(0.04, 0.05, 0.08, 0.6)
-	backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	add_child(backdrop)
+	_backdrop = ColorRect.new()
+	var dusk := tint.darkened(0.72)
+	_backdrop.color = Color(dusk.r, dusk.g, dusk.b, 0.62)
+	_backdrop.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	add_child(_backdrop)
 
 	# A CenterContainer keeps the panel centred however the window is sized.
-	var center := CenterContainer.new()
+	_center = CenterContainer.new()
+	var center := _center
 	center.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	add_child(center)
 
@@ -254,13 +273,56 @@ func _on_card_pressed(world_id: String, world_name: String) -> void:
 		return
 	_chosen = true
 	world_chosen.emit(world_id, world_name)
+	# The panel melts away while the controller fades the screen to black for the trip; the dusky
+	# backdrop stays, so the world never flashes back into view on the way out.
+	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_property(_center, "modulate:a", 0.0, 0.3)
 
 
 func _close() -> void:
 	if _chosen:
 		return
 	_chosen = true
-	closed.emit()
+	_fade_out(closed.emit)
+
+
+# --- the soft arrival / departure ----------------------------------------------------------
+
+## Start hidden, then (once the container has laid the panel out, so its centre is known) dim the world
+## in and let the panel fade up, drifting a few pixels into place as it settles to full size.
+func _fade_in() -> void:
+	_backdrop.modulate.a = 0.0
+	_center.modulate.a = 0.0
+	if fade_in_time <= 0.0:
+		_backdrop.modulate.a = 1.0
+		_center.modulate.a = 1.0
+		return
+	# Containers size their children at the end of the frame, so wait one before reading the size.
+	await get_tree().process_frame
+	if not is_inside_tree() or _chosen:
+		return
+	_center.pivot_offset = _center.size * 0.5  # scale around the middle of the screen, not the corner
+	_center.scale = Vector2.ONE * SETTLE_SCALE
+	_center.position.y = SETTLE_RISE
+	# set_parallel: every property below animates at once. EASE_OUT: quick at first, gently landing.
+	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_backdrop, "modulate:a", 1.0, fade_in_time)
+	tw.tween_property(_center, "modulate:a", 1.0, fade_in_time)
+	tw.tween_property(_center, "scale", Vector2.ONE, fade_in_time)
+	tw.tween_property(_center, "position:y", 0.0, fade_in_time)
+
+
+## The arrival in reverse (a touch quicker), then `then` — the world resumes once the panel is gone.
+func _fade_out(then: Callable) -> void:
+	if fade_out_time <= 0.0:
+		then.call()
+		return
+	var tw := create_tween().set_parallel().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN)
+	tw.tween_property(_backdrop, "modulate:a", 0.0, fade_out_time)
+	tw.tween_property(_center, "modulate:a", 0.0, fade_out_time)
+	tw.tween_property(_center, "scale", Vector2.ONE * SETTLE_SCALE, fade_out_time)
+	tw.tween_property(_center, "position:y", SETTLE_RISE, fade_out_time)
+	tw.chain().tween_callback(then)  # chain(): run after the parallel group finishes
 
 
 func _send(req: int) -> void:

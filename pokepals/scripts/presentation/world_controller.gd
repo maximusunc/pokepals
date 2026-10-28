@@ -511,6 +511,7 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			"id": String(gw["id"]),
 			"pos": WorldData.to_vec2(gw["position"]),
 			"gateway": true,
+			"color": WorldData.to_color(gw.get("color", [0.8, 0.74, 0.98])),
 			"render_index": g_render_index,
 			"armed": String(gw["id"]) != arrival_id,
 		})
@@ -1183,6 +1184,8 @@ func _open_gateway(gateway: Dictionary) -> void:
 func _show_world_picker(gateway: Dictionary) -> void:
 	_picker = WorldPicker.new()
 	_picker.process_mode = Node.PROCESS_MODE_ALWAYS  # animate + take input while the world is paused
+	if gateway.has("color"):
+		_picker.tint = gateway["color"]
 	_picker.fetch_requested.connect(func(query: String, req: int, offset: int) -> void: Net.list_worlds(query, req, offset))
 	_picker.world_chosen.connect(_on_gateway_world_chosen.bind(String(gateway["id"])))
 	_picker.closed.connect(_close_gateway)
@@ -1212,12 +1215,16 @@ func _dismiss_picker() -> void:
 ## A world was picked at the Gateway: close the picker, fade out, and travel there (arriving at its own
 ## spawn). WorldRouter remembers we left by this gateway, so the way home sets us back down here.
 func _on_gateway_world_chosen(world_id: String, world_name: String, gateway_id: String) -> void:
-	_close_gateway()
 	_transitioning = true
 	_show_hint("You step through the great gate toward %s…" % world_name)
-	var tw := create_tween()
-	tw.tween_property(_fade, "color:a", 1.0, 0.4)
-	tw.tween_callback(func() -> void: WorldRouter.go_via_gateway(world_id, gateway_id))
+	# The picker melts away on its own while we fade to black. The world stays PAUSED the whole way (so
+	# nothing wanders mid-fade), which is why this tween is told to keep running while paused; it's
+	# unpaused only at the very end, as we leave.
+	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	tw.tween_property(_fade, "color:a", 1.0, 0.45)
+	tw.tween_callback(func() -> void:
+		get_tree().paused = false
+		WorldRouter.go_via_gateway(world_id, gateway_id))
 
 
 ## Travel through a portal: fade to black, then hand off to WorldRouter to load the target world
