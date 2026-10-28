@@ -83,6 +83,12 @@ docker run -d --restart unless-stopped -p 5000:5000 -e PORT=5000 --name pokepals
 
 (`make compose-up` / `make docker-build` / `make docker-run` wrap these.)
 
+**One-command redeploy.** From the repo root, `./redeploy.sh` does the whole upgrade loop: refuses to
+run over local edits, fast-forwards `main` from GitHub, re-exports the browser client
+(`build-web.sh`), `docker compose down` + `up -d --build`, and waits for `/health`. Pass a branch name
+to deploy something else (`./redeploy.sh my-branch`), or `--no-web` to skip the web export. It never
+runs `down -v`, so saves are kept.
+
 ---
 
 ## Option B — OTP release + systemd
