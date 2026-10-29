@@ -14,8 +14,8 @@ defmodule Server.WorldChannel do
     * push `load` (our canonical companion + appearance — a per-USER concern, same in every world),
     * replay the world's transform `snapshot` so peers already moving appear at once.
 
-  Thereafter: `identity` → Presence.update; `state` → cast to this world's `Server.World`; `save` →
-  persist by user_id; `list_worlds` → a `world_list` page of the directory (the Vale's Gateway);
+  Thereafter: `identity` → Presence.update; `state` → cast to this world's `Server.World`; `flare` →
+  relay a touched glow-plant to everyone else in the world; `save` → persist by user_id; `list_worlds` → a `world_list` page of the directory (the Vale's Gateway);
   presence diffs → join/identity/leave frames. The sender id is always
   server-stamped (the player's user_id); clients never send their own id.
   """
@@ -175,6 +175,18 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # A glow-plant FLARE: this player touched a prop that blazes up when touched (the night world's
+  # blooms), and everyone ELSE in the world should see it light too. Purely a relay — no state is kept,
+  # the light fades on its own on every client — but only for a prop this world's spec actually marks
+  # `"flare": true`, so a client can't spray arbitrary events at the room.
+  def handle_in("flare", %{"prop" => prop_id}, socket) when is_binary(prop_id) do
+    if flare_prop?(socket.assigns.definition, prop_id) do
+      broadcast_from!(socket, "flared", %{prop: prop_id})
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_in("save", payload, socket) do
     Saves.store(socket.assigns.user_id, payload["companion"], payload["appearance"])
     {:noreply, socket}
@@ -285,6 +297,14 @@ defmodule Server.WorldChannel do
   # shared ward state when the world process starts.
   defp ward_defs(definition) do
     get_in(definition.spec, ["core", "ruin", "wards"]) || []
+  end
+
+  # Whether `prop_id` names a prop in this world's spec that is flare-able (`"flare": true`).
+  defp flare_prop?(definition, prop_id) do
+    props = get_in(definition.spec, ["core", "props"])
+
+    is_list(props) and
+      Enum.any?(props, fn p -> is_map(p) and Map.get(p, "id") == prop_id and Map.get(p, "flare") == true end)
   end
 
   # A world's whole spec `core` map (or `%{}`) — what seeds the ambient-pal sim: its `ambient_pals` and

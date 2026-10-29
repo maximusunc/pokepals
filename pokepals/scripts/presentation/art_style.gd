@@ -19,6 +19,8 @@ const DEFAULTS := {
 		"water": [0.34, 0.52, 0.62],
 		"rim": [1.00, 0.96, 0.82],
 		"shadow": [0.05, 0.07, 0.10],
+		"grass": [0.30, 0.46, 0.28],
+		"water_rim": [0.78, 0.86, 0.88, 0.5],
 	},
 	"light": { "dir": [-0.45, -0.89], "rim_strength": 0.22, "shadow_alpha": 0.20 },
 	"characters": {
@@ -50,14 +52,34 @@ var _characters: Dictionary
 var _entities: Dictionary
 var _daycycle: Dictionary
 var _form_highlight: Dictionary
+var _actor_look: Dictionary
 
 
-## Load the style from art.json, falling back entirely to DEFAULTS if it's missing.
-static func load_style(path := "res://data/art.json") -> ArtStyle:
+## Load the style from art.json, falling back entirely to DEFAULTS if it's missing. `world_over` is a
+## world spec's own "art" block — a PER-WORLD re-skin deep-merged over art.json, so one world (the
+## night planet Nocthollow) can swap the palette, the trees, the water, the day cycle and how the
+## player + companion are lit, while every other world keeps the shared look untouched. Dictionaries
+## merge key by key; anything else (arrays, numbers) in the override replaces the base value.
+static func load_style(path := "res://data/art.json", world_over: Dictionary = {}) -> ArtStyle:
 	var data: Dictionary = {}
 	if FileAccess.file_exists(path):
 		data = WorldData.load_json(path)
+	if not world_over.is_empty():
+		data = deep_merge(data, world_over)
 	return from_data(data)
+
+
+## Recursively merge `over` onto a copy of `base`: nested dictionaries merge, everything else replaces.
+static func deep_merge(base: Dictionary, over: Dictionary) -> Dictionary:
+	var out: Dictionary = base.duplicate(true)
+	for k in over:
+		if out.get(k) is Dictionary and over[k] is Dictionary:
+			out[k] = deep_merge(out[k], over[k])
+		elif over[k] is Dictionary or over[k] is Array:
+			out[k] = over[k].duplicate(true)
+		else:
+			out[k] = over[k]
+	return out
 
 
 ## Build a style from an already-parsed dict (used by tests too). Shallow-merges each
@@ -73,6 +95,7 @@ static func from_data(data: Dictionary) -> ArtStyle:
 		s._characters[key] = _merge(s._characters.get(key, {}), data["characters"][key])
 	s._entities = (data.get("entities", {}) as Dictionary).duplicate(true)
 	s._daycycle = (data.get("daycycle", {}) as Dictionary).duplicate(true)
+	s._actor_look = (data.get("actor_look", {}) as Dictionary).duplicate(true)
 	# form_highlight merges one level deeper than the rest: naming a single species' colour in
 	# art.json shouldn't silently drop the other four, which a shallow merge of "colors" would do.
 	var fh_over: Dictionary = data.get("form_highlight", {})
@@ -120,6 +143,12 @@ func entity(key: String) -> Dictionary:
 ## The optional day→dusk cycle config (enabled/period_sec/loop/stops), or empty.
 func daycycle() -> Dictionary:
 	return _daycycle
+
+
+## How a world re-lights the people in it (OtherworldLook): a palette shift + glow for the player and
+## companion pairs. Empty in the shared art.json — only a world that re-skins itself sets one.
+func actor_look() -> Dictionary:
+	return _actor_look
 
 
 ## C-3's hint-layer knobs: { alpha, radius, pulse_speed, default, colors }. world_art reads these

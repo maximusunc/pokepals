@@ -23,6 +23,13 @@ var trunk_tex: Texture2D = null
 var canopy_tex: Texture2D = null
 var wind_strength := 2.6
 var wind_speed := 1.15
+# How much of the wind this kind catches (a crystal spire is 0: it doesn't sway at all).
+var sway_gain := 1.0
+# An optional light the growth gives off (Nocthollow): a breathing halo around its crown at glow_y,
+# plus a faint pool of it on the ground. Alpha 0 / radius 0 = no glow (every meadow tree).
+var glow_color := Color(0, 0, 0, 0)
+var glow_radius := 0.0
+var glow_y := -24.0
 
 var _time := 0.0
 
@@ -52,8 +59,9 @@ func _draw() -> void:
 
 
 func _draw_normal() -> void:
-	var cs := _sway(1.0)  # canopy catches the most wind
+	var cs := _sway(sway_gain)  # canopy catches the most wind
 	_draw_shadow(Vector2(0, 4), 18.0, 0.20)
+	_draw_glow(cs)
 	if _draw_sprite(cs, 6.0):
 		return
 	var bark := style.color("bark")
@@ -74,8 +82,9 @@ func _draw_normal() -> void:
 ## a big, slow-swaying canopy on a heavy trunk that anchors a region (mirrors the old
 ## WorldArt._draw_landmark, now origin-relative so it sorts like any other tree).
 func _draw_great() -> void:
-	var sway := _sway(1.4)
+	var sway := _sway(1.4 * sway_gain)
 	_draw_shadow(Vector2(0, 8), 36.0, 0.22)
+	_draw_glow(sway)
 	if _draw_sprite(sway, 8.0):
 		return
 	var bark := style.color("bark")
@@ -88,6 +97,16 @@ func _draw_great() -> void:
 	draw_circle(Vector2(28 + sway, -40), 30.0, f_dark)
 	draw_circle(Vector2(sway, -50), 44.0, f_mid)
 	style.draw_blob(self, Vector2(sway * 0.8, -60), 32.0, f_light)
+
+
+## The growth's own light, drawn behind its art: a pool on the ground beneath it and a breathing halo
+## around its crown (which leans with the crown's sway). A no-op for trees that don't glow.
+func _draw_glow(crown_sway: float) -> void:
+	if glow_radius <= 0.0 or glow_color.a <= 0.0:
+		return
+	var breathe := 0.86 + 0.14 * sin(_time * 1.1 + phase * 3.0)
+	SoftGlow.draw(self, Vector2(0, 2), glow_radius * 1.4, Color(glow_color.r, glow_color.g, glow_color.b, 0.24 * breathe), 0.4)
+	SoftGlow.draw(self, Vector2(crown_sway, glow_y), glow_radius * breathe, Color(glow_color.r, glow_color.g, glow_color.b, 0.36))
 
 
 ## Draw the tree from drop-in sprite art if any is set; return true if it did (so the

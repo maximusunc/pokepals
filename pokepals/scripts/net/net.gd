@@ -73,6 +73,9 @@ signal ward_state_received(wards: Array)
 ## Array of { id: String, pos: Vector2, look: Vector2 }. The pals are server-authoritative set-dressing,
 ## so everyone in the world converges on the same positions; the world layer eases each puppet toward them.
 signal ambient_state_received(pals: Array)
+## Someone ELSE in our world touched a glow-plant (a prop the spec marks "flare": true) and it blazed up:
+## relayed by the server to everyone else there, so the whole world sees the same flowers light.
+signal prop_flared(prop_id: String)
 ## A world's spec arrived (and was cached, in memory + on disk): the display-agnostic core +
 ## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
 ## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
@@ -340,6 +343,14 @@ func send_ward_occupy(ward_id: String, on: bool, plate: String = "") -> void:
 	_push_event("ward", { "kind": "occupy", "ward": ward_id, "on": on, "plate": plate })
 
 
+## Tell everyone else in our world that we just made a glow-plant blaze up. The server checks the prop
+## really is flare-able in this world and relays it (prop_flared, on their side). A no-op until joined.
+func send_flare(prop_id: String) -> void:
+	if not _can_send():
+		return
+	_push_event("flare", { "prop": prop_id })
+
+
 ## Ask the server for a page of the world directory (the Vale's Gateway): listed worlds matching
 ## `query` (blank = all), each with a live player count. The answer arrives as world_list_received,
 ## tagged with `req`. A no-op until we've joined a world (the directory is asked over its channel).
@@ -604,6 +615,10 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 		"ambient_state":
 			var pals: Variant = payload.get("pals", [])
 			ambient_state_received.emit(_decode_ambient(pals) if pals is Array else [])
+		"flared":
+			var prop: Variant = payload.get("prop", "")
+			if prop is String and prop != "":
+				prop_flared.emit(prop)
 		"world_list":
 			var worlds: Variant = payload.get("worlds", [])
 			world_list_received.emit(

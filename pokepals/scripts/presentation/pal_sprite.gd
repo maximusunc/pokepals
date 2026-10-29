@@ -20,8 +20,9 @@ const FOOT_Y := 8.0      # feet sit at origin+8, like SpriteActor/SpriteSlot
 
 
 ## params: look (Vector2 facing/attention), speed (px/s), time (s), bounce (px, +down), squash
-##         (+pop up / -dip down). cfg: frame:[w,h], fps, cols, rows:{down,down_right,right,up_right,up},
-##         fly_row (-1 if none).
+##         (+pop up / -dip down), offset (Vector2 px nudge, e.g. a shy creature shrinking back). cfg:
+##         frame:[w,h], fps, cols, rows:{down,down_right,right,up_right,up}, fly_row (-1 if none),
+##         animate_idle (keep cycling while still — floaters).
 static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictionary) -> void:
 	if tex == null:
 		return
@@ -30,6 +31,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var t: float = params.get("time", 0.0)
 	var bounce: float = params.get("bounce", 0.0)
 	var squash: float = params.get("squash", 0.0)
+	var offset: Vector2 = params.get("offset", Vector2.ZERO)
 
 	var frame: Array = cfg.get("frame", [32, 32])
 	var fw := int(frame[0])
@@ -47,7 +49,9 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 		# Airborne cycle reads as a profile: face strictly left/right of travel.
 		row = fly_row
 		flip = look.x < 0.0
-	var col := int(t * fps) % cols if moving else 0
+	# A hovering creature (a world's native floater) keeps its motion cycle running at rest, so it
+	# drifts and ripples rather than freezing on the idle frame.
+	var col := int(t * fps) % cols if (moving or bool(cfg.get("animate_idle", false))) else 0
 	var region := Rect2(col * fw, row * fh, fw, fh)
 	var dest := Rect2(-fw * 0.5, FOOT_Y - fh, fw, fh)
 
@@ -56,7 +60,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	# no flip this is the identity — so an ambient pal renders pixel-for-pixel as it did untransformed.
 	var sy := 1.0 + squash
 	var sx := -1.0 if flip else 1.0
-	ci.draw_set_transform(Vector2(0.0, FOOT_Y * (1.0 - sy) + bounce), 0.0, Vector2(sx, sy))
+	ci.draw_set_transform(offset + Vector2(0.0, FOOT_Y * (1.0 - sy) + bounce), 0.0, Vector2(sx, sy))
 	ci.draw_texture_rect_region(tex, dest, region)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
