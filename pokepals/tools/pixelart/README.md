@@ -31,6 +31,7 @@ python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 python portal.py          # portal.png (neutral oval + tint swatches)
 python props.py           # props.png (every small prop, demo-tinted, on grass)
 python hedge.py           # hedge.png (leafy tile, tiled 2x2, lit + face)
+python nocthollow.py      # nocthollow.png (the night planet: trees, growths, props, creatures)
 ```
 
 ## File guide
@@ -46,6 +47,7 @@ python hedge.py           # hedge.png (leafy tile, tiled 2x2, lit + face)
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
 | `portal.py` | World doorways: a neutral (grayscale) radial energy oval, ordered-dithered into chunky pixel bands, tinted per-portal in the client, `make_portal()` |
 | `props.py` | The world's small hand-placed things (lanterns, crystals, mushrooms, benches, crates, stonework…): ASCII maps + a procedural Canvas, each baked into a BASE layer + an optional grayscale TINT layer, `make_prop_parts()` |
+| `nocthollow.py` | The night planet's whole look, in one place. Glowing mushroom-trees and Lumen Elders (trunk + canopy). Tall growths: crystal spires, bell-flowers and spore-stalks. Small props in base + tint layers. Five native creatures as PalView sheets. All of it uses GLOW pixels that skip the outline. Baked by `tools/gen_nocthollow.py` |
 | `hedge.py` | The maze walls: one SEAMLESS leafy tile (a dappled integer-frequency clump field, dithered into leaf shades) the client tiles along each axis-aligned hedge run, `make_hedge_tile()` |
 
 ## Core concepts

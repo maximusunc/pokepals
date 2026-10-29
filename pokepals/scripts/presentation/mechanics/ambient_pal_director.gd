@@ -89,6 +89,36 @@ func set_hidden(hidden: bool) -> void:
 			n.create_tween().tween_property(n, "modulate:a", 1.0, 1.2)
 
 
+## The world's NATIVE creatures — species pals whose registry entry carries lore (Nocthollow's) — as
+## [{ id, view: PalView }], for the controller to make examinable. The meadow animals carry none.
+func native_creatures() -> Array:
+	var out: Array = []
+	for id in _pals:
+		var pv := _pals[id] as PalView
+		if pv != null and pv.lore() != "":
+			out.append({ "id": "creature_%s" % id, "view": pv })
+	return out
+
+
+## Let each native creature notice the nearest person (positions in world space) — presentation-only
+## reactions; see PalView.react_to. Cheap: a handful of people times a few dozen creatures.
+func update_reactions(people: Array) -> void:
+	if people.is_empty():
+		return
+	for v in _pals.values():
+		var pv := v as PalView
+		if pv == null or pv.lore() == "":
+			continue
+		var best: Vector2 = people[0]
+		var best_d := pv.position.distance_to(best)
+		for i in range(1, people.size()):
+			var d := pv.position.distance_to(people[i])
+			if d < best_d:
+				best_d = d
+				best = people[i]
+		pv.react_to(best, best_d)
+
+
 ## A batch of authoritative pal transforms from the server: ease each known puppet toward its new spot.
 ## Unknown ids (a spec/sim mismatch) are ignored — harmless.
 func _on_ambient_state(pals: Array) -> void:

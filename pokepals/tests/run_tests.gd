@@ -32,6 +32,7 @@ func _init() -> void:
 	failures += TestNetCodec.run_all()
 	failures += TestWildWander.run_all()
 	failures += TestWorldDirectory.run_all()
+	failures += TestArtStyle.run_all()
 
 	print("")
 	if failures == 0:

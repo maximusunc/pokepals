@@ -1,5 +1,6 @@
 {
 	"_comment": "The AMBIENT PAL registry — which set-dressing species exist and how their sheets are laid out (see PalView + tools/gen_pals.py, art authored in tools/pixelart). A world seed's ambient_pals entries pick a 'species' + 'variant' (a natural coat color, clamped to 'variants'); an entry without a species — or with one this registry doesn't know — falls back to the companion-puppet pal, so old seeds keep working. Sheets are res://assets/pals/<species>_<variant>.png: 8 motion columns (col 0 = idle), one row per RIGHT-handed facing in 'rows' (the left family mirrors at runtime). 'fly_row' (bird only) is the wing-flap cycle PalView switches to while the pal is moving.",
+	"_comment_otherworld": "Species with \"form\": false are a world's NATIVE creatures (Nocthollow's, art by tools/gen_nocthollow.py): they wander as ambient pals but are never in the pool the companion's daemon form or the first-meeting flock shift between. \"glows\" is a per-variant soft light PalView haloes the creature with; \"animate_idle\": true keeps its motion cycle running while it hovers (floaters drift, they never stand still); \"lore\" is what Examining one reads; \"temperament\" is how it reacts to someone walking up: \"shy\" (it shrinks back) or \"friendly\" (it bobs happily).",
 	"frame": [32, 32],
 	"fps": 10,
 	"idle_frame": 0,
@@ -10,6 +11,11 @@
 		"fox": { "variants": 3 },
 		"rabbit": { "variants": 4 },
 		"bird": { "variants": 4, "fly_row": 5 },
-		"wolf": { "variants": 4 }
+		"wolf": { "variants": 4 },
+		"lumejelly": { "variants": 3, "form": false, "glows": [[0.7, 0.95, 1.0], [1.0, 0.7, 1.0], [0.7, 1.0, 0.86]], "lore": "A lumejelly drifts past at eye height, slow as a held breath. Its tendrils brush the air and leave a faint shimmer behind.", "temperament": "friendly", "animate_idle": true },
+		"glimmerhop": { "variants": 3, "form": false, "glows": [[1.0, 0.86, 0.44], [0.58, 1.0, 0.86], [0.86, 0.94, 1.0]], "lore": "A glimmerhop blinks up at you with enormous eyes. The little lamp on its antenna brightens, then bobs as if saying hello.", "temperament": "friendly" },
+		"stiltwhisk": { "variants": 3, "form": false, "glows": [[0.56, 0.98, 1.0], [1.0, 0.66, 0.8], [0.86, 1.0, 0.56]], "lore": "A stiltwhisk lowers its long neck to look at you properly. The lights along its back ripple, one after another, like a greeting.", "temperament": "shy" },
+		"driftray": { "variants": 3, "form": false, "glows": [[0.5, 0.9, 1.0], [1.0, 0.5, 0.86], [0.6, 1.0, 0.8]], "lore": "A driftray circles overhead, its wings rippling like cloth in water. Its glowing tail draws a line across the dark.", "temperament": "shy", "animate_idle": true },
+		"lanternsnail": { "variants": 3, "form": false, "glows": [[0.56, 1.0, 0.96], [1.0, 0.76, 0.46], [0.92, 0.6, 1.0]], "lore": "A lanternsnail glides along on a ribbon of shimmer. Inside its crystal shell, something glows warm and slow, like a heartbeat.", "temperament": "friendly" }
 	}
 }

@@ -26,7 +26,10 @@ defmodule Server.Seeds do
       tags: ["puzzle", "co-op", "ancient"], accent: [0.55, 0.7, 0.55], featured: true},
     %{world_id: "55555555-5555-5555-5555-555555555555", slug: "maze", name: "The Hedge Maze", file: "maze.json",
       blurb: "Tall green walls and a quiet heart. Your companion knows the way.",
-      tags: ["maze", "explore", "hedges"], accent: [0.46, 0.66, 0.42]}
+      tags: ["maze", "explore", "hedges"], accent: [0.46, 0.66, 0.42]},
+    %{world_id: "66666666-6666-6666-6666-666666666666", slug: "nocthollow", name: "Nocthollow", file: "nocthollow.json",
+      blurb: "A night that never ends, and a world that glows to fill it. Wander among living light and strange, gentle creatures.",
+      tags: ["night", "glow", "explore", "creatures", "otherworld"], accent: [0.45, 0.85, 1.0], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

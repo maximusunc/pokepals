@@ -18,6 +18,7 @@ var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
 var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
 var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
+var _sparkles: Array = []  # [ { pos, color, phase } ] — a glowing world's twinkling ground specks
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
 # --- atmosphere (presentation-only mood, from the world spec's "atmosphere") ---
@@ -27,6 +28,8 @@ var _wind_speed := 1.15
 var _glow_pulse_speed := 1.4
 var _region_tint_alpha := 0.12
 var _ground_noise: ImageTexture = null
+var _water_rim := Color(0.78, 0.86, 0.88, 0.5)  # the shoreline line; palette "water_rim" re-tints it
+var _grass_max := 240  # the tuft cap; a big world can raise it (atmosphere.grass.max) so it isn't bare
 var _style: ArtStyle
 var _ground_grad: GradientTexture2D = null
 
@@ -67,6 +70,16 @@ var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
 # draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
 const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true, "carving": true }
 
+# A glowing world's prop LIGHTS (the "prop_lights" entity in a world's art override): per prop type,
+# a soft halo in the prop's own colour — { radius, y, alpha, motes } — so a bloom, a vein of moss or a
+# rune-stone lights the ground around it. "motes" makes it breathe little sparks upward (a spore vent,
+# a puffball). Empty in the meadow worlds, which keep their hand-tuned _draw_glow warmth instead.
+var _prop_lights := {}
+# How long a FLARE (a touched glow-plant blazing up, seen by everyone in the world) takes to fade, and
+# how much bigger + brighter its light gets at the peak.
+const FLARE_FADE := 0.16   # per second → about six seconds of afterglow
+const FLARE_GROW := 2.2
+
 
 func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_style = style if style != null else ArtStyle.load_style()
@@ -74,6 +87,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_bounds = WorldData.bounds_rect(data)
 	# A soft top→bottom ground gradient (palette), baked once, drawn under the dapple.
 	_ground_grad = _style.make_vertical_gradient_texture(_style.color("ground_top"), _style.color("ground_bottom"))
+	_water_rim = _style.color("water_rim")
 
 	# Optional pixel-art water tiles. When present, ponds/river/pools draw as a tiled,
 	# gently-scrolling pixel surface instead of a flat fill; when absent, the procedural
@@ -102,7 +116,8 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	var props_cfg: Dictionary = _style.entity("props")
 	if String(props_cfg.get("render", "")) == "sprite":
 		var prefix := String(props_cfg.get("prefix", "res://assets/sprites/prop_"))
-		for t in props_cfg.get("types", []):
+		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
+		for t in props_cfg.get("types", []) + props_cfg.get("extra_types", []):
 			var ty := String(t)
 			var base_path := prefix + ty + "_base.png"
 			if not ResourceLoader.exists(base_path):
@@ -117,6 +132,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_fh_alpha = float(fh.get("alpha", 0.20))
 	_fh_radius = float(fh.get("radius", 25.0))
 	_fh_pulse_speed = float(fh.get("pulse_speed", 0.9))
+	_prop_lights = (_style.entity("prop_lights") as Dictionary).duplicate(true)
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -124,7 +140,9 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_wind_speed = float(wind.get("speed", 1.15))
 	_glow_pulse_speed = float(atmo.get("glow", {}).get("pulse_speed", 1.4))
 	_region_tint_alpha = float(atmo.get("region_tint_alpha", 0.12))
+	_grass_max = int((atmo.get("grass", {}) as Dictionary).get("max", 240))
 	_build_ground_noise(atmo.get("ground_noise", {}))
+	_scatter_sparkles(atmo.get("sparkles", {}))
 
 	# Per-region mood wash: a soft color over each named area that carries a "tint", so
 	# the grove, meadow, glade and hollow each feel like somewhere distinct underfoot.
@@ -144,6 +162,14 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		_ponds.append(_parse_pond(data["pond"]))
 	for p in data.get("ponds", []):
 		_ponds.append(_parse_pond(p))
+	# Ponds are static: bake each one's organic outline and its visible SHORE once, here, rather than
+	# every frame. Ponds that overlap (one big lake made of several — Nocthollow's Mere) read as one body
+	# of water: a shore skips any stretch that runs through another pond's water instead of drawing a
+	# seam across the lake. A lone pond (every meadow pond) keeps its whole ring as its shore.
+	for pd in _ponds:
+		pd["ring"] = _organic_ring(pd["center"], pd["radius"], _phase_for(pd["center"]))
+	for i in _ponds.size():
+		_ponds[i]["shore"] = _shore_runs(i)
 
 	# A long river band (the Riverbank world): one big water rectangle along an edge, drawn
 	# like the ponds but rectangular, with a lighter rim and drifting ripples.
@@ -182,7 +208,9 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 
 	_paths.clear()
 	for p in data.get("paths", []):
-		_paths.append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]), "color": WorldData.to_color(p["color"]) })
+		# "glow": true makes a path a luminous VEIN (a bright breathing thread down its middle) — the
+		# night planet's trails of glowing moss — rather than worn earth.
+		_paths.append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]), "color": WorldData.to_color(p["color"]), "glow": bool(p.get("glow", false)) })
 
 	# Hedge walls (the maze): segments with a thickness, drawn as tall rounded green walls.
 	_hedges.clear()
@@ -210,6 +238,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
 			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
 			"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
+			"flare": 0.0,  # a touched glow-plant's blaze, 1 → 0 (see flare_interactable)
 		})
 
 	queue_redraw()
@@ -252,7 +281,8 @@ func _scatter_grass() -> void:
 	_grass.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC0FFEE
-	var count := int(clampf(_bounds.size.x * _bounds.size.y / 26000.0, 40, 240))
+	var count := int(clampf(_bounds.size.x * _bounds.size.y / 26000.0, 40, _grass_max))
+	var base := _style.color("grass")
 	for i in count:
 		var pos := Vector2(
 			_bounds.position.x + rng.randf() * _bounds.size.x,
@@ -261,9 +291,40 @@ func _scatter_grass() -> void:
 		_grass.append({
 			"pos": pos,
 			"len": rng.randf_range(4.0, 8.0),
-			"color": Color(0.30 + shade, 0.46 + shade, 0.28 + shade, 0.85),
+			"color": Color(base.r + shade, base.g + shade, base.b + shade, 0.85),
 			"phase": _phase_for(pos),
 		})
+
+
+## A glowing world's ground: tiny specks of light (spores, starmoss) scattered over the whole map,
+## each twinkling on its own slow beat. atmosphere.sparkles = { count, colors: [[r,g,b], …] }; absent
+## (every meadow world) means none. Seeded, so the same specks twinkle in the same places every visit.
+func _scatter_sparkles(cfg: Dictionary) -> void:
+	_sparkles.clear()
+	var count := int(cfg.get("count", 0))
+	var colors: Array = cfg.get("colors", [[0.6, 1.0, 0.95]])
+	if count <= 0 or colors.is_empty():
+		return
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0x5A1C1E
+	for i in count:
+		var pos := Vector2(
+			_bounds.position.x + rng.randf() * _bounds.size.x,
+			_bounds.position.y + rng.randf() * _bounds.size.y)
+		_sparkles.append({
+			"pos": pos,
+			"color": WorldData.to_color(colors[rng.randi() % colors.size()]),
+			"phase": rng.randf() * TAU,
+			"speed": rng.randf_range(0.5, 1.4),
+		})
+
+
+## A glow-plant was touched (by us, or — relayed by the server — by anyone in the world): blaze its
+## light up, then let it fade back over several seconds. Also pulses it like any examine.
+func flare_interactable(index: int) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["flare"] = 1.0
+		_interactables[index]["pulse"] = 1.0
 
 
 ## C-3 — light the objects the companion's CURRENT form could act on, in that form's colour. The
@@ -304,7 +365,7 @@ func reveal_rock(index: int, content: String, missed: bool = false) -> void:
 func add_interactable(pos: Vector2, color: Color, type: String) -> int:
 	_interactables.append({
 		"pos": pos, "color": color, "type": type, "pulse": 1.0,
-		"examined": false, "content": "", "missed": false,
+		"examined": false, "content": "", "missed": false, "flare": 0.0,
 	})
 	queue_redraw()
 	return _interactables.size() - 1
@@ -333,6 +394,8 @@ func _process(delta: float) -> void:
 	for it in _interactables:
 		if it["pulse"] > 0.0:
 			it["pulse"] = maxf(0.0, it["pulse"] - delta * 1.5)
+		if it.get("flare", 0.0) > 0.0:
+			it["flare"] = maxf(0.0, it["flare"] - delta * FLARE_FADE)
 	# The world is gently animated (wind, shimmer, breathing glow), so redraw each frame.
 	queue_redraw()
 
@@ -383,11 +446,25 @@ func _draw() -> void:
 		draw_line(base + Vector2(-2, 0), base + Vector2(-2 + sway * 0.8, -float(g["len"]) * 0.7), g["color"], 1.3)
 		draw_line(base + Vector2(2, 0), base + Vector2(2 + sway * 0.8, -float(g["len"]) * 0.7), g["color"], 1.3)
 
-	# worn paths
+	# twinkling ground specks (a glowing world only)
+	for sp in _sparkles:
+		if cull and not vis.has_point(sp["pos"]):
+			continue
+		var tw := 0.5 + 0.5 * sin(_time * float(sp["speed"]) + float(sp["phase"]))
+		var sc: Color = sp["color"]
+		draw_circle(sp["pos"], 0.8 + 0.7 * tw, Color(sc.r, sc.g, sc.b, 0.25 + 0.6 * tw * tw))
+
+	# worn paths (or, on a glowing world, luminous veins of moss with a breathing thread of light)
 	for p in _paths:
 		if cull and not vis.intersects(Rect2(p["from"], Vector2.ZERO).expand(p["to"]).grow(8.0)):
 			continue
 		draw_line(p["from"], p["to"], p["color"], 16.0)
+		if p["glow"]:
+			var pc: Color = (p["color"] as Color).lightened(0.4)
+			var core: Color = (p["color"] as Color).lightened(0.6)
+			var pb := 0.55 + 0.25 * sin(_time * 0.9 + _phase_for(p["from"]))
+			draw_line(p["from"], p["to"], Color(pc.r, pc.g, pc.b, 0.16), 6.0)
+			draw_line(p["from"], p["to"], Color(core.r, core.g, core.b, pb * 0.6), 1.5)
 
 	# the Vein: the sunken dry channel, drawn under everything else (props sit on its bed)
 	_draw_vein()
@@ -416,14 +493,16 @@ func _draw() -> void:
 		draw_polyline(top_bank, Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
 
 	# ponds: a tiled pixel-water surface if we have art, else a flat fill with breathing
-	# ripples. Both keep a lighter rim where the bank meets the water.
+	# ripples. Both keep a lighter rim where the bank meets the water — all the water first, then
+	# the (pre-baked, see render_world) shores, so overlapping ponds join without a seam.
+	var shown: Array = []  # the ponds on screen, whose shores the rim pass then draws
 	for pond in _ponds:
 		var center: Vector2 = pond["center"]
 		var radius: float = pond["radius"]
 		var rmax := radius * 1.25  # the organic bank can bulge past the nominal radius
 		if cull and not vis.intersects(Rect2(center - Vector2(rmax, rmax), Vector2(rmax, rmax) * 2.0)):
 			continue
-		var ring := _organic_ring(center, radius, _phase_for(center))
+		var ring: PackedVector2Array = pond["ring"]
 		if _pond_tex != null:
 			_fill_water(ring, _pond_tex, _pond_world_tile, _water_scroll(_pond_tex, false))
 		else:
@@ -432,7 +511,10 @@ func _draw() -> void:
 				var t := fposmod(_time * 0.25 + float(k) * 0.5, 1.0)
 				var rr := radius * (0.25 + 0.7 * t)
 				draw_arc(center, rr, 0.0, TAU, 40, Color(0.85, 0.92, 0.95, 0.22 * (1.0 - t)), 1.5)
-		_draw_ring_rim(ring, Color(0.78, 0.86, 0.88, 0.5), 2.0)
+		shown.append(pond)
+	for pond in shown:
+		for run in pond["shore"]:
+			draw_polyline(run, _water_rim, 2.0)
 
 	# flowers (a petal dot with a bright center), nodding in the breeze
 	for f in _flowers:
@@ -451,6 +533,7 @@ func _draw() -> void:
 		var it: Dictionary = _interactables[i]
 		if cull and not vis.has_point(it["pos"]):
 			continue
+		_draw_prop_light(it)
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
 		if _form_highlights.has(i):
 			_draw_form_highlight(it["pos"])
@@ -546,6 +629,52 @@ func _draw_ring_rim(ring: PackedVector2Array, color: Color, width: float) -> voi
 	var loop := ring
 	loop.append(ring[0])
 	draw_polyline(loop, color, width)
+
+
+## Pond `index`'s shoreline as a list of open polylines: its whole ring (closed) for a lone pond, or
+## just the stretches lying outside every OTHER pond's water when ponds overlap. "Inside" tests against
+## the other pond's organic ring, so each gap lines up with the water that's actually drawn there.
+func _shore_runs(index: int) -> Array:
+	var me: Dictionary = _ponds[index]
+	var ring: PackedVector2Array = me["ring"]
+	var others: Array = []
+	for j in _ponds.size():
+		var o: Dictionary = _ponds[j]
+		if j != index and (o["center"] as Vector2).distance_to(me["center"]) < (float(o["radius"]) + float(me["radius"])) * 1.3:
+			others.append(o["ring"])
+	if others.is_empty():
+		var loop := ring.duplicate()
+		loop.append(ring[0])
+		return [loop]
+	var n := ring.size()
+	# Start the walk on open shore, so a run never wraps across the seam.
+	var start := -1
+	for i in n:
+		if not _inside_any(ring[i], others):
+			start = i
+			break
+	if start < 0:
+		return []  # wholly inside other water: no shore of its own
+	var runs: Array = []
+	var run := PackedVector2Array()
+	for k in n + 1:
+		var p := ring[(start + k) % n]
+		if _inside_any(p, others):
+			if run.size() >= 2:
+				runs.append(run)
+			run = PackedVector2Array()
+		else:
+			run.append(p)
+	if run.size() >= 2:
+		runs.append(run)
+	return runs
+
+
+func _inside_any(p: Vector2, rings: Array) -> bool:
+	for r in rings:
+		if Geometry2D.is_point_in_polygon(p, r):
+			return true
+	return false
 
 
 ## The animated water scroll, in tile-units, QUANTIZED to whole texels so the surface steps
@@ -754,6 +883,29 @@ func _draw_glow(type: String, p: Vector2) -> void:
 	for k in 3:
 		var rr := (34.0 - float(k) * 9.0) * breathe
 		draw_circle(top, rr, Color(warm.r, warm.g, warm.b, 0.07))
+
+
+## A glowing world's prop light (see _prop_lights): a soft halo in the prop's own colour, a breathing
+## pool on the ground, sparks drifting up from emitters — all blazing up while the prop is FLARED.
+func _draw_prop_light(it: Dictionary) -> void:
+	var cfg: Dictionary = _prop_lights.get(String(it["type"]), {})
+	if cfg.is_empty():
+		return
+	var p: Vector2 = it["pos"]
+	var c: Color = it["color"]
+	var flare: float = it["flare"]
+	var phase := _phase_for(p)
+	var breathe := 0.85 + 0.15 * sin(_time * _glow_pulse_speed + phase)
+	var r := float(cfg.get("radius", 26.0)) * breathe * (1.0 + FLARE_GROW * flare)
+	var a := float(cfg.get("alpha", 0.30)) + 0.45 * flare
+	SoftGlow.draw(self, p + Vector2(0, 4), r * 1.2, Color(c.r, c.g, c.b, a * 0.6), 0.42)
+	SoftGlow.draw(self, p + Vector2(0, float(cfg.get("y", -8.0))), r, Color(c.r, c.g, c.b, a))
+	var motes := int(cfg.get("motes", 0)) + (6 if flare > 0.05 else 0)
+	var lc := c.lightened(0.5)
+	for k in motes:
+		var t := fposmod(_time * (0.22 + 0.05 * float(k % 3)) + float(k) / float(maxi(1, motes)) + phase, 1.0)
+		var mp := p + Vector2(sin(t * 7.0 + float(k) * 1.7) * (4.0 + 10.0 * flare), -6.0 - t * (36.0 + 40.0 * flare))
+		draw_circle(mp, 1.3, Color(lc.r, lc.g, lc.b, (1.0 - t) * 0.85))
 
 
 ## Blit a baked prop's sprite, bottom-centred on its ground point `p` (feet on the ground,

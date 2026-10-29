@@ -131,6 +131,26 @@ not a blocker** — pick it up if/when a shared world wants it.
 > home (any portal back, or the now-default "Return to the Vale") sets you down at the Gateway, since
 > `WorldRouter` remembers you left by it. The four small direct portals stay as shortcuts around it.
 
+> **Nocthollow (2026-10):** the first world that looks like **another planet**. It's a big (4500×3500)
+> bioluminescent night world for walking, looking and touching, with no goal and no puzzle. Eight
+> regions ring a glowing lake, and it's reached through the Gateway (featured). It **re-skins itself**
+> through a per-world `art` block in its spec, deep-merged over `data/art.json` by
+> `ArtStyle.load_style`. That block sets the night palette and the glowing growths: mushroom-trees,
+> Lumen Elders, crystal spires, bell-flowers and spore-stalks. Tree entries take an optional kind,
+> `[x, y, "crystal_spire"]`, and collide like trees. It also sets luminous water, per-type prop
+> lights, a slow aurora day-cycle, and an `actor_look`. The `actor_look` is how visitors are lit:
+> `OtherworldLook` gives every player and companion pair a palette-shift shader with glowing
+> linework, plus a soft aura. Their outfits and animals stay recognisable. **Native creatures**
+> (lumejelly, glimmerhop, stiltwhisk, driftray, lanternsnail) are server-simulated ambient pals:
+> - they glow, and react shy or friendly to anyone nearby;
+> - they're examinable for their lore;
+> - they're flagged `"form": false` in `data/pals.json`, so the companion never shifts into them.
+>
+> Glow-plants marked `"flare": true` blaze up when touched, and the server relays the flare to
+> everyone in the world (`flare` → `flared`, a stateless relay). Footsteps leave fading prints of
+> light (`GlowTrail`). Art: `pokepals/tools/gen_nocthollow.py` over `tools/pixelart/nocthollow.py`.
+> Layout and lore: `tools/gen_nocthollow_world.py`. Any later world can re-skin itself the same way.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

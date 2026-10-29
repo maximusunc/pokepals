@@ -55,40 +55,71 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	var wind: Dictionary = atmo.get("wind", {})
 	var wind_strength := float(wind.get("strength", 2.6))
 	var wind_speed := float(wind.get("speed", 1.15))
-	# Optional drop-in art. A tree can be one whole "sprite" (the whole thing sways) or,
-	# preferred, a split "trunk" + "canopy" so the trunk stays planted and only the crown
-	# catches the wind. Resolve all three; TreeView uses whichever it's given (else circles).
-	var tree_cfg := style.entity("tree")
-	var great_cfg := style.entity("great_tree")
-	var tree_art := {
-		"tex": SpriteSlot.resolve(tree_cfg),
-		"trunk": SpriteSlot.resolve(tree_cfg, "trunk"),
-		"canopy": SpriteSlot.resolve(tree_cfg, "canopy"),
-	}
-	var great_art := {
-		"tex": SpriteSlot.resolve(great_cfg),
-		"trunk": SpriteSlot.resolve(great_cfg, "trunk"),
-		"canopy": SpriteSlot.resolve(great_cfg, "canopy"),
-	}
+	# Optional drop-in art per KIND, resolved once and cached. A plain tree is the "tree" entity and a
+	# landmark the "great_tree" one; a world may name others — a tree entry [x, y, "crystal_spire"] or a
+	# landmark { "type": "elder" } draws from that entity instead (Nocthollow's glowing growths), and
+	# collides exactly like a tree / great tree. An unknown kind quietly falls back to the plain tree.
+	var arts := {}
 
 	# Hand-placed trees, then the procedural border ring that frames the world.
 	for t in data.get("trees", []):
-		_spawn_tree(WorldData.to_vec2(t), false, tree_art, style, wind_strength, wind_speed)
+		var kind := String(t[2]) if (t is Array and t.size() > 2) else "tree"
+		_spawn_tree(WorldData.to_vec2(t), false, _art_for(arts, style, kind, "tree"), style, wind_strength, wind_speed)
 	for p in border_pts:
-		_spawn_tree(p, false, tree_art, style, wind_strength, wind_speed)
+		_spawn_tree(p, false, _art_for(arts, style, "tree", "tree"), style, wind_strength, wind_speed)
 
 	# Landmarks: a few oversized, beckoning great trees you can see (and walk behind) from afar.
 	for lm in data.get("landmarks", []):
-		_spawn_tree(WorldData.to_vec2(lm["position"]), true, great_art, style, wind_strength, wind_speed)
+		var kind := String(lm.get("type", "great_tree"))
+		_spawn_tree(WorldData.to_vec2(lm["position"]), true, _art_for(arts, style, kind, "great_tree"), style, wind_strength, wind_speed)
+
+
+## The resolved art for one scenery kind (cached in `cache`): its colour VARIANTS, each a split
+## trunk + canopy (only the canopy sways), a whole "sprite", or nothing (procedural circles) — plus an
+## optional glow (a soft light the growth gives off) and per-kind sway/shadow. An entity may list
+## "variants": [{ trunk, canopy, sprite, glow }, …] (one is picked per tree by its position, so a grove
+## mixes colours) or give a single set at its top level, as the meadow trees do.
+func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String) -> Dictionary:
+	if cache.has(kind):
+		return cache[kind]
+	var cfg := style.entity(kind)
+	if cfg.is_empty() and kind != fallback:
+		cfg = style.entity(fallback)
+	var variants: Array = []
+	var raw: Array = cfg.get("variants", [cfg])
+	for v in raw:
+		var vc: Dictionary = cfg.duplicate()
+		vc.erase("variants")
+		vc.merge(v, true)
+		variants.append({
+			"tex": SpriteSlot.resolve(vc),
+			"trunk": SpriteSlot.resolve(vc, "trunk"),
+			"canopy": SpriteSlot.resolve(vc, "canopy"),
+			"glow": WorldData.to_color(vc["glow"]) if vc.has("glow") else Color(0, 0, 0, 0),
+		})
+	var art := {
+		"variants": variants,
+		"glow_radius": float(cfg.get("glow_radius", 0.0)),
+		"glow_y": float(cfg.get("glow_y", -24.0)),
+		"sway": float(cfg.get("sway", 1.0)),
+	}
+	cache[kind] = art
+	return art
 
 
 func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle, wind_strength: float, wind_speed: float) -> void:
 	var tree: TreeView = TreeViewScript.new()
 	tree.position = pos
 	tree.is_great = is_great
-	tree.tex = art["tex"]
-	tree.trunk_tex = art["trunk"]
-	tree.canopy_tex = art["canopy"]
+	var variants: Array = art["variants"]
+	var v: Dictionary = variants[int(absf(pos.x * 7.0 + pos.y * 13.0)) % variants.size()] if not variants.is_empty() else {}
+	tree.tex = v.get("tex")
+	tree.trunk_tex = v.get("trunk")
+	tree.canopy_tex = v.get("canopy")
+	tree.glow_color = v.get("glow", Color(0, 0, 0, 0))
+	tree.glow_radius = art["glow_radius"]
+	tree.glow_y = art["glow_y"]
+	tree.sway_gain = art["sway"]
 	tree.style = style
 	tree.wind_strength = wind_strength
 	tree.wind_speed = wind_speed

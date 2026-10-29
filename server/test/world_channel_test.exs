@@ -262,6 +262,65 @@ defmodule Server.WorldChannelTest do
     end
   end
 
+  # A world with one flare-able glow-plant and one ordinary prop (the night world's blooms).
+  defp seed_flare_world do
+    world_id = Ecto.UUID.generate()
+
+    {:ok, _} =
+      Worlds.upsert(%{
+        world_id: world_id,
+        slug: "glow-#{System.unique_integer([:positive])}",
+        name: "Glow",
+        display_types: ["2d"],
+        version: 1,
+        spec: %{
+          "core" => %{
+            "props" => [
+              %{"id" => "bloom_1", "type" => "lumen_bloom", "flare" => true},
+              %{"id" => "stone_1", "type" => "moonstone"}
+            ]
+          },
+          "profiles" => %{"2d" => %{}}
+        }
+      })
+
+    world_id
+  end
+
+  describe "glow-plant flare relay" do
+    test "touching a flare-able prop lights it for everyone else in the world" do
+      w = seed_flare_world()
+      s1 = join_world("fl-1", w)
+      assert_push "welcome", %{id: _}
+      _s2 = join_world("fl-2", w)
+      assert_push "welcome", %{id: _}
+
+      push(s1, "flare", %{"prop" => "bloom_1"})
+      assert_push "flared", %{prop: "bloom_1"}
+    end
+
+    test "a prop the spec doesn't mark flare-able is not relayed" do
+      w = seed_flare_world()
+      s1 = join_world("fl-3", w)
+      assert_push "welcome", %{id: _}
+      _s2 = join_world("fl-4", w)
+      assert_push "welcome", %{id: _}
+
+      push(s1, "flare", %{"prop" => "stone_1"})
+      push(s1, "flare", %{"prop" => "no_such_prop"})
+      refute_push "flared", %{}
+    end
+
+    test "the toucher isn't echoed their own flare" do
+      w = seed_flare_world()
+      s1 = join_world("fl-5", w)
+      assert_push "welcome", %{id: _}
+
+      push(s1, "flare", %{"prop" => "bloom_1"})
+      refute_push "flared", %{}
+    end
+  end
+
   describe "state relay is per world" do
     test "a state frame reaches a peer in the same world, id-stamped" do
       w = seed_world()

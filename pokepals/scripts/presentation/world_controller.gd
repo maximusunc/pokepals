@@ -153,11 +153,17 @@ func _ready() -> void:
 func _build_world(data: Dictionary) -> void:
 	var arrival_id := WorldRouter.arrival_portal_id
 
-	# Shared art direction (palette + light): the one place the whole look is tuned.
-	_style = ArtStyle.load_style(ART_PATH)
+	# Shared art direction (palette + light): the one place the whole look is tuned — re-skinned per
+	# world by the spec's own "art" block (the night planet Nocthollow swaps the palette, trees, water,
+	# day cycle and how its visitors are lit; every other world carries none and looks as it always has).
+	_style = ArtStyle.load_style(ART_PATH, data.get("art", {}))
 	_player.set_style(_style)
 	_companion.set_style(_style)
 	_companion.setup(_player)
+	# "You, on another planet": a world with an actor_look re-lights our pair (palette shift + glow).
+	# Remote pairs get the same in PresenceDirector, so everyone there shares the planet's light.
+	OtherworldLook.apply(_player, _style.actor_look())
+	OtherworldLook.apply(_companion, _style.actor_look(), 0.7)
 
 	# Spin up the per-mechanic directors and hand each the scene refs it drives. Created before
 	# _setup_contents so they can lay out their own content (e.g. the hunt's rocks). Children of this
@@ -241,6 +247,21 @@ func _build_world(data: Dictionary) -> void:
 	# Ambient pals: spawn the world's set-dressing creatures as puppets the server then drives (no-op in
 	# worlds without an "ambient_pals" block).
 	_ambient_dir.spawn_pals(data)
+	# A world's NATIVE creatures (Nocthollow's) can be examined like any prop — fold them into the live
+	# examine list; _process keeps their spots current as the server walks them about.
+	_add_creature_interactables()
+
+	# Footsteps of light, on a world whose atmosphere asks for them: everyone walking leaves glowing
+	# prints on the ground. Parented under WorldArt so they lie beneath every character and tree.
+	var fp: Dictionary = data.get("atmosphere", {}).get("footprints", {})
+	if not fp.is_empty():
+		var trail := GlowTrail.new()
+		trail.name = "GlowTrail"
+		_world_art.add_child(trail)
+		trail.setup(fp, _walkers)
+
+	# Glow-plants someone ELSE touched blaze up here too (the server relays each flare to the world).
+	Net.prop_flared.connect(_on_prop_flared)
 
 	# The three HUD zones. Each is a self-contained view that reports what the player tapped; the
 	# controller maps that to the SAME handlers the old free-floating buttons used. Tap routing is by GUI
@@ -270,6 +291,9 @@ func _build_world(data: Dictionary) -> void:
 	# text while you wander. Any real hint (a whistle, lore, a portal step) cancels the fade and shows.
 	if _ruin.has_wards():
 		_hint.text = "An old slab bars the way deeper.  Tap your companion and choose Go look to send it searching."
+	elif data.has("intro"):
+		# A world may greet you in its own words (Nocthollow's first breath of another planet).
+		_hint.text = String(data["intro"])
 	else:
 		_hint.text = "Wander with arrows / WASD or drag.  Step up to something and Examine to look closer."
 	_hint.modulate.a = 1.0
@@ -452,6 +476,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			# uncovers. Read by FormEffect.plan() when the companion arrives and performs. Absent means
 			# the verb still plays its gesture and gets a generic acknowledgement.
 			"form_effects": it.get("form_effects", {}),
+			# A glow-plant that blazes up when touched, seen by everyone in the world (see _try_interact).
+			"flare": bool(it.get("flare", false)),
 		}
 		_interactables.append(entry)
 		poi.append(entry["pos"])
@@ -678,6 +704,10 @@ func _process(delta: float) -> void:
 	# Return-to-the-Vale in a world that declares one while connected, Leave while in a session, DBG
 	# always (dev).
 	_gear.set_items(_gather_gear_items())
+
+	# Native creatures: keep each examinable one's spot current (the server walks them about), and let
+	# them notice whoever is near — a shy one shrinks back, a friendly one turns and bobs.
+	_update_creatures()
 
 	# Walk-through portals, the hunt detector, the maze (reach check + guide hint), the Ruin (ward
 	# referee + descent gloom).
@@ -1107,7 +1137,21 @@ func _try_interact() -> void:
 	if String(entry["kind"]) == "shopkeeper":
 		_shop_dir.open_shop(entry)
 		return
+	# A native creature: it lights up and hops at the attention, your companion perks up at it, and you
+	# read what it is. (Like the flock, it draws itself and holds no world_art render slot.)
+	if String(entry["kind"]) == "creature":
+		var view: Variant = entry["view"]
+		if is_instance_valid(view):
+			(view as PalView).pulse()
+		_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+		_show_hint(String(entry["lore"]))
+		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
+	# A glow-plant blazes up when touched — here at once, and (relayed by the server) for everyone else
+	# in the world, so friends see the same flowers light.
+	if bool(entry.get("flare", false)):
+		_world_art.flare_interactable(int(entry["render_index"]))
+		Net.send_flare(String(entry["id"]))
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
 	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
 	# handled by the RuinController; if it claims this prop, we're done.
@@ -1126,6 +1170,63 @@ func _try_interact() -> void:
 		_show_hint(lore)
 		return
 	_show_hint("You examine %s. Your companion perks up." % entry["label"])
+
+
+## Fold the world's native creatures (ambient pals whose species carries lore — Nocthollow's) into the
+## examine list as "creature" entries. They move, so their pos is refreshed every frame
+## (_update_creatures) from where the puppet is actually drawn.
+func _add_creature_interactables() -> void:
+	for c in _ambient_dir.native_creatures():
+		var view: PalView = c["view"]
+		_interactables.append({
+			"pos": view.shown_position(),
+			"label": "a %s" % view.species_name(),
+			"id": String(c["id"]),
+			"tags": ["creature", "alive", view.species_name()],
+			"kind": "creature",
+			"render_index": -1,
+			"lore": view.lore(),
+			"affordances": {},
+			"view": view,
+		})
+	_invalidate_nearest()
+
+
+## Per frame: refresh each native creature's examine spot and feed every creature the nearest walker,
+## so it can react to them (presentation-only — see PalView.react_to).
+func _update_creatures() -> void:
+	var moved := false
+	for e in _interactables:
+		if String(e.get("kind", "")) != "creature":
+			continue
+		var view: Variant = e["view"]
+		if not is_instance_valid(view):
+			continue
+		var now := (view as PalView).shown_position()
+		# Only a real move re-arms the nearest-examinable scan (the same threshold the player uses).
+		if now.distance_to(e["pos"]) > NEAREST_RECALC_DIST:
+			e["pos"] = now
+			moved = true
+	if moved:
+		_invalidate_nearest()
+	var people: Array = [_player.position]
+	people.append_array(_presence_dir.remote_player_positions())
+	_ambient_dir.update_reactions(people)
+
+
+## Everyone whose footsteps glow (GlowTrail): our pair, then every remote pair present.
+func _walkers() -> Array:
+	var out: Array = [_player, _companion]
+	out.append_array(_presence_dir.remote_actors())
+	return out
+
+
+## Someone else in this world touched a glow-plant: blaze it up here too.
+func _on_prop_flared(prop_id: String) -> void:
+	for e in _interactables:
+		if String(e.get("id", "")) == prop_id and bool(e.get("flare", false)):
+			_world_art.flare_interactable(int(e["render_index"]))
+			return
 
 
 ## When the hunt ends, open a second portal home a little up the bank from the last rock, so the
@@ -1268,6 +1369,9 @@ func _scan_nearest_interactable() -> int:
 		# A first-meeting flock creature that's mid-ceremony, walking off, or inside its rebuff
 		# cooldown doesn't prompt — so a just-examined animal can't be chain-poked as it leaves.
 		if String(e.get("kind", "prop")) == "encounter_pal" and _encounter_dir.should_skip(e):
+			continue
+		# A native creature stood aside (the first-meeting search hides the world's animal life) doesn't prompt.
+		if String(e.get("kind", "prop")) == "creature" and not (is_instance_valid(e["view"]) and (e["view"] as Node2D).visible):
 			continue
 		var d := _player.position.distance_to(e["pos"])
 		if d <= best_dist:

@@ -181,6 +181,9 @@ func _on_peer_joined(peer_id: String) -> void:
 	rc.set_style(_style)
 	_scenery.add_child(rp)
 	_scenery.add_child(rc)
+	# On a world that re-lights its visitors (Nocthollow), friends wear the planet's light too.
+	OtherworldLook.apply(rp, _style.actor_look())
+	OtherworldLook.apply(rc, _style.actor_look(), 0.7)
 	# Start them where our own pair stands so they don't pop in from the origin; the first state
 	# packet snaps them to the truth a frame later. (Remotes never collide — their owner is.)
 	rp.position = _player.position
@@ -191,6 +194,25 @@ func _on_peer_joined(peer_id: String) -> void:
 	if _pending_identity.has(peer_id):
 		_apply_remote_identity(peer_id, _pending_identity[peer_id])
 		_pending_identity.erase(peer_id)
+
+
+## Where every remote player stands right now (native creatures react to friends as well as to us).
+func remote_player_positions() -> Array:
+	var out: Array = []
+	for pair in _remote_pairs.values():
+		var rp: Node2D = pair["player"]
+		if is_instance_valid(rp):
+			out.append(rp.position)
+	return out
+
+
+## Every remote player + companion node (whose footsteps glow on a world that asks for it).
+func remote_actors() -> Array:
+	var out: Array = []
+	for pair in _remote_pairs.values():
+		out.append(pair["player"])
+		out.append(pair["companion"])
+	return out
 
 
 ## A peer left: free its puppet pair and forget it. Clean despawn so a friend quitting simply
