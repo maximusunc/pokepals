@@ -89,17 +89,23 @@ func _process(_delta: float) -> bool:
 			fails += _check(_world._hint.text == String(_world._interactables[idx]["lore"]) and _world._hint.text != "", "examining a creature reads its lore")
 
 	# Touching a glow-plant flares it.
-	var bloom: Dictionary = {}
-	for e in _world._interactables:
-		if bool(e.get("flare", false)):
-			bloom = e
-			break
-	fails += _check(not bloom.is_empty(), "the world has glow-plants that flare")
-	if not bloom.is_empty():
-		_world._player.position = bloom["pos"] + Vector2(0, 8)
+	# Try glow-plants until one is the nearest thing when we stand on it (a creature may be wandering
+	# right beside the first one we pick).
+	var bi := -1
+	var any_flare := false
+	for i in _world._interactables.size():
+		var e: Dictionary = _world._interactables[i]
+		if not bool(e.get("flare", false)):
+			continue
+		any_flare = true
+		_world._player.position = e["pos"] + Vector2(0, 4)
 		_world._invalidate_nearest()
-		var bi: int = _world._nearest_interactable()
-		if bi >= 0 and bool(_world._interactables[bi].get("flare", false)):
+		if _world._nearest_interactable() == i:
+			bi = i
+			break
+	fails += _check(any_flare, "the world has glow-plants that flare")
+	if any_flare:
+		if bi >= 0:
 			_world._try_interact()
 			var ri := int(_world._interactables[bi]["render_index"])
 			fails += _check(float(_world._world_art._interactables[ri]["flare"]) > 0.9, "the touched glow-plant blazed up")

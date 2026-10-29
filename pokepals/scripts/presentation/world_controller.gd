@@ -1202,8 +1202,11 @@ func _update_creatures() -> void:
 		var view: Variant = e["view"]
 		if not is_instance_valid(view):
 			continue
-		e["pos"] = (view as PalView).shown_position()
-		moved = true
+		var now := (view as PalView).shown_position()
+		# Only a real move re-arms the nearest-examinable scan (the same threshold the player uses).
+		if now.distance_to(e["pos"]) > NEAREST_RECALC_DIST:
+			e["pos"] = now
+			moved = true
 	if moved:
 		_invalidate_nearest()
 	var people: Array = [_player.position]
