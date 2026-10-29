@@ -170,10 +170,11 @@ ELDER_VARIANTS = {
 
 
 # ======================================================================= TREES
-# The size + feet convention the client's TreeView expects (same as trees.py): a normal tree
-# is 52x60 with its ground point 6px above the bottom edge, a great tree 104x122 / 8px.
-TREE_W, TREE_H, TREE_FOOT = 52, 60, 6
-GREAT_W, GREAT_H, GREAT_FOOT = 104, 122, 8
+# The size + feet convention the client's TreeView expects (same as trees.py): a normal tree is
+# 52x60, a great tree 104x122, and the trunk base sits FLUSH with the bottom edge — TreeView plants
+# the image's bottom on the ground. FOOT is just the 1px left below the base for its outline.
+TREE_W, TREE_H, TREE_FOOT = 52, 60, 1
+GREAT_W, GREAT_H, GREAT_FOOT = 104, 122, 1
 
 
 def glowcap_tree(variant):
@@ -263,7 +264,7 @@ def elder_tree(variant):
 
 # ================================================================ TALL GROWTHS
 # Single-layer sprites drawn as y-sorted scenery (so you can walk behind them). Same feet
-# convention as a normal tree (52x60, ground 6px above the bottom).
+# convention as a normal tree (52x60, base flush with the bottom edge).
 
 def crystal_spire(variant):
     """A cluster of tall, faceted crystals humming with light."""
@@ -271,7 +272,7 @@ def crystal_spire(variant):
            "rose": ((0.40, 0.12, 0.40), (0.76, 0.36, 0.78), (1.00, 0.80, 1.00)),
            "gold": ((0.40, 0.28, 0.10), (0.80, 0.64, 0.30), (1.00, 0.94, 0.70))}[variant]
     c = Canvas(TREE_W, TREE_H)
-    gy = TREE_H - TREE_FOOT - 1
+    gy = TREE_H - TREE_FOOT  # the polygon fill stops a row short of its base edge
     shards = [
         # (base x, base half-width, top x, top y)
         (18, 4, 13, 22),
