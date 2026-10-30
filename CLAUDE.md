@@ -175,6 +175,14 @@ not a blocker** — pick it up if/when a shared world wants it.
 > keeps its glowing floor and has always-on fireflies only. Purely presentation: no collision or
 > network change.
 
+> **Home worlds & world secrets (2026-10, design in progress):** the answer to "what am I *doing*
+> here?" Every destination world (not the Vale, which stays the companion's place) hides **one
+> secret**. Finding it adds a discovery to your own **home world**, a per-player, display-only place
+> that reflects where you've been. Friends visit it by friend request or invitation, through the
+> Gateway. Being broken into one-at-a-time items in
+> [`docs/home-world-and-secrets-design.md`](docs/home-world-and-secrets-design.md); first slice is
+> solo (find a secret → see it at home), starting with the Maze's heart.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

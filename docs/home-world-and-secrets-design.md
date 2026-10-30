@@ -65,15 +65,17 @@ not as a plan to act on.
   world adds its secret with no code. *Reuse:* the spec-as-jsonb pattern, `form_effects`'
   data-authored `reveal`. *New:* the block's shape + who decides "solved" (client or
   server-authoritative; see S-3).
-- ⬜ **S-3 — Who confirms a secret is solved.** Client reports "found it" and the server records it, or
-  the server judges it authoritatively (like the Ruin's shared mechanisms). Trade-off: simplicity vs.
-  trust. Matters more once trading/visiting make discoveries visible to others.
+- ✅ **S-3 — Who confirms a secret is solved: the server.** Decided: same discipline as the maze's
+  coin reward. The client reports "found it", and the server records the discovery **only in a world
+  whose spec carries that secret** (and only once). Discoveries are visible to friends, so they stay
+  honest.
 - ⬜ **S-4 — Solving together.** If two players crack a secret together, do both get it? (Leaning
   "yes", since solvable alone and better together, but it needs a decision on what "together" means:
   same world at the moment of solving? helped?)
-- ⬜ **S-5 — The moment of finding.** The feel beat when a secret is found: what plays, what the
-  companion does, and a hint that "something has changed at home." This is the payoff and should
-  feel as warm as the first meeting.
+- ✅ **S-5 — The moment of finding: small and warm.** Decided: no popups or fanfare. The companion
+  perks up and noses the find, a gentle line plays (for the seed: "A curled seed from the oldest
+  hedge… it wants to be planted somewhere of your own"), and a soft note says something changed at
+  home.
 
 ### The secrets themselves (one per world; authored one at a time)
 Each needs its own design pass. Per P-2 in the direction doc, aim for 2–3 routes of differing
@@ -82,7 +84,19 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ⬜ **W-1 — The Ruin.**
 - ⬜ **W-2 — Nocthollow.**
 - ⬜ **W-3 — The Riverbank.**
-- ⬜ **W-4 — The Maze.**
+- 🔶 **W-4 — The Maze. (The first secret.)** Decided: an **item waits at the centre of the maze**;
+  reach the heart, take the item, and it's added to your home.
+  - ✅ **The item: a hedge seed.** A curled seed from the oldest hedge. At home it grows into a small
+    living **hedge spiral**, your own little maze, which hints at where it came from.
+  - ✅ **Taken by examining it.** The seed rests visibly at the heart, beside the portal. You examine
+    it like any object and it's yours: a small, deliberate act.
+  - ✅ **Gone for you afterwards.** Once taken, your heart holds only the portal (and the coins).
+    Anyone who hasn't found it still sees their own seed. Per-player, so it never runs out.
+  - ✅ **Coins stay.** The existing 10-coin payout for reaching the heart is unchanged (every visit);
+    the seed is a one-time discovery on top.
+  *Reuse:* the maze already has a server-checked `reach_center` goal (`MazeDirector` detects
+  arrival; `world_channel.ex` pays a flat 10 coins, honoured only in a world whose spec carries that
+  goal), so the "you really got there" check exists. The heart also holds the portal home.
 - ⬜ **W-5 — The Bazaar.**
 
 ### The home world
@@ -91,15 +105,18 @@ small game, patience, a time of day, a form only the companion can take, or just
   *Reuse:* the world-spec format, `WorldRouter`, `Server.World` process-per-world, Presence.
   *New:* per-owner world instancing + generating the spec from discoveries. **This is the biggest
   new piece of machinery.**
-- ⬜ **HW-2 — What the home looks like before any discoveries.** An empty home has to still be a nice
-  place to be (and to visit), not a bare room waiting for trophies.
+- ✅ **HW-2 — The empty home: a small glade that grows.** Decided: a snug clearing that is cozy
+  even with nothing in it. Each discovery doesn't just appear, it **widens the home** (new ground, a
+  new corner), so more discoveries make a bigger, richer place and a friend's home literally looks
+  traveled.
 - ⬜ **HW-3 — Where each discovery appears.** Since the home is display-only (H2), each discovery
   has an authored place in the home. A discovery should *change the place* (a glowing pool opens, a
   carved pillar stands), not sit on a shelf. Each one quietly hints at where it came from.
 - ⬜ **HW-4 — The companion at home.** Does the companion relate to the discoveries (favourite spots,
   lingering by things it found with you)? Ties to companion-as-self.
-- ⬜ **HW-5 — Getting home.** How you reach your own home: the Gateway, a portal in the Vale, a
-  "go home" action, or some mix.
+- ✅ **HW-5 — Getting home: the Gateway, on its own tab.** Decided: the Gateway's world picker gets a
+  **separate tab** holding **your home** (and, later, friends' homes, per H4/FR-4), apart from the
+  catalog worlds. No Vale portal. Leaving home returns you to the Gateway like any catalog world.
 
 ### Friends & visiting
 - ⬜ **FR-1 — A friends list.** There's no friend system today; identity is only the local token.
@@ -119,11 +136,11 @@ small game, patience, a time of day, a form only the companion can take, or just
 
 ---
 
-## Open sequencing question
+## Sequencing (decided)
 
-What to build first to *feel* the loop as early as possible. One candidate thin slice: **S-1 + S-2
-+ one secret (W-n) + a bare home (HW-1/HW-2) showing that one discovery**, with friends/visiting
-after. A solo loop (find → see it at home) can be felt before the social layer exists. Owner's call.
+✅ **Solo loop first.** Build **S-1 + S-2 + one secret + a bare home (HW-1/HW-2) showing that one
+discovery**, then friends/visiting after. The find → see-it-at-home loop gets felt before the
+social layer exists. First pair being designed: **HW-2 (the empty home) + W-4 (the Maze's heart).**
 
 ## How we work through it
 
