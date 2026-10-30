@@ -16,7 +16,7 @@ extends Node2D
 const MAX_MASK := 1024        # the mask's longest side, in texels
 const PATH_RADIUS := 9.0      # half the packed-earth width, in world units
 const PATH_FALLOFF := 1.9     # the mask fades to 0 at PATH_RADIUS * this (the worn-grass rim lives there)
-const SHORE_BAND := 18.0      # how far inland the sand reaches
+const SHORE_BAND := 15.0      # how far inland the sand reaches
 
 var _rect := Rect2()
 var _mask: Image = null
