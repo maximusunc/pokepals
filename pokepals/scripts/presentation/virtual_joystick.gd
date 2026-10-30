@@ -31,9 +31,17 @@ func _ready() -> void:
 
 ## Reflow to the bottom-left corner whenever the (full-rect) control resizes — i.e. on window resize.
 ## Guarded like the other HUD chips: the first NOTIFICATION_RESIZED can arrive before _ready().
+##
+## Let go when the tree pauses. A modal (the Gateway's world picker, the wardrobe, the lobby) pauses
+## the world, and a paused node gets no _input — so the finger lifting off the stick is never heard,
+## and on unpause the stick would still be held, walking you in a straight line forever. Walking INTO
+## the Gateway opens its picker mid-stride, so this was the common way in. Releasing on pause means
+## you come back from any modal standing still; just press the stick again to walk.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_layout()
+	elif what == NOTIFICATION_PAUSED and _active:
+		_release()
 
 
 func _layout() -> void:
