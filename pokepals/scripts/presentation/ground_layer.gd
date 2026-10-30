@@ -13,7 +13,7 @@ extends Node2D
 ## dither and jitter that turn its soft values into ragged pixel edges. Sits behind WorldArt
 ## (show_behind_parent) so ponds, props and everything else draw on top of it. Pure presentation.
 
-const MAX_MASK := 1024        # the mask's longest side, in texels
+const MAX_MASK := 640         # the mask's longest side, in texels (kept small: it's baked in GDScript at load)
 const PATH_RADIUS := 9.0      # half the packed-earth width, in world units
 const PATH_FALLOFF := 1.9     # the mask fades to 0 at PATH_RADIUS * this (the worn-grass rim lives there)
 const SHORE_BAND := 15.0      # how far inland the sand reaches

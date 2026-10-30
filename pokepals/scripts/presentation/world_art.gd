@@ -27,6 +27,10 @@ var _detail_tex: Texture2D = null
 var _detail_rects := {}   # name -> Rect2 in the atlas (tools/gen_ground.py's index)
 var _details: Array = []  # [ { pos, rect, phase, sway, tint } ] — ground litter, under the water pass
 var _shore_details: Array = []  # same shape — reeds and lily pads, drawn over the water
+# The litter is drawn through two NEAREST-filtered proxies (WorldArt itself stays linear for its soft
+# glows): one behind WorldArt's own drawing, right over the ground, and one in front, over the water.
+var _litter_under: DrawProxy = null
+var _litter_over: DrawProxy = null
 var _understory: Array = []  # [ { pos, type } ] — bush/stump spots Scenery plants (see understory_spots)
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
@@ -299,6 +303,11 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	if _ground != null:
 		_ground.queue_free()
 		_ground = null
+	for proxy in [_litter_under, _litter_over]:
+		if proxy != null:
+			proxy.queue_free()
+	_litter_under = null
+	_litter_over = null
 	_details.clear()
 	_shore_details.clear()
 	_understory.clear()
@@ -339,6 +348,21 @@ func _build_pixel_ground(data: Dictionary) -> void:
 			_detail_rects[n] = Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3]))
 	if not _detail_rects.is_empty():
 		_scatter_details(data, cfg.get("scatter", {}), dirt_paths)
+		# behind WorldArt's drawing, but added after the ground so it lands on top of it
+		_litter_under = _make_litter_proxy("LitterUnder", true, _details)
+		_litter_over = _make_litter_proxy("LitterOver", false, _shore_details)
+
+
+func _make_litter_proxy(proxy_name: String, behind: bool, list: Array) -> DrawProxy:
+	var proxy := DrawProxy.new()
+	proxy.name = proxy_name
+	proxy.show_behind_parent = behind
+	proxy.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	proxy.draw_fn = func(ci: CanvasItem) -> void:
+		var vis := ViewCull.visible_world_rect(ci, CULL_MARGIN)
+		_draw_details(ci, list, vis, vis.has_area())
+	add_child(proxy)
+	return proxy
 
 
 ## Is `p` on open, dry, unpathed ground (where litter may lie)?
@@ -532,7 +556,7 @@ func _scatter_shores(rng: RandomNumberGenerator, density: float) -> void:
 
 
 ## Draw one batch of details (culled), each tuft/reed nodding a whole pixel at a time in the breeze.
-func _draw_details(list: Array, vis: Rect2, cull: bool) -> void:
+func _draw_details(ci: CanvasItem, list: Array, vis: Rect2, cull: bool) -> void:
 	for d in list:
 		var p: Vector2 = d["pos"]
 		if cull and not vis.has_point(p):
@@ -541,7 +565,7 @@ func _draw_details(list: Array, vis: Rect2, cull: bool) -> void:
 		var sx := 0.0
 		if d["sway"] > 0.0:
 			sx = roundf(_sway(d["phase"], d["sway"]))
-		draw_texture_rect_region(_detail_tex, Rect2(p + Vector2(sx - roundf(r.size.x * 0.5), -r.size.y), r.size), r, d["tint"])
+		ci.draw_texture_rect_region(_detail_tex, Rect2(p + Vector2(sx - roundf(r.size.x * 0.5), -r.size.y), r.size), r, d["tint"])
 
 
 ## Bake a small, soft noise texture once and stretch it over the whole ground so the
@@ -688,6 +712,9 @@ func _process(delta: float) -> void:
 			it["flare"] = maxf(0.0, it["flare"] - delta * FLARE_FADE)
 	# The world is gently animated (wind, shimmer, breathing glow), so redraw each frame.
 	queue_redraw()
+	if _litter_under != null:
+		_litter_under.queue_redraw()
+		_litter_over.queue_redraw()
 
 
 ## Horizontal wind offset for a swaying element with the given phase. Things higher off
@@ -727,9 +754,7 @@ func _draw() -> void:
 		c.a = _region_tint_alpha
 		draw_rect(rt["rect"], c)
 
-	# the pixel ground's litter: tufts, clover, pebbles, leaves, mushrooms, flowers
-	if _detail_tex != null:
-		_draw_details(_details, vis, cull)
+	# (the pixel ground's litter — tufts, clover, pebbles, leaves, flowers — is drawn by _litter_under)
 
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
@@ -824,9 +849,7 @@ func _draw() -> void:
 		for run in pond["shore"]:
 			draw_polyline(run, _water_rim, 2.0)
 
-	# reeds and lily pads, over the water's edge
-	if _detail_tex != null:
-		_draw_details(_shore_details, vis, cull)
+	# (reeds and lily pads, over the water's edge, are drawn by _litter_over)
 
 	# flowers (a petal dot with a bright center), nodding in the breeze (pixel flowers ride with the
 	# ground's details instead)

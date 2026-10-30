@@ -118,6 +118,10 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.canopy_tex = v.get("canopy")
 	tree.glow_color = v.get("glow", Color(0, 0, 0, 0))
 	tree.glow_radius = art["glow_radius"]
+	# Crisp pixel art when the 640x360 view is scaled up to the window. A glowing growth (Nocthollow's)
+	# keeps linear filtering, or its soft halo would turn blocky.
+	if float(art["glow_radius"]) <= 0.0:
+		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	tree.glow_y = art["glow_y"]
 	tree.sway_gain = art["sway"]
 	tree.style = style

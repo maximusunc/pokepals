@@ -17,7 +17,7 @@ shader_type canvas_item;
 //    world recolours its ground from its art block without new textures.
 
 uniform sampler2D terrain : filter_nearest, repeat_enable;
-uniform sampler2D mask : filter_linear;
+uniform sampler2D mask : filter_linear, repeat_disable;  // never wrap: edge paths mustn't bleed across
 uniform vec4 bounds = vec4(-1000.0, -1000.0, 2000.0, 2000.0);  // x, y, w, h (world units)
 uniform float tile = 128.0;
 // 7 ramp slots x 4 shades, darkest first: grass, lush, meadow, dirt, sand, path, worn.
