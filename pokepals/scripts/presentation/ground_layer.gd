@@ -21,6 +21,15 @@ const SHORE_BAND := 18.0      # how far inland the sand reaches
 var _rect := Rect2()
 var _mask: Image = null
 var _mask_upt := 2.0
+# The bake works in three flat float channels (fast typed-array access, no per-pixel Image calls),
+# packed into the Image once at the end. Kept for path_value lookups.
+var _mw := 0
+var _mh := 0
+var _ox := 0.0
+var _oy := 0.0
+var _r := PackedFloat32Array()
+var _g := PackedFloat32Array()
+var _b := PackedFloat32Array()
 
 
 ## True if the art direction asks for the pixel ground and its tiles are present.
@@ -78,13 +87,13 @@ func build(bounds: Rect2, style: ArtStyle, shapes: Dictionary) -> void:
 ## How "on a path" a world point is (the mask's R: 1 on a trail's centre line, 0 well clear of it), so
 ## WorldArt can keep litter off the trails and fray pebbles along their shoulders.
 func path_value(p: Vector2) -> float:
-	if _mask == null:
+	if _r.is_empty():
 		return 0.0
-	var x := int((p.x - _rect.position.x) / _mask_upt)
-	var y := int((p.y - _rect.position.y) / _mask_upt)
-	if x < 0 or y < 0 or x >= _mask.get_width() or y >= _mask.get_height():
+	var x := int((p.x - _ox) / _mask_upt)
+	var y := int((p.y - _oy) / _mask_upt)
+	if x < 0 or y < 0 or x >= _mw or y >= _mh:
 		return 0.0
-	return _mask.get_pixel(x, y).r
+	return _r[y * _mw + x]
 
 
 func _draw() -> void:
@@ -108,113 +117,132 @@ static func _ramps(cfg: Dictionary) -> PackedVector3Array:
 
 
 ## ---- the mask ----------------------------------------------------------------------------------
+## Baked once per world load, so it's written for speed: plain loops over typed float arrays with the
+## geometry inlined (no per-pixel function calls or Image reads), then one pack into an RGB8 image.
 
 func _bake_mask(bounds: Rect2, shapes: Dictionary) -> Image:
 	var upt := maxf(2.0, ceilf(maxf(bounds.size.x, bounds.size.y) / float(MAX_MASK)))  # world units per texel
 	_mask_upt = upt
-	var w := maxi(1, int(ceilf(bounds.size.x / upt)))
-	var h := maxi(1, int(ceilf(bounds.size.y / upt)))
-	var img := Image.create(w, h, false, Image.FORMAT_RGB8)
-	img.fill(Color(0, 0, 0))
-	var bake := { "img": img, "o": bounds.position, "u": upt, "w": w, "h": h }
+	_mw = maxi(1, int(ceilf(bounds.size.x / upt)))
+	_mh = maxi(1, int(ceilf(bounds.size.y / upt)))
+	_ox = bounds.position.x
+	_oy = bounds.position.y
+	_r = PackedFloat32Array()
+	_g = PackedFloat32Array()
+	_b = PackedFloat32Array()
+	_r.resize(_mw * _mh)
+	_g.resize(_mw * _mh)
+	_b.resize(_mw * _mh)
+	_r.fill(0.0)
+	_g.fill(0.0)
+	_b.fill(0.0)
 	for pts in shapes.get("paths", []):
-		_paint_path(bake, pts)
+		_paint_path(pts)
 	for pd in shapes.get("ponds", []):
-		_paint_pond(bake, pd)
+		_paint_pond(pd)
 	var river: Dictionary = shapes.get("river", {})
 	if not river.is_empty():
-		_paint_river(bake, river)
+		_paint_river(river)
 	for s in shapes.get("shade", []):
-		_paint_shade(bake, s["pos"], float(s["r"]))
-	return img
+		_paint_shade(s["pos"], float(s["r"]))
+	var data := PackedByteArray()
+	data.resize(_mw * _mh * 3)
+	for i in _mw * _mh:
+		data[i * 3] = int(_r[i] * 255.0)
+		data[i * 3 + 1] = int(_g[i] * 255.0)
+		data[i * 3 + 2] = int(_b[i] * 255.0)
+	return Image.create_from_data(_mw, _mh, false, Image.FORMAT_RGB8, data)
 
 
-## The texel rect covering a world rect, clamped to the image.
-static func _texels(bake: Dictionary, r: Rect2) -> Rect2i:
-	var u: float = bake["u"]
-	var o: Vector2 = bake["o"]
-	var x0 := clampi(int(floorf((r.position.x - o.x) / u)), 0, bake["w"] - 1)
-	var y0 := clampi(int(floorf((r.position.y - o.y) / u)), 0, bake["h"] - 1)
-	var x1 := clampi(int(ceilf((r.end.x - o.x) / u)), 0, bake["w"] - 1)
-	var y1 := clampi(int(ceilf((r.end.y - o.y) / u)), 0, bake["h"] - 1)
-	return Rect2i(x0, y0, x1 - x0 + 1, y1 - y0 + 1)
+## The texel range [x0, x1) x [y0, y1) covering a world rect, clamped to the mask.
+func _span(r: Rect2) -> Rect2i:
+	var x0 := clampi(int(floorf((r.position.x - _ox) / _mask_upt)), 0, _mw)
+	var y0 := clampi(int(floorf((r.position.y - _oy) / _mask_upt)), 0, _mh)
+	var x1 := clampi(int(ceilf((r.end.x - _ox) / _mask_upt)) + 1, 0, _mw)
+	var y1 := clampi(int(ceilf((r.end.y - _oy) / _mask_upt)) + 1, 0, _mh)
+	return Rect2i(x0, y0, x1 - x0, y1 - y0)
 
 
-static func _world_of(bake: Dictionary, x: int, y: int) -> Vector2:
-	var u: float = bake["u"]
-	return (bake["o"] as Vector2) + Vector2((float(x) + 0.5) * u, (float(y) + 0.5) * u)
-
-
-## Write `v` into one channel, keeping the larger of old and new (overlaps union smoothly).
-static func _put(img: Image, x: int, y: int, ch: int, v: float) -> void:
-	var c := img.get_pixel(x, y)
-	if v <= c[ch]:
-		return
-	c[ch] = v
-	img.set_pixel(x, y, c)
-
-
-func _paint_path(bake: Dictionary, pts: PackedVector2Array) -> void:
-	if pts.size() < 2:
-		return
-	var reach := PATH_RADIUS * PATH_FALLOFF
-	var img: Image = bake["img"]
+func _paint_path(pts: PackedVector2Array) -> void:
+	var u := _mask_upt
 	for k in pts.size() - 1:
 		var a := pts[k]
 		var b := pts[k + 1]
 		# a slow swell and pinch in the trail's width, so it isn't a constant-width ribbon
-		var widen := 1.0 + 0.18 * sin(a.x * 0.019 + a.y * 0.013)
-		var rr := reach * widen
-		var box := Rect2(a, Vector2.ZERO).expand(b).grow(rr)
-		var tr := _texels(bake, box)
-		for y in range(tr.position.y, tr.end.y):
-			for x in range(tr.position.x, tr.end.x):
-				var p := _world_of(bake, x, y)
-				var d := p.distance_to(Geometry2D.get_closest_point_to_segment(p, a, b))
-				if d < rr:
-					_put(img, x, y, 0, 1.0 - d / rr)
+		var rr := PATH_RADIUS * PATH_FALLOFF * (1.0 + 0.18 * sin(a.x * 0.019 + a.y * 0.013))
+		var rr2 := rr * rr
+		var abx := b.x - a.x
+		var aby := b.y - a.y
+		var l2 := maxf(abx * abx + aby * aby, 0.0001)
+		var sp := _span(Rect2(a, Vector2.ZERO).expand(b).grow(rr))
+		for y in range(sp.position.y, sp.end.y):
+			var py := _oy + (float(y) + 0.5) * u
+			var row := y * _mw
+			for x in range(sp.position.x, sp.end.x):
+				var px := _ox + (float(x) + 0.5) * u
+				var t := clampf(((px - a.x) * abx + (py - a.y) * aby) / l2, 0.0, 1.0)
+				var dx := px - (a.x + abx * t)
+				var dy := py - (a.y + aby * t)
+				var d2 := dx * dx + dy * dy
+				if d2 < rr2:
+					var v := 1.0 - sqrt(d2) / rr
+					if v > _r[row + x]:
+						_r[row + x] = v
 
 
-func _paint_pond(bake: Dictionary, pd: Dictionary) -> void:
+func _paint_pond(pd: Dictionary) -> void:
 	var c: Vector2 = pd["center"]
 	var radius := float(pd["radius"])
 	var seed := float(pd["seed"])
 	var reach := radius * 1.25 + SHORE_BAND
-	var tr := _texels(bake, Rect2(c - Vector2(reach, reach), Vector2(reach, reach) * 2.0))
-	var img: Image = bake["img"]
-	for y in range(tr.position.y, tr.end.y):
-		for x in range(tr.position.x, tr.end.x):
-			var p := _world_of(bake, x, y)
-			var off := p - c
-			var edge := WorldArt.organic_radius(off.angle(), radius, seed)
-			var d := off.length() - edge  # < 0 inside the water
+	var u := _mask_upt
+	var sp := _span(Rect2(c - Vector2(reach, reach), Vector2(reach, reach) * 2.0))
+	for y in range(sp.position.y, sp.end.y):
+		var oy := _oy + (float(y) + 0.5) * u - c.y
+		var row := y * _mw
+		for x in range(sp.position.x, sp.end.x):
+			var ox := _ox + (float(x) + 0.5) * u - c.x
+			var d := sqrt(ox * ox + oy * oy) - WorldArt.organic_radius(atan2(oy, ox), radius, seed)  # < 0 in the water
 			if d < SHORE_BAND:
-				_put(img, x, y, 1, clampf(1.0 - d / SHORE_BAND, 0.0, 1.0))
+				var v := clampf(1.0 - d / SHORE_BAND, 0.0, 1.0)
+				if v > _g[row + x]:
+					_g[row + x] = v
 
 
-func _paint_river(bake: Dictionary, river: Dictionary) -> void:
+func _paint_river(river: Dictionary) -> void:
 	var rect: Rect2 = river["rect"]
-	var tr := _texels(bake, rect.grow(SHORE_BAND + 12.0))
-	var img: Image = bake["img"]
-	for y in range(tr.position.y, tr.end.y):
-		for x in range(tr.position.x, tr.end.x):
-			var p := _world_of(bake, x, y)
-			var top := rect.position.y + WorldArt.river_bank_offset(p.x, float(river["top_seed"]))
-			var bot := rect.end.y + WorldArt.river_bank_offset(p.x, float(river["bot_seed"]))
-			var d := maxf(top - p.y, p.y - bot)  # < 0 between the banks
-			if d < SHORE_BAND and p.x >= rect.position.x - SHORE_BAND and p.x <= rect.end.x + SHORE_BAND:
-				_put(img, x, y, 1, clampf(1.0 - d / SHORE_BAND, 0.0, 1.0))
+	var top_seed := float(river["top_seed"])
+	var bot_seed := float(river["bot_seed"])
+	var u := _mask_upt
+	var sp := _span(rect.grow(SHORE_BAND + 12.0))
+	for x in range(sp.position.x, sp.end.x):
+		var px := _ox + (float(x) + 0.5) * u
+		if px < rect.position.x - SHORE_BAND or px > rect.end.x + SHORE_BAND:
+			continue
+		var top := rect.position.y + WorldArt.river_bank_offset(px, top_seed)
+		var bot := rect.end.y + WorldArt.river_bank_offset(px, bot_seed)
+		for y in range(sp.position.y, sp.end.y):
+			var py := _oy + (float(y) + 0.5) * u
+			var d := maxf(top - py, py - bot)  # < 0 between the banks
+			if d < SHORE_BAND:
+				var v := clampf(1.0 - d / SHORE_BAND, 0.0, 1.0)
+				var i := y * _mw + x
+				if v > _g[i]:
+					_g[i] = v
 
 
 ## A soft pool of shade, nudged down-right of its source (the light comes from the upper-left).
-func _paint_shade(bake: Dictionary, pos: Vector2, r: float) -> void:
+func _paint_shade(pos: Vector2, r: float) -> void:
 	var c := pos + Vector2(r * 0.18, r * 0.12)
-	var tr := _texels(bake, Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0))
-	var img: Image = bake["img"]
-	for y in range(tr.position.y, tr.end.y):
-		for x in range(tr.position.x, tr.end.x):
-			var p := _world_of(bake, x, y)
-			var q := (p - c) * Vector2(1.0, 1.6)  # a flattened ellipse, like a cast shadow
-			var d := q.length() / r
-			if d < 1.0:
-				_put(img, x, y, 2, 1.0 - d * d)
+	var u := _mask_upt
+	var sp := _span(Rect2(c - Vector2(r, r), Vector2(r, r) * 2.0))
+	for y in range(sp.position.y, sp.end.y):
+		var qy := (_oy + (float(y) + 0.5) * u - c.y) * 1.6  # a flattened ellipse, like a cast shadow
+		var row := y * _mw
+		for x in range(sp.position.x, sp.end.x):
+			var qx := _ox + (float(x) + 0.5) * u - c.x
+			var d2 := (qx * qx + qy * qy) / (r * r)
+			if d2 < 1.0:
+				var v := 1.0 - d2
+				if v > _b[row + x]:
+					_b[row + x] = v
