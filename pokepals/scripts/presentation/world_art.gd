@@ -31,6 +31,7 @@ var _shore_details: Array = []  # same shape — reeds and lily pads, drawn over
 # glows): one behind WorldArt's own drawing, right over the ground, and one in front, over the water.
 var _litter_under: DrawProxy = null
 var _litter_over: DrawProxy = null
+var _glow_cells := {}  # Vector2i -> details that glow (their soft halos, drawn by WorldArt itself)
 var _understory: Array = []  # [ { pos, type } ] — bush/stump spots Scenery plants (see understory_spots)
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
@@ -287,6 +288,12 @@ func _phase_for(p: Vector2) -> float:
 	return fposmod(p.x * 0.013 + p.y * 0.021, TAU)
 
 
+## The one quality knob (art.json's "quality" entity, "detail": 1 = full): scales how much litter,
+## understory and ambient life a world gets, so a struggling phone can be turned down in one place.
+static func detail_quality(style: ArtStyle) -> float:
+	return clampf(float((style.entity("quality") as Dictionary).get("detail", 1.0)), 0.0, 2.0)
+
+
 static func _poly_box(pts: PackedVector2Array) -> Rect2:
 	var box := Rect2(pts[0], Vector2.ZERO) if not pts.is_empty() else Rect2()
 	for q in pts:
@@ -310,15 +317,17 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	_litter_over = null
 	_details.clear()
 	_shore_details.clear()
+	_glow_cells.clear()
 	_understory.clear()
 	_detail_tex = null
 	if not GroundLayer.wanted(_style):
 		return
 	var cfg := _style.entity("ground")
+	# every trail goes into the floor (a glowing vein becomes luminous moss there, by the path ramp);
+	# a glowing one still gets its breathing thread of light drawn over it in _draw
 	var dirt_paths: Array = []
 	for p in _paths:
-		if not p["glow"]:
-			dirt_paths.append(p["pts"])
+		dirt_paths.append(p["pts"])
 	var ponds: Array = []
 	for pd in _ponds:
 		ponds.append({ "center": pd["center"], "radius": pd["radius"], "seed": _phase_for(pd["center"]) })
@@ -349,20 +358,64 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	if not _detail_rects.is_empty():
 		_scatter_details(data, cfg.get("scatter", {}), dirt_paths)
 		# behind WorldArt's drawing, but added after the ground so it lands on top of it
-		_litter_under = _make_litter_proxy("LitterUnder", true, _details)
-		_litter_over = _make_litter_proxy("LitterOver", false, _shore_details)
+		_litter_under = _make_litter_proxy("LitterUnder", true, _bucket(_details))
+		_litter_over = _make_litter_proxy("LitterOver", false, _bucket(_shore_details))
 
 
-func _make_litter_proxy(proxy_name: String, behind: bool, list: Array) -> DrawProxy:
+## Litter is grouped into square BUCKETS of world space, so a frame only walks the buckets on screen
+## instead of every tuft in the world (a big world holds thousands). Each bucket keeps its back-to-front
+## order; buckets are drawn row by row. { Vector2i cell: Array of details }.
+const LITTER_CELL := 160.0
+
+func _bucket(list: Array) -> Dictionary:
+	var cells := {}
+	for d in list:
+		var p: Vector2 = d["pos"]
+		var key := Vector2i(floori(p.x / LITTER_CELL), floori(p.y / LITTER_CELL))
+		if not cells.has(key):
+			cells[key] = []
+		cells[key].append(d)
+	return cells
+
+
+func _make_litter_proxy(proxy_name: String, behind: bool, cells: Dictionary) -> DrawProxy:
 	var proxy := DrawProxy.new()
 	proxy.name = proxy_name
 	proxy.show_behind_parent = behind
 	proxy.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	proxy.draw_fn = func(ci: CanvasItem) -> void:
-		var vis := ViewCull.visible_world_rect(ci, CULL_MARGIN)
-		_draw_details(ci, list, vis, vis.has_area())
+		var vis := ViewCull.visible_world_rect(ci, 24.0)
+		if not vis.has_area():
+			for key in cells:   # headless / no camera: draw it all
+				_draw_details(ci, cells[key], vis, false)
+			return
+		var x0 := floori(vis.position.x / LITTER_CELL)
+		var x1 := floori(vis.end.x / LITTER_CELL)
+		for cy in range(floori(vis.position.y / LITTER_CELL), floori(vis.end.y / LITTER_CELL) + 1):
+			for cx in range(x0, x1 + 1):
+				var bucket: Array = cells.get(Vector2i(cx, cy), [])
+				if not bucket.is_empty():
+					_draw_details(ci, bucket, vis, true)
 	add_child(proxy)
 	return proxy
+
+
+## The meadow's litter, used for any key a world's ground.scatter doesn't name. A world (Nocthollow)
+## swaps in its own sets; see data/art.json's ground entity.
+const DEFAULT_SCATTER := {
+	"open": [
+		{ "names": ["tuft_a", "tuft_b", "tuft_c"], "weight": 52, "count": [4, 10], "sway": 0.35, "tinted": true },
+		{ "names": ["clover"], "weight": 10, "tinted": true },
+		{ "names": ["pebbles"], "weight": 9 },
+		{ "names": ["daisies"], "weight": 8 },
+		{ "names": ["twig"], "weight": 5 },
+		{ "names": ["stone", "stone_b"], "weight": 3 },
+	],
+	"under_trees": { "names": ["leaf_gold", "leaf_rust"], "ring": ["mushroom"] },
+	"path_edge": ["pebbles", "pebbles", "pebbles", "pebbles", "pebbles", "pebbles", "stone", "stone_b"],
+	"reeds": ["reed_a", "reed_a", "reed_a", "reed_b", "reed_b"],
+	"lilies": ["lily", "lily", "lily", "lily_bloom"],
+}
 
 
 ## Is `p` on open, dry, unpathed ground (where litter may lie)?
@@ -383,7 +436,7 @@ func _open_ground(p: Vector2, path_clear: float) -> bool:
 func _add_detail(list: Array, name: String, p: Vector2, sway: float = 0.0, tint := Color.WHITE) -> void:
 	if not _detail_rects.has(name):
 		return
-	list.append({ "pos": p.round(), "rect": _detail_rects[name], "phase": _phase_for(p), "sway": sway, "tint": tint })
+	list.append({ "name": name, "pos": p.round(), "rect": _detail_rects[name], "phase": _phase_for(p), "sway": sway, "tint": tint })
 
 
 ## Scatter the ground's litter in natural CLUSTERS (a patch of tufts, a ring of mushrooms by a trunk,
@@ -392,7 +445,7 @@ func _add_detail(list: Array, name: String, p: Vector2, sway: float = 0.0, tint 
 func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xD371A + int(_bounds.position.x) * 7 + int(_bounds.size.y)
-	var density := float(scfg.get("density", 1.0))
+	var density := float(scfg.get("density", 1.0)) * detail_quality(_style)
 	# a world can re-tint its living litter (a sun-baked market's tufts are straw, not green)
 	var grass_tint := WorldData.to_color(scfg.get("grass_tint", [1.0, 1.0, 1.0]))
 	var area := _bounds.size.x * _bounds.size.y
@@ -403,55 +456,54 @@ func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
 	for lm in data.get("landmarks", []):
 		trees.append(WorldData.to_vec2(lm["position"]))
 
-	# open-ground clusters
-	var kinds := [
-		["tuft", 52], ["clover", 10], ["pebbles", 9], ["daisies", 8], ["twig", 5], ["stone", 3],
-	]
+	# open-ground clusters: weighted SETS of litter (a set = some sprites + how many per cluster)
+	var sets: Array = scfg.get("open", DEFAULT_SCATTER["open"])
 	var total := 0
-	for k in kinds:
-		total += int(k[1])
-	var clusters := int(clampf(area / 7000.0 * density, 20.0, 1600.0))
+	for st in sets:
+		total += int(st.get("weight", 1))
+	var clusters := int(clampf(area / 7000.0 * density, 20.0, 1600.0)) if total > 0 else 0
 	for _i in clusters:
 		var c := Vector2(_bounds.position.x + rng.randf() * _bounds.size.x, _bounds.position.y + rng.randf() * _bounds.size.y)
 		var roll := rng.randi() % total
-		var kind := "tuft"
-		for k in kinds:
-			roll -= int(k[1])
+		var st: Dictionary = sets[0]
+		for cand in sets:
+			roll -= int(cand.get("weight", 1))
 			if roll < 0:
-				kind = k[0]
+				st = cand
 				break
-		var n := rng.randi_range(4, 10) if kind == "tuft" else rng.randi_range(1, 4)
+		var names: Array = st.get("names", [])
+		if names.is_empty():
+			continue
+		var count: Array = st.get("count", [1, 4])
+		var n := rng.randi_range(int(count[0]), int(count[1]))
+		var sway := float(st.get("sway", 0.0))
+		var tint := grass_tint if bool(st.get("tinted", false)) else Color.WHITE
 		var spread := rng.randf_range(10.0, 28.0)
 		for _j in n:
 			var p := c + Vector2(rng.randfn(0.0, spread), rng.randfn(0.0, spread * 0.7))
-			if not _open_ground(p, 0.3):
-				continue
-			match kind:
-				"tuft":
-					_add_detail(_details, ["tuft_a", "tuft_b", "tuft_c"][rng.randi() % 3], p, 0.35, grass_tint)
-				"clover":
-					_add_detail(_details, "clover", p, 0.0, grass_tint)
-				"stone":
-					_add_detail(_details, "stone_b" if rng.randf() < 0.5 else "stone", p)
-				_:
-					_add_detail(_details, kind, p)
+			if _open_ground(p, 0.3):
+				_add_detail(_details, String(names[rng.randi() % names.size()]), p, sway, tint)
 
-	# under the trees: fallen leaves, mushrooms by the roots, a twig or two
+	# under the trees: litter fallen around the trunk, and a little ring of something by the roots
+	var under: Dictionary = scfg.get("under_trees", DEFAULT_SCATTER["under_trees"])
+	var fallen: Array = under.get("names", [])
+	var ring: Array = under.get("ring", [])
 	for t in trees:
-		if rng.randf() < 0.55:
+		if not fallen.is_empty() and rng.randf() < 0.55:
 			for _j in rng.randi_range(1, 4):
 				var p: Vector2 = t + Vector2(rng.randfn(0.0, 16.0), rng.randfn(4.0, 9.0))
 				if _open_ground(p, 0.5):
-					_add_detail(_details, "leaf_gold" if rng.randf() < 0.5 else "leaf_rust", p)
-		if rng.randf() < 0.3:
+					_add_detail(_details, String(fallen[rng.randi() % fallen.size()]), p)
+		if not ring.is_empty() and rng.randf() < 0.3:
 			var a := rng.randf() * TAU
 			for _j in rng.randi_range(1, 3):
 				var p: Vector2 = t + Vector2(cos(a), sin(a) * 0.6) * rng.randf_range(12.0, 20.0) + Vector2(rng.randfn(0.0, 3.0), rng.randfn(0.0, 2.0))
 				if _open_ground(p, 0.5):
-					_add_detail(_details, "mushroom", p)
+					_add_detail(_details, String(ring[rng.randi() % ring.size()]), p)
 
 	# where a trail frays: pebbles on its shoulders and the odd half-sunk stone
-	for pts in paths:
+	var edge: Array = scfg.get("path_edge", DEFAULT_SCATTER["path_edge"])
+	for pts in (paths if not edge.is_empty() else []):
 		var acc := 0.0
 		for k in range(1, pts.size()):
 			acc += pts[k].distance_to(pts[k - 1])
@@ -463,15 +515,28 @@ func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
 			var tangent: Vector2 = (pts[k] - pts[k - 1]).normalized()
 			var side := 1.0 if rng.randf() < 0.5 else -1.0
 			var p: Vector2 = pts[k] + Vector2(-tangent.y, tangent.x) * side * rng.randf_range(9.0, 15.0)
-			var kind := "pebbles" if rng.randf() < 0.7 else ("stone" if rng.randf() < 0.5 else "stone_b")
-			_add_detail(_details, kind, p)
+			_add_detail(_details, String(edge[rng.randi() % edge.size()]), p)
 
 	# the spec's own flowers, as tinted pixel flowers
 	for f in _flowers:
 		_add_detail(_details, "flower", f["pos"], 0.45, f["color"])
 
-	_pick_understory(rng, trees, float((_style.entity("understory") as Dictionary).get("density", 1.0)))
-	_scatter_shores(rng, density)
+	_pick_understory(rng, trees, float((_style.entity("understory") as Dictionary).get("density", 1.0)) * detail_quality(_style))
+	_scatter_shores(rng, density, scfg.get("reeds", DEFAULT_SCATTER["reeds"]), scfg.get("lilies", DEFAULT_SCATTER["lilies"]))
+	# litter that glows gets a soft halo (see _draw_litter_glow)
+	var glow: Dictionary = scfg.get("glow", {})
+	for list in [_details, _shore_details]:
+		for d in list:
+			if glow.has(d["name"]):
+				d["glow"] = WorldData.to_color(glow[d["name"]])
+	_glow_cells.clear()
+	for list in [_details, _shore_details]:
+		for d in list:
+			if d.has("glow"):
+				var key := Vector2i(floori(d["pos"].x / LITTER_CELL), floori(d["pos"].y / LITTER_CELL))
+				if not _glow_cells.has(key):
+					_glow_cells[key] = []
+				_glow_cells[key].append(d)
 	# draw back-to-front so a nearer tuft overlaps a farther one
 	_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)
 	_shore_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)
@@ -523,7 +588,11 @@ func understory_spots() -> Array:
 
 
 ## Reeds in clumps along every shore and lily pads resting on the water.
-func _scatter_shores(rng: RandomNumberGenerator, density: float) -> void:
+func _scatter_shores(rng: RandomNumberGenerator, density: float, reeds: Array, lilies: Array) -> void:
+	if reeds.is_empty() and lilies.is_empty():
+		return
+	var pick := func(names: Array) -> String:
+		return String(names[rng.randi() % names.size()]) if not names.is_empty() else ""
 	for pd in _ponds:
 		var c: Vector2 = pd["center"]
 		var radius := float(pd["radius"])
@@ -534,11 +603,11 @@ func _scatter_shores(rng: RandomNumberGenerator, density: float) -> void:
 			for _j in rng.randi_range(2, 4):
 				var aa := a + rng.randf_range(-0.09, 0.09)
 				var r := organic_radius(aa, radius, seed) + rng.randf_range(-3.0, 2.0)
-				_add_detail(_shore_details, "reed_a" if rng.randf() < 0.6 else "reed_b", c + Vector2(cos(aa), sin(aa)) * r, 0.5)
+				_add_detail(_shore_details, pick.call(reeds), c + Vector2(cos(aa), sin(aa)) * r, 0.5)
 		for _i in int(radius * radius / 1500.0 * density):
 			var a := rng.randf() * TAU
 			var r := organic_radius(a, radius, seed) * rng.randf_range(0.3, 0.82)
-			_add_detail(_shore_details, "lily_bloom" if rng.randf() < 0.25 else "lily", c + Vector2(cos(a), sin(a)) * r)
+			_add_detail(_shore_details, pick.call(lilies), c + Vector2(cos(a), sin(a)) * r)
 	if not _river.is_empty():
 		var rr: Rect2 = _river["rect"]
 		var x := rr.position.x + rng.randf_range(0.0, 40.0)
@@ -548,11 +617,33 @@ func _scatter_shores(rng: RandomNumberGenerator, density: float) -> void:
 					var by: float = bank[0] + river_bank_offset(x, bank[1])
 					for _j in rng.randi_range(2, 4):
 						var px := x + rng.randf_range(-8.0, 8.0)
-						_add_detail(_shore_details, "reed_a" if rng.randf() < 0.6 else "reed_b", Vector2(px, by + rng.randf_range(-2.0, 3.0) * float(bank[2])), 0.5)
+						_add_detail(_shore_details, pick.call(reeds), Vector2(px, by + rng.randf_range(-2.0, 3.0) * float(bank[2])), 0.5)
 				if rng.randf() < 0.25:
 					var ly: float = bank[0] + river_bank_offset(x, bank[1]) + float(bank[2]) * rng.randf_range(10.0, 26.0)
-					_add_detail(_shore_details, "lily", Vector2(x + rng.randf_range(-10.0, 10.0), ly))
+					_add_detail(_shore_details, pick.call(lilies), Vector2(x + rng.randf_range(-10.0, 10.0), ly))
 			x += rng.randf_range(34.0, 70.0)
+
+
+## The halos of glowing litter, one soft breathing pool each, drawn here (linear filtering) rather than
+## in the NEAREST litter proxies, so the light stays smooth while the sprites stay crisp. Only the
+## buckets on screen are walked.
+func _draw_litter_glow(vis: Rect2, cull: bool) -> void:
+	if _glow_cells.is_empty():
+		return
+	var keys: Array = []
+	if cull:
+		for cy in range(floori(vis.position.y / LITTER_CELL), floori(vis.end.y / LITTER_CELL) + 1):
+			for cx in range(floori(vis.position.x / LITTER_CELL), floori(vis.end.x / LITTER_CELL) + 1):
+				if _glow_cells.has(Vector2i(cx, cy)):
+					keys.append(Vector2i(cx, cy))
+	else:
+		keys = _glow_cells.keys()
+	for key in keys:
+		for d in _glow_cells[key]:
+			var c: Color = d["glow"]
+			var breathe := 0.75 + 0.25 * sin(_time * 1.3 + float(d["phase"]) * 3.0)
+			var r: Rect2 = d["rect"]
+			SoftGlow.draw(self, (d["pos"] as Vector2) + Vector2(0, -r.size.y * 0.5), 9.0 * breathe, Color(c.r, c.g, c.b, 0.34 * breathe))
 
 
 ## Draw one batch of details (culled), each tuft/reed nodding a whole pixel at a time in the breeze.
@@ -783,7 +874,8 @@ func _draw() -> void:
 		if cull and not vis.intersects((p["box"] as Rect2).grow(8.0)):
 			continue
 		var pts: PackedVector2Array = p["pts"]
-		draw_polyline(pts, p["color"], 16.0)
+		if _ground == null:
+			draw_polyline(pts, p["color"], 16.0)   # on the pixel ground the floor itself is the trail
 		if p["glow"]:
 			var pc: Color = (p["color"] as Color).lightened(0.4)
 			var core: Color = (p["color"] as Color).lightened(0.6)
@@ -848,6 +940,9 @@ func _draw() -> void:
 		_draw_shallows(pond["shallows"], pond["foam"], vis if cull else Rect2())
 		for run in pond["shore"]:
 			draw_polyline(run, _water_rim, 2.0)
+
+	# soft halos around glowing litter (a night world's glowcaps, shards, reeds, lilies)
+	_draw_litter_glow(vis, cull)
 
 	# (reeds and lily pads, over the water's edge, are drawn by _litter_over)
 

@@ -32,6 +32,7 @@ var _fireflies: Array = []    # [{ pos, home, phase }]
 var _clouds: Array = []       # [{ pos, r, lobes: [Vector2 offsets] }]
 var _leaves: Array = []       # [{ pos, ground, phase, landed, color }]
 var _shadow := Color(0.05, 0.07, 0.10)
+var _quality := 1.0   # art.json's quality.detail: scales the creature counts and leaf rate
 
 
 func setup(bounds: Rect2, style: ArtStyle, tree_positions: PackedVector2Array, wind_strength: float) -> void:
@@ -44,6 +45,7 @@ func setup(bounds: Rect2, style: ArtStyle, tree_positions: PackedVector2Array, w
 	_ff_cfg = cfg.get("fireflies", {})
 	_cloud_cfg = cfg.get("clouds", {})
 	_leaf_cfg = cfg.get("leaves", {})
+	_quality = WorldArt.detail_quality(style)
 	_wind = Vector2(1.0, 0.25).normalized() * clampf(wind_strength / 2.6, 0.4, 2.0)
 	for i in int(_cloud_cfg.get("count", 0)):
 		var r := _rng.randf_range(140.0, 240.0)
@@ -94,7 +96,7 @@ func _tick_clouds(delta: float) -> void:
 ## ---- butterflies ----
 
 func _tick_butterflies(delta: float, vis: Rect2) -> void:
-	var want := int(_bf_cfg.get("count", 0))
+	var want := int(float(_bf_cfg.get("count", 0)) * _quality)
 	var colors: Array = _bf_cfg.get("colors", [[0.98, 0.86, 0.40]])
 	while _butterflies.size() < want:
 		_butterflies.append({
@@ -124,7 +126,7 @@ func _tick_butterflies(delta: float, vis: Rect2) -> void:
 ## ---- fireflies ----
 
 func _tick_fireflies(delta: float, vis: Rect2) -> void:
-	var want := int(_ff_cfg.get("count", 0))
+	var want := int(float(_ff_cfg.get("count", 0)) * _quality)
 	while _fireflies.size() < want:
 		var h := _random_in(vis)
 		_fireflies.append({ "pos": h, "home": h, "phase": _rng.randf() * TAU })
@@ -146,7 +148,7 @@ func _firefly_strength() -> float:
 ## ---- leaves ----
 
 func _tick_leaves(delta: float, vis: Rect2) -> void:
-	var rate := float(_leaf_cfg.get("rate", 0.0))
+	var rate := float(_leaf_cfg.get("rate", 0.0)) * _quality
 	var colors: Array = _leaf_cfg.get("colors", [[0.82, 0.62, 0.24]])
 	if rate > 0.0 and _leaves.size() < 40:
 		for t in _trees:

@@ -72,16 +72,53 @@ func build(bounds: Rect2, style: ArtStyle, shapes: Dictionary) -> void:
 	while acc.size() < 4:
 		acc.append(acc[0] if not acc.is_empty() else Vector3.ONE)
 	mat.set_shader_parameter("accents", acc)
+	# The slow noise fields, baked once into small textures the shader samples (see _noise_texture).
 	var patches: Dictionary = cfg.get("patches", {})
-	for k in ["lush", "meadow", "dirt"]:
-		var pc: Dictionary = patches.get(k, {})
-		if not pc.is_empty():
-			mat.set_shader_parameter(k, Vector2(float(pc.get("scale", 0.005)), float(pc.get("threshold", 0.7))))
-	mat.set_shader_parameter("seed", fposmod(bounds.position.x * 0.37 + bounds.size.y * 0.11, 97.0))
+	var seed := int(fposmod(bounds.position.x * 0.37 + bounds.size.y * 0.11, 97.0))
+	var thresholds := Vector3(0.58, 0.63, 0.80)
+	var defaults := { "lush": 0.0045, "meadow": 0.006, "dirt": 0.0065 }
+	var k := 0
+	for field in ["lush", "meadow", "dirt"]:
+		var pc: Dictionary = patches.get(field, {})
+		thresholds[k] = float(pc.get("threshold", thresholds[k]))
+		mat.set_shader_parameter("noise_" + field, _noise_texture(bounds, float(pc.get("scale", defaults[field])), seed + 11 * (k + 1), 3, 2.03, 0.5))
+		k += 1
+	mat.set_shader_parameter("thresholds", thresholds)
+	# light/dark clumping: a broad swell with a finer one riding on it (four octaves, wide lacunarity)
+	var clump: Dictionary = cfg.get("clump", {})
+	mat.set_shader_parameter("noise_clump", _noise_texture(bounds, float(clump.get("scale", 0.011)), seed + 71, 4, 2.73, 0.55))
+	mat.set_shader_parameter("clump_cut", Vector2(float(clump.get("dark", 0.35)), float(clump.get("light", 0.65))))
+	mat.set_shader_parameter("seed", float(seed))
+	# how much the canopy shade darkens the floor (a night world under glowing growths wants less)
+	mat.set_shader_parameter("shade_amount", float(cfg.get("shade", 1.0)))
 	_mask = _bake_mask(bounds, shapes)
 	mat.set_shader_parameter("mask", ImageTexture.create_from_image(_mask))
 	material = mat
 	queue_redraw()
+
+
+## One slow noise field over the world's bounds, as a small linearly-filtered texture: Godot's native
+## FastNoiseLite (value noise, fractal FBM) fills it in one call, so there's no per-pixel GDScript and
+## no per-frame cost. A texel spans NOISE_UPT+ world units — these fields are broad (tens to hundreds of
+## units), and linear filtering keeps them smooth between texels. normalize=false maps the noise's
+## -1..1 onto 0..1 the same way for every world, so a threshold means the same coverage everywhere.
+const NOISE_UPT := 4.0
+const MAX_NOISE := 1024
+
+func _noise_texture(bounds: Rect2, scale: float, seed: int, octaves: int, lacunarity: float, gain: float) -> ImageTexture:
+	var upt := maxf(NOISE_UPT, ceilf(maxf(bounds.size.x, bounds.size.y) / float(MAX_NOISE)))
+	var w := maxi(1, int(ceilf(bounds.size.x / upt)))
+	var h := maxi(1, int(ceilf(bounds.size.y / upt)))
+	var n := FastNoiseLite.new()
+	n.noise_type = FastNoiseLite.TYPE_VALUE
+	n.fractal_type = FastNoiseLite.FRACTAL_FBM
+	n.fractal_octaves = octaves
+	n.fractal_lacunarity = lacunarity
+	n.fractal_gain = gain
+	n.frequency = scale * upt   # the image is sampled once per texel; a texel is `upt` world units
+	n.seed = seed
+	n.offset = Vector3(bounds.position.x / upt, bounds.position.y / upt, 0.0)  # anchored to the world
+	return ImageTexture.create_from_image(n.get_image(w, h, false, false, false))
 
 
 ## How "on a path" a world point is (the mask's R: 1 on a trail's centre line, 0 well clear of it), so
