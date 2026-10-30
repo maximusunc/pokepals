@@ -71,7 +71,7 @@ var _customizer: AvatarCustomizer
 
 var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, kind, render_index, hunt_index? } ]
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed, gateway? } ]
-# The Gateway's world picker while it's open (the world is paused under it), else null.
+# The Gateway's world picker while it's open (the world keeps living under it), else null.
 var _picker: WorldPicker
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
 # whether its world effect has fired yet. The controller watches the companion approach (Ruin-referee
@@ -779,8 +779,8 @@ func _on_gear_item(id: String) -> void:
 
 
 ## First-run CREATION: a brand-new player picks their look before the world seeds their save. Opens the
-## customizer in "create" mode (the overlay pauses the world under it, since the lobby just faded) so they
-## dress before wandering. On confirm, PresenceDirector.apply_local_look performs the first push_save.
+## customizer in "create" mode (the world lives on under it, but you can't walk off until you're done) so
+## they dress before wandering. On confirm, PresenceDirector.apply_local_look performs the first push_save.
 func _open_creation() -> void:
 	_open_customizer("create")
 
@@ -799,7 +799,7 @@ func _open_customizer(mode: String) -> void:
 	# Seed from the live look. In "create" mode that live look is the fresh default (nothing saved yet).
 	var start := PlayerAppearance.from_dict(_player.appearance_dict(), _cosmetics)
 	_customizer = AvatarCustomizer.new()
-	_customizer.process_mode = Node.PROCESS_MODE_ALWAYS   # animate + take input even while paused
+	_customizer.process_mode = Node.PROCESS_MODE_ALWAYS   # still works if the lobby gate pauses the tree
 	_customizer.setup(_cosmetics, start, mode, _shop_dir.balance() if _shop_dir != null else 0)
 	_customizer.confirmed.connect(func(look: Dictionary) -> void:
 		_presence_dir.apply_local_look(look)
@@ -807,15 +807,25 @@ func _open_customizer(mode: String) -> void:
 	if mode == "wardrobe":
 		_customizer.canceled.connect(_close_customizer)
 	$UI.add_child(_customizer)
-	get_tree().paused = true   # a modal: freeze the world so nothing wanders off behind the overlay
+	_set_menu_open(true)
 
 
 func _close_customizer() -> void:
 	if _customizer == null:
 		return
-	get_tree().paused = false
+	_set_menu_open(false)
 	_customizer.queue_free()
 	_customizer = null
+
+
+## A menu (the wardrobe, the Gateway's picker) is up over the world. The world is SHARED, so it never
+## pauses behind a menu — friends keep walking past, your companion keeps sitting by you, the pals keep
+## wandering. Only YOUR control stands down: no steering (keys typed into a search box, a held stick),
+## and no Examine/Call/Pet keys. The full-screen menu already catches every tap, so no companion order
+## can leak through to the world-tap catcher. Others just see you standing there while you browse.
+func _set_menu_open(open: bool) -> void:
+	_player.input_enabled = not open
+	_joystick.enabled = not open
 
 
 ## Leave the session on purpose. Persist the companion one last time (the graceful close in
@@ -871,8 +881,9 @@ func _on_companion_found() -> void:
 
 
 func _unhandled_input(event: InputEvent) -> void:
-	# Input does nothing until the world is built (the lobby owns the screen until then).
-	if not _world_built:
+	# Input does nothing until the world is built (the lobby owns the screen until then), or while a
+	# menu is up over it (see _set_menu_open).
+	if not _world_built or _customizer != null or _picker != null:
 		return
 	if event.is_action_pressed("ui_accept"):
 		_try_interact()
@@ -1270,7 +1281,7 @@ func _update_portals(_delta: float) -> void:
 			return
 
 
-## Walk into the Gateway: open the world picker over a paused world. The gateway disarms at once, so
+## Walk into the Gateway: open the world picker over the (still-living) world. The gateway disarms at once, so
 ## backing out leaves you standing in it without it reopening until you step clear. The picker asks
 ## the server's directory through Net; choosing a world travels there (see _on_gateway_world_chosen).
 func _open_gateway(gateway: Dictionary) -> void:
@@ -1284,7 +1295,7 @@ func _open_gateway(gateway: Dictionary) -> void:
 ## Put the world picker up for `gateway` (split from _open_gateway so the offline smoke test can drive it).
 func _show_world_picker(gateway: Dictionary) -> void:
 	_picker = WorldPicker.new()
-	_picker.process_mode = Node.PROCESS_MODE_ALWAYS  # animate + take input while the world is paused
+	_picker.process_mode = Node.PROCESS_MODE_ALWAYS  # still works if the lobby gate pauses the tree
 	if gateway.has("color"):
 		_picker.tint = gateway["color"]
 	_picker.fetch_requested.connect(func(query: String, req: int, offset: int) -> void: Net.list_worlds(query, req, offset))
@@ -1295,22 +1306,21 @@ func _show_world_picker(gateway: Dictionary) -> void:
 	if not Net.disconnected.is_connected(_dismiss_picker):
 		Net.disconnected.connect(_dismiss_picker)
 	$UI.add_child(_picker)
-	get_tree().paused = true  # a modal, like the wardrobe: nothing wanders off behind it
+	_set_menu_open(true)
 
 
 func _close_gateway() -> void:
-	if _picker == null:
-		return
-	get_tree().paused = false
 	_dismiss_picker()
 
 
-## Take the picker down without touching the pause (the caller, or the lobby, owns that).
+## Take the picker down and hand control back. (On a dropped link the lobby gate comes up and pauses
+## the tree itself; the picker just steps aside.)
 func _dismiss_picker() -> void:
 	if _picker == null:
 		return
 	_picker.queue_free()  # freeing it drops its Net.world_list_received connection too
 	_picker = null
+	_set_menu_open(false)
 
 
 ## A world was picked at the Gateway: close the picker, fade out, and travel there (arriving at its own
@@ -1318,14 +1328,11 @@ func _dismiss_picker() -> void:
 func _on_gateway_world_chosen(world_id: String, world_name: String, gateway_id: String) -> void:
 	_transitioning = true
 	_show_hint("You step through the great gate toward %s…" % world_name)
-	# The picker melts away on its own while we fade to black. The world stays PAUSED the whole way (so
-	# nothing wanders mid-fade), which is why this tween is told to keep running while paused; it's
-	# unpaused only at the very end, as we leave.
-	var tw := create_tween().set_pause_mode(Tween.TWEEN_PAUSE_PROCESS)
+	# The picker melts away on its own while we fade to black. Your control stays off through the fade
+	# (the picker is still up until we leave), so you don't wander out of the gate mid-trip.
+	var tw := create_tween()
 	tw.tween_property(_fade, "color:a", 1.0, 0.45)
-	tw.tween_callback(func() -> void:
-		get_tree().paused = false
-		WorldRouter.go_via_gateway(world_id, gateway_id))
+	tw.tween_callback(func() -> void: WorldRouter.go_via_gateway(world_id, gateway_id))
 
 
 ## Travel through a portal: fade to black, then hand off to WorldRouter to load the target world

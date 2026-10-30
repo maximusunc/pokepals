@@ -12,8 +12,8 @@ extends Control
 ##
 ## It arrives and leaves SOFTLY: the world dims into a dusky wash of the gate's colour while the panel
 ## fades in and settles, and backing out plays that in reverse. Picking a world melts the panel away
-## while the controller fades the screen to black for the trip. All of it is tweens on this node, which
-## runs while the world is paused (the controller gives it PROCESS_MODE_ALWAYS).
+## while the controller fades the screen to black for the trip. All of it is tweens on this node. The
+## world is NOT paused under it (it's shared); the controller just stands your own steering down.
 
 ## Ask the server for a page of the directory (relayed to Net.list_worlds).
 signal fetch_requested(query: String, req: int, offset: int)
@@ -152,8 +152,7 @@ func _build_ui() -> void:
 	stay.pressed.connect(_close)
 	box.add_child(stay)
 
-	# A one-shot Timer restarted on every keystroke: the search only fires once typing settles. (It
-	# inherits the picker's PROCESS_MODE_ALWAYS, so it keeps ticking while the world is paused.)
+	# A one-shot Timer restarted on every keystroke: the search only fires once typing settles.
 	_debounce = Timer.new()
 	_debounce.one_shot = true
 	_debounce.wait_time = SEARCH_DEBOUNCE

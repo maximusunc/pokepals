@@ -16,6 +16,13 @@ extends Control
 @export var grab_pad := 22.0      # extra radius past the base that still counts as grabbing the stick
 
 var direction := Vector2.ZERO
+## Off while a menu is up over the live world: the stick lets go and ignores presses (it reads input in
+## _input, BEFORE the GUI, so without this it would still grab under a full-screen menu).
+var enabled := true:
+	set(value):
+		enabled = value
+		if not enabled and _active:
+			_release()
 
 var _use_mouse := false           # desktop (no touchscreen) drives the stick with the mouse
 var _active := false
@@ -31,9 +38,17 @@ func _ready() -> void:
 
 ## Reflow to the bottom-left corner whenever the (full-rect) control resizes — i.e. on window resize.
 ## Guarded like the other HUD chips: the first NOTIFICATION_RESIZED can arrive before _ready().
+##
+## Let go when the tree pauses. The lobby gate (a dropped connection) pauses the world, and a paused
+## node gets no _input — so the finger lifting off the stick is never heard, and on unpause the stick
+## would still be held, walking you in a straight line forever. Releasing on pause means you come back
+## standing still; just press the stick again to walk. (Menus over the live world don't pause it —
+## they switch `enabled` off instead.)
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_layout()
+	elif what == NOTIFICATION_PAUSED and _active:
+		_release()
 
 
 func _layout() -> void:
@@ -51,6 +66,8 @@ func contains_point(point: Vector2) -> bool:
 
 
 func _input(event: InputEvent) -> void:
+	if not enabled:
+		return
 	if _use_mouse:
 		_handle_mouse(event)
 	else:

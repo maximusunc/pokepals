@@ -2,8 +2,9 @@ extends SceneTree
 ## Headless smoke test for the Vale's Gateway. Loads the real World scene (the Vale) offline as if we'd
 ## just come home through the gateway, then checks: the gateway sits beside the four small direct
 ## portals; we arrived standing clear of it (disarmed, no instant reopen); walking into it offline only
-## shows a hint; the picker opens over a paused world, shows the server's cards (dropping a stale
-## answer), backs out cleanly, and picking a world closes it and starts the trip; and WorldRouter sends
+## shows a hint; the picker opens over the LIVE world (never paused — it's shared) with your own
+## steering stood down, shows the server's cards (dropping a stale answer), backs out cleanly handing
+## control back, and picking a world starts the trip; and WorldRouter sends
 ## the trip home back to the gateway exactly once. Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_gateway.gd
 
@@ -59,10 +60,11 @@ func _process(_delta: float) -> bool:
 	fails += _check(_world._picker == null, "offline, the gateway doesn't open a picker")
 	fails += _check(not bool(gw["armed"]), "…and it disarms so it doesn't nag every frame")
 
-	# The picker: opens over a paused world and asks for the first page.
+	# The picker: opens over the live world (shared, so never paused), standing only our steering down.
 	_world._show_world_picker(gw)
 	var picker = _world._picker
-	fails += _check(picker != null and paused, "the picker opens over a paused world")
+	fails += _check(picker != null and not paused, "the picker opens over a live, unpaused world")
+	fails += _check(not _world._player.input_enabled and not _world._joystick.enabled, "…with our own steering stood down")
 	fails += _check(picker._center.modulate.a < 0.01 and picker._backdrop.modulate.a < 0.01, "it starts invisible, to fade in softly")
 	fails += _check(picker.tint == gw["color"], "the backdrop takes the gate's colour")
 	var net := root.get_node("/root/Net")
@@ -75,9 +77,9 @@ func _process(_delta: float) -> bool:
 	net.emit_signal("world_list_received", 1, 0, cards, false)
 	fails += _check(_card_count(picker) == 2, "the server's cards are listed (%d)" % _card_count(picker))
 
-	# Backing out fades away first (the world stays paused until it's gone)…
+	# Backing out fades away first (steering stays off until it's gone)…
 	picker._close()
-	fails += _check(_world._picker == picker and paused, "backing out fades the picker before closing it")
+	fails += _check(_world._picker == picker and not _world._player.input_enabled, "backing out fades the picker before closing it")
 	# …then resumes the world and leaves the gateway quiet until we step away. (Re-open with the fade
 	# switched off so the close lands this frame; the fading one above is replaced.)
 	_world._dismiss_picker()
@@ -85,24 +87,24 @@ func _process(_delta: float) -> bool:
 	picker = _world._picker
 	picker.fade_out_time = 0.0
 	picker._close()
-	fails += _check(_world._picker == null and not paused, "backing out closes the picker and unpauses")
+	fails += _check(_world._picker == null and _world._player.input_enabled and _world._joystick.enabled, "backing out closes the picker and hands steering back")
 	_world._update_portals(0.016)
 	fails += _check(_world._picker == null, "standing in the gateway after backing out doesn't reopen it")
 
-	# A dropped link takes the picker down but leaves the pause to the lobby gate.
+	# A dropped link takes the picker down (the lobby gate takes over, pausing the tree itself).
 	_world._show_world_picker(gw)
 	net.emit_signal("disconnected")
-	fails += _check(_world._picker == null and paused, "a disconnect dismisses the picker, leaving the world paused for the lobby")
+	fails += _check(_world._picker == null and _world._player.input_enabled, "a disconnect dismisses the picker and releases our steering")
 	paused = false
 
-	# Picking a world starts the fade-to-black trip; the picker melts away and the world stays paused
-	# until the very end, so nothing wanders mid-fade.
+	# Picking a world starts the fade-to-black trip; the picker melts away and our steering stays off
+	# until we leave, so we don't wander out of the gate mid-fade.
 	_world._show_world_picker(gw)
 	picker = _world._picker
 	net.emit_signal("world_list_received", 1, 0, cards, false)
 	picker._on_card_pressed("r", "The Ruin")
 	fails += _check(_world._transitioning, "choosing a world begins the trip")
-	fails += _check(paused, "…with the world held paused through the fade")
+	fails += _check(not paused and not _world._player.input_enabled, "…with the world live but our steering held off through the fade")
 	picker._on_card_pressed("b", "The Bazaar")
 	fails += _check(String(_world._hint.text).contains("The Ruin"), "a second tap mid-fade can't redirect the trip")
 
