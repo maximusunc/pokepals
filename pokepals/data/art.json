@@ -17,8 +17,37 @@
 		"companion": { "render": "sprite", "sprite": "res://assets/sprites/companion.png", "frame": [32, 32], "fps": 8, "walk_frames": 4, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }, "ear_row": 3, "tail_row": 4, "tail_sway_px": 3.5, "body": [0.55, 0.40, 0.27], "accent": [0.72, 0.56, 0.38] }
 	},
 	"entities": {
-		"tree": { "render": "sprite", "trunk": "res://assets/sprites/tree_trunk.png", "canopy": "res://assets/sprites/tree_canopy.png" },
-		"great_tree": { "render": "sprite", "trunk": "res://assets/sprites/great_tree_trunk.png", "canopy": "res://assets/sprites/great_tree_canopy.png" },
+		"_tree_comment": "The grove (tools/gen_trees.py over tools/pixelart/trees.py): seeded round trees, oaks, birches, pines, a willow, fruit and blossom trees and a rare autumn one, each a trunk + a swaying canopy. Scenery picks one per tree by hashing its position, so neighbours rarely match; list a name more than once to make it commoner. A world's art block may replace the list (Nocthollow grows its own).",
+		"tree": { "render": "sprite", "variants": [
+			{ "trunk": "res://assets/sprites/grove_round_a_trunk.png", "canopy": "res://assets/sprites/grove_round_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_oak_a_trunk.png", "canopy": "res://assets/sprites/grove_oak_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_birch_a_trunk.png", "canopy": "res://assets/sprites/grove_birch_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_round_b_trunk.png", "canopy": "res://assets/sprites/grove_round_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_pine_a_trunk.png", "canopy": "res://assets/sprites/grove_pine_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_round_c_trunk.png", "canopy": "res://assets/sprites/grove_round_c_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_oak_b_trunk.png", "canopy": "res://assets/sprites/grove_oak_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_willow_a_trunk.png", "canopy": "res://assets/sprites/grove_willow_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_round_a_trunk.png", "canopy": "res://assets/sprites/grove_round_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_birch_b_trunk.png", "canopy": "res://assets/sprites/grove_birch_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_fruit_a_trunk.png", "canopy": "res://assets/sprites/grove_fruit_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_pine_b_trunk.png", "canopy": "res://assets/sprites/grove_pine_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_round_b_trunk.png", "canopy": "res://assets/sprites/grove_round_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_oak_a_trunk.png", "canopy": "res://assets/sprites/grove_oak_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_blossom_a_trunk.png", "canopy": "res://assets/sprites/grove_blossom_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_round_c_trunk.png", "canopy": "res://assets/sprites/grove_round_c_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_autumn_a_trunk.png", "canopy": "res://assets/sprites/grove_autumn_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_birch_a_trunk.png", "canopy": "res://assets/sprites/grove_birch_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_pine_a_trunk.png", "canopy": "res://assets/sprites/grove_pine_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_oak_b_trunk.png", "canopy": "res://assets/sprites/grove_oak_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_autumn_b_trunk.png", "canopy": "res://assets/sprites/grove_autumn_b_canopy.png" }
+		] },
+		"great_tree": { "render": "sprite", "variants": [
+			{ "trunk": "res://assets/sprites/grove_great_a_trunk.png", "canopy": "res://assets/sprites/grove_great_a_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_great_b_trunk.png", "canopy": "res://assets/sprites/grove_great_b_canopy.png" },
+			{ "trunk": "res://assets/sprites/grove_great_c_trunk.png", "canopy": "res://assets/sprites/grove_great_c_canopy.png" }
+		] },
+		"_understory_comment": "Bushes and stumps scattered as y-sorted scenery around the trees and in open ground (WorldArt picks the spots on the pixel ground, Scenery plants them). 'types' are understory_<type>.png under 'prefix'; 'density' scales how many. Decoration only: nothing collides with them.",
+		"understory": { "render": "sprite", "prefix": "res://assets/sprites/understory_", "types": ["bush_a", "bush_b", "bush_c", "bush_berry", "bush_bloom", "stump"], "density": 1.0 },
 		"_ground_comment": "The pixel-art GROUND (GroundLayer + assets/ground.gdshader, tiles from tools/gen_ground.py). render 'pixel' draws the floor from seamless pixel tiles at one texel per world unit; 'flat' (or a missing tile) keeps the classic gradient + noise. 'ramps' colour the tiles' four shade roles, darkest first: grass is the default floor, lush/meadow/dirt show through in noise-mapped 'patches' (scale = how big, threshold = how rare, 0..1), sand rims the water, path is a trail's packed earth and worn the trampled grass along it. 'accents' colour a meadow's tiny flowers. 'details' + 'details_index' are the scattered litter (tufts, pebbles, leaves, reeds, lily pads...); scatter.density scales how much and scatter.grass_tint re-tints the tufts and clover. A world's art block can override any of it.",
 		"ground": {
 			"render": "pixel",

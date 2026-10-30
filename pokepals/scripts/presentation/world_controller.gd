@@ -209,6 +209,7 @@ func _build_world(data: Dictionary) -> void:
 	# Spawn the trees (hand-placed + this border ring + landmarks) into the y-sorted
 	# Scenery layer, using the same border points as the colliders so drawing matches.
 	_scenery.populate(data, border_pts, _style)
+	_scenery.add_understory(_world_art.understory_spots(), _style)
 	var solids := Solids.build(data, border_pts, ccfg)
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))

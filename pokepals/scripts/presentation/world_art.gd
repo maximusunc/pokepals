@@ -27,6 +27,7 @@ var _detail_tex: Texture2D = null
 var _detail_rects := {}   # name -> Rect2 in the atlas (tools/gen_ground.py's index)
 var _details: Array = []  # [ { pos, rect, phase, sway, tint } ] — ground litter, under the water pass
 var _shore_details: Array = []  # same shape — reeds and lily pads, drawn over the water
+var _understory: Array = []  # [ { pos, type } ] — bush/stump spots Scenery plants (see understory_spots)
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
 # --- atmosphere (presentation-only mood, from the world spec's "atmosphere") ---
@@ -295,6 +296,7 @@ func _build_pixel_ground(data: Dictionary) -> void:
 		_ground = null
 	_details.clear()
 	_shore_details.clear()
+	_understory.clear()
 	_detail_tex = null
 	if not GroundLayer.wanted(_style):
 		return
@@ -439,10 +441,56 @@ func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
 	for f in _flowers:
 		_add_detail(_details, "flower", f["pos"], 0.45, f["color"])
 
+	_pick_understory(rng, trees, float((_style.entity("understory") as Dictionary).get("density", 1.0)))
 	_scatter_shores(rng, density)
 	# draw back-to-front so a nearer tuft overlaps a farther one
 	_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)
 	_shore_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)
+
+
+## Where the bushes and stumps go: a bush or two at the foot of many trees, the odd stump, and a few
+## loose thickets out in the open — never on a trail or in the water, never on top of a trunk.
+func _pick_understory(rng: RandomNumberGenerator, trees: Array, density: float) -> void:
+	var types: Array = (_style.entity("understory") as Dictionary).get("types", [])
+	if types.is_empty() or density <= 0.0:
+		return
+	var bushes: Array = []
+	for t in types:
+		if String(t) != "stump":
+			bushes.append(t)
+	if bushes.is_empty():
+		return
+	var placed: Array = []
+	var try_place := func(p: Vector2, ty: String) -> void:
+		if not _open_ground(p, 0.12):
+			return
+		for t in trees:
+			if p.distance_to(t) < 14.0:
+				return
+		for q in placed:
+			if p.distance_to(q) < 12.0:
+				return
+		placed.append(p)
+		_understory.append({ "pos": p.round(), "type": ty })
+	for t in trees:
+		if rng.randf() < 0.45 * density:
+			for _j in rng.randi_range(1, 2):
+				var a := rng.randf() * TAU
+				try_place.call(t + Vector2(cos(a), sin(a) * 0.7) * rng.randf_range(18.0, 32.0), String(bushes[rng.randi() % bushes.size()]))
+		if rng.randf() < 0.05 and types.has("stump"):
+			var a := rng.randf() * TAU
+			try_place.call(t + Vector2(cos(a), sin(a)) * rng.randf_range(30.0, 60.0), "stump")
+	var thickets := int(_bounds.size.x * _bounds.size.y / 90000.0 * density)
+	for _i in thickets:
+		var c := Vector2(_bounds.position.x + rng.randf() * _bounds.size.x, _bounds.position.y + rng.randf() * _bounds.size.y)
+		var ty := String(bushes[rng.randi() % bushes.size()])
+		for _j in rng.randi_range(1, 3):
+			try_place.call(c + Vector2(rng.randfn(0.0, 14.0), rng.randfn(0.0, 9.0)), ty)
+
+
+## Bush/stump spots for Scenery to plant as y-sorted sprites (empty without the pixel ground).
+func understory_spots() -> Array:
+	return _understory
 
 
 ## Reeds in clumps along every shore and lily pads resting on the water.

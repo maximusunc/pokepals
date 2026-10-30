@@ -27,7 +27,7 @@ python walk.py            # walk sheets + walk_demo.gif
 python directions.py      # fox_compass.png + daemon_directions.png
 python animal_motion.py   # animal_motion.png + animal_motion.gif
 python gait.py            # gaits.png + gaits.gif + idles.gif (quadruped walks, hops, idles)
-python trees.py           # trees.png (tree + great tree, ramp variants)
+python trees.py           # trees.png (tree + great tree, ramp variants) + grove.png (every grove design + understory)
 python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 python portal.py          # portal.png (neutral oval + tint swatches)
 python props.py           # props.png (every small prop, demo-tinted, on grass)
@@ -47,6 +47,7 @@ python nocthollow.py      # nocthollow.png (the night planet: trees, growths, pr
 | `gait.py` | Real leg cycles for the quadrupeds, posed from `directions.py`'s standing facings. It finds the legs automatically and gives each a near/far, front/hind role, then lifts and swings them per frame. It also drops the body on the planted beats and sways tails and ears from their root. Per-species gaits: cat walk, fox trot, wolf lope, rabbit hop. Plus a 16-frame idle loop (tail swish, blink, breath). Baked by `tools/gen_pals.py` |
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |
 | `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
+| `trees.py` (grove) | The GROVE: seeded designs (round, oak, birch, pine, willow, fruit, blossom, autumn, great trees) and the understory (bushes, stumps). Canopies are lit per lobe as spheres in a height field, so they read as clumps of leaves. Baked by `tools/gen_trees.py` as `grove_*` and `understory_*` sprites |
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |
 | `portal.py` | World doorways: a neutral (grayscale) radial energy oval, ordered-dithered into chunky pixel bands, tinted per-portal in the client, `make_portal()` |
 | `props.py` | The world's small hand-placed things (lanterns, crystals, mushrooms, benches, crates, stonework…): ASCII maps + a procedural Canvas, each baked into a BASE layer + an optional grayscale TINT layer, `make_prop_parts()` |
