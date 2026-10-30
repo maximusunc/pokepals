@@ -83,6 +83,26 @@
 			"ground": {
 				"render": "flat"
 			},
+			"ambient_life": {
+				"butterflies": {
+					"count": 0
+				},
+				"clouds": {
+					"count": 0
+				},
+				"leaves": {
+					"rate": 0
+				},
+				"fireflies": {
+					"count": 14,
+					"always": true,
+					"color": [
+						0.62,
+						1.0,
+						0.94
+					]
+				}
+			},
 			"tree": {
 				"render": "sprite",
 				"glow_radius": 30,

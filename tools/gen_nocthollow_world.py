@@ -347,6 +347,9 @@ ART = {
     "entities": {
         # Keep the night planet's own soft glowing floor (not the meadow's pixel grass).
         "ground": {"render": "flat"},
+        # An endless night: no butterflies, cloud shadows or falling leaves, but its fireflies never sleep.
+        "ambient_life": {"butterflies": {"count": 0}, "clouds": {"count": 0}, "leaves": {"rate": 0},
+                         "fireflies": {"count": 14, "always": True, "color": [0.62, 1.0, 0.94]}},
         "tree": {"render": "sprite", "glow_radius": 30, "glow_y": -36, "sway": 0.5, "variants": [
             {"trunk": S + "noct_glowcap_teal_trunk.png", "canopy": S + "noct_glowcap_teal_canopy.png", "glow": [0.56, 1.0, 0.92]},
             {"trunk": S + "noct_glowcap_violet_trunk.png", "canopy": S + "noct_glowcap_violet_canopy.png", "glow": [1.0, 0.58, 0.96]},

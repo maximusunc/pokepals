@@ -60,6 +60,13 @@
 			"patches": { "lush": { "scale": 0.0045, "threshold": 0.60 }, "meadow": { "scale": 0.006, "threshold": 0.64 }, "dirt": { "scale": 0.0065, "threshold": 0.80 } },
 			"scatter": { "density": 1.0 }
 		},
+		"_ambient_life_comment": "The small life in the air (AmbientLife): butterflies by day that rest now and then and fade out at dusk; fireflies that blink on as dusk deepens ('always' keeps them lit, for a night world); huge soft cloud shadows drifting with the wind over everything; leaves letting go of on-screen trees ('rate' per tree). Set a count or rate to 0 to turn one off. Cosmetic and local: nothing here is networked.",
+		"ambient_life": {
+			"butterflies": { "count": 6, "colors": [[0.98, 0.86, 0.40], [0.96, 0.96, 0.92], [0.92, 0.56, 0.30], [0.70, 0.78, 1.00]] },
+			"fireflies": { "count": 16, "color": [0.86, 1.00, 0.52] },
+			"clouds": { "count": 5, "alpha": 0.09, "speed": 9 },
+			"leaves": { "rate": 0.6, "colors": [[0.82, 0.62, 0.24], [0.72, 0.42, 0.20], [0.50, 0.66, 0.30]] }
+		},
 		"_water_comment": "Water is a SURFACE, not a silhouette: one seamless tile (tools/gen_water.py) that WorldArt tiles across each pond/river/pool and scrolls a texel at a time. 'tile' names the image; 'world_tile' is how many world units one tile spans (bigger = chunkier pixels); a missing tile falls back to the old flat fill. See tools/pixelart/water.py.",
 		"water": { "render": "sprite", "tile": "res://assets/sprites/water_pond.png", "world_tile": 64 },
 		"river": { "render": "sprite", "tile": "res://assets/sprites/water_river.png", "world_tile": 64 },

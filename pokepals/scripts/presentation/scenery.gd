@@ -128,6 +128,15 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	_trees.append(tree)
 
 
+## Where every ordinary tree stands (not the great trees), for AmbientLife's falling leaves.
+func tree_positions() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for t in _trees:
+		if not t.is_great:
+			out.append(t.position)
+	return out
+
+
 ## Which variant a tree at `pos` wears: an integer hash of its position, so neighbours (and the evenly
 ## spaced border ring) scatter across the whole list instead of striping through it in order.
 static func _variant_index(pos: Vector2, n: int) -> int:
