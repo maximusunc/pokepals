@@ -41,7 +41,7 @@ python nocthollow.py      # nocthollow.png (the night planet: trees, growths, pr
 |---|---|
 | `generator.py` | Core: shade system, paint/outline functions, player layer maps (body, arms, garments, pants, shoes, hair, accessories), palettes, `make_character()` |
 | `animals.py` | The 5 daemon species (cat, fox, rabbit, bird, wolf) as single maps + natural color variants, `make_daemon()` |
-| `walk.py` | Player 8-frame walk cycles in 4 directions, arm swing poses, side/back view maps, `character_frames()`; daemon hop `daemon_frames()` |
+| `walk.py` | Player 8-frame walk cycles in 4 directions, arm swing poses, side/back view maps, the profile stride (`side_leg_maps`: legs that pass each other, a far arm), `character_frames()`; daemon hop `daemon_frames()` |
 | `directions.py` | 8-directional daemon facing (`make_daemon_facing()`): hand-drawn standing 3/4 views (`DIAG_MAPS`) + profiles (`SIDE_MAPS`) for every quadruped, derived back views |
 | `gait.py` | Real leg cycles for the quadrupeds, posed from `directions.py`'s standing facings. It finds the legs automatically and gives each a near/far, front/hind role, then lifts and swings them per frame. It also drops the body on the planted beats and sways tails and ears from their root. Per-species gaits: cat walk, fox trot, wolf lope, rabbit hop. Plus a 16-frame idle loop (tail swish, blink, breath). Baked by `tools/gen_pals.py` |
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |

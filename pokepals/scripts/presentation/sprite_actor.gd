@@ -7,7 +7,8 @@ extends RefCounted
 ##
 ## Sheet convention (see tools/gen_player_sprite.py):
 ##   rows = facings: "down", "side", "up"   (left = the "side" row drawn flipped)
-##   cols = a walk cycle; column 0 doubles as the idle pose.
+##   cols = a walk cycle (the first walk_frames columns); idle_frame picks the resting pose —
+##   one of the walk frames, or a column after them (the wardrobe's standing pose, col 8).
 ##
 ## All metadata lives in art.json so the look stays data-driven. A malformed/short sheet
 ## degrades gracefully (clamped frames), keeping the silent-fallback discipline.
@@ -48,7 +49,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 
 	# Walk cycle: advance with time when moving, hold the idle pose when still.
 	var walk_frames := clampi(int(cfg.get("walk_frames", cols_total)), 1, cols_total)
-	var idle_frame := clampi(int(cfg.get("idle_frame", 0)), 0, walk_frames - 1)
+	var idle_frame := clampi(int(cfg.get("idle_frame", 0)), 0, cols_total - 1)
 	var fps: float = cfg.get("fps", 8.0)
 	var col := idle_frame
 	if speed > MOVE_GATE:

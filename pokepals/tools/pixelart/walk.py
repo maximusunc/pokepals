@@ -3,9 +3,10 @@ Directional walk animations -- 4 directions x 4 frames, layer-consistent,
 now with ARMS AS A SEPARATE LAYER so they swing while walking and stay
 bare under sleeveless shirts.
 
-Walk cycle = [idle, stepA, idle, stepB]; step B legs derive from step A.
-Arm swing: front/back views raise the opposite arm 1px on each step;
-side view slides the near arm +/-2px with the stride.
+Front/back: 8 frames, step B legs mirror step A; the opposite arm raises
+1px on each step. Side: a real stride -- each leg runs its own 8-pose loop
+(side_leg_maps) half a cycle apart, the near arm swings a half-then-full
+arc, and a far arm swings opposite behind the torso.
 """
 
 import random
@@ -330,6 +331,128 @@ SHOES_SIDE_STRIDE2 = swap_near_far(SHOES_SIDE_STRIDE)
 PANTS_SIDE_HALF2 = swap_near_far(PANTS_SIDE_HALF)
 SHOES_SIDE_HALF2 = swap_near_far(SHOES_SIDE_HALF)
 
+# ------------------------------------------- side view: a real stride
+# The profile walk used to scissor two straight legs through a standing
+# pose. Now each leg runs its own 8-pose loop: contact (heel strike),
+# down (weight absorbed), passing (straight under the hip), push (heel
+# rising), toe-off, kick-up (foot lifts behind), knee-up (the foot passes
+# 2px off the ground), reach. The far leg runs the same loop half a cycle
+# later, 2px behind and in the dark shade, painted UNDER the near leg, so
+# the legs genuinely pass each other instead of swapping shades.
+#
+# A pose is a list of (row, x0, x1, part) spans for the NEAR leg facing
+# right: 'P' trouser, 'F' shoe upper, 'S' sole. The hip (row 23) is shared.
+SIDE_HIP = "...........2222222222..........."
+SIDE_LEG_POSES = {
+    "contact": [(24, 15, 18, 'P'), (25, 16, 19, 'P'), (26, 16, 19, 'P'),
+                (27, 17, 20, 'P'), (28, 18, 21, 'P'),
+                (29, 18, 22, 'F'), (30, 18, 23, 'F'), (31, 18, 22, 'S')],
+    "down":    [(24, 15, 18, 'P'), (25, 15, 18, 'P'), (26, 16, 19, 'P'),
+                (27, 16, 19, 'P'), (28, 17, 20, 'P'),
+                (29, 17, 21, 'F'), (30, 17, 22, 'F'), (31, 17, 22, 'S')],
+    "pass":    [(24, 15, 18, 'P'), (25, 15, 18, 'P'), (26, 15, 18, 'P'),
+                (27, 15, 18, 'P'), (28, 15, 18, 'P'),
+                (29, 15, 19, 'F'), (30, 15, 20, 'F'), (31, 15, 20, 'S')],
+    "push":    [(24, 15, 18, 'P'), (25, 14, 17, 'P'), (26, 14, 17, 'P'),
+                (27, 13, 16, 'P'), (28, 13, 16, 'P'),
+                (29, 13, 17, 'F'), (30, 13, 18, 'F'), (31, 13, 18, 'S')],
+    "toeoff":  [(24, 14, 17, 'P'), (25, 13, 16, 'P'), (26, 12, 15, 'P'),
+                (27, 11, 14, 'P'), (28, 10, 13, 'P'),
+                (29, 9, 12, 'F'), (30, 10, 14, 'F'), (31, 12, 15, 'S')],
+    "kick":    [(24, 14, 17, 'P'), (25, 14, 17, 'P'), (26, 13, 16, 'P'),
+                (27, 11, 14, 'P'), (28, 9, 13, 'F'), (29, 9, 13, 'S')],
+    "knee":    [(24, 15, 18, 'P'), (25, 16, 19, 'P'), (26, 17, 20, 'P'),
+                (27, 16, 19, 'P'), (28, 15, 19, 'F'), (29, 15, 20, 'S')],
+    "reach":   [(24, 15, 18, 'P'), (25, 16, 19, 'P'), (26, 17, 20, 'P'),
+                (27, 18, 21, 'P'), (28, 19, 22, 'P'),
+                (29, 19, 23, 'F'), (30, 19, 23, 'S')],
+}
+SIDE_LEG_CYCLE = ["contact", "down", "pass", "push",
+                  "toeoff", "kick", "knee", "reach"]
+FAR_LEG_DX = -2
+
+
+def _leg_cells(pose, dx, near):
+    cells = {}
+    for y, x0, x1, part in SIDE_LEG_POSES[pose]:
+        for x in range(x0 + dx, x1 + dx + 1):
+            if part == 'S' or not near:
+                ch = '1'
+            else:
+                ch = '2'
+            cells[(y, x, part)] = ch
+    return cells
+
+
+def side_leg_maps(i):
+    """(pants, shoes) ASCII maps for side-walk frame i: near leg over far."""
+    pants = [list(r) for r in [BLANK] * 23 + [SIDE_HIP] + [BLANK] * 8]
+    shoes = [list(BLANK) for _ in range(H)]
+    far = SIDE_LEG_CYCLE[(i + 4) % 8]
+    near = SIDE_LEG_CYCLE[i % 8]
+    for pose, dx, is_near in ((far, FAR_LEG_DX, False), (near, 0, True)):
+        for (y, x, part), ch in _leg_cells(pose, dx, is_near).items():
+            if part == 'P':
+                pants[y][x] = ch
+                shoes[y][x] = '.'          # the nearer leg's trouser hides a far shoe
+            else:
+                shoes[y][x] = ch
+                pants[y][x] = '.' if y > 23 else pants[y][x]
+    return (["".join(r) for r in pants], ["".join(r) for r in shoes])
+
+
+# Arms swing a wider arc than before -- half, then full -- so the hand
+# clears the torso's edge at the extremes. The far arm mirrors the near
+# arm's swing in the dark shade, behind the torso: only its hand peeks out.
+def _arm_arc(offsets, chars="2221", hand=("2222", "1221")):
+    rows = [BLANK] * 16
+    for k, off in enumerate(offsets):
+        x = 14 + off
+        c = hand[k - len(offsets) + 2] if k >= len(offsets) - 2 else chars
+        rows.append("." * x + c + "." * (W - x - 4))
+    return rows + [BLANK] * (H - len(rows))
+
+
+def _sleeve_arc(offsets):
+    rows = [BLANK] * 16
+    for off in offsets[:5]:
+        x = 14 + off
+        rows.append("." * x + "1221" + "." * (W - x - 4))
+    return rows + [BLANK] * (H - len(rows))
+
+
+_FWD_FULL = [0, 1, 2, 3, 4, 5, 5]
+_BACK_FULL = [0, -1, -2, -3, -4, -5, -5]
+ARM_SIDE_FWD_FULL = _arm_arc(_FWD_FULL)
+ARM_SIDE_BACK_FULL = _arm_arc(_BACK_FULL, chars="1222", hand=("2222", "1221"))
+SLEEVE_SIDE_FWD_FULL = _sleeve_arc(_FWD_FULL)
+SLEEVE_SIDE_BACK_FULL = _sleeve_arc(_BACK_FULL)
+SIDE_ARM_POSE.update(fwd2=ARM_SIDE_FWD_FULL, back2=ARM_SIDE_BACK_FULL)
+SIDE_SLEEVE_POSE.update(fwd2=SLEEVE_SIDE_FWD_FULL, back2=SLEEVE_SIDE_BACK_FULL)
+FAR_SWING = {"neutral": "neutral", "fwd": "back", "back": "fwd",
+             "fwd2": "back2", "back2": "fwd2"}
+
+
+def far_arm(pose):
+    """The far arm for a near-arm pose: the opposite swing, all in shadow."""
+    return [r.replace('2', '1').replace('3', '1')
+            for r in SIDE_ARM_POSE[FAR_SWING[pose]]]
+
+
+# near leg forward -> near arm back, easing through neutral at the pass
+SIDE_ARMS = ["back2", "back", "neutral", "fwd", "fwd2", "fwd", "neutral", "back"]
+# lowest on contact + down (weight landing), highest at the pass
+SIDE_BOBS = [1, 1, 0, 0, 1, 1, 0, 0]
+
+for _n, _g in (("ARM_SIDE_FWD_FULL", ARM_SIDE_FWD_FULL),
+               ("ARM_SIDE_BACK_FULL", ARM_SIDE_BACK_FULL),
+               ("SLEEVE_SIDE_FWD_FULL", SLEEVE_SIDE_FWD_FULL),
+               ("SLEEVE_SIDE_BACK_FULL", SLEEVE_SIDE_BACK_FULL),
+               *((f"side_legs_{i}", m) for i in range(8) for m in side_leg_maps(i))):
+    assert len(_g) == H, f"{_n}: {len(_g)} rows"
+    for _i, _r in enumerate(_g):
+        assert len(_r) == W, f"{_n} r{_i}: {len(_r)} cols"
+
 BODY_UP = [r.replace('E', '3') for r in BODY]
 BODY_UP[11] = BODY_UP[11].replace('11', '33')
 
@@ -424,27 +547,23 @@ def character_frames(direction, hair=None, accessory=None, skin=None,
                   for i in range(8)]
     else:  # right / left
         def upper(pose):
-            # in profile the near arm is in FRONT of the torso -> paint after
+            # the far arm hangs behind everything; in profile the near arm
+            # is in FRONT of the torso -> paint after
             slv = SIDE_SLEEVE_POSE[pose] if g_side["arm"] else None
-            return [(BODY_SIDE, skin, 0, 0),
+            return [(far_arm(pose), skin, 0, 0),
+                    (BODY_SIDE, skin, 0, 0),
                     (g_side["torso"], shirt_c, 0, 0),
                     (SIDE_ARM_POSE[pose], skin, 0, 0),
                     (slv, shirt_c, 0, 0),
                     (HAIR_SIDE[hair], hair_c, 0, 0),
                     (ACC_SIDE[accessory], acc_c, 0, 0)]
 
-        strideA = [(PANTS_SIDE_STRIDE, pants_c), (SHOES_SIDE_STRIDE, shoes_c)]
-        halfA = [(PANTS_SIDE_HALF, pants_c), (SHOES_SIDE_HALF, shoes_c)]
-        stand = [(PANTS_SIDE_STAND, pants_c), (SHOES_SIDE_STAND, shoes_c)]
-        halfB = [(PANTS_SIDE_HALF2, pants_c), (SHOES_SIDE_HALF2, shoes_c)]
-        strideB = [(PANTS_SIDE_STRIDE2, pants_c), (SHOES_SIDE_STRIDE2, shoes_c)]
-        legs = [strideA, halfA, stand, halfB, strideB, halfB, stand, halfA]
-        # near leg forward -> near arm swings back, easing through neutral
-        arm_poses = ["back", "back", "neutral", "fwd",
-                     "fwd", "fwd", "neutral", "back"]
-        bobs = [1, 0, 0, 0, 1, 0, 0, 0]
-        frames = [_compose(upper(arm_poses[i]), legs[i], bobs[i])
-                  for i in range(8)]
+        frames = []
+        for i in range(8):
+            pants_m, shoes_m = side_leg_maps(i)
+            frames.append(_compose(upper(SIDE_ARMS[i]),
+                                   [(pants_m, pants_c), (shoes_m, shoes_c)],
+                                   SIDE_BOBS[i]))
         if direction == "left":
             frames = [f.transpose(Image.FLIP_LEFT_RIGHT) for f in frames]
     return frames
