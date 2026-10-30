@@ -287,6 +287,12 @@ func _phase_for(p: Vector2) -> float:
 	return fposmod(p.x * 0.013 + p.y * 0.021, TAU)
 
 
+## The one quality knob (art.json's "quality" entity, "detail": 1 = full): scales how much litter,
+## understory and ambient life a world gets, so a struggling phone can be turned down in one place.
+static func detail_quality(style: ArtStyle) -> float:
+	return clampf(float((style.entity("quality") as Dictionary).get("detail", 1.0)), 0.0, 2.0)
+
+
 static func _poly_box(pts: PackedVector2Array) -> Rect2:
 	var box := Rect2(pts[0], Vector2.ZERO) if not pts.is_empty() else Rect2()
 	for q in pts:
@@ -349,18 +355,44 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	if not _detail_rects.is_empty():
 		_scatter_details(data, cfg.get("scatter", {}), dirt_paths)
 		# behind WorldArt's drawing, but added after the ground so it lands on top of it
-		_litter_under = _make_litter_proxy("LitterUnder", true, _details)
-		_litter_over = _make_litter_proxy("LitterOver", false, _shore_details)
+		_litter_under = _make_litter_proxy("LitterUnder", true, _bucket(_details))
+		_litter_over = _make_litter_proxy("LitterOver", false, _bucket(_shore_details))
 
 
-func _make_litter_proxy(proxy_name: String, behind: bool, list: Array) -> DrawProxy:
+## Litter is grouped into square BUCKETS of world space, so a frame only walks the buckets on screen
+## instead of every tuft in the world (a big world holds thousands). Each bucket keeps its back-to-front
+## order; buckets are drawn row by row. { Vector2i cell: Array of details }.
+const LITTER_CELL := 160.0
+
+func _bucket(list: Array) -> Dictionary:
+	var cells := {}
+	for d in list:
+		var p: Vector2 = d["pos"]
+		var key := Vector2i(floori(p.x / LITTER_CELL), floori(p.y / LITTER_CELL))
+		if not cells.has(key):
+			cells[key] = []
+		cells[key].append(d)
+	return cells
+
+
+func _make_litter_proxy(proxy_name: String, behind: bool, cells: Dictionary) -> DrawProxy:
 	var proxy := DrawProxy.new()
 	proxy.name = proxy_name
 	proxy.show_behind_parent = behind
 	proxy.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	proxy.draw_fn = func(ci: CanvasItem) -> void:
-		var vis := ViewCull.visible_world_rect(ci, CULL_MARGIN)
-		_draw_details(ci, list, vis, vis.has_area())
+		var vis := ViewCull.visible_world_rect(ci, 24.0)
+		if not vis.has_area():
+			for key in cells:   # headless / no camera: draw it all
+				_draw_details(ci, cells[key], vis, false)
+			return
+		var x0 := floori(vis.position.x / LITTER_CELL)
+		var x1 := floori(vis.end.x / LITTER_CELL)
+		for cy in range(floori(vis.position.y / LITTER_CELL), floori(vis.end.y / LITTER_CELL) + 1):
+			for cx in range(x0, x1 + 1):
+				var bucket: Array = cells.get(Vector2i(cx, cy), [])
+				if not bucket.is_empty():
+					_draw_details(ci, bucket, vis, true)
 	add_child(proxy)
 	return proxy
 
@@ -392,7 +424,7 @@ func _add_detail(list: Array, name: String, p: Vector2, sway: float = 0.0, tint 
 func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xD371A + int(_bounds.position.x) * 7 + int(_bounds.size.y)
-	var density := float(scfg.get("density", 1.0))
+	var density := float(scfg.get("density", 1.0)) * detail_quality(_style)
 	# a world can re-tint its living litter (a sun-baked market's tufts are straw, not green)
 	var grass_tint := WorldData.to_color(scfg.get("grass_tint", [1.0, 1.0, 1.0]))
 	var area := _bounds.size.x * _bounds.size.y
@@ -470,7 +502,7 @@ func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
 	for f in _flowers:
 		_add_detail(_details, "flower", f["pos"], 0.45, f["color"])
 
-	_pick_understory(rng, trees, float((_style.entity("understory") as Dictionary).get("density", 1.0)))
+	_pick_understory(rng, trees, float((_style.entity("understory") as Dictionary).get("density", 1.0)) * detail_quality(_style))
 	_scatter_shores(rng, density)
 	# draw back-to-front so a nearer tuft overlaps a farther one
 	_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)

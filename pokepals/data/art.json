@@ -48,6 +48,8 @@
 		] },
 		"_understory_comment": "Bushes and stumps scattered as y-sorted scenery around the trees and in open ground (WorldArt picks the spots on the pixel ground, Scenery plants them). 'types' are understory_<type>.png under 'prefix'; 'density' scales how many. Decoration only: nothing collides with them.",
 		"understory": { "render": "sprite", "prefix": "res://assets/sprites/understory_", "types": ["bush_a", "bush_b", "bush_c", "bush_berry", "bush_bloom", "stump"], "density": 1.0 },
+		"_quality_comment": "One knob for how much small detail a world draws: 'detail' scales the ground litter, the understory bushes and the butterflies/fireflies/falling leaves (1 = full, 0.5 = half, 0 = none). Turn it down if a phone struggles.",
+		"quality": { "detail": 1.0 },
 		"_ground_comment": "The pixel-art GROUND (GroundLayer + assets/ground.gdshader, tiles from tools/gen_ground.py). render 'pixel' draws the floor from seamless pixel tiles at one texel per world unit; 'flat' (or a missing tile) keeps the classic gradient + noise. 'ramps' colour the tiles' four shade roles, darkest first: grass is the default floor, lush/meadow/dirt show through in noise-mapped 'patches' (scale = how big, threshold = how rare, 0..1; baked once per world into small noise textures), 'clump' is the light/dark mottling (scale, and the dark/light cut-offs), sand rims the water, path is a trail's packed earth and worn the trampled grass along it. 'accents' colour a meadow's tiny flowers. 'details' + 'details_index' are the scattered litter (tufts, pebbles, leaves, reeds, lily pads...); scatter.density scales how much and scatter.grass_tint re-tints the tufts and clover. A world's art block can override any of it.",
 		"ground": {
 			"render": "pixel",
