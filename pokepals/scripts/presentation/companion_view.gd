@@ -239,6 +239,14 @@ func glance_toward(world_pos: Vector2) -> void:
 	_perk = maxf(_perk, 0.6)
 
 
+## A small burst of delight at something, presentation only: it turns to look, perks right up and
+## floats a happy glyph (a world secret just found, say). The brain isn't involved.
+func delight_at(world_pos: Vector2) -> void:
+	glance_toward(world_pos)
+	_perk = 1.0
+	_spawn_emote("delight")
+
+
 ## The salamander DETECTOR "tell" — a graded pointing/freeze, set every frame by the controller
 ## from the hunt's truth + the bond (see world_controller._update_hints). strength 0..1: 0 relaxes
 ## the pose, 1 is a full lock-on. Like glance_toward this is PRESENTATION ONLY — it never touches

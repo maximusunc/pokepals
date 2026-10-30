@@ -3,7 +3,8 @@ extends Control
 ## The Gateway's world picker: a cozy, searchable list of every world you can travel to from the hub.
 ## Opened when you walk into the Vale's Gateway. A search box at the top; below it the worlds as cards
 ## (accent dot · name · one-line blurb · a live "N here"), shelved Featured / All worlds while browsing
-## and as one list of matches while searching; tap a card to go.
+## and as one list of matches while searching; tap a card to go. A second tab, Homes, holds your own
+## home world (and, later, friends' homes), apart from the catalog.
 ##
 ## A thin PRESENTATION surface over WorldDirectory (the search state: request numbering, pages,
 ## shelving). It never talks to the network: it emits `fetch_requested` and the world controller relays
@@ -35,6 +36,9 @@ var fade_in_time := 0.35
 var fade_out_time := 0.22
 ## The gate's colour; the backdrop is a deep, dusky wash of it rather than a flat dark. Set before adding.
 var tint := Color(0.8, 0.74, 0.98)
+## The Homes tab's cards ({ world_id, name, blurb }): your own home, and later friends'. Handed in by the
+## controller (which knows who you are) before adding, since the picker never talks to the network.
+var homes: Array = []
 
 var _dir := WorldDirectory.new()
 var _search: LineEdit
@@ -45,6 +49,8 @@ var _debounce: Timer
 var _backdrop: ColorRect
 var _center: CenterContainer
 var _chosen := false  # latched once a world is picked, so a double-tap can't fire two trips
+var _tab := "worlds"  # "worlds" (the catalog) or "homes"
+var _tab_buttons: Dictionary = {}  # tab id -> its Button
 
 
 func _ready() -> void:
@@ -109,6 +115,21 @@ func _build_ui() -> void:
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	box.add_child(title)
 
+	# Two tabs: the catalog of worlds, and homes (yours, and later your friends').
+	var tabs := HBoxContainer.new()
+	tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	tabs.add_theme_constant_override("separation", 6)
+	box.add_child(tabs)
+	for tab in [["worlds", "Worlds"], ["homes", "Homes"]]:
+		var b := Button.new()
+		b.text = String(tab[1])
+		b.toggle_mode = true
+		b.focus_mode = Control.FOCUS_NONE
+		UiStyle.pill_button(b, 9)
+		b.pressed.connect(_on_tab_pressed.bind(String(tab[0])))
+		tabs.add_child(b)
+		_tab_buttons[tab[0]] = b
+
 	_search = LineEdit.new()
 	_search.placeholder_text = "Search worlds…"
 	_search.clear_button_enabled = true
@@ -167,6 +188,13 @@ func _render() -> void:
 		_list.remove_child(child)
 		if child != _status:
 			child.queue_free()
+	for id in _tab_buttons:
+		(_tab_buttons[id] as Button).set_pressed_no_signal(id == _tab)
+	_search.visible = _tab == "worlds"
+	if _tab == "homes":
+		for h in homes:
+			_list.add_child(_card(h))
+		return
 	var status := _dir.status_text()
 	if status != "":
 		_status.text = status
@@ -220,7 +248,7 @@ func _card(w: Dictionary) -> Button:
 	dot.size_flags_vertical = Control.SIZE_SHRINK_CENTER
 	dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	var dsb := StyleBoxFlat.new()
-	dsb.bg_color = _accent(w["accent"])
+	dsb.bg_color = _accent(w.get("accent"))
 	dsb.set_corner_radius_all(999)
 	dsb.set_border_width_all(1)
 	dsb.border_color = Color(0, 0, 0, 0.25)
@@ -236,14 +264,17 @@ func _card(w: Dictionary) -> Button:
 	var name_label := UiStyle.label(String(w["name"]), 10, UiStyle.INK_STRONG, 700)
 	name_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	words.add_child(name_label)
-	if String(w["blurb"]) != "":
+	if String(w.get("blurb", "")) != "":
 		var blurb := UiStyle.label(String(w["blurb"]), 8, UiStyle.MUTED, 500)
 		blurb.text_overrun_behavior = TextServer.OVERRUN_TRIM_ELLIPSIS
 		blurb.clip_text = true
 		blurb.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		words.add_child(blurb)
 
-	# The live head-count: a warm pill when someone's there, a quiet word when no one is.
+	# The live head-count: a warm pill when someone's there, a quiet word when no one is. (A home card
+	# carries no count.)
+	if not w.has("players"):
+		return card
 	var players := int(w["players"])
 	var here := UiStyle.label(WorldDirectory.presence_text(players), 8, UiStyle.INK if players > 0 else UiStyle.MUTED_2, 700)
 	here.size_flags_vertical = Control.SIZE_SHRINK_CENTER
@@ -262,6 +293,11 @@ func _card(w: Dictionary) -> Button:
 
 
 # --- events -------------------------------------------------------------------------------
+
+func _on_tab_pressed(tab: String) -> void:
+	_tab = tab
+	_render()
+
 
 func _on_search_changed(_text: String) -> void:
 	_debounce.start()

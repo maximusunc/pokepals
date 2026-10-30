@@ -776,6 +776,14 @@ func add_interactable(pos: Vector2, color: Color, type: String) -> int:
 	return _interactables.size() - 1
 
 
+## Take an interactable out of the world (a world secret, picked up once found): it stops drawing.
+## Its index stays reserved, so every other prop's render index is untouched.
+func take_interactable(index: int) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["taken"] = true
+		queue_redraw()
+
+
 ## Raise a Ruin slab: it draws lifted (an open doorway under a hoisted lintel) from here on, with a
 ## pulse of acknowledgement. The collider is removed separately by the controller (Solids rebuild) —
 ## this is the visual half. Called when a ward's plate is weighted and the slab opens.
@@ -964,6 +972,8 @@ func _draw() -> void:
 		var it: Dictionary = _interactables[i]
 		if cull and not vis.has_point(it["pos"]):
 			continue
+		if bool(it.get("taken", false)):
+			continue  # picked up (a world secret, once found): gone from the world
 		_draw_prop_light(it)
 		_draw_light_pool(it["type"], it["pos"])
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
@@ -1523,6 +1533,27 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 2), 12.0, color)
 			draw_circle(p + Vector2(0, 0), 8.0, Color(0.40, 0.56, 0.64))
 			draw_arc(p + Vector2(0, 0), 8.0, 0.0, TAU, 20, Color(0.85, 0.92, 0.95, 0.6), 1.0)
+		"hedge_seed":
+			# a curled seed nestled in a small cushion of moss, with the faint green warmth of
+			# something alive inside: the hedge maze's secret, resting at its heart
+			var warm := 0.75 + 0.25 * sin(_time * 1.6)
+			draw_circle(p + Vector2(0, -2), 15.0, Color(0.62, 0.9, 0.5, 0.12 * warm))
+			draw_circle(p + Vector2(-5, 4), 7.0, Color(0.34, 0.5, 0.3))
+			draw_circle(p + Vector2(5, 4), 6.5, Color(0.38, 0.55, 0.32))
+			draw_circle(p + Vector2(0, 2), 7.5, Color(0.42, 0.6, 0.34))
+			draw_circle(p + Vector2(0, -3), 5.0, color)
+			draw_arc(p + Vector2(1, -3), 3.0, -PI * 0.2, PI * 1.3, 10, color.darkened(0.35), 1.5)
+			draw_circle(p + Vector2(-1.5, -5), 1.2, color.lightened(0.4))
+			draw_line(p + Vector2(3, -7), p + Vector2(6, -11), Color(0.55, 0.82, 0.42), 1.5)
+		"hedge_sprout":
+			# the seed, grown: a young sapling curling up out of a moss mound, a few bright leaves
+			draw_circle(p + Vector2(0, 5), 11.0, Color(0.34, 0.5, 0.3))
+			draw_circle(p + Vector2(-3, 3), 7.0, Color(0.4, 0.58, 0.34))
+			draw_line(p + Vector2(0, 2), p + Vector2(-1, -14), Color(0.42, 0.32, 0.22), 2.5)
+			draw_arc(p + Vector2(3, -16), 4.0, PI * 0.6, PI * 1.9, 10, Color(0.42, 0.32, 0.22), 2.0)
+			for leaf in [Vector2(-7, -10), Vector2(6, -8), Vector2(-4, -19), Vector2(7, -19), Vector2(0, -24)]:
+				draw_circle(p + leaf, 4.0, color)
+				draw_circle(p + leaf + Vector2(-1, -1), 1.4, color.lightened(0.35))
 		"dig_mound":
 			# a low hump of loose, turned earth — a couple of overlapping mounds with a darker
 			# scuffed crown, reading as "something's been buried here" (a fox form can dig it up)

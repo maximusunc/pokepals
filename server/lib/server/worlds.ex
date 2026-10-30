@@ -69,8 +69,16 @@ defmodule Server.Worlds do
 
     query =
       case Keyword.get(opts, :exclude) do
-        id when is_binary(id) and id != "" -> from(w in query, where: w.world_id != ^id)
-        _ -> query
+        id when is_binary(id) and id != "" ->
+          # Only a catalog UUID can be excluded; a player's home ("home:<owner>") isn't in the catalog,
+          # and casting it as a UUID would raise.
+          case Ecto.UUID.cast(id) do
+            {:ok, uuid} -> from(w in query, where: w.world_id != ^uuid)
+            :error -> query
+          end
+
+        _ ->
+          query
       end
 
     query =

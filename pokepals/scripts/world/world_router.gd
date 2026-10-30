@@ -24,6 +24,10 @@ const MAZE_ID := "55555555-5555-5555-5555-555555555555"
 const HUB_ID := VALE_ID
 const HUB_GATEWAY_ID := "vale_gateway"
 
+## A player's HOME WORLD isn't in the catalog: its id is this prefix + the owner's user_id, and the
+## server builds its spec from what they've discovered (Server.HomeWorld).
+const HOME_PREFIX := "home:"
+
 ## The world the next (or current) load should enter. Defaults to the Vale for a fresh boot.
 var current_world := VALE_ID
 
@@ -61,6 +65,11 @@ func resolve_arrival(world_id: String, portal_id: String) -> String:
 		gateway_departure = {}
 		return gateway_id
 	return portal_id
+
+
+## The home world id for a player (our own, from Net.local_id(); a friend's, later).
+static func home_id(owner_id: String) -> String:
+	return HOME_PREFIX + owner_id
 
 
 ## Consume the one-shot transition flag (returns whether this load arrived via a portal).

@@ -21,7 +21,7 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Economy, Presence, PresenceFrames, Saves, World, Worlds}
+  alias Server.{Discoveries, Economy, HomeWorld, Presence, PresenceFrames, Saves, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
   @shop_currency "coins"
@@ -37,7 +37,29 @@ defmodule Server.WorldChannel do
 
   intercept ["presence_diff"]
 
+  # A player's HOME WORLD (`"world:home:" <> owner_user_id`): not a catalog row but a spec built for its
+  # owner from their discoveries (Server.HomeWorld). For now only the owner may enter; friends and
+  # invitations (FR-1..FR-5) will widen this check. Everything after the join is the same as any world.
   @impl true
+  def join("world:home:" <> owner_id, payload, socket) do
+    if owner_id != "" and owner_id == socket.assigns.user_id do
+      definition = HomeWorld.definition(owner_id)
+      world_id = definition.world_id
+      World.ensure_started(world_id, [], ambient_core(definition))
+      send(self(), :after_join)
+
+      {:ok,
+       assign(socket, %{
+         world_id: world_id,
+         definition: definition,
+         known_etag: Map.get(payload, "known_etag", ""),
+         known: MapSet.new()
+       })}
+    else
+      {:error, %{reason: "not_allowed"}}
+    end
+  end
+
   def join("world:" <> world_id, payload, socket) when world_id != "" do
     case Worlds.get(world_id) do
       nil ->
@@ -70,6 +92,10 @@ defmodule Server.WorldChannel do
     # ETAG (Worlds.etag/1), so any back-end edit to a world invalidates the client's cache on its
     # own — there is no version to remember to bump and no new client build to ship for a world edit.
     etag = Worlds.etag(definition)
+
+    # The world secrets we've found — a per-USER concern, like the save. Sent BEFORE the spec, so a world
+    # built straight from it already knows to leave a found secret out (the maze's seed, once taken).
+    push(socket, "discoveries", %{ids: Discoveries.list(user_id)})
 
     if etag == known_etag do
       push(socket, "world_spec_unchanged", %{world_id: world_id, version: definition.version, etag: etag})
@@ -263,6 +289,26 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Claim a world SECRET (the thing each destination world hides; see Server.Discoveries). The SERVER
+  # judges it: the claim is honoured only in a world whose spec authors that secret, and only while our
+  # last reported position is at it, so it can't be claimed from another world or from across the maze.
+  # A first find is recorded (and changes our home); a repeat is answered `new: false`. A refused
+  # claim gets `secret_refused`, so the client can let the moment pass quietly.
+  def handle_in("claim_secret", %{"id" => secret_id}, socket) when is_binary(secret_id) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    if Discoveries.claimable?(core, secret_id, pos) do
+      {:ok, outcome} = Discoveries.record(user_id, secret_id, catalog_id(world_id))
+      push(socket, "secret_found", %{id: secret_id, new: outcome == :new})
+    else
+      push(socket, "secret_refused", %{id: secret_id})
+    end
+
+    {:noreply, socket}
+  end
+
   # Browse the world DIRECTORY (the Vale's Gateway): a page of listed worlds matching `q`, each with
   # how many people are in it right now (its Presence roster). The world we're asking from is left
   # out. `req` is echoed back untouched so the client can drop answers to searches it has since
@@ -289,6 +335,14 @@ defmodule Server.WorldChannel do
   end
 
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  # A world id as a catalog UUID (what a discovery remembers it was found in), or nil for a home.
+  defp catalog_id(world_id) do
+    case Ecto.UUID.cast(world_id) do
+      {:ok, uuid} -> uuid
+      :error -> nil
+    end
+  end
 
   defp int_param(v, _default) when is_integer(v), do: v
   defp int_param(_v, default), do: default

@@ -180,8 +180,12 @@ not a blocker** — pick it up if/when a shared world wants it.
 > secret**. Finding it adds a discovery to your own **home world**, a per-player, display-only place
 > that reflects where you've been. Friends visit it by friend request or invitation, through the
 > Gateway. Being broken into one-at-a-time items in
-> [`docs/home-world-and-secrets-design.md`](docs/home-world-and-secrets-design.md); first slice is
-> solo (find a secret → see it at home), starting with the Maze's heart.
+> [`docs/home-world-and-secrets-design.md`](docs/home-world-and-secrets-design.md). **First slice
+> built (solo, owner-only homes):** the Maze's heart hides a **hedge seed**. Examine it, the server
+> judges the claim (`claim_secret`), and your home (`"world:home:" <> user_id`, built per player by
+> `Server.HomeWorld` from `priv/home/home.json` + a `discoveries` table) grows east into a little
+> hedge spiral. Reached from the Gateway picker's **Homes** tab. Client: `SecretDirector`. Friends and
+> visiting are next (FR-1..FR-5).
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping

@@ -56,19 +56,22 @@ Each item notes *reuse* (existing code) and *new* (to build) as information for 
 not as a plan to act on.
 
 ### Discoveries (the data spine)
-- ⬜ **S-1 — The discovery record.** Server-side, per player: which world secrets they've found (and
-  when, maybe with whom). Canonical on the server like the companion self and inventory.
-  *Reuse:* Ecto/Postgres persistence keyed by the identity token (`Server.Saves`/`Accounts`
-  pattern). *New:* a `discoveries` table + context, and a channel message to report/fetch them.
-- ⬜ **S-2 — How a secret is authored in a world spec.** A `secret` block in each world's spec: its
-  id, how it's revealed, and the discovery it grants (what appears at home). Data-driven, so a new
-  world adds its secret with no code. *Reuse:* the spec-as-jsonb pattern, `form_effects`'
-  data-authored `reveal`. *New:* the block's shape + who decides "solved" (client or
-  server-authoritative; see S-3).
+- ✅ **S-1 — The discovery record. (Built.)** A `discoveries` table, one row per (player,
+  discovery) with where it was found, behind `Server.Discoveries` (`list` / `record` → `:new` |
+  `:already`). Pushed to the client on every world join as `discoveries` (before the spec), and kept
+  on `Net` across hops.
+- ✅ **S-2 — How a secret is authored. (Built.)** A `secret` block in the world's spec: `id`,
+  `position`, `radius` (how near counts for the server's check), the `prop` it shows as, its `lore`,
+  and the finding's `found_line` / `home_line`. What it becomes at home is authored separately in the
+  home template (`server/priv/home/home.json` → `discoveries.<id>`), so a world and its home
+  counterpart stay data-only. Client side, `SecretDirector` lays the prop out (unless already found)
+  and turns an examine into a claim.
 - ✅ **S-3 — Who confirms a secret is solved: the server.** Decided: same discipline as the maze's
   coin reward. The client reports "found it", and the server records the discovery **only in a world
   whose spec carries that secret** (and only once). Discoveries are visible to friends, so they stay
-  honest.
+  honest. *Built:* `claim_secret` checks the spec's `secret.id` **and** that the player's last
+  reported position (the ~20 Hz `state` stream the World process already keeps) is within the
+  secret's `radius`. Answers `secret_found {id, new}` or `secret_refused`.
 - ⬜ **S-4 — Solving together.** If two players crack a secret together, do both get it? (Leaning
   "yes", since solvable alone and better together, but it needs a decision on what "together" means:
   same world at the moment of solving? helped?)
@@ -84,7 +87,7 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ⬜ **W-1 — The Ruin.**
 - ⬜ **W-2 — Nocthollow.**
 - ⬜ **W-3 — The Riverbank.**
-- 🔶 **W-4 — The Maze. (The first secret.)** Decided: an **item waits at the centre of the maze**;
+- ✅ **W-4 — The Maze. (The first secret. Built.)** Decided: an **item waits at the centre of the maze**;
   reach the heart, take the item, and it's added to your home.
   - ✅ **The item: a hedge seed.** A curled seed from the oldest hedge. At home it grows into a small
     living **hedge spiral**, your own little maze, which hints at where it came from.
@@ -100,21 +103,29 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ⬜ **W-5 — The Bazaar.**
 
 ### The home world
-- ⬜ **HW-1 — A per-player world.** Every world today is one shared catalog entry. A home is the
-  server's **first per-player world**: "the home of player X", built from their discovery record.
-  *Reuse:* the world-spec format, `WorldRouter`, `Server.World` process-per-world, Presence.
-  *New:* per-owner world instancing + generating the spec from discoveries. **This is the biggest
-  new piece of machinery.**
+- ✅ **HW-1 — A per-player world. (Built, owner-only for now.)** `Server.HomeWorld` builds an
+  in-memory `WorldDefinition` per owner from the template + their discoveries; the channel joins it
+  on `"world:home:" <> owner_user_id` (world id `"home:<owner>"`), and from there it's an ordinary
+  world (spec + etag caching, its own `Server.World` process, Presence). Only the owner may join
+  until FR-1..FR-5. Because the spec is regenerated, its etag changes the moment a secret is found,
+  so the client re-fetches the grown home with no extra plumbing. (Homes aren't cached on disk
+  client-side: small, and `:` isn't a legal filename everywhere.)
 - ✅ **HW-2 — The empty home: a small glade that grows.** Decided: a snug clearing that is cozy
   even with nothing in it. Each discovery doesn't just appear, it **widens the home** (new ground, a
   new corner), so more discoveries make a bigger, richer place and a friend's home literally looks
-  traveled.
-- ⬜ **HW-3 — Where each discovery appears.** Since the home is display-only (H2), each discovery
+  traveled. *Built:* the base glade (800×660) has a pond, a bench, a lantern, a mushroom ring, a log,
+  a HOME signpost ("…keeping space for things you haven't found yet") and a portal back to the Vale's
+  Gateway. Each discovery's authored `area` widens the bounds, and the border treeline is re-baked
+  around the new size.
+- 🔶 **HW-3 — Where each discovery appears.** Since the home is display-only (H2), each discovery
   has an authored place in the home. A discovery should *change the place* (a glowing pool opens, a
   carved pillar stands), not sit on a shelf. Each one quietly hints at where it came from.
+  *First one built:* the hedge seed grows the glade **east** into a walkable hedge spiral, with the
+  sprout (examinable) at its heart and a path leading to its entrance. The rest are authored as each
+  world's secret is designed.
 - ⬜ **HW-4 — The companion at home.** Does the companion relate to the discoveries (favourite spots,
   lingering by things it found with you)? Ties to companion-as-self.
-- ✅ **HW-5 — Getting home: the Gateway, on its own tab.** Decided: the Gateway's world picker gets a
+- ✅ **HW-5 — Getting home: the Gateway, on its own tab. (Built.)** Decided: the Gateway's world picker gets a
   **separate tab** holding **your home** (and, later, friends' homes, per H4/FR-4), apart from the
   catalog worlds. No Vale portal. Leaving home returns you to the Gateway like any catalog world.
 
@@ -141,6 +152,36 @@ small game, patience, a time of day, a form only the companion can take, or just
 ✅ **Solo loop first.** Build **S-1 + S-2 + one secret + a bare home (HW-1/HW-2) showing that one
 discovery**, then friends/visiting after. The find → see-it-at-home loop gets felt before the
 social layer exists. First pair being designed: **HW-2 (the empty home) + W-4 (the Maze's heart).**
+
+## First slice — built (2026-10-30)
+
+Built: S-1, S-2, S-3, S-5, W-4, HW-1 (owner only), HW-2, HW-3 (hedge seed only), HW-5.
+
+- **Server:** migration `create_discoveries`, `Server.Discovery` / `Server.Discoveries`,
+  `Server.HomeWorld` + `priv/home/home.json`, and in `world_channel.ex` the home join, the
+  `discoveries` push and `claim_secret`. `Worlds.directory` now ignores a non-UUID `exclude`, so
+  browsing from a home can't crash. The maze seed (and its test fixture) gained the `secret` block.
+- **Client:** `SecretDirector` (`scripts/presentation/mechanics`), `Net` discoveries + `claim_secret`,
+  `WorldArt` `hedge_seed` / `hedge_sprout` props + `take_interactable`, `CompanionView.delight_at`,
+  `WorldRouter.home_id`, and the Gateway picker's **Worlds | Homes** tabs.
+
+**Verification:**
+- **Client:** the headless suite has the same 10 failures as a clean `main` checkout, all
+  pre-existing; the documented baseline of 9 has drifted by one `PathShape` test. A throwaway
+  runtime harness drove the real world scene and passed every check: the seed lays out at the
+  maze's heart, it's the nearest thing to examine when you stand by it, examining reads its lore,
+  and a server `secret_found` takes it and plays the warm line. A taken seed stops prompting, a
+  revisit leaves it out, the Homes tab shows your home, and the empty and grown homes both build.
+  Screenshots were checked by eye. That pass moved the home's way-out portal out of the border
+  treeline.
+- **Server: its tests have not been run.** This sandbox's network policy blocks `repo.hex.pm` and
+  `builds.hex.pm`, so deps and the matching Elixir/OTP couldn't be installed. Every changed file
+  parses, and `HomeWorld.build_core` and `Discoveries.claimable?` were run directly in plain Elixir
+  and behave as the tests expect. The DB- and channel-backed tests (`discoveries_test`,
+  `home_world_test`, `home_and_secret_channel_test`) still need a `mix test` on a machine with
+  deps.
+- **Deploy note:** the new migration must run, and the maze's seed reaches the live game only when
+  the server's seeds re-run (they do, idempotently, on container boot).
 
 ## How we work through it
 
