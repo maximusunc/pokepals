@@ -114,6 +114,25 @@ def export_all():
             _save(canopy_img, "%s%s_canopy.png" % (kind, suffix))
 
 
+def _composite(trunk, canopy):
+    img = canopy.copy() if trunk is None else trunk.copy()
+    if trunk is not None:
+        img.alpha_composite(canopy)
+    return img
+
+
+def export_grove():
+    """The grove: every seeded design as grove_<name>_trunk/_canopy.png (great trees too), and the
+    understory (bushes, stumps) as single understory_<name>.png sprites."""
+    for name, spec in list(trees.GROVE.items()) + list(trees.GREAT.items()):
+        trunk_img, canopy_img = trees.make_grove_parts(*spec)
+        _save(trunk_img, "grove_%s_trunk.png" % name)
+        _save(canopy_img, "grove_%s_canopy.png" % name)
+    for name, spec in trees.UNDERSTORY.items():
+        trunk_img, canopy_img = trees.make_grove_parts(*spec)
+        _save(_composite(trunk_img, canopy_img), "understory_%s.png" % name)
+
+
 def preview(path):
     trees.preview_grid().save(path)
     print("wrote preview", path)
@@ -121,5 +140,6 @@ def preview(path):
 
 if __name__ == "__main__":
     export_all()
+    export_grove()
     if len(sys.argv) > 2 and sys.argv[1] == "--preview":
         preview(sys.argv[2])

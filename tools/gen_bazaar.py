@@ -295,6 +295,24 @@ out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN
 out.append('\t"border": { "ring": true, "spacing": 200, "inset": 28, "jitter": 30, "rows": 1, "row_gap": 54 },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.62, 0.52, 0.40],')
+# The pixel ground (data/art.json's "ground" entity) re-coloured for a sun-baked market: dry straw
+# grass, olive scrub, wide patches of bare packed earth, and paler trodden lanes. Deep-merged over
+# art.json by ArtStyle.load_style, like Nocthollow's re-skin.
+ART = {"entities": {"ground": {
+    "ramps": {
+        "grass":  [[0.46, 0.42, 0.28], [0.56, 0.51, 0.34], [0.62, 0.57, 0.38], [0.74, 0.69, 0.48]],
+        "lush":   [[0.36, 0.38, 0.24], [0.44, 0.46, 0.29], [0.50, 0.52, 0.33], [0.62, 0.63, 0.42]],
+        "meadow": [[0.48, 0.44, 0.29], [0.58, 0.53, 0.35], [0.64, 0.59, 0.39], [0.76, 0.71, 0.50]],
+        "dirt":   [[0.47, 0.37, 0.26], [0.57, 0.46, 0.33], [0.63, 0.51, 0.37], [0.76, 0.65, 0.49]],
+        "path":   [[0.54, 0.45, 0.33], [0.66, 0.56, 0.42], [0.72, 0.62, 0.47], [0.84, 0.75, 0.59]],
+        "worn":   [[0.52, 0.46, 0.32], [0.62, 0.55, 0.39], [0.68, 0.61, 0.43], [0.80, 0.73, 0.54]],
+    },
+    "accents": [[0.92, 0.56, 0.32], [0.96, 0.84, 0.46], [0.86, 0.42, 0.40], [0.98, 0.92, 0.78]],
+    "patches": {"lush": {"scale": 0.005, "threshold": 0.80}, "meadow": {"scale": 0.006, "threshold": 0.74},
+                "dirt": {"scale": 0.005, "threshold": 0.58}},
+    "scatter": {"density": 0.6, "grass_tint": [1.25, 1.0, 0.55]},
+}}}
+out.append('\t"art": %s,' % json.dumps(ART, separators=(", ", ": ")))
 out.append('\t"atmosphere": {')
 out.append('\t\t"day_tint": [1.05, 0.97, 0.85],')
 out.append('\t\t"vignette": { "strength": 0.30, "color": [0.10, 0.07, 0.06] },')

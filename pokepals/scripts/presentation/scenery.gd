@@ -47,7 +47,7 @@ func _process(delta: float) -> void:
 func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	# Clear any trees from a previous populate (actors are kept — they're scene-defined).
 	for child in get_children():
-		if child is TreeView:
+		if child is TreeView or child.has_meta("understory"):
 			child.queue_free()
 	_trees.clear()
 
@@ -112,12 +112,16 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.position = pos
 	tree.is_great = is_great
 	var variants: Array = art["variants"]
-	var v: Dictionary = variants[int(absf(pos.x * 7.0 + pos.y * 13.0)) % variants.size()] if not variants.is_empty() else {}
+	var v: Dictionary = variants[_variant_index(pos, variants.size())] if not variants.is_empty() else {}
 	tree.tex = v.get("tex")
 	tree.trunk_tex = v.get("trunk")
 	tree.canopy_tex = v.get("canopy")
 	tree.glow_color = v.get("glow", Color(0, 0, 0, 0))
 	tree.glow_radius = art["glow_radius"]
+	# Crisp pixel art when the 640x360 view is scaled up to the window. A glowing growth (Nocthollow's)
+	# keeps linear filtering, or its soft halo would turn blocky.
+	if float(art["glow_radius"]) <= 0.0:
+		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	tree.glow_y = art["glow_y"]
 	tree.sway_gain = art["sway"]
 	tree.style = style
@@ -126,6 +130,52 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.phase = _phase_for(pos)
 	add_child(tree)
 	_trees.append(tree)
+
+
+## Where every ordinary tree stands (not the great trees), for AmbientLife's falling leaves.
+func tree_positions() -> PackedVector2Array:
+	var out := PackedVector2Array()
+	for t in _trees:
+		if not t.is_great:
+			out.append(t.position)
+	return out
+
+
+## Which variant a tree at `pos` wears: an integer hash of its position, so neighbours (and the evenly
+## spaced border ring) scatter across the whole list instead of striping through it in order.
+static func _variant_index(pos: Vector2, n: int) -> int:
+	var h := (int(roundf(pos.x)) * 73856093) ^ (int(roundf(pos.y)) * 19349663)
+	h = (h ^ (h >> 13)) * 1274126177
+	return absi(h ^ (h >> 16)) % n
+
+
+## Plant the understory: bushes and stumps at the spots WorldArt picked on the pixel ground
+## (spots = [{ pos: Vector2, type: String }]). Each is a plain Sprite2D under this y-sorted layer,
+## feet at its position, so you walk in front of a bush below you and behind one above. Purely
+## decorative (nothing collides). No-op if the art direction has no understory art.
+func add_understory(spots: Array, style: ArtStyle) -> void:
+	var cfg := style.entity("understory")
+	if spots.is_empty() or String(cfg.get("render", "")) != "sprite":
+		return
+	var prefix := String(cfg.get("prefix", "res://assets/sprites/understory_"))
+	var texs := {}
+	for s in spots:
+		var ty := String(s["type"])
+		if not texs.has(ty):
+			var path := prefix + ty + ".png"
+			texs[ty] = ResourceLoader.load(path) if ResourceLoader.exists(path) else null
+		var tex: Texture2D = texs[ty]
+		if tex == null:
+			continue
+		var spr := Sprite2D.new()
+		spr.texture = tex
+		spr.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		spr.centered = false
+		var sz := tex.get_size()
+		spr.offset = Vector2(-roundf(sz.x * 0.5), 5.0 - sz.y)  # feet on the ground, like the trees
+		spr.position = s["pos"]
+		spr.set_meta("understory", true)
+		add_child(spr)
 
 
 ## A stable pseudo-random wind phase derived from a world position, so each tree keeps

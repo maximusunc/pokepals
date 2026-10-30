@@ -154,6 +154,27 @@ not a blocker** — pick it up if/when a shared world wants it.
 > light (`GlowTrail`). Art: `pokepals/tools/gen_nocthollow.py` over `tools/pixelart/nocthollow.py`.
 > Layout and lore: `tools/gen_nocthollow_world.py`. Any later world can re-skin itself the same way.
 
+> **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
+> now the floor is pixel art too, and the world has life:
+> - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel
+>   terrain from `tools/pixelart/ground.py`. It lays out noise-mapped grass clumps and lush, meadow
+>   and dirt patches with dithered edges.
+> - **Mask:** a per-world mask, baked once, adds packed-earth trails, sandy shores and soft shade
+>   under trees and props.
+> - **Paths:** curved and meandering (`PathShape` chains, smooths and wanders the spec's straight
+>   segments).
+> - **Details:** clustered pixel litter (tufts, clover, pebbles, leaves, mushrooms, flowers), plus
+>   reeds and lily pads, foam glints and a shallows band along the water.
+> - **Trees:** a seeded grove of oaks, birches, pines, a willow, fruit, blossom and autumn trees, and
+>   great trees, with sphere-lit leaf clumps. Bushes and stumps stand as y-sorted understory.
+> - **Light and life:** lamps and fires throw light pools that warm at dusk. `AmbientLife` adds
+>   butterflies, dusk fireflies, drifting cloud shadows and falling leaves.
+>
+> All of it is tuned in `data/art.json` (`ground`, `tree`, `understory`, `ambient_life`), and a
+> world's `art` block can re-skin or opt out. The Bazaar re-colours its ground sun-baked; Nocthollow
+> keeps its glowing floor and has always-on fireflies only. Purely presentation: no collision or
+> network change.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

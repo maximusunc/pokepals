@@ -73,6 +73,8 @@ var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, k
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed, gateway? } ]
 # The Gateway's world picker while it's open (the world keeps living under it), else null.
 var _picker: WorldPicker
+# Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
+var _ambient_life: AmbientLife
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
 # whether its world effect has fired yet. The controller watches the companion approach (Ruin-referee
 # style) and applies the effect once it arrives, so the brain never touches world state. Cleared when
@@ -209,6 +211,14 @@ func _build_world(data: Dictionary) -> void:
 	# Spawn the trees (hand-placed + this border ring + landmarks) into the y-sorted
 	# Scenery layer, using the same border points as the colliders so drawing matches.
 	_scenery.populate(data, border_pts, _style)
+	_scenery.add_understory(_world_art.understory_spots(), _style)
+	# The small life in the air (butterflies, fireflies at dusk, cloud shadows, falling leaves), drawn
+	# just above the scenery so a cloud's shadow passes over the trees too.
+	_ambient_life = AmbientLife.new()
+	_ambient_life.name = "AmbientLife"
+	add_child(_ambient_life)
+	move_child(_ambient_life, _scenery.get_index() + 1)
+	_ambient_life.setup(bounds_rect, _style, _scenery.tree_positions(), float(data.get("atmosphere", {}).get("wind", {}).get("strength", 2.6)))
 	var solids := Solids.build(data, border_pts, ccfg)
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
@@ -657,6 +667,9 @@ func _apply_daycycle(u: float) -> void:
 	var span := maxf(0.0001, float(b["t"]) - float(a["t"]))
 	var k := clampf((u - float(a["t"])) / span, 0.0, 1.0)
 	_day_tint.color = (a["tint"] as Color).lerp(b["tint"], k)
+	_world_art.set_dusk(u)  # lamps warm up and the evening creatures come out as dusk deepens
+	if _ambient_life != null:
+		_ambient_life.set_dusk(u)
 	var mat := _vignette.material as ShaderMaterial
 	if mat != null:
 		mat.set_shader_parameter("tint", (a["vig"] as Color).lerp(b["vig"], k))
