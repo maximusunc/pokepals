@@ -33,6 +33,7 @@ func _init() -> void:
 	failures += TestWildWander.run_all()
 	failures += TestWorldDirectory.run_all()
 	failures += TestArtStyle.run_all()
+	failures += TestPathShape.run_all()
 
 	print("")
 	if failures == 0:

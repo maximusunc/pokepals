@@ -19,6 +19,18 @@
 	"entities": {
 		"tree": { "render": "sprite", "trunk": "res://assets/sprites/tree_trunk.png", "canopy": "res://assets/sprites/tree_canopy.png" },
 		"great_tree": { "render": "sprite", "trunk": "res://assets/sprites/great_tree_trunk.png", "canopy": "res://assets/sprites/great_tree_canopy.png" },
+		"_ground_comment": "The pixel-art GROUND (GroundLayer + assets/ground.gdshader, tiles from tools/gen_ground.py). render 'pixel' draws the floor from seamless pixel tiles at one texel per world unit; 'flat' (or a missing tile) keeps the classic gradient + noise. 'ramps' colour the tiles' four shade roles, darkest first: grass is the default floor, lush/meadow/dirt show through in noise-mapped 'patches' (scale = how big, threshold = how rare, 0..1), sand rims the water, path is a trail's packed earth and worn the trampled grass along it. 'accents' colour a meadow's tiny flowers. 'details' + 'details_index' are the scattered litter (tufts, pebbles, leaves, reeds, lily pads...); scatter.density scales how much and scatter.grass_tint re-tints the tufts and clover. A world's art block can override any of it.",
+		"ground": {
+			"render": "pixel",
+			"terrain": "res://assets/sprites/ground_terrain.png",
+			"tile": 128,
+			"details": "res://assets/sprites/ground_details.png",
+			"details_index": "res://data/ground_details.json",
+			"ramps": { "grass": [[0.282, 0.431, 0.259], [0.345, 0.510, 0.298], [0.392, 0.557, 0.322], [0.533, 0.682, 0.392]], "lush": [[0.212, 0.361, 0.227], [0.259, 0.431, 0.259], [0.306, 0.486, 0.282], [0.439, 0.612, 0.353]], "meadow": [[0.298, 0.447, 0.259], [0.369, 0.533, 0.306], [0.416, 0.580, 0.337], [0.557, 0.706, 0.408]], "dirt": [[0.424, 0.329, 0.235], [0.510, 0.400, 0.282], [0.565, 0.447, 0.322], [0.706, 0.596, 0.431]], "sand": [[0.627, 0.549, 0.400], [0.745, 0.667, 0.494], [0.824, 0.753, 0.573], [0.910, 0.855, 0.690]], "path": [[0.463, 0.369, 0.259], [0.573, 0.463, 0.329], [0.627, 0.518, 0.369], [0.753, 0.651, 0.478]], "worn": [[0.376, 0.463, 0.259], [0.447, 0.541, 0.306], [0.494, 0.588, 0.337], [0.627, 0.706, 0.416]] },
+			"accents": [[0.95, 0.62, 0.72], [0.98, 0.90, 0.52], [0.96, 0.96, 0.92], [0.74, 0.66, 0.96]],
+			"patches": { "lush": { "scale": 0.0045, "threshold": 0.60 }, "meadow": { "scale": 0.006, "threshold": 0.64 }, "dirt": { "scale": 0.0065, "threshold": 0.80 } },
+			"scatter": { "density": 1.0 }
+		},
 		"_water_comment": "Water is a SURFACE, not a silhouette: one seamless tile (tools/gen_water.py) that WorldArt tiles across each pond/river/pool and scrolls a texel at a time. 'tile' names the image; 'world_tile' is how many world units one tile spans (bigger = chunkier pixels); a missing tile falls back to the old flat fill. See tools/pixelart/water.py.",
 		"water": { "render": "sprite", "tile": "res://assets/sprites/water_pond.png", "world_tile": 64 },
 		"river": { "render": "sprite", "tile": "res://assets/sprites/water_river.png", "world_tile": 64 },

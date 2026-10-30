@@ -345,6 +345,8 @@ ART = {
     },
     "light": {"shadow_alpha": 0.32, "rim_strength": 0.3},
     "entities": {
+        # Keep the night planet's own soft glowing floor (not the meadow's pixel grass).
+        "ground": {"render": "flat"},
         "tree": {"render": "sprite", "glow_radius": 30, "glow_y": -36, "sway": 0.5, "variants": [
             {"trunk": S + "noct_glowcap_teal_trunk.png", "canopy": S + "noct_glowcap_teal_canopy.png", "glow": [0.56, 1.0, 0.92]},
             {"trunk": S + "noct_glowcap_violet_trunk.png", "canopy": S + "noct_glowcap_violet_canopy.png", "glow": [1.0, 0.58, 0.96]},

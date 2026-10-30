@@ -32,6 +32,7 @@ python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 python portal.py          # portal.png (neutral oval + tint swatches)
 python props.py           # props.png (every small prop, demo-tinted, on grass)
 python hedge.py           # hedge.png (leafy tile, tiled 2x2, lit + face)
+python ground.py          # ground.png (terrain tiles coloured with the default ramps + the detail atlas)
 python nocthollow.py      # nocthollow.png (the night planet: trees, growths, props, creatures)
 ```
 
@@ -50,6 +51,7 @@ python nocthollow.py      # nocthollow.png (the night planet: trees, growths, pr
 | `portal.py` | World doorways: a neutral (grayscale) radial energy oval, ordered-dithered into chunky pixel bands, tinted per-portal in the client, `make_portal()` |
 | `props.py` | The world's small hand-placed things (lanterns, crystals, mushrooms, benches, crates, stonework…): ASCII maps + a procedural Canvas, each baked into a BASE layer + an optional grayscale TINT layer, `make_prop_parts()` |
 | `nocthollow.py` | The night planet's whole look, in one place. Glowing mushroom-trees and Lumen Elders (trunk + canopy). Tall growths: crystal spires, bell-flowers and spore-stalks. Small props in base + tint layers. Five native creatures as PalView sheets. All of it uses GLOW pixels that skip the outline. Baked by `tools/gen_nocthollow.py` |
+| `ground.py` | The pixel-art GROUND: one seamless 128px tile per terrain kind (grass, lush clover, meadow, dirt, sand). Each stores shade roles plus a flower-accent channel, not colours. Plus the scattered detail sprites (tufts, pebbles, leaves, mushrooms, reeds, lily pads...). The client's ground shader tiles, recolours and patches the terrain; `WorldArt` scatters the details in clusters. Baked by `tools/gen_ground.py` |
 | `hedge.py` | The maze walls: one SEAMLESS leafy tile (a dappled integer-frequency clump field, dithered into leaf shades) the client tiles along each axis-aligned hedge run, `make_hedge_tile()` |
 
 ## Core concepts

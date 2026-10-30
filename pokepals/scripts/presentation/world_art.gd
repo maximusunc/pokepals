@@ -19,6 +19,14 @@ var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: 
 var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
 var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
 var _sparkles: Array = []  # [ { pos, color, phase } ] — a glowing world's twinkling ground specks
+# The pixel-art ground (GroundLayer): when the art direction asks for it, the floor, the paths and the
+# sandy shores are drawn by a shader child instead of the gradient + stretched noise + stroked paths
+# below, and the ground is dressed with clustered pixel DETAILS from a sprite atlas.
+var _ground: GroundLayer = null
+var _detail_tex: Texture2D = null
+var _detail_rects := {}   # name -> Rect2 in the atlas (tools/gen_ground.py's index)
+var _details: Array = []  # [ { pos, rect, phase, sway, tint } ] — ground litter, under the water pass
+var _shore_details: Array = []  # same shape — reeds and lily pads, drawn over the water
 # Trees, the border treeline and landmarks live in the y-sorted Scenery layer now, not here.
 
 # --- atmosphere (presentation-only mood, from the world spec's "atmosphere") ---
@@ -207,10 +215,23 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		}
 
 	_paths.clear()
+	# Paths are authored as straight from→to segments; PathShape chains the ones that meet end to end
+	# and rounds them into meandering curves (grouped by look, so a glowing vein never chains onto a
+	# dirt trail). Each entry is one curve: { pts, color, glow }.
+	var groups := {}
 	for p in data.get("paths", []):
 		# "glow": true makes a path a luminous VEIN (a bright breathing thread down its middle) — the
 		# night planet's trails of glowing moss — rather than worn earth.
-		_paths.append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]), "color": WorldData.to_color(p["color"]), "glow": bool(p.get("glow", false)) })
+		var glow := bool(p.get("glow", false))
+		var col := WorldData.to_color(p["color"])
+		var key := "%s|%s" % [glow, col.to_html()]
+		if not groups.has(key):
+			groups[key] = { "color": col, "glow": glow, "segs": [] }
+		groups[key]["segs"].append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]) })
+	for key in groups:
+		var g: Dictionary = groups[key]
+		for pts in PathShape.curves(g["segs"]):
+			_paths.append({ "pts": pts, "color": g["color"], "glow": g["glow"], "box": _poly_box(pts) })
 
 	# Hedge walls (the maze): segments with a thickness, drawn as tall rounded green walls.
 	_hedges.clear()
@@ -224,7 +245,9 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		var fp := Vector2(float(f[0]), float(f[1]))
 		_flowers.append({ "pos": fp, "color": Color(float(f[2]), float(f[3]), float(f[4])), "phase": _phase_for(fp) })
 
-	_scatter_grass()
+	_build_pixel_ground(data)
+	if _ground == null:
+		_scatter_grass()
 
 	_interactables.clear()
 	_form_highlights.clear()   # the indices they keyed just went away with the old list
@@ -252,6 +275,220 @@ func _parse_pond(pond: Dictionary) -> Dictionary:
 ## swaying thing keeps the same offset every frame (and across runs).
 func _phase_for(p: Vector2) -> float:
 	return fposmod(p.x * 0.013 + p.y * 0.021, TAU)
+
+
+static func _poly_box(pts: PackedVector2Array) -> Rect2:
+	var box := Rect2(pts[0], Vector2.ZERO) if not pts.is_empty() else Rect2()
+	for q in pts:
+		box = box.expand(q)
+	return box
+
+
+## ---- the pixel-art ground ---------------------------------------------------------------------
+
+## If the art direction asks for it (the "ground" entity, render "pixel"), put the GroundLayer shader
+## under everything and dress it with clustered pixel details; otherwise leave the classic gradient +
+## noise + tufts in charge (a world can opt out in its art block, as Nocthollow does).
+func _build_pixel_ground(data: Dictionary) -> void:
+	if _ground != null:
+		_ground.queue_free()
+		_ground = null
+	_details.clear()
+	_shore_details.clear()
+	_detail_tex = null
+	if not GroundLayer.wanted(_style):
+		return
+	var cfg := _style.entity("ground")
+	var dirt_paths: Array = []
+	for p in _paths:
+		if not p["glow"]:
+			dirt_paths.append(p["pts"])
+	var ponds: Array = []
+	for pd in _ponds:
+		ponds.append({ "center": pd["center"], "radius": pd["radius"], "seed": _phase_for(pd["center"]) })
+	var river := {}
+	if not _river.is_empty():
+		var rr: Rect2 = _river["rect"]
+		river = { "rect": rr, "top_seed": _phase_for(rr.position), "bot_seed": _phase_for(rr.end) }
+	var shade: Array = []
+	for t in data.get("trees", []) + data.get("border_trees", []):
+		shade.append({ "pos": WorldData.to_vec2(t), "r": 24.0 })
+	for lm in data.get("landmarks", []):
+		shade.append({ "pos": WorldData.to_vec2(lm["position"]), "r": 50.0 })
+	for it in data.get("props", []):
+		shade.append({ "pos": WorldData.to_vec2(it["position"]) + Vector2(0, 6), "r": 12.0 })
+	_ground = GroundLayer.new()
+	_ground.name = "Ground"
+	add_child(_ground)
+	_ground.build(_bounds, _style, { "paths": dirt_paths, "ponds": ponds, "river": river, "shade": shade })
+
+	_detail_tex = GroundLayer.texture(cfg, "details")
+	_detail_rects.clear()
+	var index_path := String(cfg.get("details_index", ""))
+	if _detail_tex != null and index_path != "" and FileAccess.file_exists(index_path):
+		var idx: Dictionary = WorldData.load_json(index_path)
+		for n in idx:
+			var r: Array = idx[n]
+			_detail_rects[n] = Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3]))
+	if not _detail_rects.is_empty():
+		_scatter_details(data, cfg.get("scatter", {}), dirt_paths)
+
+
+## Is `p` on open, dry, unpathed ground (where litter may lie)?
+func _open_ground(p: Vector2, path_clear: float) -> bool:
+	if not _bounds.has_point(p):
+		return false
+	for pd in _ponds:
+		var off: Vector2 = p - (pd["center"] as Vector2)
+		if off.length() < organic_radius(off.angle(), float(pd["radius"]), _phase_for(pd["center"])) + 4.0:
+			return false
+	if not _river.is_empty() and (_river["rect"] as Rect2).grow(6.0).has_point(p):
+		return false
+	if not _vein.is_empty() and (_vein["rect"] as Rect2).has_point(p):
+		return false
+	return _ground.path_value(p) < path_clear
+
+
+func _add_detail(list: Array, name: String, p: Vector2, sway: float = 0.0, tint := Color.WHITE) -> void:
+	if not _detail_rects.has(name):
+		return
+	list.append({ "pos": p.round(), "rect": _detail_rects[name], "phase": _phase_for(p), "sway": sway, "tint": tint })
+
+
+## Scatter the ground's litter in natural CLUSTERS (a patch of tufts, a ring of mushrooms by a trunk,
+## pebbles where a trail frays, reeds in clumps along a shore) instead of an even sprinkle. Seeded, so
+## the same world is dressed the same way every visit. scatter = { density (1 = default), grass_tint }.
+func _scatter_details(data: Dictionary, scfg: Dictionary, paths: Array) -> void:
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xD371A + int(_bounds.position.x) * 7 + int(_bounds.size.y)
+	var density := float(scfg.get("density", 1.0))
+	# a world can re-tint its living litter (a sun-baked market's tufts are straw, not green)
+	var grass_tint := WorldData.to_color(scfg.get("grass_tint", [1.0, 1.0, 1.0]))
+	var area := _bounds.size.x * _bounds.size.y
+	var trees: Array = []
+	for t in data.get("trees", []):
+		if not (t is Array and t.size() > 2):   # a plain meadow tree, not a world's special growth
+			trees.append(WorldData.to_vec2(t))
+	for lm in data.get("landmarks", []):
+		trees.append(WorldData.to_vec2(lm["position"]))
+
+	# open-ground clusters
+	var kinds := [
+		["tuft", 52], ["clover", 10], ["pebbles", 9], ["daisies", 8], ["twig", 5], ["stone", 3],
+	]
+	var total := 0
+	for k in kinds:
+		total += int(k[1])
+	var clusters := int(clampf(area / 7000.0 * density, 20.0, 1600.0))
+	for _i in clusters:
+		var c := Vector2(_bounds.position.x + rng.randf() * _bounds.size.x, _bounds.position.y + rng.randf() * _bounds.size.y)
+		var roll := rng.randi() % total
+		var kind := "tuft"
+		for k in kinds:
+			roll -= int(k[1])
+			if roll < 0:
+				kind = k[0]
+				break
+		var n := rng.randi_range(4, 10) if kind == "tuft" else rng.randi_range(1, 4)
+		var spread := rng.randf_range(10.0, 28.0)
+		for _j in n:
+			var p := c + Vector2(rng.randfn(0.0, spread), rng.randfn(0.0, spread * 0.7))
+			if not _open_ground(p, 0.3):
+				continue
+			match kind:
+				"tuft":
+					_add_detail(_details, ["tuft_a", "tuft_b", "tuft_c"][rng.randi() % 3], p, 0.35, grass_tint)
+				"clover":
+					_add_detail(_details, "clover", p, 0.0, grass_tint)
+				"stone":
+					_add_detail(_details, "stone_b" if rng.randf() < 0.5 else "stone", p)
+				_:
+					_add_detail(_details, kind, p)
+
+	# under the trees: fallen leaves, mushrooms by the roots, a twig or two
+	for t in trees:
+		if rng.randf() < 0.55:
+			for _j in rng.randi_range(1, 4):
+				var p: Vector2 = t + Vector2(rng.randfn(0.0, 16.0), rng.randfn(4.0, 9.0))
+				if _open_ground(p, 0.5):
+					_add_detail(_details, "leaf_gold" if rng.randf() < 0.5 else "leaf_rust", p)
+		if rng.randf() < 0.3:
+			var a := rng.randf() * TAU
+			for _j in rng.randi_range(1, 3):
+				var p: Vector2 = t + Vector2(cos(a), sin(a) * 0.6) * rng.randf_range(12.0, 20.0) + Vector2(rng.randfn(0.0, 3.0), rng.randfn(0.0, 2.0))
+				if _open_ground(p, 0.5):
+					_add_detail(_details, "mushroom", p)
+
+	# where a trail frays: pebbles on its shoulders and the odd half-sunk stone
+	for pts in paths:
+		var acc := 0.0
+		for k in range(1, pts.size()):
+			acc += pts[k].distance_to(pts[k - 1])
+			if acc < 28.0:
+				continue
+			acc = 0.0
+			if rng.randf() > 0.35:
+				continue
+			var tangent: Vector2 = (pts[k] - pts[k - 1]).normalized()
+			var side := 1.0 if rng.randf() < 0.5 else -1.0
+			var p: Vector2 = pts[k] + Vector2(-tangent.y, tangent.x) * side * rng.randf_range(9.0, 15.0)
+			var kind := "pebbles" if rng.randf() < 0.7 else ("stone" if rng.randf() < 0.5 else "stone_b")
+			_add_detail(_details, kind, p)
+
+	# the spec's own flowers, as tinted pixel flowers
+	for f in _flowers:
+		_add_detail(_details, "flower", f["pos"], 0.45, f["color"])
+
+	_scatter_shores(rng, density)
+	# draw back-to-front so a nearer tuft overlaps a farther one
+	_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)
+	_shore_details.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["pos"].y < b["pos"].y)
+
+
+## Reeds in clumps along every shore and lily pads resting on the water.
+func _scatter_shores(rng: RandomNumberGenerator, density: float) -> void:
+	for pd in _ponds:
+		var c: Vector2 = pd["center"]
+		var radius := float(pd["radius"])
+		var seed := _phase_for(c)
+		var clumps := int(radius * TAU / 55.0 * density)
+		for _i in clumps:
+			var a := rng.randf() * TAU
+			for _j in rng.randi_range(2, 4):
+				var aa := a + rng.randf_range(-0.09, 0.09)
+				var r := organic_radius(aa, radius, seed) + rng.randf_range(-3.0, 2.0)
+				_add_detail(_shore_details, "reed_a" if rng.randf() < 0.6 else "reed_b", c + Vector2(cos(aa), sin(aa)) * r, 0.5)
+		for _i in int(radius * radius / 1500.0 * density):
+			var a := rng.randf() * TAU
+			var r := organic_radius(a, radius, seed) * rng.randf_range(0.3, 0.82)
+			_add_detail(_shore_details, "lily_bloom" if rng.randf() < 0.25 else "lily", c + Vector2(cos(a), sin(a)) * r)
+	if not _river.is_empty():
+		var rr: Rect2 = _river["rect"]
+		var x := rr.position.x + rng.randf_range(0.0, 40.0)
+		while x < rr.end.x:
+			for bank in [[rr.position.y, _phase_for(rr.position), 1.0], [rr.end.y, _phase_for(rr.end), -1.0]]:
+				if rng.randf() < 0.45:
+					var by: float = bank[0] + river_bank_offset(x, bank[1])
+					for _j in rng.randi_range(2, 4):
+						var px := x + rng.randf_range(-8.0, 8.0)
+						_add_detail(_shore_details, "reed_a" if rng.randf() < 0.6 else "reed_b", Vector2(px, by + rng.randf_range(-2.0, 3.0) * float(bank[2])), 0.5)
+				if rng.randf() < 0.25:
+					var ly: float = bank[0] + river_bank_offset(x, bank[1]) + float(bank[2]) * rng.randf_range(10.0, 26.0)
+					_add_detail(_shore_details, "lily", Vector2(x + rng.randf_range(-10.0, 10.0), ly))
+			x += rng.randf_range(34.0, 70.0)
+
+
+## Draw one batch of details (culled), each tuft/reed nodding a whole pixel at a time in the breeze.
+func _draw_details(list: Array, vis: Rect2, cull: bool) -> void:
+	for d in list:
+		var p: Vector2 = d["pos"]
+		if cull and not vis.has_point(p):
+			continue
+		var r: Rect2 = d["rect"]
+		var sx := 0.0
+		if d["sway"] > 0.0:
+			sx = roundf(_sway(d["phase"], d["sway"]))
+		draw_texture_rect_region(_detail_tex, Rect2(p + Vector2(sx - roundf(r.size.x * 0.5), -r.size.y), r.size), r, d["tint"])
 
 
 ## Bake a small, soft noise texture once and stretch it over the whole ground so the
@@ -420,12 +657,14 @@ func _draw() -> void:
 
 	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
 	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
-	if _ground_grad != null:
-		draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
-	else:
-		draw_rect(_bounds, _ground_color)
-	if _ground_noise != null:
-		draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
+	# (With the pixel ground, the GroundLayer child draws the floor, the paths and the shores instead.)
+	if _ground == null:
+		if _ground_grad != null:
+			draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
+		else:
+			draw_rect(_bounds, _ground_color)
+		if _ground_noise != null:
+			draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
 
 	# per-region mood wash, so each named area feels distinct underfoot
 	for rt in _region_tints:
@@ -434,6 +673,10 @@ func _draw() -> void:
 		var c: Color = rt["color"]
 		c.a = _region_tint_alpha
 		draw_rect(rt["rect"], c)
+
+	# the pixel ground's litter: tufts, clover, pebbles, leaves, mushrooms, flowers
+	if _detail_tex != null:
+		_draw_details(_details, vis, cull)
 
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
@@ -454,17 +697,21 @@ func _draw() -> void:
 		var sc: Color = sp["color"]
 		draw_circle(sp["pos"], 0.8 + 0.7 * tw, Color(sc.r, sc.g, sc.b, 0.25 + 0.6 * tw * tw))
 
-	# worn paths (or, on a glowing world, luminous veins of moss with a breathing thread of light)
+	# worn paths (or, on a glowing world, luminous veins of moss with a breathing thread of light),
+	# following their curves. On the pixel ground a dirt trail is part of the floor shader instead.
 	for p in _paths:
-		if cull and not vis.intersects(Rect2(p["from"], Vector2.ZERO).expand(p["to"]).grow(8.0)):
+		if _ground != null and not p["glow"]:
 			continue
-		draw_line(p["from"], p["to"], p["color"], 16.0)
+		if cull and not vis.intersects((p["box"] as Rect2).grow(8.0)):
+			continue
+		var pts: PackedVector2Array = p["pts"]
+		draw_polyline(pts, p["color"], 16.0)
 		if p["glow"]:
 			var pc: Color = (p["color"] as Color).lightened(0.4)
 			var core: Color = (p["color"] as Color).lightened(0.6)
-			var pb := 0.55 + 0.25 * sin(_time * 0.9 + _phase_for(p["from"]))
-			draw_line(p["from"], p["to"], Color(pc.r, pc.g, pc.b, 0.16), 6.0)
-			draw_line(p["from"], p["to"], Color(core.r, core.g, core.b, pb * 0.6), 1.5)
+			var pb := 0.55 + 0.25 * sin(_time * 0.9 + _phase_for(pts[0]))
+			draw_polyline(pts, Color(pc.r, pc.g, pc.b, 0.16), 6.0)
+			draw_polyline(pts, Color(core.r, core.g, core.b, pb * 0.6), 1.5)
 
 	# the Vein: the sunken dry channel, drawn under everything else (props sit on its bed)
 	_draw_vein()
@@ -516,8 +763,13 @@ func _draw() -> void:
 		for run in pond["shore"]:
 			draw_polyline(run, _water_rim, 2.0)
 
-	# flowers (a petal dot with a bright center), nodding in the breeze
-	for f in _flowers:
+	# reeds and lily pads, over the water's edge
+	if _detail_tex != null:
+		_draw_details(_shore_details, vis, cull)
+
+	# flowers (a petal dot with a bright center), nodding in the breeze (pixel flowers ride with the
+	# ground's details instead)
+	for f in ([] if _detail_tex != null and not _details.is_empty() else _flowers):
 		if cull and not vis.has_point(f["pos"]):
 			continue
 		var fp: Vector2 = f["pos"] + Vector2(_sway(f["phase"], 0.45), 0.0)
@@ -616,9 +868,15 @@ func _organic_ring(center: Vector2, radius: float, seed: float, segments := 56) 
 	var pts := PackedVector2Array()
 	for i in segments:
 		var a := TAU * float(i) / float(segments)
-		var wobble := 0.11 * sin(3.0 * a + seed) + 0.06 * sin(5.0 * a - seed * 1.7) + 0.035 * sin(8.0 * a + seed * 2.3)
-		pts.append(center + Vector2(cos(a), sin(a)) * radius * (1.0 + wobble))
+		pts.append(center + Vector2(cos(a), sin(a)) * organic_radius(a, radius, seed))
 	return pts
+
+
+## The organic shoreline's distance from its centre at angle `a` — the one formula both the drawn ring
+## and the pixel ground's sandy shore band (GroundLayer) read, so the sand hugs the water exactly.
+static func organic_radius(a: float, radius: float, seed: float) -> float:
+	var wobble := 0.11 * sin(3.0 * a + seed) + 0.06 * sin(5.0 * a - seed * 1.7) + 0.035 * sin(8.0 * a + seed * 2.3)
+	return radius * (1.0 + wobble)
 
 
 ## Trace a closed outline (an organic shoreline) as a thin line — the waterline where the
@@ -708,6 +966,11 @@ func _river_bank(rect: Rect2, base_y: float, seed: float) -> PackedVector2Array:
 ## a shorter ripple), only ~10px at most so the shore is subtly uneven, not a pronounced curve.
 ## `seed` shifts the phase so the top and bottom banks wave independently, not mirroring.
 func _river_bank_offset(x: float, seed: float) -> float:
+	return river_bank_offset(x, seed)
+
+
+## (Static so GroundLayer's shore band follows the same banks.)
+static func river_bank_offset(x: float, seed: float) -> float:
 	return 7.0 * sin(x * 0.017 + seed) + 3.5 * sin(x * 0.011 - seed * 1.6)
 
 

@@ -80,6 +80,9 @@
 			"rim_strength": 0.3
 		},
 		"entities": {
+			"ground": {
+				"render": "flat"
+			},
 			"tree": {
 				"render": "sprite",
 				"glow_radius": 30,
