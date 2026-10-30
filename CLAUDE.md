@@ -86,7 +86,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 > tools-only dependency; PNGs stay committed). `tools/gen_wardrobe.py` exports per-layer 8-frame dye
 > sheets for the paper-doll wardrobe; `tools/gen_pals.py` bakes real animal species (cat/fox/rabbit/
 > bird/wolf) for ambient pals, rendered client-side by `PalView` when a seed pal names a `species`
-> (companion-puppet fallback otherwise).
+> (companion-puppet fallback otherwise). Motion: `tools/pixelart/gait.py` poses the animals' real
+> leg cycles (walk/trot/lope/hop) plus a 16-frame idle loop PalSprite plays at rest; the player's
+> profile walk is a true stride, with the standing pose in each wardrobe sheet's 9th column
+> (`idle_frame: 8`).
 
 > **Companion path planning (2026-07):** the companion can now route AROUND walls instead of only
 > sliding along them (the maze was the acid test). Two pure-logic `scripts/world` modules in the

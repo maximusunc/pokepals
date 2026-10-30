@@ -7,7 +7,8 @@ re-run this, and every layer sheet regenerates in step.
 
 Per item sheet (one PNG per catalog item, like the old gen_cosmetics.py):
 
-    256 x 96 px, 32x32 cells, COLS=8 (walk cycle, col 0 = idle), ROWS=3 (down, side, up).
+    288 x 96 px, 32x32 cells, COLS=9 (cols 0-7 = the walk cycle, col 8 = the standing
+    idle pose — cosmetics.json's idle_frame), ROWS=3 (down, side, up).
     Left-facing is the SIDE row drawn flipped at runtime (SpriteActor).
 
 The pixelart package composites a whole character and outlines the FINISHED frame;
@@ -29,9 +30,9 @@ without touching the source maps:
 Every layer is a DYE layer: authored grayscale (dark outline + 3 grays), recolored at
 runtime by the color slot that targets its paper-doll slot (avatar_compositor.gd maps
 luminance onto the chosen swatch). Glasses are the one exception — near-black ink,
-below the recolor threshold, so they stay dark under any palette. The side walk cycle
-is phase-rotated so column 0 is the standing pose (the runtime's idle frame); the loop
-itself is unchanged from walk.py.
+below the recolor threshold, so they stay dark under any palette. The side walk is
+walk.py's stride (legs that pass each other, a far arm behind the torso), which never
+stands with both feet together — hence the separate standing column.
 
 Requires Pillow (like tools/pixelart). Output PNGs + .import sidecars are committed,
 so the game and other contributors never need it. After regenerating, run
@@ -53,7 +54,9 @@ import generator as G  # noqa: E402
 import walk as WK      # noqa: E402
 
 SIZE = 32
-COLS, ROWS = 8, 3            # 8 walk frames x (down, side, up)
+WALK = 8                     # walk frames, then one standing idle column
+IDLE = WALK
+COLS, ROWS = WALK + 1, 3     # (8 walk + idle) x (down, side, up)
 ROW_OF = {"down": 0, "side": 1, "up": 2}
 OUT_DIR = os.path.normpath(os.path.join(HERE, "..", "assets", "cosmetics"))
 
@@ -86,25 +89,15 @@ FRONT_ARMS = [("neutral", "neutral"), ("neutral", "neutral"),
               ("neutral", "neutral"), ("neutral", "neutral"),
               ("swing", "neutral"), ("swing", "neutral")]
 FRONT_BOBS = [0, 1, 1, 1, 0, 1, 1, 1]
+# the idle column: the front cycle's own standing frame
+FRONT_LEGS.append(FRONT_LEGS[0])
+FRONT_ARMS.append(FRONT_ARMS[0])
+FRONT_BOBS.append(0)
 
-
-def _rot2(seq):
-    # Start the side cycle on the STAND pose so column 0 works as the idle frame.
-    return list(seq[2:]) + list(seq[:2])
-
-
-def _side_legs():
-    stride_a = (WK.PANTS_SIDE_STRIDE, WK.SHOES_SIDE_STRIDE)
-    half_a = (WK.PANTS_SIDE_HALF, WK.SHOES_SIDE_HALF)
-    stand = (WK.PANTS_SIDE_STAND, WK.SHOES_SIDE_STAND)
-    half_b = (WK.PANTS_SIDE_HALF2, WK.SHOES_SIDE_HALF2)
-    stride_b = (WK.PANTS_SIDE_STRIDE2, WK.SHOES_SIDE_STRIDE2)
-    return _rot2([stride_a, half_a, stand, half_b, stride_b, half_b, stand, half_a])
-
-
-SIDE_LEGS = _side_legs()
-SIDE_ARMS = _rot2(["back", "back", "neutral", "fwd", "fwd", "fwd", "neutral", "back"])
-SIDE_BOBS = _rot2([1, 0, 0, 0, 1, 0, 0, 0])
+SIDE_LEGS = [WK.side_leg_maps(i) for i in range(WALK)] + \
+    [(WK.PANTS_SIDE_STAND, WK.SHOES_SIDE_STAND)]
+SIDE_ARMS = WK.SIDE_ARMS + ["neutral"]
+SIDE_BOBS = WK.SIDE_BOBS + [0]
 
 
 # --------------------------------------------------------------- tiny grid ops
@@ -174,6 +167,7 @@ class FrameCtx:
         else:
             pose = SIDE_ARMS[i]
             self.body = {}
+            stamp(self.body, WK.far_arm(pose), self.bob)   # behind the torso: only the hand shows
             stamp(self.body, WK.BODY_SIDE, self.bob)
             stamp(self.body, WK.SIDE_ARM_POSE[pose], self.bob)
             self.sleeves = [WK.SIDE_SLEEVE_POSE[pose]]

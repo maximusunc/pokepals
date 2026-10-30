@@ -714,7 +714,8 @@ func _draw() -> void:
 	if _form_tex != null:
 		var spd := velocity.length()
 		var moving := spd > 6.0
-		var bounce := -absf(sin(_time * 8.0)) * 1.6 if moving else sin(_time * 2.4) * 0.6
+		# The sheet's gait carries the stride bob now (tools/pixelart/gait.py), so only a resting sway here.
+		var bounce := 0.0 if moving else sin(_time * 2.4) * 0.6
 		self_modulate = _coat_modulate()
 		PalSprite.draw(self, _form_tex, {
 			"look": facing,
