@@ -26,6 +26,7 @@ python animals.py         # daemons.png       (species x color variants)
 python walk.py            # walk sheets + walk_demo.gif
 python directions.py      # fox_compass.png + daemon_directions.png
 python animal_motion.py   # animal_motion.png + animal_motion.gif
+python gait.py            # gaits.png + gaits.gif + idles.gif (quadruped walks, hops, idles)
 python trees.py           # trees.png (tree + great tree, ramp variants)
 python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
 python portal.py          # portal.png (neutral oval + tint swatches)
@@ -42,6 +43,7 @@ python nocthollow.py      # nocthollow.png (the night planet: trees, growths, pr
 | `animals.py` | The 5 daemon species (cat, fox, rabbit, bird, wolf) as single maps + natural color variants, `make_daemon()` |
 | `walk.py` | Player 8-frame walk cycles in 4 directions, arm swing poses, side/back view maps, `character_frames()`; daemon hop `daemon_frames()` |
 | `directions.py` | 8-directional daemon facing (`make_daemon_facing()`): hand-drawn standing 3/4 views (`DIAG_MAPS`) + profiles (`SIDE_MAPS`) for every quadruped, derived back views |
+| `gait.py` | Real leg cycles for the quadrupeds, posed from `directions.py`'s standing facings. It finds the legs automatically and gives each a near/far, front/hind role, then lifts and swings them per frame. It also drops the body on the planted beats and sways tails and ears from their root. Per-species gaits: cat walk, fox trot, wolf lope, rabbit hop. Plus a 16-frame idle loop (tail swish, blink, breath). Baked by `tools/gen_pals.py` |
 | `animal_motion.py` | Bird flight (`bird_fly_frames()`) and perch idle, fox trot (`fox_trot_frames()`) |
 | `trees.py` | World scenery: a tree + a great tree as canopy `LAYOUTS` (foliage lobes + trunk), with derived lit-blob shading + the shared outline, `make_tree()` |
 | `water.py` | World surfaces: a single SEAMLESS tile per body of water (pond/river/pool) from a summed integer-frequency `WAVES` field, shaded into glint/base/trough roles, `make_water_tile()` |

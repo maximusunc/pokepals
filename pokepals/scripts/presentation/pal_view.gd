@@ -29,6 +29,8 @@ var _fh := 32
 var _fps := 10.0
 var _cols := 8
 var _fly_row := -1
+var _idle_cols := 0
+var _idle_fps := 5.0
 var _rows: Dictionary = {}
 
 var _target_pos := Vector2.ZERO
@@ -89,6 +91,8 @@ static func sheet_info(species: String, variant: int) -> Dictionary:
 			"cols": int(reg.get("move_frames", 8)),
 			"rows": reg.get("rows", {}),
 			"fly_row": int((reg.get("species", {}) as Dictionary).get(species, {}).get("fly_row", -1)),
+			"idle_cols": int((reg.get("species", {}) as Dictionary).get(species, {}).get("idle_frames", 0)),
+			"idle_fps": float(reg.get("idle_fps", 5.0)),
 		},
 	}
 
@@ -136,6 +140,8 @@ func setup_species(species: String, variant: int) -> bool:
 	_rows = reg.get("rows", {})
 	var entry: Dictionary = (reg.get("species", {}) as Dictionary).get(species, {})
 	_fly_row = int(entry.get("fly_row", -1))
+	_idle_cols = int(entry.get("idle_frames", 0))
+	_idle_fps = float(reg.get("idle_fps", 5.0))
 	_species = species
 	_animate_idle = bool(entry.get("animate_idle", false))
 	_temperament = String(entry.get("temperament", ""))
@@ -237,4 +243,6 @@ func _draw() -> void:
 		"rows": _rows,
 		"fly_row": _fly_row,
 		"animate_idle": _animate_idle,
+		"idle_cols": _idle_cols,
+		"idle_fps": _idle_fps,
 	})

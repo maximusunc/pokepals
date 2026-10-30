@@ -8,9 +8,11 @@ extends RefCounted
 ## hop dip) on top of the flat sheet; ambient pals pass neither and render exactly as before.
 ##
 ## Sheet convention:
-##   cols = motion frames, col 0 = idle; rows = the RIGHT-handed facing family
+##   cols = motion frames (col 0 = the rest pose without an idle loop); rows = the RIGHT-handed facing family
 ##   (down, down_right, right, up_right, up) — the left family is that row mirrored. A bird carries
-##   an extra 'fly_row' it switches to while moving, so it flutters between spots.
+##   an extra 'fly_row' it switches to while moving, so it flutters between spots. A sheet that
+##   carries an IDLE loop (tools/pixelart/gait.py: a tail swish, a blink, a breath) keeps it in the
+##   'idle_cols' columns right after the motion frames, played at 'idle_fps' while standing still.
 ##
 ## Pure presentation; nothing here reads game state. Pixel-crisp: integer-ish translations plus a
 ## gentle vertical scale about the ground line (which can shimmer a touch, but stays subtle).
@@ -22,7 +24,8 @@ const FOOT_Y := 8.0      # feet sit at origin+8, like SpriteActor/SpriteSlot
 ## params: look (Vector2 facing/attention), speed (px/s), time (s), bounce (px, +down), squash
 ##         (+pop up / -dip down), offset (Vector2 px nudge, e.g. a shy creature shrinking back). cfg:
 ##         frame:[w,h], fps, cols, rows:{down,down_right,right,up_right,up}, fly_row (-1 if none),
-##         animate_idle (keep cycling while still — floaters).
+##         animate_idle (keep cycling while still — floaters), idle_cols (resting-loop frames after
+##         the motion columns, 0 = none: rest on col 0), idle_fps.
 static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictionary) -> void:
 	if tex == null:
 		return
@@ -51,7 +54,14 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 		flip = look.x < 0.0
 	# A hovering creature (a world's native floater) keeps its motion cycle running at rest, so it
 	# drifts and ripples rather than freezing on the idle frame.
-	var col := int(t * fps) % cols if (moving or bool(cfg.get("animate_idle", false))) else 0
+	var col := 0
+	var idle_cols := int(cfg.get("idle_cols", 0))
+	if moving or bool(cfg.get("animate_idle", false)):
+		col = int(t * fps) % cols
+	elif idle_cols > 0:
+		# Offset each drawer's loop by its node id so a flock standing together never blinks in unison.
+		var phase := float(ci.get_instance_id() % 997) * 0.37
+		col = cols + int((t + phase) * float(cfg.get("idle_fps", 5.0))) % idle_cols
 	var region := Rect2(col * fw, row * fh, fw, fh)
 	var dest := Rect2(-fw * 0.5, FOOT_Y - fh, fw, fh)
 

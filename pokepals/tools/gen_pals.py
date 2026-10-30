@@ -7,19 +7,20 @@ into the sheet shape the client's PalView reads. Change the art there, re-run th
 
 One sheet per species x natural color variant:
 
-    256 px wide (8 motion frames, col 0 = idle), 32x32 cells.
+    32x32 cells. Columns: 8 motion frames (col 0 = the first stride frame), then
+    gait.IDLE_FRAMES resting-loop frames (a tail swish, a blink, a breath).
     Rows = the RIGHT-handed facing family: down, down_right, right, up_right, up.
     The left family (down_left, left, up_left) is mirrored at runtime, exactly like
     directions.make_daemon_facing does.
 
-Motion, straight from the source's animation vocabulary:
-  • quadrupeds hop — the facing view lifted by walk.daemon_frames' dy cycle
-    (0,-1,-2,-1 twice), baked per column.
-  • the fox's RIGHT row is animal_motion's trot (stretch/stand/airborne-gather),
-    phase-rotated so column 0 is the standing pose (the runtime's idle frame).
+Motion comes from gait.py, posed from directions.py's standing facings:
+  • quadrupeds walk on real legs: diagonal pairs swing and plant, the body bobs on
+    the spread beats, tails swish. The fox trots with a moment of suspension, the
+    wolf lopes long, the cat walks soft, and the rabbit HOPS (crouch, push, sail with
+    its ears streaming back, land).
   • the bird gets an extra FLY row (animal_motion's wing-flap cycle, body rising on
     the downstroke); PalView switches to it while the bird is moving, so birds
-    flutter between perches while the others amble. On the ground it hops.
+    flutter between perches. On the ground it hops; perched, it blinks and settles.
 
 data/pals.json is the client-side registry describing this layout (rows, fps,
 variants, the bird's fly_row). Requires Pillow, like tools/pixelart; the PNGs and
@@ -41,11 +42,13 @@ from PIL import Image  # noqa: E402
 import animals          # noqa: E402
 import directions       # noqa: E402
 import animal_motion    # noqa: E402
+import gait             # noqa: E402
 
 SIZE = 32
-COLS = 8
+MOVE_COLS = 8
+COLS = MOVE_COLS + gait.IDLE_FRAMES
 VIEWS = ["down", "down_right", "right", "up_right", "up"]
-HOP_DY = (0, -1, -2, -1, 0, -1, -2, -1)   # walk.daemon_frames' little bounce
+HOP_DY = (0, -1, -2, -1, 0, -1, -2, -1)   # the perched bird's little ground hop
 OUT_DIR = os.path.normpath(os.path.join(HERE, "..", "assets", "pals"))
 
 
@@ -55,22 +58,19 @@ def _shifted(img, dy):
     return f
 
 
-def _rot1(frames):
-    # Start a cycle on its STAND pose so column 0 works as the idle frame.
-    return frames[1:] + frames[:1]
-
-
 def species_rows(species, variant):
-    """The list of 8-frame rows for one sheet, in VIEWS order (+ the bird's fly row)."""
+    """The list of rows for one sheet, in VIEWS order (+ the bird's fly row):
+    each row is its motion frames followed by its idle loop."""
     rows = []
     for view in VIEWS:
-        if species == "fox" and view == "right":
-            rows.append(_rot1(animal_motion.fox_trot_frames(variant)))
+        if species in gait.QUADRUPEDS:
+            move = gait.move_frames(species, view, variant)
         else:
             base = directions.make_daemon_facing(species, view, variant)
-            rows.append([_shifted(base, dy) for dy in HOP_DY])
+            move = [_shifted(base, dy) for dy in HOP_DY]
+        rows.append(move + gait.idle_frames(species, view, variant))
     if species == "bird":
-        rows.append(animal_motion.bird_fly_frames(variant))
+        rows.append(animal_motion.bird_fly_frames(variant))   # no idle: it lands to rest
     return rows
 
 

@@ -272,10 +272,11 @@ func _age_emotes(delta: float) -> void:
 func _draw() -> void:
 	if _tex == null:
 		return
-	# Same body language as the companion's daemon draw: a soft breathing bob at rest, a busier
-	# one on the move, plus the one-shot squash pops (shift shimmer, ceremony beats).
+	# Same body language as the companion's daemon draw: a soft breathing bob at rest (on the move
+	# the sheet's own gait carries the stride bob), plus the one-shot squash pops (shift shimmer,
+	# ceremony beats).
 	var moving := _speed > 6.0
-	var bounce := -absf(sin(_time * 8.0)) * 1.6 if moving else sin(_time * 2.4) * 0.6
+	var bounce := 0.0 if moving else sin(_time * 2.4) * 0.6
 	PalSprite.draw(self, _tex, {
 		"look": _facing,
 		"speed": _speed,
