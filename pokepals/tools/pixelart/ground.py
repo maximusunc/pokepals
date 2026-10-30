@@ -260,10 +260,81 @@ DETAILS = {
         ".1111.",
     ]),
 }
+# --- Nocthollow's night litter: dark moss and stone with luminous tips (the client haloes them) ---
+GLOW_TEAL = ((20, 40, 70), (34, 70, 100), (130, 245, 225))
+GLOW_PINK = ((40, 26, 70), (72, 50, 112), (255, 156, 232))
+GLOW_CAP = ((40, 116, 140), (92, 218, 220), (204, 255, 250))
+SHARD = ((60, 90, 160), (132, 192, 255), (232, 250, 255))
+STARMOSS = ((20, 48, 52), (38, 86, 72), (206, 255, 150))
+NIGHT_STONE = ((30, 30, 56), (54, 54, 88), (150, 232, 255))
+NIGHT_REED = ((28, 56, 78), (48, 88, 110), (88, 138, 160))
+NIGHT_LILY = ((18, 48, 70), (30, 80, 100), (62, 132, 152))
+
+DETAILS.update({
+    "glowtuft_a": (GLOW_TEAL, False, [
+        "..3...",
+        ".32.3.",
+        ".2.32.",
+        "12.21.",
+        "1211..",
+    ]),
+    "glowtuft_b": (GLOW_PINK, False, [
+        ".3..3..",
+        ".2.32..",
+        "32.2.3.",
+        "2.12.2.",
+        "21121..",
+    ]),
+    "glowcap": (GLOW_CAP, True, [
+        ".333.",
+        "33232",
+        ".1211",
+        "..w..",
+    ]),
+    "shard": (SHARD, True, [
+        ".3.",
+        "332",
+        "332",
+        "321",
+        ".1.",
+    ]),
+    "starmoss": (STARMOSS, False, [
+        ".3..2.3",
+        "2232322",
+        ".12121.",
+    ]),
+    "glowpebble": (NIGHT_STONE, False, [
+        ".23..3",
+        ".21.21",
+        "......",
+        "..32..",
+        "..21..",
+    ]),
+    "glowreed": (NIGHT_REED, True, [
+        ".b.",
+        "bBb",
+        ".b.",
+        ".3.",
+        "32.",
+        "2.3",
+        "2.2",
+        "212",
+    ]),
+    "lumen_lily": (NIGHT_LILY, True, [
+        "..qq..",
+        ".3qQ3.",
+        "322.22",
+        "322221",
+        ".1111.",
+    ]),
+})
+
 # Extra fixed colours some maps use: Y flower centre, g stem, W mushroom stalk,
-# c cattail head, p water-lily petal.
+# c cattail head, p water-lily petal; w a glowcap's pale stalk, b/B a glowing reed's
+# bulb (and its bright heart), q/Q a lumen lily's glowing petals.
 EXTRA = {"Y": (246, 214, 84), "g": (82, 128, 74), "W": (226, 214, 190),
-         "c": CATTAIL[1], "p": PINK[1]}
+         "c": CATTAIL[1], "p": PINK[1], "w": (150, 190, 210),
+         "b": (120, 236, 220), "B": (220, 255, 250), "q": (236, 120, 210), "Q": (255, 210, 244)}
 
 
 def make_detail(name):

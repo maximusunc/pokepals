@@ -345,8 +345,37 @@ ART = {
     },
     "light": {"shadow_alpha": 0.32, "rim_strength": 0.3},
     "entities": {
-        # Keep the night planet's own soft glowing floor (not the meadow's pixel grass).
-        "ground": {"render": "flat"},
+        # The meadow's pixel ground, re-grown as night moss: deep indigo-teal floor with glowing specks
+        # where the meadow would have flowers, trails of luminous moss (its glowing paths baked into the
+        # floor), a pale lumen-sand rim round the mere, and its own litter -- glow-tipped moss, glowcaps,
+        # crystal shards, star-moss and glinting stones, glowing reeds and lilies -- each softly haloed.
+        "ground": {
+            "render": "pixel",
+            "ramps": {"grass": [[0.055, 0.086, 0.18], [0.078, 0.133, 0.243], [0.102, 0.173, 0.29], [0.157, 0.275, 0.384]], "lush": [[0.039, 0.133, 0.188], [0.055, 0.188, 0.251], [0.078, 0.243, 0.306], [0.133, 0.376, 0.408]], "meadow": [[0.071, 0.094, 0.204], [0.094, 0.141, 0.267], [0.118, 0.18, 0.314], [0.18, 0.282, 0.408]], "dirt": [[0.102, 0.071, 0.173], [0.141, 0.102, 0.227], [0.173, 0.125, 0.267], [0.259, 0.196, 0.361]], "sand": [[0.118, 0.18, 0.275], [0.165, 0.251, 0.353], [0.212, 0.314, 0.416], [0.337, 0.486, 0.573]], "path": [[0.071, 0.259, 0.314], [0.11, 0.376, 0.408], [0.149, 0.471, 0.478], [0.376, 0.8, 0.729]], "worn": [[0.063, 0.157, 0.235], [0.086, 0.212, 0.29], [0.11, 0.259, 0.337], [0.173, 0.376, 0.431]]},
+            "accents": [list(CYAN), list(PINK), list(LIME), list(GOLD)],
+            "patches": {"lush": {"scale": 0.004, "threshold": 0.56}, "meadow": {"scale": 0.006, "threshold": 0.58},
+                        "dirt": {"scale": 0.006, "threshold": 0.78}},
+            "shade": 0.35,
+            "scatter": {
+                "density": 0.9,
+                "open": [
+                    {"names": ["glowtuft_a"], "weight": 40, "count": [3, 8], "sway": 0.35},
+                    {"names": ["glowtuft_b"], "weight": 14, "count": [2, 6], "sway": 0.35},
+                    {"names": ["starmoss"], "weight": 12, "count": [1, 4]},
+                    {"names": ["glowpebble"], "weight": 8, "count": [1, 3]},
+                    {"names": ["glowcap"], "weight": 7, "count": [2, 5]},
+                    {"names": ["shard"], "weight": 5, "count": [1, 3]},
+                ],
+                "under_trees": {"names": ["starmoss", "glowpebble"], "ring": ["glowcap"]},
+                "path_edge": ["glowpebble", "glowpebble", "starmoss", "shard"],
+                "reeds": ["glowreed"],
+                "lilies": ["lumen_lily"],
+                "glow": {"glowcap": list(CYAN), "shard": list(AZURE), "starmoss": list(LIME),
+                         "glowtuft_b": list(PINK), "glowreed": list(CYAN), "lumen_lily": list(PINK)},
+            },
+        },
+        # no meadow bushes on another planet
+        "understory": {"density": 0},
         # An endless night: no butterflies, cloud shadows or falling leaves, but its fireflies never sleep.
         "ambient_life": {"butterflies": {"count": 0}, "clouds": {"count": 0}, "leaves": {"rate": 0},
                          "fireflies": {"count": 14, "always": True, "color": [0.62, 1.0, 0.94]}},

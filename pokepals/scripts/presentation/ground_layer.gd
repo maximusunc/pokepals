@@ -89,6 +89,8 @@ func build(bounds: Rect2, style: ArtStyle, shapes: Dictionary) -> void:
 	mat.set_shader_parameter("noise_clump", _noise_texture(bounds, float(clump.get("scale", 0.011)), seed + 71, 4, 2.73, 0.55))
 	mat.set_shader_parameter("clump_cut", Vector2(float(clump.get("dark", 0.35)), float(clump.get("light", 0.65))))
 	mat.set_shader_parameter("seed", float(seed))
+	# how much the canopy shade darkens the floor (a night world under glowing growths wants less)
+	mat.set_shader_parameter("shade_amount", float(cfg.get("shade", 1.0)))
 	_mask = _bake_mask(bounds, shapes)
 	mat.set_shader_parameter("mask", ImageTexture.create_from_image(_mask))
 	material = mat

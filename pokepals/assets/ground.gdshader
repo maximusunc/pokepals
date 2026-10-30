@@ -35,6 +35,7 @@ uniform sampler2D noise_clump : filter_linear, repeat_disable;
 uniform vec3 thresholds = vec3(0.58, 0.63, 0.80);   // lush, meadow, dirt (higher = rarer)
 uniform vec2 clump_cut = vec2(0.35, 0.65);          // below: a shade darker; above: a shade lighter
 uniform float seed = 0.0;
+uniform float shade_amount = 1.0;  // how strongly canopy shade darkens the floor (0 = not at all)
 uniform float edge = 0.035;       // how wide the dithered band at a terrain border is
 
 varying vec2 world;
@@ -103,7 +104,7 @@ void fragment() {
 	else if (cl < clump_cut.x) { shade = max(shade - 1, 0); }
 
 	// canopy shade: one shade darker inside, darker still at the heart, each edge dithered
-	float sv = m.b + d * 0.32;
+	float sv = m.b * shade_amount + d * 0.32;
 	if (sv > 0.42) { shade = max(shade - 1, 0); }
 	vec3 c = ramps[slot * 4 + shade];
 	if (sv > 0.72) { c *= 0.86; }
