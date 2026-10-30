@@ -32,6 +32,7 @@ var _understory: Array = []  # [ { pos, type } ] — bush/stump spots Scenery pl
 
 # --- atmosphere (presentation-only mood, from the world spec's "atmosphere") ---
 var _time := 0.0
+var _dusk := 0.0   # 0 = full day .. 1 = deepest dusk (pushed by world_controller's day cycle)
 var _wind_strength := 2.6
 var _wind_speed := 1.15
 var _glow_pulse_speed := 1.4
@@ -846,6 +847,7 @@ func _draw() -> void:
 		if cull and not vis.has_point(it["pos"]):
 			continue
 		_draw_prop_light(it)
+		_draw_light_pool(it["type"], it["pos"])
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
 		if _form_highlights.has(i):
 			_draw_form_highlight(it["pos"])
@@ -1237,6 +1239,29 @@ func _draw_gateway(p: Vector2, color: Color) -> void:
 
 ## A warm, breathing radial glow under the lit props (lantern, crystal). Faked with a
 ## few stacked translucent circles so it works everywhere without a real 2D light.
+## How far into dusk the day cycle is (0 day .. 1 dusk): lamps and fires glow brighter and throw
+## bigger pools of light as the evening comes on, and the fireflies come out (AmbientLife).
+func set_dusk(v: float) -> void:
+	_dusk = clampf(v, 0.0, 1.0)
+
+
+# The things that light their surroundings, and the colour of that light on the ground.
+const LIGHT_POOLS := {
+	"lantern": Color(1.0, 0.84, 0.52), "torch": Color(1.0, 0.66, 0.34), "brazier": Color(1.0, 0.62, 0.30),
+	"crystal": Color(0.62, 0.86, 1.0),
+}
+
+
+## A pool of light on the ground around a lamp or a fire, faint by day and warm at dusk.
+func _draw_light_pool(type: String, p: Vector2) -> void:
+	if not LIGHT_POOLS.has(type) or not _prop_lights.is_empty():
+		return  # a glowing world (Nocthollow) lights its props its own way
+	var c: Color = LIGHT_POOLS[type]
+	var flicker := 0.92 + 0.08 * sin(_time * (5.0 if type != "crystal" and type != "lantern" else 1.4) + _phase_for(p) * 3.0)
+	var a := (0.07 + 0.30 * _dusk) * flicker
+	SoftGlow.draw(self, p + Vector2(0, 6), (34.0 + 22.0 * _dusk) * flicker, Color(c.r, c.g, c.b, a), 0.55)
+
+
 func _draw_glow(type: String, p: Vector2) -> void:
 	var warm: Color
 	match type:
@@ -1256,9 +1281,10 @@ func _draw_glow(type: String, p: Vector2) -> void:
 			return
 	var breathe := 0.82 + 0.18 * sin(_time * _glow_pulse_speed)
 	var top := p + Vector2(0, -22)
+	var dusk_gain := 0.8 + 1.1 * _dusk   # the halo strengthens as the evening comes on
 	for k in 3:
 		var rr := (34.0 - float(k) * 9.0) * breathe
-		draw_circle(top, rr, Color(warm.r, warm.g, warm.b, 0.07))
+		draw_circle(top, rr, Color(warm.r, warm.g, warm.b, 0.07 * dusk_gain))
 
 
 ## A glowing world's prop light (see _prop_lights): a soft halo in the prop's own colour, a breathing

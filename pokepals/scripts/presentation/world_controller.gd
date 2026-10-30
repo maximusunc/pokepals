@@ -658,6 +658,7 @@ func _apply_daycycle(u: float) -> void:
 	var span := maxf(0.0001, float(b["t"]) - float(a["t"]))
 	var k := clampf((u - float(a["t"])) / span, 0.0, 1.0)
 	_day_tint.color = (a["tint"] as Color).lerp(b["tint"], k)
+	_world_art.set_dusk(u)  # lamps warm up and the evening creatures come out as dusk deepens
 	var mat := _vignette.material as ShaderMaterial
 	if mat != null:
 		mat.set_shader_parameter("tint", (a["vig"] as Color).lerp(b["vig"], k))
