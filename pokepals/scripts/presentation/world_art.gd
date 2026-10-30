@@ -179,6 +179,8 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		pd["ring"] = _organic_ring(pd["center"], pd["radius"], _phase_for(pd["center"]))
 	for i in _ponds.size():
 		_ponds[i]["shore"] = _shore_runs(i)
+		_ponds[i]["shallows"] = _inset_runs(_ponds[i], SHALLOWS_INSET)
+		_ponds[i]["foam"] = _foam_specks(_ponds[i]["shore"], _ponds[i]["center"])
 
 	# A long river band (the Riverbank world): one big water rectangle along an edge, drawn
 	# like the ponds but rectangular, with a lighter rim and drifting ripples.
@@ -191,6 +193,8 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"color": WorldData.to_color(rv["color"]),
 			"rim": WorldData.to_color(rv.get("rim", [0.78, 0.86, 0.88])),
 		}
+		var rrect: Rect2 = _river["rect"]
+		_river["foam"] = _foam_specks([_river_bank(rrect, rrect.position.y, _phase_for(rrect.position)), _river_bank(rrect, rrect.end.y, _phase_for(rrect.end))], rrect.get_center(), [Vector2.DOWN, Vector2.UP])
 
 	# The Vein: the bazaar's sunken DRY riverbed — a long dusty channel band the whole world drains
 	# toward (the navigation spine: "follow the channel and you'll never be lost"). Drawn like the river
@@ -785,6 +789,13 @@ func _draw() -> void:
 				var drift := fposmod(_time * 12.0 + float(k) * 40.0, rrect.size.x)
 				var rip := Color(0.85, 0.92, 0.95, 0.16)
 				draw_line(rrect.position + Vector2(drift, ry - rrect.position.y), rrect.position + Vector2(minf(drift + 70.0, rrect.size.x), ry - rrect.position.y), rip, 1.5)
+		var down := PackedVector2Array()
+		var up := PackedVector2Array()
+		for q in top_bank:
+			down.append(q + Vector2(0, SHALLOWS_INSET))
+		for q in bot_bank:
+			up.append(q - Vector2(0, SHALLOWS_INSET))
+		_draw_shallows([down, up], _river["foam"], vis if cull else Rect2())
 		draw_polyline(top_bank, Color(_river["rim"].r, _river["rim"].g, _river["rim"].b, 0.6), 2.0)
 
 	# ponds: a tiled pixel-water surface if we have art, else a flat fill with breathing
@@ -808,6 +819,7 @@ func _draw() -> void:
 				draw_arc(center, rr, 0.0, TAU, 40, Color(0.85, 0.92, 0.95, 0.22 * (1.0 - t)), 1.5)
 		shown.append(pond)
 	for pond in shown:
+		_draw_shallows(pond["shallows"], pond["foam"], vis if cull else Rect2())
 		for run in pond["shore"]:
 			draw_polyline(run, _water_rim, 2.0)
 
@@ -981,6 +993,59 @@ func _inside_any(p: Vector2, rings: Array) -> bool:
 		if Geometry2D.is_point_in_polygon(p, r):
 			return true
 	return false
+
+
+## ---- shallows + foam ---------------------------------------------------------------------------
+## Just inside every waterline: a soft lighter band where the water runs shallow over the sand, and
+## a scatter of foam specks that glint on and off, each on its own beat, a whole pixel at a time.
+const SHALLOWS_INSET := 5.0
+
+
+## A pond's shore runs pulled `inset` units toward its centre (the shallows band follows the shore,
+## gaps and all, so overlapping ponds don't get a band across their shared water).
+func _inset_runs(pond: Dictionary, inset: float) -> Array:
+	var out: Array = []
+	var c: Vector2 = pond["center"]
+	for run in pond["shore"]:
+		var r := PackedVector2Array()
+		for q in run:
+			r.append(q + (c - q).normalized() * inset)
+		out.append(r)
+	return out
+
+
+## Foam specks just inside a set of shore polylines, toward the point `inward` (or, per run, along
+## `run_dirs[i]` — a long river's banks face straight across it): [{ pos, phase, len }].
+func _foam_specks(runs: Array, inward: Vector2, run_dirs: Array = []) -> Array:
+	var out: Array = []
+	var k := 0
+	for ri in runs.size():
+		var pts: PackedVector2Array = runs[ri]
+		for i in range(1, pts.size()):
+			var a := pts[i - 1]
+			var b := pts[i]
+			var steps := int(a.distance_to(b) / 7.0)
+			for j in steps:
+				k += 1
+				var q := a.lerp(b, (float(j) + 0.5) / float(maxi(steps, 1)))
+				var dir: Vector2 = run_dirs[ri] if ri < run_dirs.size() else (inward - q).normalized()
+				var depth := 2.0 + float((k * 7) % 5)
+				out.append({ "pos": (q + dir * depth).round(), "phase": fposmod(float(k) * 2.399, TAU), "len": 1.0 + float(k % 3) })
+	return out
+
+
+func _draw_shallows(bands: Array, foam: Array, vis := Rect2()) -> void:
+	var sh := Color(_water_rim.r, _water_rim.g, _water_rim.b, 0.16)
+	for band in bands:
+		if (band as PackedVector2Array).size() >= 2:
+			draw_polyline(band, sh, 7.0)
+	var fc := Color(_water_rim.r, _water_rim.g, _water_rim.b, 0.85)
+	for f in foam:
+		if vis.has_area() and not vis.has_point(f["pos"]):
+			continue
+		# on for a moment, then off: a glint, not a glow (stepped, so it stays pixel-crisp)
+		if sin(_time * 1.3 + float(f["phase"])) > 0.55:
+			draw_rect(Rect2(f["pos"], Vector2(float(f["len"]), 1.0)), fc)
 
 
 ## The animated water scroll, in tile-units, QUANTIZED to whole texels so the surface steps
