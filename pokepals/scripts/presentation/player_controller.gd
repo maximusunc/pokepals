@@ -179,8 +179,16 @@ func _process_remote(delta: float) -> void:
 	queue_redraw()
 
 
+## False while a menu is up over the live world (the Gateway's picker, the wardrobe): the world keeps
+## running — it's shared, so it can't pause — but your own steering stands down, so keys typed into a
+## search box or a held stick don't walk you off. The avatar eases to a stop rather than freezing.
+var input_enabled := true
+
+
 func _input_direction() -> Vector2:
 	var v := Vector2.ZERO
+	if not input_enabled:
+		return v
 	v.x = Input.get_axis("ui_left", "ui_right")
 	v.y = Input.get_axis("ui_up", "ui_down")
 	if Input.is_physical_key_pressed(KEY_A):
