@@ -219,11 +219,17 @@ static func _test_shipped_catalog_wardrobe_slots() -> int:
 	fails += _ok(String(a.equipped.get("hair", "")) != "", "starter equips hair")
 	fails += _ok(not a.equipped.has("accessory"), "starter leaves accessory bare")
 	fails += _ok(not a.equipped.has("headwear"), "starter leaves headwear bare")
-	var body_owned := 0
-	for id in catalog.items_in_slot("body"):
+	# One body now; who you are comes through skin tone and hair, so the real choices live there.
+	var skin_ramps: Array = []
+	for cs in catalog.color_slots():
+		if String(cs.get("id", "")) == "skin_tone":
+			skin_ramps = cs.get("ramps", [])
+	fails += _ok(skin_ramps.size() >= 2, "there are several skin tones to choose from")
+	var hair_owned := 0
+	for id in catalog.items_in_slot("hair"):
 		if a.is_owned(id):
-			body_owned += 1
-	fails += _ok(body_owned >= 2, "player owns multiple body builds to choose from")
+			hair_owned += 1
+	fails += _ok(hair_owned >= 2, "player owns several hair styles to choose from")
 	return fails
 
 
@@ -231,32 +237,32 @@ static func _test_shipped_catalog_wardrobe_slots() -> int:
 static func _test_shipped_ramp_swatches() -> int:
 	var catalog := CosmeticsCatalog.load_catalog("res://data/cosmetics.json")
 	var fails := 0
-	fails += _ok(catalog.ramp_color("skin_tone", "warm").size() == 3, "a skin_tone ramp resolves to an [r,g,b] swatch")
-	fails += _ok(catalog.ramp_color("hair_color", "ink").size() == 3, "a hair_color ramp resolves to an [r,g,b] swatch")
+	fails += _ok(catalog.ramp_color("skin_tone", "golden").size() == 3, "a skin_tone ramp resolves to an [r,g,b] swatch")
+	fails += _ok(catalog.ramp_color("hair_color", "bark").size() == 3, "a hair_color ramp resolves to an [r,g,b] swatch")
 	fails += _ok(catalog.ramp_color("skin_tone", "nope").is_empty(), "an unknown ramp has no swatch")
 	fails += _ok(catalog.ramp_color("nope", "warm").is_empty(), "an unknown color slot has no swatch")
 	return fails
 
 
-# End-to-end mirror of what the customizer does against the SHIPPED catalog: swap to another owned body
-# build and choose a skin tone, then confirm the resolved body layer reflects both (id + recolor swatch).
+# End-to-end mirror of what the customizer does against the SHIPPED catalog: swap to another owned hair
+# style and choose a skin tone, then confirm the resolved layers reflect both (id + recolor swatch).
 static func _test_shipped_wardrobe_round_trip() -> int:
 	var catalog := CosmeticsCatalog.load_catalog("res://data/cosmetics.json")
 	var a := PlayerAppearance.make_default(catalog)
 	var fails := 0
-	var alt_body := ""
-	for id in catalog.items_in_slot("body"):
-		if a.is_owned(id) and String(a.equipped.get("body", "")) != id:
-			alt_body = id
+	var alt_hair := ""
+	for id in catalog.items_in_slot("hair"):
+		if a.is_owned(id) and String(a.equipped.get("hair", "")) != id:
+			alt_hair = id
 			break
-	fails += _ok(alt_body != "" and a.equip(catalog, alt_body), "can equip an alternate owned body build")
-	fails += _ok(a.set_color(catalog, "skin_tone", "deep"), "can choose the 'deep' skin tone")
-	var body_layer := {}
+	fails += _ok(alt_hair != "" and a.equip(catalog, alt_hair), "can equip an alternate owned hair style")
+	fails += _ok(a.set_color(catalog, "skin_tone", "umber"), "can choose the 'umber' skin tone")
+	var layers := {}
 	for l in a.resolved_layers(catalog):
-		if String(l.get("slot", "")) == "body":
-			body_layer = l
-	fails += _ok(String(body_layer.get("id", "")) == alt_body, "the chosen body build resolves as the body layer")
-	fails += _ok(String(body_layer.get("palette", "")) == "deep", "the body layer carries the chosen skin ramp")
+		layers[String(l.get("slot", ""))] = l
+	var body_layer: Dictionary = layers.get("body", {})
+	fails += _ok(String(layers.get("hair", {}).get("id", "")) == alt_hair, "the chosen hair style resolves as the hair layer")
+	fails += _ok(String(body_layer.get("palette", "")) == "umber", "the body layer carries the chosen skin ramp")
 	var pc: Array = body_layer.get("palette_color", [])
-	fails += _ok(pc.size() == 3 and pc == catalog.ramp_color("skin_tone", "deep"), "the body layer carries the 'deep' swatch for recolor")
+	fails += _ok(pc.size() == 3 and pc == catalog.ramp_color("skin_tone", "umber"), "the body layer carries the 'umber' swatch for recolor")
 	return fails

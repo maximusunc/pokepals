@@ -279,14 +279,19 @@ tests in `tests/` (like `test_companion_form.gd`, `test_companion_command.gd`), 
 > `Godot_v4.6-stable_linux.x86_64` (matching `project.godot`'s `config/features`), import once with
 > `godot --headless --editor --quit-after 200 --path pokepals` to build the `class_name` cache, then
 > run `godot --headless --path pokepals --script res://tests/run_tests.gd`. Two caveats: the import
-> rewrites every `assets/**/*.png.import` file (revert that churn before committing), and the
-> `smoke_*.gd` SceneTree scripts **hang on `main` too** — their autoloads (`/root/Net`,
-> `/root/WorldRouter`) aren't registered under `--script`, so they're not a usable gate right now.
+> rewrites every `assets/**/*.png.import` file (revert that churn before committing). The
+> `smoke_*.gd` SceneTree scripts run too (`--script res://tests/smoke_maze.gd`, etc.). They used to
+> hang because `net.gd` named the `PlayerIdentity` autoload directly, which doesn't compile under
+> `--script`.
 > A **playtest on the owner's side is still the real bar** for every feel item.
 >
-> **Known-failing on `main` (pre-existing, unrelated to this backlog):** 8 assertions in
-> `TestPlayerAppearance` and 1 in `TestSolids`, plus `TestNetCodec` erroring on missing private
-> methods. Treat "9 failures" as the baseline, not a regression.
+> **Baseline (2026-10-31): everything green.**
+> - `run_tests.gd` passes in full. The old "9 failures" were stale tests (the wardrobe catalog's
+>   redesign, the spec's `interactables` → `props` rename) plus one real `PathShape.resample`
+>   endpoint bug.
+> - All nine smoke scripts pass.
+> - The server's `mix test` passes in full; the ledger sum is now cast to an integer in SQL.
+> - Any failure is now a regression.
 
 ## Side-fixes made along this direction's work (outside the item backlog)
 

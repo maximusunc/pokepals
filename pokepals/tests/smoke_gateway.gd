@@ -61,6 +61,9 @@ func _process(_delta: float) -> bool:
 	fails += _check(not bool(gw["armed"]), "…and it disarms so it doesn't nag every frame")
 
 	# The picker: opens over the live world (shared, so never paused), standing only our steering down.
+	# With no server here the lobby's connect gate holds the tree paused; a live session doesn't, so
+	# release it first and check that opening the picker leaves the world running.
+	paused = false
 	_world._show_world_picker(gw)
 	var picker = _world._picker
 	fails += _check(picker != null and not paused, "the picker opens over a live, unpaused world")

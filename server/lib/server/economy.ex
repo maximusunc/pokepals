@@ -490,11 +490,14 @@ defmodule Server.Economy do
     |> Repo.insert!()
   end
 
+  # Postgres's SUM over a bigint column returns `numeric`, which Postgrex hands back as a Decimal, so
+  # the total is cast back to an integer in SQL (coalesced to 0 when there are no rows).
   defp sum_ledger(field, user_id, currency_type) do
     from(l in LedgerEntry,
       where:
-        field(l, ^field) == ^user_id and l.asset_kind == "currency" and l.asset_ref == ^currency_type
+        field(l, ^field) == ^user_id and l.asset_kind == "currency" and l.asset_ref == ^currency_type,
+      select: type(coalesce(sum(l.amount), 0), :integer)
     )
-    |> Repo.aggregate(:sum, :amount) || 0
+    |> Repo.one()
   end
 end
