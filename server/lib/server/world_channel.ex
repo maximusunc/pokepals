@@ -21,7 +21,7 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Discoveries, Economy, HomeWorld, Presence, PresenceFrames, Saves, World, Worlds}
+  alias Server.{Discoveries, Economy, Friends, HomePasses, Homes, HomeWorld, Presence, PresenceFrames, Profiles, Saves, Social, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
   @shop_currency "coins"
@@ -38,12 +38,16 @@ defmodule Server.WorldChannel do
   intercept ["presence_diff"]
 
   # A player's HOME WORLD (`"world:home:" <> owner_user_id`): not a catalog row but a spec built for its
-  # owner from their discoveries (Server.HomeWorld). For now only the owner may enter; friends and
-  # invitations (FR-1..FR-5) will widen this check. Everything after the join is the same as any world.
+  # owner (Server.HomeWorld). The owner may always enter; anyone else only while it's open, with no
+  # block between them, as a friend or with a one-off pass from an accepted invite (Server.Homes). A
+  # pass is used up on the way in. Everything after the join is the same as any world.
   @impl true
   def join("world:home:" <> owner_id, payload, socket) do
-    if owner_id != "" and owner_id == socket.assigns.user_id do
-      definition = HomeWorld.definition(owner_id)
+    user_id = socket.assigns.user_id
+
+    if owner_id != "" and Homes.can_visit?(user_id, owner_id) do
+      if user_id != owner_id and not Friends.friends?(user_id, owner_id), do: HomePasses.consume(owner_id, user_id)
+      definition = HomeWorld.definition(owner_id, user_id)
       world_id = definition.world_id
       World.ensure_started(world_id, [], ambient_core(definition))
       send(self(), :after_join)
@@ -105,6 +109,14 @@ defmodule Server.WorldChannel do
 
     topic = "world:" <> world_id
     Phoenix.PubSub.subscribe(Server.PubSub, World.state_topic(world_id))
+    # Our own social topic (friend requests, invites, list changes, being sent home) and the "online"
+    # roster friends read our status from. Both follow us from world to world.
+    Phoenix.PubSub.subscribe(Server.PubSub, Friends.user_topic(user_id))
+    Social.track_online(self(), user_id)
+    profile = Profiles.ensure(user_id)
+    socket = assign(socket, :name, profile.name)
+    push(socket, "profile", %{id: user_id, name: profile.name, friend_code: profile.friend_code})
+    push(socket, "friends", Social.snapshot(user_id))
     {:ok, _ref} = Presence.track(socket, user_id, %{identity: %{}})
 
     peers = PresenceFrames.peers(Presence.list(topic), user_id)
@@ -163,6 +175,35 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # ── Social events, from our own user topic (Server.Friends.notify/2) ──
+
+  def handle_info({:friends_changed}, socket) do
+    push(socket, "friends", Social.snapshot(socket.assigns.user_id))
+    {:noreply, socket}
+  end
+
+  def handle_info({:friend_request, from, name}, socket) do
+    push(socket, "friend_request", %{from: from, name: name})
+    {:noreply, socket}
+  end
+
+  def handle_info({:home_invite, from, name}, socket) do
+    push(socket, "home_invite", %{from: from, name: name})
+    {:noreply, socket}
+  end
+
+  def handle_info({:invite_answer, guest, name, accepted}, socket) do
+    push(socket, "invite_answer", %{guest: guest, name: name, accepted: accepted})
+    {:noreply, socket}
+  end
+
+  # We were sent out of a home (the owner sent us, closed it, removed or blocked us). Only acted on if
+  # we're actually standing in that home; the client walks back to the Gateway.
+  def handle_info({:evicted, world_id}, socket) do
+    if socket.assigns[:world_id] == world_id, do: push(socket, "sent_home", %{})
+    {:noreply, socket}
+  end
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   @impl true
@@ -177,7 +218,15 @@ defmodule Server.WorldChannel do
 
   @impl true
   def handle_in("identity", payload, socket) do
-    identity = Map.take(payload, ["name", "appearance", "companion_look"])
+    # The name is the server's (FR-0): whatever the client sent is replaced with the player's own
+    # generated name, so nobody can wear someone else's.
+    identity =
+      payload
+      |> Map.take(["appearance", "companion_look", "companion_form"])
+      |> Map.put("name", Map.get(socket.assigns, :name, "a wanderer"))
+
+    # Remember how our companion looks, for the stand-in that naps at home while we're away (FR-5).
+    Homes.set_resident(socket.assigns.user_id, identity)
 
     {:ok, _ref} =
       Presence.update(socket, socket.assigns.user_id, fn meta ->
@@ -300,10 +349,166 @@ defmodule Server.WorldChannel do
     pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
 
     if Discoveries.claimable?(core, secret_id, pos) do
-      {:ok, outcome} = Discoveries.record(user_id, secret_id, catalog_id(world_id))
-      push(socket, "secret_found", %{id: secret_id, new: outcome == :new})
+      # S-4: was the companion beside us, and which friends were near (about a screen away)?
+      transforms = World.snapshot(world_id)
+      together = Discoveries.together?(Map.get(transforms, user_id, %{}))
+      with_ids = Discoveries.nearby_friends(transforms, user_id, Friends.friend_ids(user_id))
+      card = Discoveries.card_for(core["secret"], catalog_id(world_id), definition.name)
+
+      {:ok, outcome} =
+        Discoveries.record(user_id, secret_id, catalog_id(world_id), together: together, with_ids: with_ids, card: card)
+
+      with_names = with_ids |> Profiles.names() |> Map.values() |> Enum.sort()
+      push(socket, "secret_found", %{id: secret_id, new: outcome == :new, with: with_names})
     else
       push(socket, "secret_refused", %{id: secret_id})
+    end
+
+    {:noreply, socket}
+  end
+
+  # ── Friends, invites, visits and safety (FR-0..FR-5). The decisions live in Server.Friends /
+  # Server.Homes / Server.Social; these clauses only route and answer. ──
+
+  # A fresh generated name (FR-0). Friends' lists pick it up; peers see it on our next identity.
+  def handle_in("reroll_name", _payload, socket) do
+    user_id = socket.assigns.user_id
+    name = Profiles.reroll_name(user_id)
+    socket = assign(socket, :name, name)
+    {:ok, _} = Presence.update(socket, user_id, fn meta -> put_in(meta, [:identity, "name"], name) end)
+    push(socket, "profile", %{id: user_id, name: name, friend_code: Profiles.ensure(user_id).friend_code})
+    Enum.each(Friends.friend_ids(user_id), &Friends.notify(&1, {:friends_changed}))
+    {:noreply, socket}
+  end
+
+  # Ask someone to be friends (FR-2): a player we tapped (`to`), or a friend code (`code`).
+  def handle_in("friend_request", payload, socket) do
+    user_id = socket.assigns.user_id
+
+    target =
+      case payload do
+        %{"to" => to} when is_binary(to) -> if Ecto.UUID.cast(to) == :error, do: nil, else: to
+        %{"code" => code} when is_binary(code) -> Profiles.user_for_code(code)
+        _ -> nil
+      end
+
+    reply =
+      case target && Friends.request(user_id, target) do
+        nil -> %{ok: false, reason: "no_such_code"}
+        {:ok, :requested} ->
+          Friends.notify(target, {:friend_request, user_id, socket.assigns.name})
+          %{ok: true, status: "requested", name: Profiles.name(target)}
+
+        {:ok, :friends} -> %{ok: true, status: "friends", name: Profiles.name(target)}
+        {:error, reason} -> %{ok: false, reason: to_string(reason)}
+      end
+
+    push(socket, "friend_result", reply)
+    {:noreply, socket}
+  end
+
+  def handle_in("friend_accept", %{"from" => from}, socket) when is_binary(from) do
+    Friends.accept(socket.assigns.user_id, from)
+    {:noreply, socket}
+  end
+
+  def handle_in("friend_decline", %{"from" => from}, socket) when is_binary(from) do
+    Friends.decline(socket.assigns.user_id, from)
+    {:noreply, socket}
+  end
+
+  # Remove a friend, quietly (FR-5). Neither of you can stay in the other's home on friendship alone.
+  def handle_in("friend_remove", %{"id" => id}, socket) when is_binary(id) do
+    user_id = socket.assigns.user_id
+    Friends.remove(user_id, id)
+    Social.evict(user_id, [id])
+    Social.evict(id, [user_id])
+    {:noreply, socket}
+  end
+
+  # Block someone (FR-5): ends friendship, requests, invites and passes both ways, and sends each of
+  # you out of the other's home.
+  def handle_in("block", %{"id" => id}, socket) when is_binary(id) do
+    user_id = socket.assigns.user_id
+    Friends.block(user_id, id)
+    HomePasses.revoke(user_id, id)
+    Social.evict(user_id, [id])
+    Social.evict(id, [user_id])
+    {:noreply, socket}
+  end
+
+  def handle_in("friends", _payload, socket) do
+    push(socket, "friends", Social.snapshot(socket.assigns.user_id))
+    {:noreply, socket}
+  end
+
+  # A one-off invite home (FR-3) for a player standing in this world with us. Blocks refuse quietly.
+  def handle_in("invite_home", %{"to" => to}, socket) when is_binary(to) do
+    user_id = socket.assigns.user_id
+    here = Map.has_key?(Presence.list("world:" <> socket.assigns.world_id), to)
+
+    if to != user_id and here and not Friends.blocked_either_way?(user_id, to) do
+      HomePasses.offer(user_id, to)
+      Friends.notify(to, {:home_invite, user_id, socket.assigns.name})
+    end
+
+    {:noreply, socket}
+  end
+
+  # Answer an invite. Accepting turns the live offer into a one-visit pass; the host is told either
+  # way (an acceptance sends them home to meet you). An answer to an offer that doesn't exist (lapsed,
+  # or never made) is ignored, so nobody can grant themselves a pass.
+  def handle_in("invite_answer", %{"from" => owner, "accept" => accept}, socket) when is_binary(owner) do
+    user_id = socket.assigns.user_id
+
+    if HomePasses.take_offer(owner, user_id) do
+      if accept == true, do: HomePasses.grant(owner, user_id)
+      Friends.notify(owner, {:invite_answer, user_id, socket.assigns.name, accept == true})
+      push(socket, "invite_result", %{owner: owner, accepted: accept == true, ok: true})
+    else
+      push(socket, "invite_result", %{owner: owner, accepted: false, ok: false})
+    end
+
+    {:noreply, socket}
+  end
+
+  # Send a visitor back to the Gateway (FR-5). Only from inside our own home.
+  def handle_in("send_home", %{"id" => id}, socket) when is_binary(id) do
+    user_id = socket.assigns.user_id
+    if socket.assigns.world_id == HomeWorld.world_id(user_id) and id != user_id, do: Social.evict(user_id, [id])
+    {:noreply, socket}
+  end
+
+  # Close (or reopen) our home to every visitor, friends included (FR-5). Closing sends anyone there out.
+  def handle_in("set_home_closed", %{"closed" => closed}, socket) when is_boolean(closed) do
+    user_id = socket.assigns.user_id
+    Homes.set_closed(user_id, closed)
+
+    if closed do
+      HomePasses.revoke(user_id, :all)
+      Social.evict(user_id)
+    end
+
+    push(socket, "friends", Social.snapshot(user_id))
+    {:noreply, socket}
+  end
+
+  # The companion's keepsake choice (HS-3), decided on the client where its mind lives. The server
+  # checks it's possible and stores it, so it stays stable until the companion changes its mind.
+  def handle_in("set_keepsakes", %{"ids" => ids, "spots" => spots}, socket) do
+    ok = match?({:ok, _}, Homes.set_keepsakes(socket.assigns.user_id, ids, spots))
+    push(socket, "keepsakes_saved", %{ok: ok})
+    {:noreply, socket}
+  end
+
+  # A JOURNAL (HS-5): ours, or the owner's of a home we may visit (or are standing in).
+  def handle_in("journal", payload, socket) do
+    user_id = socket.assigns.user_id
+    owner = with o when is_binary(o) <- payload["owner"], {:ok, _} <- Ecto.UUID.cast(o), do: o, else: (_ -> user_id)
+
+    if Social.can_read_journal?(user_id, owner, socket.assigns.world_id) do
+      legacy = Map.get(HomeWorld.template(), "legacy_cards", %{})
+      push(socket, "journal", %{owner: owner, name: Profiles.name(owner), entries: Discoveries.journal(owner, legacy)})
     end
 
     {:noreply, socket}

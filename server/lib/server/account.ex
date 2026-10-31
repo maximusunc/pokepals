@@ -20,6 +20,10 @@ defmodule Server.Account do
     field :username, :string
     field :password_hash, :string
     field :status, :string, default: "active"
+    # FR-0/FR-2: a generated two-word name and a short friend code, both assigned lazily on first
+    # connect (Server.Profiles). Never typed by the player, so neither needs moderating.
+    field :display_name, :string
+    field :friend_code, :string
     timestamps(type: :utc_datetime_usec)
   end
 
@@ -31,5 +35,6 @@ defmodule Server.Account do
     |> unique_constraint(:token)
     |> unique_constraint(:email)
     |> unique_constraint(:username)
+    |> unique_constraint(:friend_code)
   end
 end
