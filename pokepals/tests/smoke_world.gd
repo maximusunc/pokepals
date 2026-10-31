@@ -16,6 +16,12 @@ var _phase_frame := 0
 
 
 func _initialize() -> void:
+	pass
+
+
+## Build the world on the first frame, once the autoloads (WorldRouter, Net) are in the tree; under
+## --script they aren't there yet during _initialize.
+func _build() -> void:
 	# The world spec is server-hosted now (the client bundles none). Headless and server-less, we prime
 	# Net's spec cache from a test fixture, then confirm it the way a real join does. world_controller now
 	# DEFERS its build until the server says which spec is live (it no longer builds eagerly from cache on
@@ -28,10 +34,16 @@ func _initialize() -> void:
 	_world = scene.instantiate()
 	root.add_child(_world)
 	net.emit_signal("world_spec_unchanged", router.VALE_ID)  # server confirms the primed spec -> build
+	# With no server here the lobby's connect gate holds the tree paused; release it so the world runs
+	# (in a live session it isn't paused).
+	paused = false
 
 
 func _process(_delta: float) -> bool:
 	_frames += 1
+	if _world == null:
+		_build()
+		return false
 	if _frames < 4:
 		return false
 

@@ -54,7 +54,7 @@ static func _test_build_includes_the_right_categories() -> int:
 	var world := {
 		"trees": [[10, 10], [20, 20]],
 		"landmarks": [{ "type": "great_tree", "position": [100, 100] }],
-		"interactables": [
+		"props": [
 			{ "type": "bench", "position": [0, 0] },        # solid by type
 			{ "type": "wildflowers", "position": [5, 5] },  # flat -> excluded
 		],

@@ -115,8 +115,13 @@ static func resample(pts: PackedVector2Array, step: float) -> PackedVector2Array
 			out.append(a.lerp(b, t / seg))
 			t += step
 		carry = seg - (t - step)
-	if out[out.size() - 1].distance_to(pts[pts.size() - 1]) > 0.5:
-		out.append(pts[pts.size() - 1])
+	# Always finish exactly on the authored end: append it, or, if the last sample already landed within
+	# half a pixel of it, snap that sample onto it (so a path never stops a hair short of its end).
+	var end := pts[pts.size() - 1]
+	if out[out.size() - 1].distance_to(end) > 0.5:
+		out.append(end)
+	else:
+		out[out.size() - 1] = end
 	return out
 
 

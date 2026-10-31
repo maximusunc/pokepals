@@ -451,7 +451,9 @@ func _phoenix_url(base_url: String) -> String:
 		url = url.substr(0, url.length() - 1)
 	if not url.ends_with("/websocket"):
 		url += "/websocket"
-	var token := PlayerIdentity.id().uri_encode()
+	# Reached through the tree rather than by its global name, so this script still compiles where the
+	# autoloads aren't registered (the headless test runner preloads it for its static codec helpers).
+	var token := String(get_node("/root/PlayerIdentity").id()).uri_encode()
 	return "%s?vsn=2.0.0&token=%s" % [url, token]
 
 
