@@ -215,6 +215,53 @@ def build_guide(grid):
     }
 
 
+MAZE_SECRET_COMMENT = "This world's one SECRET (docs/home-world-and-secrets-design.md, W-4): a hedge seed resting at the heart beside the portal. Examine it to take it. The SERVER honours the claim only here, and only while you stand within 'radius' of 'position' (world_channel.ex claim_secret). Once found it's left out for you on later visits, and your home grows a little hedge spiral (server/priv/home/home.json)."
+MAZE_SECRET = {
+    "id": "hedge_seed",
+    "position": [
+        -52.0,
+        -44.0
+    ],
+    "radius": 120.0,
+    "prop": {
+        "type": "hedge_seed",
+        "color": [
+            0.58,
+            0.44,
+            0.28
+        ],
+        "label": "a curled seed",
+        "tags": [
+            "plant",
+            "odd"
+        ]
+    },
+    "lore": "Tucked in the moss at the very heart of the maze: a curled seed from the oldest hedge. It's warm, as if something inside it is already listening.",
+    "found_line": "A curled seed from the oldest hedge… it wants to be planted somewhere of your own.",
+    "home_line": "Something has changed at home.",
+    "qualities": [
+        "green",
+        "quiet"
+    ],
+    "keepsake": {
+        "id": "potted_hedge",
+        "type": "potted_hedge",
+        "color": [
+            0.42,
+            0.66,
+            0.36
+        ],
+        "label": "a potted spiral hedge",
+        "line": "The seed from the heart of the Hedge Maze, grown into a tiny spiral of hedge. Your companion curls up beside it as if it's guarding it.",
+        "temperament": {
+            "curiosity": 0.7,
+            "energy": 0.3,
+            "clinginess": 0.55
+        }
+    }
+}
+
+
 def main():
     passages = carve_maze()
     grid = build_wall_grid(passages)
@@ -279,6 +326,10 @@ def main():
             "reward": 10,
             "label": "Find the heart of the maze",
         },
+        # This world's one SECRET (docs/home-world-and-secrets-design.md, W-4): kept here so a regen
+        # never drops it. Placed by hand at the heart, beside the portal.
+        "_secret_comment": MAZE_SECRET_COMMENT,
+        "secret": MAZE_SECRET,
         "_maze_guide_comment": (
             "A flow field toward the centre (per corridor cell: 1=N 2=E 3=S 4=W, 0=centre), used "
             "ONLY to let the companion subtly point the way along the solved path after you've stood "

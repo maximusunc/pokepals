@@ -13,11 +13,12 @@ extends Node
 ## No-op in worlds without an "ambient_pals" block.
 
 const COMPANION_SCENE := preload("res://scenes/companion.tscn")
+const PLAYER_SCENE := preload("res://scenes/player.tscn")
 
 var _scenery: Node2D
 var _style: ArtStyle
 var _bounds := Rect2()
-var _pals: Dictionary = {}  # id (String) -> puppet (CompanionView, or PalView for species pals)
+var _pals: Dictionary = {}  # id (String) -> puppet (CompanionView, PalView for species pals, PlayerView for people)
 var _hidden := false        # true while the first-meeting search owns the world's animal life
 
 
@@ -46,6 +47,20 @@ func spawn_pals(data: Dictionary) -> void:
 		if id == "" or _pals.has(id):
 			continue
 		var home := WorldData.to_vec2(d.get("home", [0, 0]))
+		# A PERSON (the Bazaar's walking traffic): the same remote puppet another player gets, dressed
+		# from its 'person' appearance. The server walks it about like any pal.
+		var person: Variant = d.get("person", null)
+		if person is Dictionary:
+			var pp := PLAYER_SCENE.instantiate() as PlayerView
+			pp.set_remote()
+			pp.name = "AmbientPerson_%s" % id
+			pp.set_style(_style)
+			_scenery.add_child(pp)
+			pp.apply_identity((person as Dictionary).get("appearance", {}))
+			pp.position = home
+			pp.set_remote_state(home, Vector2.DOWN)
+			_pals[id] = pp
+			continue
 		var species := String(d.get("species", ""))
 		var variant := int(d.get("variant", 0))
 		if species != "" and PalView.supported(species, variant):
@@ -80,6 +95,8 @@ func set_hidden(hidden: bool) -> void:
 		return
 	_hidden = hidden
 	for rc in _pals.values():
+		if rc is PlayerView:
+			continue  # people aren't part of the animal flock; they stay out in the world
 		var n := rc as Node2D
 		if hidden:
 			n.visible = false

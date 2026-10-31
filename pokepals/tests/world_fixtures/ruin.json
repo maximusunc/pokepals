@@ -432,5 +432,57 @@
 		{"from": [0, 1100], "to": [0, 900], "color": [0.46, 0.44, 0.34]},
 		{"from": [0, 900], "to": [0, 800], "color": [0.46, 0.44, 0.34]},
 		{"from": [0, 800], "to": [0, 640], "color": [0.46, 0.44, 0.34]}
-	]
+	],
+	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, W-1). 'reveal' says how it becomes findable (see SecretDirector / Server.SecretReveal); the server honours a claim only here, within 'radius' of 'position', and only once the reveal's condition holds.",
+	"secret": {
+		"id": "warden_lantern",
+		"position": [
+			-955.0,
+			-150.0
+		],
+		"radius": 120.0,
+		"prop": {
+			"type": "warden_lantern",
+			"color": [
+				0.42,
+				0.38,
+				0.34
+			],
+			"label": "the last Warden's lantern",
+			"tags": [
+				"light",
+				"made",
+				"old"
+			]
+		},
+		"lore": "The last Warden's lantern, lit again, warm in front of the open door.",
+		"reveal": {
+			"type": "ward_open",
+			"ward": "paired_hall",
+			"locked_lore": "An old iron lantern on a stone post, facing the great door. It's dark, and long cold. Someone kept it lit here for a very long time, waiting for a door that never opened for them.",
+			"lit_line": "You cup your hands around the old wick and it catches. The lantern glows again, warm, in front of the open door."
+		},
+		"found_line": "The last Warden kept this lantern lit, alone, before a door they could never pass. Now it's lit again, and the door stands open.",
+		"home_line": "Something has changed at home.",
+		"qualities": [
+			"old",
+			"warm"
+		],
+		"keepsake": {
+			"id": "kept_lantern",
+			"type": "kept_lantern",
+			"color": [
+				0.42,
+				0.38,
+				0.34
+			],
+			"label": "the last Warden's lantern",
+			"line": "The Warden's lantern, still lit. Your companion settles beside it in the evenings, as if keeping it company.",
+			"temperament": {
+				"curiosity": 0.45,
+				"energy": 0.3,
+				"clinginess": 0.8
+			}
+		}
+	}
 }

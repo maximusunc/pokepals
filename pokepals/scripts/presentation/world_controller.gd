@@ -365,7 +365,8 @@ func _create_directors() -> void:
 
 	_secret_dir = SecretDirector.new()
 	add_child(_secret_dir)
-	_secret_dir.setup(self, _companion, _world_art)
+	_secret_dir.setup(self, _companion, _world_art, _player, _interactables)
+	_hunt_dir.hunt_won.connect(_secret_dir.on_hunt_won)
 
 	_shop_dir = ShopDirector.new()
 	add_child(_shop_dir)
@@ -407,6 +408,11 @@ func _create_directors() -> void:
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
 # public so each director can stay focused on its own mechanic and lean on the controller for the
 # things that are genuinely world-wide (the hint line, the goal HUD, portals, the wallet). ──
+
+## Whether a Ruin ward is open (a secret behind the great door asks; see SecretDirector).
+func ward_open(id: String) -> bool:
+	return _ruin.is_ward_open(id)
+
 
 ## A world secret was picked up: it no longer prompts, so the cached nearest is stale. (The spot stays
 ## one of the companion's points of interest; it may still wander over and sniff where the seed was.)
@@ -844,6 +850,7 @@ func _process(delta: float) -> void:
 	_update_portals(delta)
 	_hunt_dir.update_detector(delta)
 	_maze_dir.update(delta)
+	_secret_dir.update(delta)
 	_home_dir.update(delta)
 	_ruin.update(delta)
 	# F-2 form-verb order in flight: fire its world effect once the companion reaches the object.

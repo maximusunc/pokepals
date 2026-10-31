@@ -311,7 +311,8 @@ defmodule Server.WorldChannel do
       end
 
     push(socket, "hunt_reward", %{found: found, amount: amount, balance: balance, currency: @shop_currency})
-    {:noreply, socket}
+    # Remember this visit's best hunt: the Riverbank's elder only shows for a perfect one (SecretReveal).
+    {:noreply, assign(socket, :hunt_found, max(found, Map.get(socket.assigns, :hunt_found, 0)))}
   end
 
   # Claim the reward for reaching the heart of the hedge maze. The SERVER decides the payout (a flat
@@ -348,7 +349,10 @@ defmodule Server.WorldChannel do
     core = get_in(definition.spec, ["core"]) || %{}
     pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
 
-    if Discoveries.claimable?(core, secret_id, pos) do
+    # How it becomes findable (Server.SecretReveal): a door that must be open, a perfect hunt this visit.
+    reveal_ctx = %{wards: World.wards(world_id), hunt_found: Map.get(socket.assigns, :hunt_found, 0), hunt_goal: core["goal"] || %{}}
+
+    if Discoveries.claimable?(core, secret_id, pos) and Server.SecretReveal.met?(core["secret"], reveal_ctx) do
       # S-4: was the companion beside us, and which friends were near (about a screen away)?
       transforms = World.snapshot(world_id)
       together = Discoveries.together?(Map.get(transforms, user_id, %{}))

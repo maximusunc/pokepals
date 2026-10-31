@@ -471,6 +471,69 @@ def block(items):
 region_objs = [{"id": r[0], "min": list(r[1]), "max": list(r[2]), "tint": [round(c, 2) for c in r[3]]} for r in REGIONS]
 path_objs = [{"from": a, "to": b, "color": VEIN, "glow": PATH_GLOW} for a, b in PATHS]
 
+SECRET_COMMENT = "This world's one SECRET (docs/home-world-and-secrets-design.md, W-2). 'reveal' says how it becomes findable (see SecretDirector / Server.SecretReveal); the server honours a claim only here, within 'radius' of 'position', and only once the reveal's condition holds."
+SECRET = {
+    "id": "mere_pearl",
+    "position": [
+        -215.0,
+        -262.0
+    ],
+    "radius": 120.0,
+    "prop": {
+        "type": "mere_pearl",
+        "color": [
+            0.86,
+            0.96,
+            1.0
+        ],
+        "label": "a mere-pearl",
+        "tags": [
+            "glow",
+            "odd"
+        ]
+    },
+    "lore": "A pearl the Mere gave up, pale and faintly warm, still glowing from somewhere deep inside.",
+    "reveal": {
+        "type": "stillness",
+        "center": [
+            -270.0,
+            -255.0
+        ],
+        "radius": 170.0,
+        "seconds": 20.0,
+        "drift_back": 0.5,
+        "lights_center": [
+            -250.0,
+            -365.0
+        ],
+        "lights_radius": 62.0,
+        "reveal_line": "The lily-lights drift together into a slow ring over the water, and something pale rises to the shore at your feet."
+    },
+    "found_line": "The Mere kept this light longer than anyone remembers. It gave it to you for sitting still.",
+    "home_line": "Something has changed at home.",
+    "qualities": [
+        "glowing",
+        "watery",
+        "quiet"
+    ],
+    "keepsake": {
+        "id": "mere_jar",
+        "type": "mere_jar",
+        "color": [
+            0.62,
+            0.92,
+            1.0
+        ],
+        "label": "a mere-light in a jar",
+        "line": "A light from the Mere, drifting in its jar. Your companion watches it turn, very still, for a long time.",
+        "temperament": {
+            "curiosity": 0.55,
+            "energy": 0.15,
+            "clinginess": 0.6
+        }
+    }
+}
+
 out = ["{"]
 out.append('\t"_comment": %s,' % json.dumps(HEADER))
 out.append('\t"world_id": "nocthollow",')
@@ -489,6 +552,9 @@ out.append('\t"paths": [\n%s\n\t],' % block(path_objs))
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
+# This world's one SECRET (docs/home-world-and-secrets-design.md, W-2): stillness by the Mere.
+out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
+out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
 out.append('\t"ambient_pals": [\n%s\n\t]' % block(CREATURES))
 out.append("}")
 text = "\n".join(out) + "\n"

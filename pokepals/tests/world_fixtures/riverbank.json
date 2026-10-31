@@ -79,5 +79,54 @@
 	"_portals_comment": "Doorways between worlds (walk through them). The entry portal here returns to the Vale, landing the player beside the Vale's portal. A second 'all ten found' portal is created at runtime nearby when the hunt completes.",
 	"portals": [
 		{ "id": "riverbank_entry", "type": "portal", "position": [-30, -90], "color": [0.66, 0.80, 0.96], "label": "the portal home", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_portal" }
-	]
+	],
+	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, W-3). 'reveal' says how it becomes findable (see SecretDirector / Server.SecretReveal); the server honours a claim only here, within 'radius' of 'position', and only once the reveal's condition holds.",
+	"secret": {
+		"id": "elder_scale",
+		"position": [
+			1340.0,
+			-10.0
+		],
+		"radius": 120.0,
+		"prop": {
+			"type": "elder_salamander",
+			"color": [
+				0.92,
+				0.72,
+				0.3
+			],
+			"label": "the elder salamander",
+			"tags": [
+				"creature",
+				"old"
+			]
+		},
+		"lore": "The oldest salamander in the river, gold with age. It has watched a great many hunts from this stone, and yours was a good one.",
+		"reveal": {
+			"type": "hunt_perfect",
+			"reveal_line": "As the last salamander slips away, an old golden one climbs onto a sunny stone up the bank and watches you, unhurried."
+		},
+		"found_line": "The elder slips back into the river, and leaves something on its stone: a single golden scale.",
+		"home_line": "Something has changed at home.",
+		"qualities": [
+			"watery",
+			"wild"
+		],
+		"keepsake": {
+			"id": "elder_scale",
+			"type": "elder_scale",
+			"color": [
+				0.92,
+				0.72,
+				0.3
+			],
+			"label": "an elder's shed scale",
+			"line": "The elder salamander's golden scale. Your companion noses it now and then, as if checking it's still warm.",
+			"temperament": {
+				"curiosity": 0.6,
+				"energy": 0.65,
+				"clinginess": 0.4
+			}
+		}
+	}
 }
