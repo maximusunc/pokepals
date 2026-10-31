@@ -622,6 +622,12 @@ func _ward_for_slab(slab_id: String) -> Dictionary:
 	return {}
 
 
+## Whether the ward with this id is open (the Ruin's lantern can only be lit once the great door is).
+func is_ward_open(id: String) -> bool:
+	var w := _ward_by_id(id)
+	return not w.is_empty() and bool(w["open"])
+
+
 ## The ward with this id (empty dict if none) — for applying server ward-state echoes.
 func _ward_by_id(id: String) -> Dictionary:
 	for w in _wards:

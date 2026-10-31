@@ -27,6 +27,7 @@ func _init() -> void:
 	failures += TestFormEffect.run_all()
 	failures += TestKeepsakeChoice.run_all()
 	failures += TestRadialLayout.run_all()
+	failures += TestStillnessGate.run_all()
 	failures += TestSolids.run_all()
 	failures += TestNavGrid.run_all()
 	failures += TestNavAgent.run_all()

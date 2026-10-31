@@ -226,6 +226,115 @@ crates += gen_crates("high", high_crate_cfg, 7, [(0.84,0.72,0.44),(0.80,0.68,0.4
 
 lanterns = [stall(i, "lantern", p, c, "a hanging lantern", ["light","made"]) for i, p, c in LANTERNS]
 
+# ── the packed market's PEOPLE (docs/home-world-and-secrets-design.md, W-5) ──────────────
+# Everything below uses its OWN random stream, so the stalls, crates and lanterns above keep exactly
+# the positions they've always had; the people and the forgotten alley only fill in around them.
+people_rng = random.Random(0x5EA75)
+
+# Stallholders: someone minding most stalls, a little in front of the counter, each with a line of
+# their own. Static (they're props, drawn as the shopkeeper figure in their own colours), so a packed
+# market stays cheap to draw on a phone.
+HOLDER_LINES = {
+    "spice": ["\"Smell that? Cardamom from the hill farms. One pinch and the whole tea changes its mind.\"",
+              "\"Honey from the cliff-hives. The bees there have never seen the river, and they don't miss it.\"",
+              "\"My grandmother sold from a boat on this very spot. Now I sell from what's left of it.\"",
+              "\"Try a fig. No, take two. You look like someone who's walked a long way.\"",
+              "\"Saffron's dear this season. Everything's dear, since the water left.\""],
+    "glass": ["\"Every pane here is a little piece of the riverbed, melted down and made to hold light.\"",
+              "\"Hold this lens to your eye. See? Even the dust looks like it's flowing.\"",
+              "\"Bottles for anything you'd like to keep. Breath, rain, a good afternoon.\"",
+              "\"We blow glass at dawn, before the heat. You can hear the furnaces from the Vein.\"",
+              "\"Some say there's a drop of the old river still somewhere in the Run. Glass remembers.\""],
+    "bone":  ["\"Quiet, please. The ledgers here are older than the bazaar.\"",
+              "\"Scrimshaw from river-whale bone. There were whales, you know. Before.\"",
+              "\"We keep records of every bargain ever struck here. Every one but the first.\"",
+              "\"A charm-bone for safe roads? Or for finding your way back to someone?\""],
+    "rag":   ["\"One thing's rubbish, two things is a collection. Three's a business.\"",
+              "\"Charts of where the water will come back. Guaranteed. More or less.\"",
+              "\"Found it in the channel at low dust. Don't ask me what it is, I only sell them.\"",
+              "\"Lockpicks? Never heard of them. Come back after dark.\"",
+              "\"Your fortune: you'll walk a long way, and someone will be glad you came.\""],
+    "high":  ["\"Silk from across the far hills. Feel how it pours, like water used to.\"",
+              "\"The view from up here is free. The jewels, regrettably, are not.\"",
+              "\"Perfume of the old river: wet stone, reeds, and a little moonlight.\"",
+              "\"Rare books, rarer readers. You're welcome to browse.\""],
+}
+HOLDER_LABELS = {"spice": "a spice-seller", "glass": "a glassblower", "bone": "a bonewright",
+                 "rag": "a ragpicker", "high": "a merchant of the High Stalls"}
+HOLDER_COLORS = [(0.86, 0.62, 0.46), (0.62, 0.72, 0.86), (0.80, 0.56, 0.66), (0.66, 0.78, 0.58),
+                 (0.88, 0.76, 0.46), (0.70, 0.62, 0.82), (0.84, 0.70, 0.58), (0.58, 0.70, 0.74)]
+solids_now = [(e["position"][0], e["position"][1]) for e in SPECIAL + stalls + crates + lanterns]
+stallholders = []
+for st in stalls:
+    if people_rng.random() > 0.75:
+        continue
+    knot = st["id"].split("_stall_")[0]
+    hx, hy = st["position"][0], st["position"][1] + 26
+    if near_path(hx, hy, 14) or any(math.hypot(hx - x, hy - y) < 18 for x, y in solids_now if (x, y) != tuple(st["position"])):
+        continue
+    stallholders.append(stall("%s_holder_%d" % (knot, len(stallholders) + 1), "stallholder", (hx, hy),
+                              people_rng.choice(HOLDER_COLORS), HOLDER_LABELS[knot], ["person", "market"],
+                              lore=people_rng.choice(HOLDER_LINES[knot])))
+
+# The forgotten alley in the Glassblowers' Run: the emptiest corner the stalls left, dressed as a
+# place nobody tends any more (a long-closed stall, some crates), with the secret at its end (W-5).
+glass_x0, glass_y0, glass_x1, glass_y1 = KNOTS["glass"]["rect"]
+best_spot = None
+for gx in range(int(glass_x0) + 40, int(glass_x1) - 40, 10):
+    for gy in range(int(glass_y0) + 40, int(glass_y1) - 40, 10):
+        if near_path(gx, gy, 90):
+            continue
+        clear = min(math.hypot(gx - x, gy - y) for x, y in solids_now + [(h["position"][0], h["position"][1]) for h in stallholders])
+        if best_spot is None or clear > best_spot[0]:
+            best_spot = (clear, gx, gy)
+_alley_clear, ALLEY_X, ALLEY_Y = best_spot
+alley = [
+    stall("glass_closed_stall", "stall", (ALLEY_X - 34, ALLEY_Y - 30), (0.46, 0.50, 0.56), "an empty stall, long closed", ["made", "market"], True, 16,
+          lore="An empty stall, its awning faded almost white. Nobody has opened it in a long time. Further in, something catches the light."),
+    stall("glass_alley_crate_1", "crate", (ALLEY_X + 30, ALLEY_Y - 26), (0.44, 0.40, 0.34), "some forgotten crates", ["made", "market"], True, 9),
+    stall("glass_alley_crate_2", "crate", (ALLEY_X + 36, ALLEY_Y + 4), (0.42, 0.38, 0.32), "some forgotten crates", ["made", "market"], True, 9),
+]
+SECRET = {
+    "id": "river_drop", "position": [ALLEY_X, ALLEY_Y + 6], "radius": 120.0,
+    "prop": {"type": "river_drop", "color": [0.55, 0.85, 1.0], "label": "a drop of river-glass", "tags": ["shiny", "odd", "glow"]},
+    "lore": "Tucked behind the empty stall: a single drop of river-glass, no bigger than a thumbnail. A ripple of light still moves inside it, as if it remembers the water.",
+    "reveal": {"type": "always"},
+    "found_line": "A drop of the Sleeping River, kept in glass. Somewhere in the Run, someone made it hold light instead of water.",
+    "home_line": "Something has changed at home.",
+    "qualities": ["crafted", "glowing"],
+    "keepsake": {"id": "river_drop", "type": "river_drop", "color": [0.55, 0.85, 1.0], "label": "a drop of river-glass",
+                 "line": "The drop of river-glass from the Bazaar. Your companion likes to sit where the light from it falls.",
+                 "temperament": {"curiosity": 0.75, "energy": 0.45, "clinginess": 0.4}},
+}
+SECRET_COMMENT = "This world's one SECRET (docs/home-world-and-secrets-design.md, W-5): no puzzle, a small shiny treasure found only by wandering, at the end of a forgotten alley in the Glassblowers' Run. The server honours a claim only here, within 'radius' of 'position'."
+
+# Walking traffic: people strolling the lanes, driven by the server's ambient sim like the Vale's pals
+# (shared, so everyone sees the same crowd) and drawn as people (a 'person' appearance) by the client.
+HAIR = ["base:hair_short", "base:hair_long", "base:hair_spiky"]
+TOPS = ["base:tee", "base:tank"]
+SKIN = ["golden", "umber", "rose", "fair"]
+HAIR_COLORS = ["bark", "chestnut", "wheat", "slate", "ember"]
+CLOTH = ["river", "clay", "moss", "violet", "stone", "gold"]
+
+def random_person():
+    equipped = {"body": "base:body", "legwear": "base:pants", "outfit": people_rng.choice(TOPS),
+                "footwear": "base:shoes", "hair": people_rng.choice(HAIR)}
+    if people_rng.random() < 0.3:
+        equipped["headwear"] = "base:headband"
+    colors = {"skin_tone": people_rng.choice(SKIN), "hair_color": people_rng.choice(HAIR_COLORS),
+              "top_color": people_rng.choice(CLOTH), "legwear_color": people_rng.choice(CLOTH),
+              "footwear_color": people_rng.choice(CLOTH), "headwear_color": people_rng.choice(CLOTH)}
+    return {"equipped": equipped, "colors": colors}
+
+walkers = []
+for i in range(26):
+    a, b = people_rng.choice(PATHS)
+    t = people_rng.random()
+    wx, wy = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
+    walkers.append({"id": "walker_%d" % (i + 1), "home": [round(wx), round(wy)], "roam_radius": 170,
+                    "person": {"appearance": random_person()}})
+print("stallholders:", len(stallholders), "| walkers:", len(walkers), "| alley at", (ALLEY_X, ALLEY_Y), "clear %.0f" % _alley_clear)
+
 counts = {}
 for s in stalls:
     pre = s["id"].split("_stall_")[0]
@@ -234,7 +343,7 @@ print("stalls per Knot:", counts, "| total stalls:", len(stalls), "| crates:", l
 
 # ── overlap / bounds validation ─────────────────────────────────────────────────────────
 all_solid = []
-for e in SPECIAL + stalls + crates + lanterns:
+for e in SPECIAL + stalls + crates + lanterns + alley:
     if e.get("solid") or e["type"] in ("signpost","lantern"):
         r = e.get("collision_radius", {"signpost":7,"lantern":6}.get(e["type"], 8))
         all_solid.append((e["id"], e["position"][0], e["position"][1], r))
@@ -268,6 +377,8 @@ interactable_groups = [
     ("Ragpicker's Tangle stalls + crates (densest, maziest)", [s for s in stalls if s["id"].startswith("rag_")] + [c for c in crates if c["id"].startswith("rag_")]),
     ("High Stalls (wealthiest, gilded) + fine cargo", [s for s in stalls if s["id"].startswith("high_")] + [c for c in crates if c["id"].startswith("high_")]),
     ("lanterns", lanterns),
+    ("stallholders minding the stalls (the packed market's people; each reads out a line)", stallholders),
+    ("the forgotten alley in the Glassblowers' Run (the secret waits at its end)", alley),
 ]
 # Groups are separated by a blank line only (JSON has no comments, and a comment OBJECT inside the
 # array would crash to_vec2(it["position"]) — so the group notes live in _props_comment).
@@ -339,6 +450,12 @@ out.append('\t"npc_companion": {')
 out.append('\t\t"position": [-1035, 308],')
 out.append('\t\t"look": { "ear_rest": 7.0, "bounce_base": 2.4, "wag_life": 3.5, "eye_lift": 2.5, "coat_warm": 0.35, "body_scale": 1.12 }')
 out.append('\t},')
+out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
+out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
+out.append('\t"_walkers_comment": %s,' % json.dumps("Walking traffic: server-simulated like any ambient pal (shared, so everyone sees the same crowd), drawn by the client as people from each 'person' appearance."))
+out.append('\t"ambient_pals": [')
+out.append(",\n".join("\t\t" + json.dumps(w, separators=(", ", ": ")) for w in walkers))
+out.append('\t],')
 out.append('\t"portals": [')
 out.append('\t\t{ "id": "bazaar_entry", "type": "portal", "position": [280, 360], "color": [0.96, 0.82, 0.50], "label": "the sun-warmed archway", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" }')
 out.append('\t]')

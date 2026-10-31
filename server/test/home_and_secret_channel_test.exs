@@ -225,6 +225,64 @@ defmodule Server.HomeAndSecretChannelTest do
     assert_push "keepsakes_saved", %{ok: false}
   end
 
+  defp seed_world_with(core) do
+    world_id = Ecto.UUID.generate()
+
+    {:ok, _} =
+      Worlds.upsert(%{
+        world_id: world_id,
+        slug: "reveal-#{System.unique_integer([:positive])}",
+        name: "Reveal",
+        display_types: ["2d"],
+        version: 1,
+        spec: %{"core" => core, "profiles" => %{"2d" => %{}}}
+      })
+
+    world_id
+  end
+
+  test "the elder can only be claimed after a perfect hunt this visit" do
+    t = "elder-#{System.unique_integer([:positive])}"
+    uid = user_id(t)
+
+    w =
+      seed_world_with(%{
+        "goal" => %{"type" => "find_salamanders", "count" => 10},
+        "secret" => %{"id" => "elder_scale", "position" => [0.0, 0.0], "radius" => 120.0, "reveal" => %{"type" => "hunt_perfect"}}
+      })
+
+    {:ok, _, socket} = subscribe_and_join(connect_as(t), "world:" <> w, %{})
+    stand_at(socket, w, uid, [5.0, 5.0])
+    push(socket, "claim_secret", %{"id" => "elder_scale"})
+    assert_push "secret_refused", %{id: "elder_scale"}
+
+    push(socket, "hunt_complete", %{"found" => 9})
+    assert_push "hunt_reward", %{found: 9}
+    push(socket, "claim_secret", %{"id" => "elder_scale"})
+    assert_push "secret_refused", %{id: "elder_scale"}
+
+    push(socket, "hunt_complete", %{"found" => 10})
+    assert_push "hunt_reward", %{found: 10}
+    push(socket, "claim_secret", %{"id" => "elder_scale"})
+    assert_push "secret_found", %{id: "elder_scale", new: true}
+  end
+
+  test "a lantern behind a shut door can't be claimed" do
+    t = "lantern-#{System.unique_integer([:positive])}"
+    uid = user_id(t)
+
+    w =
+      seed_world_with(%{
+        "secret" => %{"id" => "warden_lantern", "position" => [0.0, 0.0], "radius" => 120.0,
+                      "reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
+      })
+
+    {:ok, _, socket} = subscribe_and_join(connect_as(t), "world:" <> w, %{})
+    stand_at(socket, w, uid, [5.0, 5.0])
+    push(socket, "claim_secret", %{"id" => "warden_lantern"})
+    assert_push "secret_refused", %{id: "warden_lantern"}
+  end
+
   test "browsing the directory from home doesn't trip over the home's non-catalog id" do
     t = "home-dir-#{System.unique_integer([:positive])}"
     uid = user_id(t)

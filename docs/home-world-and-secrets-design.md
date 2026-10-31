@@ -138,9 +138,31 @@ not as a plan to act on.
 Each needs its own design pass. Per P-2 in the direction doc, aim for 2–3 routes of differing
 elegance, not lock-and-key. Vary the *kind* of secret so it never reads as a checklist: a puzzle, a
 small game, patience, a time of day, a form only the companion can take, or just noticing.
-- ⬜ **W-1 — The Ruin.**
-- ⬜ **W-2 — Nocthollow.**
-- ⬜ **W-3 — The Riverbank.**
+Each world's secret is a different *kind* (decided 2026-10-31): the Maze is reaching a place, the
+Ruin is solving it, Nocthollow is stillness, the Riverbank is a skill moment, and the Bazaar is
+wandering.
+
+- ✅ **W-1 — The Ruin: the last Warden's lantern. (Built.)** Before the great door
+  stands the dark lantern the last Warden kept lit, alone, until they were gone. Once the door is
+  open, whether with a friend or alone with the wedge, examining it lets **you relight it
+  yourself**, a small act of finishing what the last Warden couldn't, and you take it.
+  - **Keepsake:** a small lit Warden's lantern. **Qualities:** old, warm.
+  - *Note on S-4:* the door's open state is already shared, server-authoritative ward state, so the
+    lantern becomes lightable for everyone present when it opens, and each person lights their own.
+    No separate "revealed" state is needed.
+- ✅ **W-2 — Nocthollow: stillness by the Mere. (Built.)** Stay still on the Mere's
+  shore (the bench is the obvious spot) with your companion settled beside you for about 20
+  seconds. The lily-lights drift into a slow ring and a mere-pearl rises to the shore. The bench's
+  existing lore ("sit long enough and the lights drift into slow…") is already the hint.
+  - **Keepsake:** a mere-light in a jar. **Qualities:** glowing, watery, quiet.
+  - **Decided:** 20 seconds; moving **pauses** it and lets it drift back a little (half a second per
+    second moved), so a small fidget isn't punished.
+- ✅ **W-3 — The Riverbank: the elder salamander. (Built.)** Find **all ten**
+  salamanders in a single hunt and an old golden elder salamander shows itself. Deliberately a real
+  skill moment, as the hunt is today (15 flips, decoys among the stones). The hunt reshuffles every
+  visit, so a miss only ever means "next time"; nothing is lost, so it stays clear of punishing
+  fail states.
+  - **Keepsake:** an elder's shed scale. **Qualities:** watery, wild.
 - ✅ **W-4 — The Maze. (The first secret. Built.)** Decided: an **item waits at the centre of the maze**;
   reach the heart, take the item, and it's added to your home.
   - ✅ **The item: a hedge seed.** A curled seed from the oldest hedge. At home it grows into a small
@@ -154,7 +176,15 @@ small game, patience, a time of day, a form only the companion can take, or just
   *Reuse:* the maze already has a server-checked `reach_center` goal (`MazeDirector` detects
   arrival; `world_channel.ex` pays a flat 10 coins, honoured only in a world whose spec carries that
   goal), so the "you really got there" check exists. The heart also holds the portal home.
-- ⬜ **W-5 — The Bazaar.**
+- ✅ **W-5 — The Bazaar: a packed market, and a treasure found by wandering. (Built.)**
+  - **The market first.** The Bazaar is filled in as a **packed market**: stalls lining every path
+    through every knot, many more NPCs (stallholders, each examinable for a line or two of lore),
+    and walking traffic between them. *Watch:* performance on phones, given the extra sprites and
+    walkers.
+  - **No puzzle.** A small shiny treasure is tucked somewhere a little abandoned, found only by
+    wandering: at the end of an **empty alley off the Glassblowers' Run**, a single **glass
+    river-drop** that still holds a ripple of light.
+  - **Keepsake:** the glass river-drop. **Qualities:** crafted, glowing.
 
 ### The home world
 - ✅ **HW-1 — A per-player world. (Built, owner-only for now.)** `Server.HomeWorld` builds an
@@ -359,6 +389,58 @@ fade-to-black moment naming friends.
   - A layout check confirmed nothing sits in the border treeline at 3 or 7 spots, which moved one
     quality item.
 - **Fixed along the way:** a missing home pass read as valid, because monotonic time can be negative.
+
+## Third slice: built (2026-10-31): the four remaining secrets, and the packed Bazaar
+
+Built: W-1, W-2, W-3 and W-5.
+
+- **One secret mechanism, four kinds of reveal.** A secret's `reveal` block says how it becomes
+  findable:
+  - `always` (the default): the prop is simply there. The Maze, the Bazaar.
+  - `ward_open`: the prop is there, but examining it only reads its `locked_lore` until a Ruin ward is
+    open. After that, examining it lights it (`lit_line`) and claims it.
+  - `stillness`: nothing shows until you've stayed still in a place with your companion settled
+    beside you. `StillnessGate` (pure, `scripts/world`, 4 tests) times it, `MereLights` draws the
+    lights gathering, and then the prop rises.
+  - `hunt_perfect`: the prop appears when `HuntDirector` emits `hunt_won`, which needs every
+    salamander found in one hunt.
+- **Server:** `Server.SecretReveal` (pure, tested) checks what the server can know before honouring a
+  claim: the ward really is open (`World.wards`), or this visit's `hunt_complete` reported a perfect
+  hunt (kept in the socket assigns). Stillness happens on the player's screen, so the server only
+  checks "this world, standing at it" for it.
+- **Client:**
+  - `SecretDirector` stages each kind.
+  - `RuinController.is_ward_open` and the `HuntDirector.hunt_won` signal are the new hooks.
+  - `WorldArt` draws the new props: `warden_lantern` (dark until lit), `mere_pearl`,
+    `elder_salamander` and `river_drop`.
+  - It also draws their keepsakes (`kept_lantern`, `mere_jar`, `elder_scale`, `river_drop`) and the
+    `stallholder` figure.
+- **The packed Bazaar** (`tools/gen_bazaar.py`): 133 stallholders minding the 166 stalls, each with a
+  line from its knot's pool, and 26 walkers.
+  - **Walkers** are ambient pals with a `person` appearance. The server sim walks them about, and the
+    client draws each as a remote `PlayerView` dressed from the cosmetics catalog. They stay visible
+    during the first-meeting search, which only hides animals.
+  - **The forgotten alley** is the emptiest corner of the Glassblowers' Run, chosen by the generator
+    (264 px from anything), dressed with a long-closed stall and crates, with the river-drop at its
+    end.
+  - The new content uses its own random stream, so **every existing stall stayed exactly where it
+    was**.
+- **Generators keep the secrets.** `tools/generate_maze.py` and `tools/gen_nocthollow_world.py` now
+  emit their worlds' secrets, so a regenerate never drops them; the Maze's seed was at risk before.
+  The Ruin and Riverbank specs are hand-authored.
+- **Verified:**
+  - Server: `mix test` passes in full.
+  - Client: the Godot unit suite passes, and all nine smoke tests pass.
+  - The server sim walks all 26 Bazaar walkers on the real seed.
+  - A runtime harness over the real scene, with screenshots checked by eye:
+    - **The Ruin:** the lantern stays dark and unclaimable while the door is shut, then lights and
+      claims once it opens.
+    - **Nocthollow:** nothing shows until you're still, the lights gather in view at the shore, then
+      the pearl rises with its line.
+    - **The Riverbank:** a perfect hunt brings out the elder.
+    - **The Bazaar:** it has its crowd and stallholders, and the river-drop is in the alley.
+    - **Home:** all five keepsakes are drawn.
+  - *Not checked:* frame rate on a phone with the Bazaar's crowd (26 walkers, 133 stallholders).
 
 ## How we work through it
 

@@ -47,6 +47,10 @@ var _point_target_hi := -1       # hunt_index of the pointed rock (to end early 
 
 ## Wire up the host seam + scene refs, and listen for the server's hunt-reward echo. The Net connection
 ## is auto-dropped when this node is freed on a world hop, so it never duplicates across worlds.
+## Every salamander found in one hunt (the Riverbank's elder answers this; see SecretDirector).
+signal hunt_won(found: int)
+
+
 func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: PlayerView) -> void:
 	_host = host
 	_companion = companion
@@ -145,6 +149,7 @@ func examine_rock(entry: Dictionary) -> void:
 ## Claim the coin reward from the server; the amount it pays appends to this hint via _on_hunt_reward.
 func _on_hunt_won(at: Vector2, found: int) -> void:
 	_hunt_over = true
+	hunt_won.emit(found)
 	_host.open_completion_portal(at)
 	if _flip_budget > 0 and _hunt.flips_used == found:
 		_completion_hint = "A perfect hunt — every flip a salamander! A portal shimmers open just up the bank."

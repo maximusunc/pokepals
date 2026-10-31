@@ -1024,6 +1024,8 @@ func _draw() -> void:
 				_draw_pool(it["pos"], it["color"])
 			"light_shaft":
 				_draw_light_shaft(it["pos"], it["color"])
+			"warden_lantern":
+				_draw_warden_lantern(it["pos"], it["color"], bool(it.get("opened", false)))
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -1467,6 +1469,25 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	return true
 
 
+## The last Warden's lantern (W-1): an old iron lantern on a stone post before the great door. Dark and
+## cold until it's relit (`lit`); then a warm flame and a pool of light. `size` scales it (the keepsake).
+func _draw_warden_lantern(p: Vector2, color: Color, lit: bool, size := 1.0) -> void:
+	var s := size
+	draw_rect(Rect2(p + Vector2(-4, -2) * s, Vector2(8, 10) * s), Color(0.42, 0.4, 0.38))
+	draw_rect(Rect2(p + Vector2(-1.5, -14) * s, Vector2(3, 12) * s), Color(0.26, 0.22, 0.2))
+	var cage := Rect2(p + Vector2(-6, -28) * s, Vector2(12, 14) * s)
+	if lit:
+		var flicker := 0.85 + 0.15 * sin(_time * 7.0 + _phase_for(p))
+		SoftGlow.draw(self, p + Vector2(0, -21) * s, 34.0 * s * flicker, Color(1.0, 0.76, 0.42, 0.32 * flicker), 0.6)
+		draw_rect(cage, Color(1.0, 0.82, 0.5, 0.55))
+		draw_circle(p + Vector2(0, -21) * s, 3.2 * s * flicker, Color(1.0, 0.9, 0.6))
+	else:
+		draw_rect(cage, Color(0.12, 0.12, 0.14, 0.7))
+	draw_rect(cage, color.darkened(0.3), false, 1.5 * s)
+	draw_line(cage.position + Vector2(cage.size.x * 0.5, 0), cage.position + Vector2(cage.size.x * 0.5, cage.size.y), color.darkened(0.3), 1.0)
+	draw_colored_polygon(PackedVector2Array([p + Vector2(-7, -28) * s, p + Vector2(7, -28) * s, p + Vector2(0, -34) * s]), color.darkened(0.2))
+
+
 ## Draw a single interactable prop, shaped by its 'type'. Each is a small, readable
 ## silhouette so the world reads as a place full of distinct things rather than rows
 ## of identical dots. Unknown types fall back to the original ringed disc.
@@ -1567,6 +1588,63 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			for k in 3:
 				draw_line(p + Vector2(-8, -16 + k * 2), p + Vector2(-3, -16 + k * 2), Color(0.55, 0.5, 0.45), 1.0)
 				draw_line(p + Vector2(3, -16 + k * 2), p + Vector2(8, -16 + k * 2), Color(0.55, 0.5, 0.45), 1.0)
+		"kept_lantern":
+			# the Ruin's keepsake (W-1): the last Warden's lantern, small now, and lit for good
+			_draw_warden_lantern(p + Vector2(0, 4), color, true, 0.75)
+		"mere_pearl":
+			# Nocthollow's secret (W-2): a pale pearl that rose to the Mere's shore, glowing softly
+			var pearl_glow := 0.8 + 0.2 * sin(_time * 1.3)
+			SoftGlow.draw(self, p + Vector2(0, -3), 16.0, Color(0.62, 0.92, 1.0, 0.35 * pearl_glow), 0.7)
+			draw_circle(p + Vector2(0, 2), 6.0, Color(0.2, 0.3, 0.36, 0.5))
+			draw_circle(p + Vector2(0, -3), 5.0, color)
+			draw_circle(p + Vector2(-1.5, -4.5), 1.6, Color(1, 1, 1, 0.9))
+		"mere_jar":
+			# its keepsake: a little stoppered jar with a light from the Mere drifting inside
+			var jar_glow := 0.75 + 0.25 * sin(_time * 1.1)
+			SoftGlow.draw(self, p + Vector2(0, -6), 14.0, Color(0.62, 0.92, 1.0, 0.3 * jar_glow), 0.7)
+			draw_rect(Rect2(p + Vector2(-6, -12), Vector2(12, 16)), Color(0.8, 0.92, 0.96, 0.35))
+			draw_rect(Rect2(p + Vector2(-6, -12), Vector2(12, 16)), Color(0.86, 0.96, 1.0, 0.7), false, 1.0)
+			draw_rect(Rect2(p + Vector2(-4, -16), Vector2(8, 4)), Color(0.62, 0.46, 0.32))
+			draw_circle(p + Vector2(sin(_time * 0.9) * 2.0, -5 + cos(_time * 0.7) * 2.0), 2.6, color)
+			draw_circle(p + Vector2(sin(_time * 0.9) * 2.0, -5 + cos(_time * 0.7) * 2.0), 1.0, Color(1, 1, 1, 0.9))
+		"elder_salamander":
+			# the Riverbank's secret (W-3): an old golden salamander sunning on its stone
+			draw_circle(p + Vector2(0, 5), 13.0, Color(0.5, 0.5, 0.48))
+			draw_circle(p + Vector2(-2, 3), 11.0, Color(0.6, 0.6, 0.56))
+			var sal_breath := sin(_time * 1.4) * 0.6
+			var body := PackedVector2Array([p + Vector2(-11, 0), p + Vector2(-4, -3 - sal_breath), p + Vector2(6, -2), p + Vector2(10, 0), p + Vector2(6, 2), p + Vector2(-4, 3 + sal_breath)])
+			draw_colored_polygon(body, color)
+			draw_line(p + Vector2(-11, 0), p + Vector2(-17, -3), color.darkened(0.1), 2.0)
+			for leg in [Vector2(-5, -3), Vector2(-5, 3), Vector2(4, -2), Vector2(4, 2)]:
+				draw_line(p + leg, p + leg + Vector2(-1, signf(leg.y) * 4.0), color.darkened(0.2), 1.5)
+			draw_circle(p + Vector2(10, 0), 3.0, color.lightened(0.1))
+			draw_circle(p + Vector2(11, -1), 0.9, Color(0.15, 0.1, 0.05))
+			for spot in [Vector2(-6, 0), Vector2(-1, -1), Vector2(3, 0)]:
+				draw_circle(p + spot, 1.0, color.lightened(0.35))
+		"elder_scale":
+			# its keepsake: one shed golden scale, laid on a scrap of river-cloth
+			draw_circle(p + Vector2(0, 3), 9.0, Color(0.42, 0.56, 0.62))
+			var scale_pts := PackedVector2Array([p + Vector2(0, -9), p + Vector2(6, -2), p + Vector2(4, 5), p + Vector2(-4, 5), p + Vector2(-6, -2)])
+			draw_colored_polygon(scale_pts, color)
+			draw_line(p + Vector2(0, -8), p + Vector2(0, 4), color.lightened(0.35), 1.0)
+			draw_circle(p + Vector2(-2, -3), 1.2, Color(1, 1, 0.9, 0.8 + 0.2 * sin(_time * 2.0)))
+		"river_drop":
+			# the Bazaar's secret (W-5) and its keepsake: a single drop of river-glass holding a ripple of light
+			var drop_glow := 0.7 + 0.3 * sin(_time * 1.6)
+			SoftGlow.draw(self, p + Vector2(0, -4), 15.0, Color(color.r, color.g, color.b, 0.35 * drop_glow), 0.7)
+			var drop := PackedVector2Array([p + Vector2(0, -12), p + Vector2(5, -2), p + Vector2(4, 3), p + Vector2(0, 5), p + Vector2(-4, 3), p + Vector2(-5, -2)])
+			draw_colored_polygon(drop, Color(color.r, color.g, color.b, 0.85))
+			draw_arc(p + Vector2(0, -1), 2.5 + 1.5 * fmod(_time * 0.6, 1.0), 0.0, TAU, 14, Color(1, 1, 1, 0.6 * (1.0 - fmod(_time * 0.6, 1.0))), 1.0)
+			draw_circle(p + Vector2(-1.5, -5), 1.2, Color(1, 1, 1, 0.9))
+		"stallholder":
+			# a stallholder minding their stall (the Bazaar's packed market): the shopkeeper figure in their
+			# own colours, with a little idle bob, offset so each seems to breathe on their own
+			var holder_bob := sin(_time * 1.5 + _phase_for(p) * 2.0) * 1.0
+			if _prop_base.has("shopkeeper"):
+				_blit_prop_sprite("shopkeeper", p, color, holder_bob)
+			else:
+				draw_colored_polygon(PackedVector2Array([p + Vector2(-7, 8), p + Vector2(7, 8), p + Vector2(5, -8 + holder_bob), p + Vector2(-5, -8 + holder_bob)]), color)
+				draw_circle(p + Vector2(0, -14 + holder_bob), 5.0, Color(0.92, 0.76, 0.62))
 		"hedge_sprout":
 			# the seed, grown: a young sapling curling up out of a moss mound, a few bright leaves
 			draw_circle(p + Vector2(0, 5), 11.0, Color(0.34, 0.5, 0.3))
