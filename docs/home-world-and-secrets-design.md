@@ -41,7 +41,8 @@ progression.
   game. (Since H6/H7: what the home shows is shaped by your finds' qualities and chosen by your
   companion; still never by the player.)
 - ✅ **H3 — Visits by friendship only.** You can visit a home only if its owner has accepted you as a
-  **friend** (friend request) or invited you. No open/public browsing of homes.
+  **friend** (friend request) or invited you (a one-off invite, FR-3). No open/public browsing of
+  homes.
 - ✅ **H4 — The Gateway links to friends' homes.** The Gateway's world picker gains friends' homes as
   destinations, alongside the catalog worlds. (Your own home is presumably reachable from there too,
   see HW-5.)
@@ -239,21 +240,36 @@ small game, patience, a time of day, a form only the companion can take, or just
   display like any other. The per-discovery "chunk" (the eastern growth, the walkable spiral)
   retires when the keepsake system is built.
 
-### Friends & visiting
-- ⬜ **FR-1 — A friends list.** There's no friend system today; identity is only the local token.
-  Sending, accepting, and removing friends, stored server-side. *Note:* CLAUDE.md puts real
-  **authentication** out of scope; a friends list over the token is fine, but it's worth a
-  conscious check that it doesn't need accounts.
-- ⬜ **FR-2 — How you find someone to friend.** You meet them in a shared world (tap their avatar)?
-  A share code? Both? Decides how friend requests start.
-- ⬜ **FR-3 — Invitations.** H3 says "invitation/friend request". Is an invite a one-off pass for a
-  non-friend, or just "friends can always come"? Decide if both exist.
-- ⬜ **FR-4 — Friends' homes in the Gateway.** The world picker lists friends' homes (H4): with their
-  name, maybe how many discoveries, maybe whether they're home now. *Reuse:* `WorldPicker` /
-  `WorldDirectory`, `list_worlds`.
-- ⬜ **FR-5 — Visiting etiquette.** Can you visit when the owner is offline? What does a visitor see
-  or do (look only; examine discoveries for their hint)? Safety: the owner can remove a friend at any
-  time, and visiting must never be possible without consent.
+### Friends & visiting (all decided 2026-10-31)
+- ✅ **FR-0 — Player names.** Players have no names today: everyone is relayed to others as
+  "Friend" (`PresenceDirector._local_identity`). Decided: **generated cozy names now**, two
+  friendly words (e.g. "Mossy Lantern", "Quiet Fern") the player can re-roll until they like one.
+  No free text, so nothing needs moderating yet. **Free-text names come later**, only once
+  moderation is in place (the CLAUDE.md child-safety note).
+- ✅ **FR-1 — A friends list.** Sending, accepting and removing friends, stored server-side and keyed
+  by `user_id`. It needs no accounts: like the companion and the wardrobe, it hangs off the identity
+  token, so (as with everything else today) losing the device's token loses it too. Real accounts
+  stay out of scope.
+- ✅ **FR-2 — How a friend request starts: both ways.** **Tap a player nearby** in a shared world to
+  see their name and a "Befriend" option (they get a gentle request to accept), **or** enter their
+  short **friend code**, shared outside the game.
+- ✅ **FR-3 — Visits: friends anytime, plus one-off invites.** Being friends is the permission:
+  friends can visit your home anytime. You can also **tap a nearby non-friend and choose "Invite
+  home"**. If they accept, they travel to your home with you right away, and the invite is good for
+  **that one visit only**.
+- ✅ **FR-4 — Friends' homes in the Gateway.** The Homes tab lists your home and each friend's. A
+  friend's card shows **their name** ("Mossy Lantern's home"), **whether they're home** right now, and
+  **whether they're currently playing** (online anywhere).
+- ✅ **FR-5 — Visiting etiquette and safety.**
+  - **Visits work while you're offline.** Your home is a place, so it's always there for friends.
+  - **Your companion stays home while you're away.** Visiting friends find it napping by its
+    favourite keepsake, and it greets them a little shyly. It's a stand-in drawn from your
+    companion's look; your real companion is still only yours.
+  - **Safety controls from the start:** **remove a friend** (quietly, they're not told); **send a
+    visitor home** (back to the Gateway) while they're there; **block someone** (no more friend
+    requests or invites from them, and they can't see you in the Homes tab); and **close my home**,
+    a switch that pauses all visits, friends included.
+  - Visiting must never be possible without consent: a friendship or a just-accepted one-off invite.
 
 ---
 
