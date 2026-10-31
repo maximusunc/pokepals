@@ -138,9 +138,32 @@ not as a plan to act on.
 Each needs its own design pass. Per P-2 in the direction doc, aim for 2–3 routes of differing
 elegance, not lock-and-key. Vary the *kind* of secret so it never reads as a checklist: a puzzle, a
 small game, patience, a time of day, a form only the companion can take, or just noticing.
-- ⬜ **W-1 — The Ruin.**
-- ⬜ **W-2 — Nocthollow.**
-- ⬜ **W-3 — The Riverbank.**
+Each world's secret is a different *kind* (decided 2026-10-31): the Maze is reaching a place, the
+Ruin is solving it, Nocthollow is stillness, the Riverbank is a skill moment, and the Bazaar is
+wandering.
+
+- ✅ **W-1 — The Ruin: the last Warden's lantern. (Decided; not built.)** Before the great door
+  stands the dark lantern the last Warden kept lit, alone, until they were gone. Once the door is
+  open, whether with a friend or alone with the wedge, examining it lets **you relight it
+  yourself**, a small act of finishing what the last Warden couldn't, and you take it.
+  - **Keepsake:** a small lit Warden's lantern. **Qualities:** old, warm.
+  - *Note on S-4:* the door's open state is already shared, server-authoritative ward state, so the
+    lantern becomes lightable for everyone present when it opens, and each person lights their own.
+    No separate "revealed" state is needed.
+- ✅ **W-2 — Nocthollow: stillness by the Mere. (Decided; not built.)** Stay still on the Mere's
+  shore (the bench is the obvious spot) with your companion settled beside you for about 20
+  seconds. The lily-lights drift into a slow ring and a mere-pearl rises to the shore. The bench's
+  existing lore ("sit long enough and the lights drift into slow…") is already the hint.
+  - **Keepsake:** a mere-light in a jar. **Qualities:** glowing, watery, quiet.
+  - *Open detail:* the exact stillness time, and how gently moving breaks it (does it reset, or
+    just pause?).
+- ✅ **W-3 — The Riverbank: the elder salamander. (Decided; not built.)** Find **all ten**
+  salamanders in a single hunt and an old golden elder salamander shows itself. Deliberately a real
+  skill moment, as the hunt is today (15 flips, decoys among the stones). The hunt reshuffles every
+  visit, so a miss only ever means "next time"; nothing is lost, so it stays clear of punishing
+  fail states.
+  - **Keepsake and qualities:** to decide when it's built (something like an elder's shed scale;
+    watery, wild).
 - ✅ **W-4 — The Maze. (The first secret. Built.)** Decided: an **item waits at the centre of the maze**;
   reach the heart, take the item, and it's added to your home.
   - ✅ **The item: a hedge seed.** A curled seed from the oldest hedge. At home it grows into a small
@@ -154,7 +177,16 @@ small game, patience, a time of day, a form only the companion can take, or just
   *Reuse:* the maze already has a server-checked `reach_center` goal (`MazeDirector` detects
   arrival; `world_channel.ex` pays a flat 10 coins, honoured only in a world whose spec carries that
   goal), so the "you really got there" check exists. The heart also holds the portal home.
-- ⬜ **W-5 — The Bazaar.**
+- ✅ **W-5 — The Bazaar: a packed market, and a treasure found by wandering. (Decided; not
+  built.)**
+  - **The market first.** The Bazaar is filled in as a **packed market**: stalls lining every path
+    through every knot, many more NPCs (stallholders, each examinable for a line or two of lore),
+    and walking traffic between them. *Watch:* performance on phones, given the extra sprites and
+    walkers.
+  - **No puzzle.** A small shiny treasure is tucked somewhere a little abandoned, found only by
+    wandering: at the end of an **empty alley off the Glassblowers' Run**, a single **glass
+    river-drop** that still holds a ripple of light.
+  - **Keepsake:** the glass river-drop. **Qualities:** crafted, glowing.
 
 ### The home world
 - ✅ **HW-1 — A per-player world. (Built, owner-only for now.)** `Server.HomeWorld` builds an
