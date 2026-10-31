@@ -209,12 +209,21 @@ small game, patience, a time of day, a form only the companion can take, or just
     was with you (a `together` flag on the discovery, judged at claim time); each secret authors its
     keepsake's temperament; and the chosen set must be **stored** server-side, not recomputed, so
     choices stay stable and a swap is an event the home can play.
-- ⬜ **HS-4 — Does the glade still grow?** Gentle growth at a few milestones, or fixed size with
-  only character changing.
-- ⬜ **HS-5 — The journal.** Where it lives (the gear menu, a book at home, both), what an entry shows
-  (the keepsake, the world, when, with whom), and how friends browse it.
-- ⬜ **HS-6 — The hedge spiral.** What becomes of today's per-discovery chunk: the hedge seed's
-  keepsake, what "green" looks like at its fullest, or kept as a special landmark.
+- ✅ **HS-4 — The glade grows with the keepsake spots. (Decided 2026-10-31.)** The glade widens a
+  little each time the bond adds a keepsake spot (3 to about 7), so size, spots and bond move
+  together. Bounded, and growth follows the relationship, not the number of worlds visited.
+- ✅ **HS-5 — The journal. (Decided 2026-10-31.)**
+  - **Where:** a **book on a stand in your home** that you, or a visiting friend, can examine and
+    leaf through, and also **from the gear menu** anywhere.
+  - **An entry shows:** the keepsake (a small picture) and its found line; **the world it came
+    from**, with a way to travel there (an invitation, per H8); and **when, and with whom** (the
+    date, and the friends who were there). No companion's note.
+  - *Implication:* "with whom" means a find must remember who else was in the world when it was
+    claimed (alongside S-4 and the HS-3 `together` flag).
+- ✅ **HS-6 — The hedge spiral becomes the seed's keepsake. (Decided 2026-10-31.)** The spiral
+  shrinks into a keepsake, a small potted spiral hedge, that the companion may or may not choose to
+  display like any other. The per-discovery "chunk" (the eastern growth, the walkable spiral)
+  retires when the keepsake system is built.
 
 ### Friends & visiting
 - ⬜ **FR-1 — A friends list.** There's no friend system today; identity is only the local token.
