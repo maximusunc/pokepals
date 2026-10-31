@@ -224,7 +224,8 @@ def try_stall(x, y, toward):
     if rng.random() < 0.9:
         hx, hy = x + toward[0] * 30, y + toward[1] * 30
         holders.append(prop("holder_%d" % (len(holders) + 1), "stallholder", (hx, hy), rng.choice(HOLDER_COLORS),
-                            rng.choice(HOLDER_LABELS), ["person", "market"], lore=rng.choice(HOLDER_LINES)))
+                            rng.choice(HOLDER_LABELS), ["person", "market"], lore=rng.choice(HOLDER_LINES),
+                            facing=[toward[0], toward[1]]))
     return True
 
 
@@ -280,13 +281,14 @@ HAIR_COLORS = ["bark", "chestnut", "wheat", "slate", "ember"]
 CLOTH = ["river", "clay", "moss", "violet", "stone", "gold"]
 
 
-def random_person():
-    equipped = {"body": "base:body", "legwear": "base:pants", "outfit": rng.choice(TOPS),
-                "footwear": "base:shoes", "hair": rng.choice(HAIR)}
-    if rng.random() < 0.3:
+def random_person(r=None):
+    r = r or rng
+    equipped = {"body": "base:body", "legwear": "base:pants", "outfit": r.choice(TOPS),
+                "footwear": "base:shoes", "hair": r.choice(HAIR)}
+    if r.random() < 0.3:
         equipped["headwear"] = "base:headband"
-    colors = {"skin_tone": rng.choice(SKIN), "hair_color": rng.choice(HAIR_COLORS), "top_color": rng.choice(CLOTH),
-              "legwear_color": rng.choice(CLOTH), "footwear_color": rng.choice(CLOTH), "headwear_color": rng.choice(CLOTH)}
+    colors = {"skin_tone": r.choice(SKIN), "hair_color": r.choice(HAIR_COLORS), "top_color": r.choice(CLOTH),
+              "legwear_color": r.choice(CLOTH), "footwear_color": r.choice(CLOTH), "headwear_color": r.choice(CLOTH)}
     return {"equipped": equipped, "colors": colors}
 
 
@@ -298,6 +300,18 @@ for i in range(30):
     hy = rng.uniform(y0 + 70, y1 - 70)
     walkers.append({"id": "walker_%d" % (i + 1), "home": [round(hx), round(hy)], "roam_radius": 110,
                     "person": {"appearance": random_person()}})
+
+# Stallholders are real people too: each stands at their stall dressed like the walkers (the client
+# draws them as a still remote PlayerView facing the lane). Their own random stream, so adding them
+# moved nothing else.
+holder_rng = random.Random(9137)
+for h in holders:
+    h["person"] = {"appearance": random_person(holder_rng)}
+# ...and so is the colour merchant, minding the shop's stall (still type "shopkeeper": Examine opens the shop).
+for p in special:
+    if p["id"] == "color_merchant":
+        p["person"] = {"appearance": random_person(holder_rng)}
+        p["facing"] = [0, 1]
 
 # ── checks ────────────────────────────────────────────────────────────────────────────────────────────
 all_props = special + lanterns + stalls + holders + rugs + alley

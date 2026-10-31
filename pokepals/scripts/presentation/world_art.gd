@@ -283,6 +283,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
 			"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
 			"flare": 0.0,  # a touched glow-plant's blaze, 1 → 0 (see flare_interactable)
+			"person": it.has("person"),  # drawn as a real person (a PlayerView) elsewhere, not here
 		})
 
 	queue_redraw()
@@ -998,6 +999,8 @@ func _draw() -> void:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
 		# stateless props with baked pixel-art get drawn from the sprite and skip the match;
 		# stateful/animated ones (rock, slab, torch, …) fall through to their procedural draw
+		if bool(it.get("person", false)):
+			continue  # stands as a real person (a PlayerView, AmbientPalDirector), not drawn here
 		if _try_blit_prop(it):
 			continue
 		match String(it["type"]):

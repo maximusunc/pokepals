@@ -276,6 +276,7 @@ func _build_world(data: Dictionary) -> void:
 	# Ambient pals: spawn the world's set-dressing creatures as puppets the server then drives (no-op in
 	# worlds without an "ambient_pals" block).
 	_ambient_dir.spawn_pals(data)
+	_ambient_dir.spawn_standing_people(data)
 	# A world's NATIVE creatures (Nocthollow's) can be examined like any prop — fold them into the live
 	# examine list; _process keeps their spots current as the server walks them about.
 	_add_creature_interactables()
