@@ -1,8 +1,9 @@
 class_name CompanionRadial
 extends Control
 ## The bottom-right companion "chip" and its fan-out action arc. The chip is always there in the
-## fixed corner (with a small dot that warms as the bond grows); tapping it fans a quarter-arc of
-## companion actions inward from the corner. Because the chip is anchored, the arc is always in the
+## fixed corner (with a small dot that warms as the bond grows); tapping it fans the companion's
+## actions out from the corner on two arcs: what it can do close in, the shapes it can take further
+## out, spaced so no two buttons touch. Because the chip is anchored, the arcs are always in the
 ## same place no matter where the companion has wandered — the actions come to a spot you know,
 ## rather than chasing a roaming pet around the screen.
 ##
@@ -14,7 +15,13 @@ signal action_selected(id: String)
 signal opened  ## fired when the arc fans open, so the controller can close the gear menu
 
 const CHIP_MARGIN := Vector2(14, 14)  # gap from the bottom-right corner
-const ARC_RADIUS := 100.0
+## The two arcs: companion actions on the inner one, the shapes it can take on the outer one. Each
+## starts at its base radius and only grows if its buttons can't fit along it without touching.
+const INNER_RADIUS := 92.0
+const RING_GAP := 14.0       # the least room between the inner and outer arcs
+const BUTTON_GAP := 10.0     # the least room between any two buttons (a fat-finger margin)
+const ARC_FROM := 178.0      # the arcs sweep from nearly straight left of the chip…
+const ARC_TO := 84.0         # …to just past straight up
 const SLICE_STAGGER := 0.035
 
 var _chip: Button
@@ -156,8 +163,9 @@ func _close() -> void:
 		c.queue_free()
 
 
-## Lay the offered actions along a quarter-arc sweeping up-and-left from the chip, each button
-## popping out from the chip with a short staggered tween so it reads as a fan, not a snap.
+## Fan the offered actions out from the chip on two arcs: what the companion can DO (Pet, Call, Go look)
+## close in, and the SHAPES it can take further out. Positions come from arc_layout (no two buttons
+## touch), and each button pops out from the chip with a short staggered tween so it reads as a fan.
 func _build_slices() -> void:
 	for c in _slots.get_children():
 		c.queue_free()
@@ -165,34 +173,94 @@ func _build_slices() -> void:
 	# `position` is already screen coordinates.
 	var chip_sz := _chip.get_combined_minimum_size()
 	var origin := Vector2(size.x - CHIP_MARGIN.x - chip_sz.x * 0.5, size.y - CHIP_MARGIN.y - chip_sz.y * 0.5)
-	var n := _actions.size()
-	for i in n:
-		var a: Dictionary = _actions[i]
+	var rings: Array = [[], []]  # buttons per ring: [actions, shapes]
+	for a in _actions:
 		var btn := _make_slice(String(a["id"]), String(a["label"]))
 		_slots.add_child(btn)
-		var bsz := btn.get_combined_minimum_size()
-		btn.size = bsz
-		btn.pivot_offset = bsz * 0.5  # scale from the button's center for a clean pop
-		# Angle from ~176° (nearly straight left) to ~96° (nearly straight up); y is down, so
-		# -sin lifts the button upward. Single item sits mid-arc.
-		var t := 0.5 if n == 1 else float(i) / float(n - 1)
-		var ang := deg_to_rad(lerpf(176.0, 96.0, t))
-		var target := origin + Vector2(cos(ang), -sin(ang)) * ARC_RADIUS - bsz * 0.5
-		btn.position = origin - bsz * 0.5
-		btn.modulate.a = 0.0
-		btn.scale = Vector2(0.7, 0.7)
-		var tw := btn.create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-		var delay := i * SLICE_STAGGER
-		tw.tween_property(btn, "position", target, 0.2).set_delay(delay)
-		tw.tween_property(btn, "scale", Vector2.ONE, 0.2).set_delay(delay)
-		tw.tween_property(btn, "modulate:a", 1.0, 0.16).set_delay(delay)
+		btn.size = btn.get_combined_minimum_size()
+		rings[1 if String(a["id"]).begins_with("form:") else 0].append(btn)
+	if (rings[0] as Array).is_empty():
+		rings.pop_front()
+	var sizes: Array = rings.map(func(ring: Array) -> Array: return ring.map(func(b: Button) -> Vector2: return b.size))
+	var chip_rect := Rect2(Vector2(size.x - CHIP_MARGIN.x - chip_sz.x, size.y - CHIP_MARGIN.y - chip_sz.y), chip_sz)
+	var placed := CompanionRadial.arc_layout(origin, sizes, chip_rect)
+	var k := 0
+	for r in rings.size():
+		for i in (rings[r] as Array).size():
+			var btn: Button = rings[r][i]
+			var bsz := btn.size
+			btn.pivot_offset = bsz * 0.5  # scale from the button's center for a clean pop
+			btn.position = origin - bsz * 0.5
+			btn.modulate.a = 0.0
+			btn.scale = Vector2(0.7, 0.7)
+			var tw := btn.create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
+			var delay := k * SLICE_STAGGER
+			tw.tween_property(btn, "position", placed[r][i], 0.2).set_delay(delay)
+			tw.tween_property(btn, "scale", Vector2.ONE, 0.2).set_delay(delay)
+			tw.tween_property(btn, "modulate:a", 1.0, 0.16).set_delay(delay)
+			k += 1
+
+
+## Where each button goes (its top-left), ring by ring. `sizes` is one Array of button sizes per ring,
+## innermost first; `chip` is the chip's rect, kept clear too. Pure (sizes in, positions out), so it's
+## unit-tested. Each button is walked along its arc from ARC_FROM toward ARC_TO until it clears every
+## button already placed by BUTTON_GAP; if a ring runs out of arc, its radius grows and it's laid again.
+## So nothing ever overlaps, however many shapes the companion can take.
+static func arc_layout(origin: Vector2, sizes: Array, chip: Rect2) -> Array:
+	var out: Array = []
+	var placed: Array = [chip]  # rects to keep clear of, grown as buttons are laid
+	var radius := INNER_RADIUS
+	for ring in sizes:
+		var fit := false
+		var positions: Array = []
+		var rects: Array = []
+		while not fit:
+			positions = []
+			rects = []
+			fit = true
+			var ang := ARC_FROM
+			for sz in ring:
+				var spot := _clear_spot(origin, radius, sz, ang, placed + rects)
+				if spot.is_empty():
+					fit = false
+					radius += 6.0
+					break
+				ang = float(spot["angle"])
+				positions.append(spot["pos"])
+				rects.append(Rect2(spot["pos"], sz))
+		out.append(positions)
+		placed += rects
+		# The next ring starts just beyond this one's farthest-reaching button.
+		var reach := radius
+		for rc in rects:
+			reach = maxf(reach, ((rc as Rect2).get_center() - origin).length() + maxf((rc as Rect2).size.x, (rc as Rect2).size.y) * 0.5)
+		radius = reach + RING_GAP
+	return out
+
+
+## The first angle from `from` toward ARC_TO where a button of size `sz` on the arc of `radius` clears
+## every rect in `avoid` by BUTTON_GAP: { angle, pos }, or {} if it runs out of arc.
+static func _clear_spot(origin: Vector2, radius: float, sz: Vector2, from: float, avoid: Array) -> Dictionary:
+	var ang := from
+	while ang >= ARC_TO:
+		var center := origin + Vector2(cos(deg_to_rad(ang)), -sin(deg_to_rad(ang))) * radius
+		var rect := Rect2(center - sz * 0.5, sz)
+		var clear := true
+		for o in avoid:
+			if (o as Rect2).grow(BUTTON_GAP).intersects(rect):
+				clear = false
+				break
+		if clear:
+			return { "angle": ang, "pos": rect.position }
+		ang -= 1.0
+	return {}
 
 
 func _make_slice(id: String, label: String) -> Button:
 	var btn := Button.new()
 	btn.text = label
 	btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	UiStyle.hud_button(btn, 11, 600, 999, 13.0, 6.0)
+	UiStyle.hud_button(btn, 11, 600, 999, 14.0, 8.0)
 	btn.pressed.connect(func() -> void:
 		action_selected.emit(id)
 		_close())
