@@ -6,8 +6,9 @@ extends Node
 ## The spec authors it as a `secret` block: an id, where it rests, the prop it shows as, its lore, and
 ## the small, warm lines of the finding. This director lays the prop out (unless you've already found
 ## it, so for you it's simply gone), turns an examine of it into a claim, and plays the finding beat
-## when the SERVER honours that claim: the companion perks up and noses it, the seed is taken, and a
-## soft line says something has changed at home. No fanfare, no popup (S-5).
+## when the SERVER honours that claim: the companion perks up at it, the screen fades to black, the
+## found line rises in white at the centre with "something has changed at home" beneath it, and while
+## it holds the seed is taken; the world fades back without it. No popup, no score (S-5).
 ##
 ## The server is the judge (S-3), so nothing is "found" until it says so: examining only asks.
 
@@ -72,10 +73,9 @@ func _on_secret_found(secret_id: String, _is_new: bool) -> void:
 		return
 	var secret: Dictionary = _entry["secret"]
 	_companion.delight_at(_entry["pos"])
-	_take()
-	var line := String(secret.get("found_line", ""))
-	var home := String(secret.get("home_line", ""))
-	_host.show_hint((line + "  " + home).strip_edges())
+	_host.play_moment(String(secret.get("found_line", "")), String(secret.get("home_line", "")))
+	# Taken under cover of the dark, so the world comes back without it.
+	get_tree().create_timer(_host.MOMENT_FADE_IN).timeout.connect(_take)
 
 
 func _on_secret_refused(_secret_id: String) -> void:

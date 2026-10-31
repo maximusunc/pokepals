@@ -79,6 +79,12 @@ not as a plan to act on.
   perks up and noses the find, a gentle line plays (for the seed: "A curled seed from the oldest
   hedge… it wants to be planted somewhere of your own"), and a soft note says something changed at
   home.
+  - **Revised after playtest (2026-10-31): "a little underwhelming" as a hint line.** It's now a
+    whole-screen **moment**: the companion perks up, the world fades to black, the found line rises
+    in white at the centre, "Something has changed at home." joins it softly a beat later, they hold,
+    and the world fades back with the seed gone (it's taken while the screen is dark). About 8 s in
+    all. Built as a reusable `play_moment(line, aside)` on the world controller (timings are the
+    `MOMENT_*` constants), so later secrets get the same beat for free.
 
 ### The secrets themselves (one per world; authored one at a time)
 Each needs its own design pass. Per P-2 in the direction doc, aim for 2–3 routes of differing

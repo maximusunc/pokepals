@@ -25,6 +25,12 @@ const PORTAL_RANGE := 22.0
 # The hub's Gateway is a much bigger doorway, so you walk into it from further out.
 const GATEWAY_RANGE := 32.0
 const PORTAL_ARM_BUFFER := 18.0
+# The moment card (play_moment): fade to black, the line, the softer aside a beat later, a hold, back.
+const MOMENT_FADE_IN := 1.0
+const MOMENT_TEXT_FADE := 0.8
+const MOMENT_ASIDE_DELAY := 1.2
+const MOMENT_HOLD := 3.2
+const MOMENT_FADE_OUT := 1.2
 
 # The world SPEC is fully SERVER-HOSTED: the client bundles NO world specs. Net fetches a world's spec
 # on join and caches it (in memory + on disk, keyed by a content etag); we build from that. A cold
@@ -384,6 +390,43 @@ func _create_directors() -> void:
 ## one of the companion's points of interest; it may still wander over and sniff where the seed was.)
 func secret_taken() -> void:
 	_invalidate_nearest()
+
+
+## A MOMENT card, for the beats that deserve the whole screen (a world secret found): the world fades
+## to black, `line` rises in white at the centre, `aside` (optional, softer) joins it a beat later, they
+## hold, then everything fades back to the game. Your steering stands down for its length. All of it is
+## one Tween on nodes in the Fade layer, the CanvasLayer drawn above everything else (layer 100).
+func play_moment(line: String, aside := "") -> void:
+	_set_menu_open(true)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 10)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$Fade.add_child(box)
+	var main := UiStyle.label(line, 14, Color(1, 1, 1), 500)
+	var soft := UiStyle.label(aside, 10, Color(1, 1, 1, 0.7), 500)
+	for l in [main, soft]:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(minf(400.0, get_viewport().get_visible_rect().size.x - 48.0), 0)
+		l.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		l.modulate.a = 0.0
+		box.add_child(l)
+	# A Tween runs its steps in order; parallel() makes the next step start alongside the previous one.
+	var tw := create_tween().set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_fade, "color:a", 1.0, MOMENT_FADE_IN)
+	tw.tween_property(main, "modulate:a", 1.0, MOMENT_TEXT_FADE)
+	if aside != "":
+		tw.tween_interval(MOMENT_ASIDE_DELAY)
+		tw.tween_property(soft, "modulate:a", 1.0, MOMENT_TEXT_FADE)
+	tw.tween_interval(MOMENT_HOLD)
+	tw.tween_property(main, "modulate:a", 0.0, MOMENT_TEXT_FADE)
+	tw.parallel().tween_property(soft, "modulate:a", 0.0, MOMENT_TEXT_FADE)
+	tw.tween_property(_fade, "color:a", 0.0, MOMENT_FADE_OUT)
+	tw.tween_callback(func() -> void:
+		box.queue_free()
+		_set_menu_open(false))
 
 
 ## Show a hint at full opacity (the directors' one channel to the hint line).
