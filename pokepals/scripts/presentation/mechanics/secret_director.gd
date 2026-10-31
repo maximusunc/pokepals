@@ -204,6 +204,11 @@ func _on_discoveries(ids: Array) -> void:
 
 
 func _take() -> void:
-	_entry["_taken"] = true
-	_world_art.take_interactable(int(_entry["render_index"]))
+	# Every entry for this secret, not just the one we adopted: should the world ever hold more than one
+	# (it did, from a layout bug), none may be left behind to be found again.
+	var id := String(_entry["secret"]["id"])
+	for e in _interactables:
+		if String(e.get("kind", "")) == "secret" and String((e.get("secret", {}) as Dictionary).get("id", "")) == id and not is_taken(e):
+			e["_taken"] = true
+			_world_art.take_interactable(int(e["render_index"]))
 	_host.secret_taken()
