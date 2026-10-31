@@ -52,7 +52,8 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	# Hedge walls (the maze): each is a SEGMENT solid — a line from "from" to "to" with a
 	# half-thickness radius (a capsule). resolve() pushes bodies off the nearest point of the
 	# segment, so one entry blocks a whole long hedge run rather than a string of circles.
-	for h in world_data.get("hedges", []):
+	# A souk's WALLS (the Bazaar's lane) are the same kind of segment solid as the maze's hedges.
+	for h in world_data.get("hedges", []) + world_data.get("walls", []):
 		solids.append({
 			"a": WorldData.to_vec2(h["from"]),
 			"b": WorldData.to_vec2(h["to"]),

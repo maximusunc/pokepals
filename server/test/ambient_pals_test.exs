@@ -130,4 +130,19 @@ defmodule Server.AmbientPalsTest do
   test "ticking an empty sim is a harmless no-op" do
     assert AmbientPals.new(%{}) |> AmbientPals.tick(0.1) |> AmbientPals.to_list() == []
   end
+
+  test "segment walls keep pals on their side (a souk lane's walls, or the maze's hedges)" do
+    # A long wall along y = 0; a pal living just below it, roaming further than the wall is away.
+    core = %{
+      "bounds" => %{"min" => [-400, -400], "max" => [400, 400]},
+      "walls" => [%{"from" => [-400, 0], "to" => [400, 0], "thickness" => 30}],
+      "ambient_pals" => [%{"id" => "walker", "home" => [0, 60], "roam_radius" => 200}]
+    }
+
+    {_final, frames} = run(AmbientPals.new(core), 600)
+    # wall half-thickness 15 + body radius 8: the pal's centre never comes nearer the wall's line.
+    for frame <- frames, %{id: "walker", p: [_px, py]} <- frame do
+      assert py >= 15 + 8 - 0.5, "crossed into the wall (y = #{py})"
+    end
+  end
 end

@@ -125,6 +125,7 @@ const NEAREST_RECALC_DIST := 6.0  # px of player travel before we rescan (examin
 var _intro_tween: Tween  # fades the opening "how to move" hint away after a few seconds
 var _style: ArtStyle
 var _day_enabled := false
+var _day_hold := -1.0  # a held day-cycle point (0 day .. 1 dusk), or -1 to let it run
 var _day_period := 480.0
 var _day_loop := true
 var _day_stops: Array = []  # [ { t, tint:Color, vig:Color, vstr:float } ], sorted by t
@@ -231,6 +232,12 @@ func _build_world(data: Dictionary) -> void:
 	add_child(_ambient_life)
 	move_child(_ambient_life, _scenery.get_index() + 1)
 	_ambient_life.setup(bounds_rect, _style, _scenery.tree_positions(), float(data.get("atmosphere", {}).get("wind", {}).get("strength", 2.6)))
+	# Whatever's strung overhead (a souk's lights, bunting and lanterns), drawn above everyone.
+	if not data.get("garlands", []).is_empty():
+		var garlands := Garlands.new()
+		garlands.name = "Garlands"
+		add_child(garlands)
+		garlands.setup(data["garlands"])
 	var solids := Solids.build(data, border_pts, ccfg)
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
@@ -762,6 +769,9 @@ func _apply_atmosphere(atmo: Dictionary) -> void:
 ## Parse the day→dusk cycle config into sorted stops we can interpolate between.
 func _setup_daycycle(cfg: Dictionary) -> void:
 	_day_enabled = bool(cfg.get("enabled", false))
+	# A world may HOLD the cycle at one point instead of letting it run (the Bazaar: always evening,
+	# lanterns lit). -1 = run as usual.
+	_day_hold = float(cfg.get("hold", -1.0))
 	_day_period = maxf(1.0, float(cfg.get("period_sec", 480.0)))
 	_day_loop = bool(cfg.get("loop", true))
 	_day_stops.clear()
@@ -774,7 +784,7 @@ func _setup_daycycle(cfg: Dictionary) -> void:
 		})
 	_day_stops.sort_custom(func(a: Dictionary, b: Dictionary) -> bool: return a["t"] < b["t"])
 	if _day_enabled and _day_stops.size() >= 2:
-		_apply_daycycle(0.0)  # start at the first stop so a fresh load looks like "day"
+		_apply_daycycle(_day_hold if _day_hold >= 0.0 else 0.0)  # "day" on a fresh load, or the held point
 
 
 ## Apply the cycle at normalized progress u in [0,1]: lerp the warm wash + vignette
@@ -806,7 +816,7 @@ func _process(delta: float) -> void:
 		return
 
 	# Slow ambient day→dusk drift, if enabled, driving the warm wash + vignette.
-	if _day_enabled and _day_stops.size() >= 2:
+	if _day_enabled and _day_stops.size() >= 2 and _day_hold < 0.0:
 		_day_time += delta
 		var u := fmod(_day_time, _day_period) / _day_period
 		if _day_loop:

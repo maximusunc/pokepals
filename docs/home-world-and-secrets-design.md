@@ -181,8 +181,12 @@ wandering.
     through every knot, many more NPCs (stallholders, each examinable for a line or two of lore),
     and walking traffic between them. *Watch:* performance on phones, given the extra sprites and
     walkers.
+  - **Reworked into a compact souk (2026-10-31).** The sprawling market felt too big. Decided:
+    **one winding covered lane plus a little square**, **always evening**, busy but walkable (about
+    30 walkers, a stallholder at nearly every stall). It keeps the colour merchant's shop, the
+    wet-boots man and the river-drop's alley; the old river lore is gone.
   - **No puzzle.** A small shiny treasure is tucked somewhere a little abandoned, found only by
-    wandering: at the end of an **empty alley off the Glassblowers' Run**, a single **glass
+    wandering: at the end of a **short empty alley off the west lane**, a single **glass
     river-drop** that still holds a ripple of light.
   - **Keepsake:** the glass river-drop. **Qualities:** crafted, glowing.
 
@@ -441,6 +445,23 @@ Built: W-1, W-2, W-3 and W-5.
     - **The Bazaar:** it has its crowd and stallholders, and the river-drop is in the alley.
     - **Home:** all five keepsakes are drawn.
   - *Not checked:* frame rate on a phone with the Bazaar's crowd (26 walkers, 133 stallholders).
+- **The souk rework** (supersedes the sprawling layout above): `tools/gen_bazaar.py` now builds one
+  lane from a handful of walkable rects. The entry lane turns north into a little square with a
+  fountain, the colour merchant's shop and the wet-boots man. A west lane leads on to a great arch,
+  and a short alley holds the river-drop.
+  - **Walls:** a new spec key `walls` carries outline segments (sandstone, with lit arches on the
+    lane-facing runs). They collide like hedges on both sides: the client's `Solids` and the server
+    sim's `AmbientPals`, which now handles segment obstacles, so walkers stay in the lane. `roofs`
+    are the terracotta rooftops over everything that isn't lane.
+  - **Overhead:** `garlands` hang string lights, bunting and brass lanterns across the lane
+    (`Garlands`, drawn above everyone).
+  - **Always evening:** `art.daycycle.hold` pins the day cycle at dusk.
+  - **Dressing:** spice stalls, rugs, warm fireflies; no meadow bushes, butterflies or clouds.
+  - **Numbers:** 52 stalls, 48 stallholders, 30 walkers, 36 garlands, inside about 1800×1300 px.
+  - **Verified:** `mix test`, the Godot suite and all smokes pass. A flood fill from the spawn reaches
+    the secret, the arch, the shop and the wet-boots man. The server sim kept all 30 walkers inside
+    the lane over 90,000 sampled positions. Screenshots were checked by eye. *Not checked:* phone
+    frame rate.
 
 ## How we work through it
 

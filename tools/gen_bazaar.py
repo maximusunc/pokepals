@@ -1,482 +1,433 @@
 #!/usr/bin/env python3
-"""Generate the (bigger, denser) Thousand-Knot Bazaar world JSON.
+"""Generate the Bazaar: a compact, lantern-lit souk (docs/home-world-and-secrets-design.md, W-5).
 
-Special props (Vanes, Knuckle furniture, lore signposts, the merchant + shop, the
-wet-boots man, lanterns, the portal) are authored by hand below. The STALLS and CRATES
-that pack each Knot are placed procedurally on a jittered grid with collision-aware
-spacing, so the rows feel dense but stay walkable and nothing overlaps. Deterministic
-(seeded), so re-running reproduces the same layout. Emits one interactable per line to
-keep the file reviewable, then writes both the server seed and the client test fixture.
+One winding covered lane between sandstone walls, always evening: you arrive at its east end, it turns
+north into a small square with a fountain, leaves west, and turns north again to the great arch at the
+far end (facing you as you walk up to it). Stalls line the lane shoulder to shoulder with someone minding
+nearly every one, people walk it, strings of lights, bunting and brass lanterns hang overhead, rugs lie on
+the cobbles, and a narrow forgotten alley off the west lane hides the river-drop.
+
+How the space is built: the lane is a union of axis-aligned WALKABLE rects. It's rasterized on a 10 px
+grid; the WALLS are the outline of that shape (merged into long segment solids, each tagged with the side
+the street is on, so only street-facing runs get arches), and the ROOFS are everything else (merged into
+rects). Stalls are placed against the walls, never in an opening. Deterministic (seeded): re-running
+reproduces the same layout. Writes both the server seed and the client test fixture.
 """
 import json, math, random
 
-random.seed(0xB47AA2)
+rng = random.Random(0x50E4A2)
 
-# ── world envelope (bigger than before: 3400 x 2600) ───────────────────────────────────
-BOUNDS_MIN = (-1700, -1400)
-BOUNDS_MAX = (1700, 1200)
+CELL = 10
+WALL_T = 30.0
 
-REGIONS = [
-    ("the_vein",          (-1700, -130), (1700, 130),  (0.80, 0.74, 0.58)),
-    ("spice_knot",        (-1660, 170),  (-420, 1180), (0.86, 0.46, 0.22)),
-    ("knuckle_south",     (-360, 170),   (360, 720),   (0.70, 0.60, 0.46)),
-    ("ragpickers_tangle", (420, 170),    (1660, 1180), (0.32, 0.24, 0.18)),
-    ("glassblowers_run",  (-1660, -960), (-420, -170), (0.36, 0.52, 0.82)),
-    ("knuckle_north",     (-360, -960),  (360, -170),  (0.66, 0.60, 0.50)),
-    ("bonewrights_knot",  (420, -960),   (1660, -170), (0.62, 0.70, 0.80)),
-    ("high_stalls",       (-1000, -1380),(1000, -1000),(0.82, 0.78, 0.52)),
-]
+# ── the walkable lane, as rects (x0, y0, x1, y1); +y is south (down the screen) ─────────────────────────
+RECTS = {
+    "entry_lane":  (420, 260, 1100, 510),   # where you arrive (east end), running west
+    "turn_north":  (420, -60, 670, 510),    # bends north toward the square
+    "the_square":  (-40, -220, 420, 180),   # the little square with its fountain
+    "west_lane":   (-560, -170, -40, 80),   # leaves the square, west
+    "arch_lane":   (-560, -620, -310, 80),  # turns north to the great arch
+    "forgotten_alley": (-430, 80, -320, 330),  # a narrow dead end off the west lane
+}
+REGION_OF = {"entry_lane": "the_lane", "turn_north": "the_lane", "the_square": "the_square",
+             "west_lane": "the_lane", "arch_lane": "the_lane", "forgotten_alley": "forgotten_alley"}
+REGION_TINT = {"the_lane": (0.92, 0.66, 0.40), "the_square": (0.96, 0.74, 0.44), "forgotten_alley": (0.40, 0.42, 0.52)}
 
-VEIN = {"rect": [-1700, -130, 3400, 260], "color": [0.74, 0.66, 0.50], "rim": [0.86, 0.80, 0.66]}
+xs = [r[0] for r in RECTS.values()] + [r[2] for r in RECTS.values()]
+ys = [r[1] for r in RECTS.values()] + [r[3] for r in RECTS.values()]
+BOUNDS_MIN = (min(xs) - 60, min(ys) - 80)
+BOUNDS_MAX = (max(xs) + 60, max(ys) + 60)
 
-PLAYER_SPAWN = [-260, 360]
-COMPANION_SPAWN = [-310, 392]
+NX = (BOUNDS_MAX[0] - BOUNDS_MIN[0]) // CELL
+NY = (BOUNDS_MAX[1] - BOUNDS_MIN[1]) // CELL
 
-PATHS = [
-    ([-1560, 0], [1560, 0]),       # the Vein spine
-    ([0, 170], [0, 130]),          # South Knuckle down into the Vein
-    ([-320, 420], [320, 420]),     # South Knuckle cross-way
-    ([-700, 1140], [-700, 130]),   # Spice feeder
-    ([700, 1140], [700, 130]),     # Ragpicker feeder
-    ([-700, -940], [-700, -130]),  # Glass feeder
-    ([700, -940], [700, -130]),    # Bone feeder
-    ([0, -130], [0, -1180]),       # North Knuckle climb up to the High Stalls
-]
-PATH_CLEAR = 24.0  # keep stalls this far off a path centre, so lanes stay legible
 
-FLOWERS = [
-    [-360, 520, 0.92, 0.62, 0.30], [320, 520, 0.86, 0.40, 0.45],
-    [-360, -440, 0.70, 0.78, 0.90], [360, -440, 0.84, 0.84, 0.88],
-    [-80, 600, 0.95, 0.85, 0.40], [80, -640, 0.74, 0.80, 0.92],
-]
+def walkable_cell(ix, iy):
+    if ix < 0 or iy < 0 or ix >= NX or iy >= NY:
+        return False
+    x = BOUNDS_MIN[0] + ix * CELL + CELL / 2
+    y = BOUNDS_MIN[1] + iy * CELL + CELL / 2
+    return any(r[0] <= x <= r[2] and r[1] <= y <= r[3] for r in RECTS.values())
 
-# ── hand-authored special interactables ────────────────────────────────────────────────
-def stall(id, type, pos, color, label, tags, solid=None, r=None, lore=None):
+
+WALK = [[walkable_cell(ix, iy) for ix in range(NX)] for iy in range(NY)]
+
+
+def walkable(x, y):
+    ix = int((x - BOUNDS_MIN[0]) // CELL)
+    iy = int((y - BOUNDS_MIN[1]) // CELL)
+    return 0 <= ix < NX and 0 <= iy < NY and WALK[iy][ix]
+
+
+def wx(ix):
+    return BOUNDS_MIN[0] + ix * CELL
+
+
+def wy(iy):
+    return BOUNDS_MIN[1] + iy * CELL
+
+
+# ── walls: the outline of the walkable shape, merged into long runs ───────────────────────────────────
+walls = []
+# Horizontal edges between rows iy-1 and iy. "down" = the street is below the edge (you see its face).
+for iy in range(NY + 1):
+    run = None
+    for ix in range(NX + 1):
+        above = iy > 0 and ix < NX and WALK[iy - 1][ix]
+        below = iy < NY and ix < NX and WALK[iy][ix]
+        face = "down" if (below and not above) else ("up" if (above and not below) else None)
+        if run and (face != run[1]):
+            walls.append({"from": [wx(run[0]), wy(iy)], "to": [wx(ix), wy(iy)], "thickness": WALL_T, "face": run[1]})
+            run = None
+        if face and not run:
+            run = (ix, face)
+for ix in range(NX + 1):
+    run = None
+    for iy in range(NY + 1):
+        left = ix > 0 and iy < NY and WALK[iy][ix - 1]
+        right = ix < NX and iy < NY and WALK[iy][ix]
+        face = "right" if (right and not left) else ("left" if (left and not right) else None)
+        if run and (face != run[1]):
+            walls.append({"from": [wx(ix), wy(run[0])], "to": [wx(ix), wy(iy)], "thickness": WALL_T, "face": run[1]})
+            run = None
+        if face and not run:
+            run = (iy, face)
+
+# ── roofs: every non-walkable cell, merged greedily into rects ────────────────────────────────────────
+roofs = []
+used = [[False] * NX for _ in range(NY)]
+for iy in range(NY):
+    for ix in range(NX):
+        if WALK[iy][ix] or used[iy][ix]:
+            continue
+        w = 0
+        while ix + w < NX and not WALK[iy][ix + w] and not used[iy][ix + w]:
+            w += 1
+        h = 1
+        while iy + h < NY and all(not WALK[iy + h][ix + k] and not used[iy + h][ix + k] for k in range(w)):
+            h += 1
+        for dy in range(h):
+            for dx in range(w):
+                used[iy + dy][ix + dx] = True
+        roofs.append([wx(ix), wy(iy), w * CELL, h * CELL])
+
+
+# ── props ─────────────────────────────────────────────────────────────────────────────────────────────
+def prop(id, type, pos, color, label, tags, solid=None, r=None, lore=None, **extra):
     e = {"id": id, "type": type, "position": [round(pos[0]), round(pos[1])],
          "color": [round(c, 2) for c in color], "label": label, "tags": tags}
     if solid is not None: e["solid"] = solid
     if r is not None: e["collision_radius"] = r
     if lore is not None: e["lore"] = lore
+    e.update(extra)
     # A prop opts into being examinable only if Examining it does something: it reads out a 'lore'
-    # line, or it's the shopkeeper (opens the shop). Everything else stays static scenery.
+    # line, or it's the shopkeeper (opens the shop). Everything else stays scenery.
     if lore is not None or type == "shopkeeper": e["interactive"] = True
     return e
 
-SPECIAL = [
-    stall("vane_copper_chimney", "chimney", (-1040, 680), (0.80, 0.50, 0.30), "the Copper Chimney", ["made", "landmark"], True, 16,
-          "The Copper Chimney, forever smoking over the Spice Knot. Lost? Find its smoke and you've found your way."),
-    stall("vane_prism_tower", "prism_tower", (-1040, -570), (0.55, 0.70, 0.95), "the Prism Tower", ["made", "landmark"], True, 14,
-          "The Prism Tower throws rainbows over the Glassblowers' Run — a colour you can steer by from half the bazaar."),
-    stall("vane_ivory_finger", "ivory_spire", (1040, -570), (0.90, 0.90, 0.84), "the Ivory Finger", ["made", "landmark"], True, 13,
-          "The Ivory Finger, a carved spire pointing skyward over the hushed Bonewrights' Knot."),
-    stall("vane_crooked_mast", "crooked_mast", (1040, 700), (0.42, 0.32, 0.22), "the Crooked Mast", ["made", "landmark"], True, 10,
-          "The Crooked Mast leans over the Ragpicker's Tangle like a ship run aground in a river that left without it."),
-    stall("vane_sky_anchor", "sky_anchor", (0, -1190), (0.70, 0.74, 0.58), "the Sky-Anchor", ["made", "landmark"], True, 14,
-          "The Sky-Anchor hangs over the High Stalls on its chains — visible clear across the channel, for an anchor with no water to drop into."),
 
-    stall("knuckle_south_well", "dry_well", (0, 460), (0.66, 0.58, 0.46), "the dry fountain", ["made", "knuckle"], True, 22,
-          "A dry fountain. There's a green stain a hand's-width above the floor — the old waterline. The river stood this high, once."),
-    stall("knuckle_south_board", "notice_board", (-150, 320), (0.60, 0.46, 0.32), "the South Knuckle notice-board", ["made", "knuckle"], True, 10,
-          "THE THOUSAND-KNOT BAZAAR, in the bed of the Sleeping River. The river didn't dry up — it was sold, in a bargain no one quite remembers. The Knots are the slow repayment of that debt."),
-    stall("knuckle_south_shrine", "shrine", (170, 320), (0.64, 0.56, 0.46), "a roadside shrine", ["made", "knuckle", "rest"],
-          lore="A little shrine with a steady candle. A good place to stop a while, here at the bazaar's main crossing."),
+SQ = RECTS["the_square"]
+SQ_C = ((SQ[0] + SQ[2]) / 2, (SQ[1] + SQ[3]) / 2)
+ENTRY = (1030, 385)
+ARCH = (-435, -460)
+PLAYER_SPAWN = [955, 385]
+COMPANION_SPAWN = [925, 405]
 
-    stall("knuckle_north_well", "dry_well", (0, -560), (0.64, 0.62, 0.56), "the dry fountain", ["made", "knuckle"], True, 22,
-          "Another dry fountain, another high-water mark. Some vendors keep them swept, as if expecting the water back any morning now."),
-    stall("knuckle_north_board", "notice_board", (-150, -460), (0.58, 0.52, 0.42), "the North Knuckle notice-board", ["made", "knuckle"], True, 10,
-          "All roads run downhill to the Vein — follow the dry channel and you'll never be lost. They say the water returns when the debt is paid. A few quiet vendors are betting on when."),
-    stall("knuckle_north_shrine", "shrine", (170, -460), (0.62, 0.56, 0.48), "a roadside shrine", ["made", "knuckle", "rest"],
-          lore="A candle gutters in a stone niche. From here the climb north leads up to the High Stalls and the long views."),
-
-    stall("sign_spice", "signpost", (-640, 360), (0.62, 0.43, 0.30), "a painted signboard", ["made", "lore"],
-          lore="The first stalls were boats. Look at the curve of those old roofs — they were hulls, beached in the dry channel and never refloated."),
-    stall("sign_glass", "signpost", (-640, -360), (0.44, 0.56, 0.74), "an etched glass placard", ["made", "lore"],
-          lore="We melt sand from the dry bed. Every window in the Run is a piece of the river, made to hold light instead of water."),
-    stall("sign_bone", "signpost", (680, -360), (0.74, 0.76, 0.80), "a carved bone marker", ["made", "lore"],
-          lore="The Bonewrights keep the founder's ledgers. The page with the name is missing. It was removed, not lost."),
-    stall("sign_ragpicker", "signpost", (680, 360), (0.44, 0.34, 0.26), "a tin scrap-sign", ["made", "lore"],
-          lore="Someone down here sells river-charts. Charts of a river that doesn't exist yet. Ask for the man with wet boots."),
-    stall("sign_high_stalls", "signpost", (-260, -1120), (0.80, 0.72, 0.44), "a weathered vista-sign", ["made", "lore"],
-          lore="From up here you see the whole channel. On still mornings the dust in it moves like a current. The ones who watch are the ones who bet."),
-
-    stall("wet_boots_man", "wanderer", (1180, 760), (0.34, 0.36, 0.42), "a man with wet boots", ["person", "ragpicker"],
-          lore="His boots are wet — in a city built on a dry river, that means something. He deals in charts of water not yet returned, and asks only one thing: when?"),
-
-    stall("shop_stall", "stall", (-1100, 240), (0.74, 0.56, 0.86), "the dye-maker's shop", ["made", "market"], True, 18),
-    stall("color_merchant", "shopkeeper", (-1100, 296), (0.86, 0.62, 0.46), "the color merchant", ["person", "made"]),
+special = [
+    prop("the_fountain", "fountain", SQ_C, (0.74, 0.62, 0.48), "the fountain", ["water", "made", "rest"], True, 34,
+         lore="The fountain in the little square. Its water catches every lantern in the lane, so it's never quite dark here."),
+    prop("great_arch", "great_arch", ARCH, (0.82, 0.64, 0.44), "the great arch", ["made", "landmark"], False,
+         lore="The great arch at the end of the lane, carved with knots that never quite meet. Beyond it, the way home."),
+    prop("shop_stall", "stall", (SQ[0] + 150, SQ[1] + 46), (0.74, 0.56, 0.86), "the dye-maker's shop", ["made", "market"], True, 18),
+    prop("color_merchant", "shopkeeper", (SQ[0] + 150, SQ[1] + 92), (0.86, 0.62, 0.46), "the color merchant", ["person", "made"]),
+    prop("wet_boots_man", "wanderer", (SQ[2] - 50, SQ[1] + 60), (0.34, 0.36, 0.42), "a man with wet boots", ["person"],
+         lore="His boots are wet, though it hasn't rained here in living memory. He smiles like he knows where the water went, and asks only one thing: have you seen it too?"),
 ]
+NPC_COMPANION = [SQ[0] + 200, SQ[1] + 92]
 
-# Lanterns — light, spread across the Knots + Knuckles. Placed before stalls so the grid avoids them.
-LANTERNS = [
-    ("lantern_spice_a", (-1040, 420), (0.95, 0.78, 0.42)), ("lantern_spice_b", (-720, 760), (0.95, 0.78, 0.42)),
-    ("lantern_spice_c", (-520, 360), (0.95, 0.78, 0.42)),
-    ("lantern_glass_a", (-1040, -360), (0.78, 0.86, 0.95)), ("lantern_glass_b", (-720, -640), (0.78, 0.86, 0.95)),
-    ("lantern_bone_a", (760, -360), (0.86, 0.88, 0.92)), ("lantern_bone_b", (1040, -640), (0.86, 0.88, 0.92)),
-    ("lantern_rag_a", (620, 360), (0.92, 0.70, 0.40)), ("lantern_rag_b", (980, 640), (0.92, 0.70, 0.40)),
-    ("lantern_rag_c", (1220, 480), (0.92, 0.70, 0.40)), ("lantern_rag_d", (760, 960), (0.92, 0.70, 0.40)),
-    ("lantern_high_a", (-380, -1100), (0.96, 0.84, 0.50)), ("lantern_high_b", (380, -1100), (0.96, 0.84, 0.50)),
-    ("lantern_knuckle_s", (-80, 600), (0.95, 0.78, 0.42)), ("lantern_knuckle_n", (-80, -640), (0.95, 0.78, 0.42)),
-]
+lanterns = [prop("lantern_sq_%d" % i, "lantern", p, (0.98, 0.78, 0.42), "a hanging lantern", ["light", "made"])
+            for i, p in enumerate([(SQ[0] + 30, SQ[3] - 30), (SQ[2] - 30, SQ[3] - 30), (SQ[0] + 30, SQ[1] + 120)])]
 
-# ── reserved obstacles the stall grid must keep clear of (x, y, clear_radius) ───────────
-RESERVED = []
-for e in SPECIAL:
-    p = e["position"]
-    typ = e["type"]
-    clr = {"chimney":30,"prism_tower":28,"ivory_spire":26,"crooked_mast":24,"sky_anchor":32,
-           "dry_well":40,"notice_board":28,"shrine":24,"signpost":22,"wanderer":26,
-           "shopkeeper":28,"stall":30}.get(typ, 24)
-    RESERVED.append((p[0], p[1], clr))
-RESERVED.append((-1035, 308, 22))               # npc_companion puppet
-RESERVED.append((280, 360, 46))                 # the bazaar_entry portal
-RESERVED.append((PLAYER_SPAWN[0], PLAYER_SPAWN[1], 50))
-RESERVED.append((COMPANION_SPAWN[0], COMPANION_SPAWN[1], 30))
-for _id, pos, _c in LANTERNS:
-    RESERVED.append((pos[0], pos[1], 20))
-
-def seg_dist(px, py, ax, ay, bx, by):
-    dx, dy = bx-ax, by-ay
-    if dx == 0 and dy == 0:
-        return math.hypot(px-ax, py-ay)
-    t = max(0.0, min(1.0, ((px-ax)*dx + (py-ay)*dy) / (dx*dx + dy*dy)))
-    return math.hypot(px-(ax+t*dx), py-(ay+t*dy))
-
-def near_path(x, y, clear=PATH_CLEAR):
-    return any(seg_dist(x, y, a[0], a[1], b[0], b[1]) < clear for a, b in PATHS)
-
-def near_reserved(x, y, extra=0.0):
-    return any(math.hypot(x-rx, y-ry) < (rr+extra) for rx, ry, rr in RESERVED)
-
-# ── per-Knot fill: (fill_rect, spacing, min_sep, density, cap, palette, labels) ─────────
-KNOTS = {
-    "spice": dict(rect=(-1620, 330, -460, 1140), spacing=78, min_sep=70, density=0.92, cap=34,
-        palette=[(0.84,0.46,0.38),(0.86,0.58,0.30),(0.80,0.42,0.30),(0.84,0.66,0.34),(0.78,0.40,0.30),(0.86,0.66,0.30),(0.82,0.50,0.36),(0.88,0.54,0.26)],
-        labels=["a spice stall","a pepper stall","a sweets stall","a tea stall","a chili stall","a grain stall","a honey stall","a fruit stall","a saffron stall","a cardamom stall","a roast-nut stall","a flatbread stall","a dried-fig stall","a clay-pot stall"]),
-    "glass": dict(rect=(-1620, -940, -460, -210), spacing=72, min_sep=64, density=0.92, cap=30,
-        palette=[(0.40,0.70,0.85),(0.55,0.45,0.85),(0.35,0.78,0.70),(0.50,0.60,0.88),(0.62,0.48,0.86),(0.45,0.72,0.80),(0.58,0.52,0.90)],
-        labels=["a glassblower's stall","an enchanter's stall","an alchemist's stall","a lens-grinder's stall","a beadwork stall","a bottle stall","a mirror stall","a stained-glass stall","a phial stall","a charm-cutter's stall"]),
-    "bone": dict(rect=(460, -940, 1620, -210), spacing=76, min_sep=68, density=0.88, cap=28,
-        palette=[(0.80,0.82,0.86),(0.74,0.76,0.80),(0.86,0.86,0.82),(0.70,0.74,0.80),(0.78,0.80,0.84),(0.82,0.84,0.88)],
-        labels=["a relic stall","a bonewright's stall","a scrimshaw stall","a ledger-keeper's stall","a reliquary stall","an ossuary stall","a charm-bone stall","a dust-and-incense stall","a memory-keeper's stall"]),
-    "rag": dict(rect=(460, 210, 1620, 1140), spacing=60, min_sep=55, density=0.95, cap=50,
-        palette=[(0.42,0.32,0.24),(0.46,0.34,0.24),(0.38,0.30,0.24),(0.34,0.28,0.22),(0.48,0.36,0.26),(0.40,0.30,0.22),(0.44,0.34,0.26),(0.50,0.38,0.26)],
-        labels=["a rag stall","a salvage stall","a curio stall","a black-market stall","a scrap stall","a smoke-stall","a chart-seller's stall","a tinker's stall","a fortune stall","a lockpick stall","a found-things stall","a whisper stall","a cast-off stall"]),
-    "high": dict(rect=(-960, -1360, 960, -1010), spacing=80, min_sep=72, density=0.85, cap=24,
-        palette=[(0.86,0.72,0.36),(0.90,0.80,0.50),(0.84,0.70,0.40),(0.88,0.76,0.44),(0.86,0.74,0.42),(0.90,0.82,0.52)],
-        labels=["a gilded stall","a silk stall","a jeweller's stall","a vintner's stall","a perfumer's stall","a goldwright's stall","a fine-cloth stall","a spice-of-kings stall","a rare-book stall"]),
-}
-
-placed = []  # (x, y) of every placed solid stall/crate (for inter-stall spacing)
-
-def jitter_color(c):
-    return tuple(min(1.0, max(0.0, ch + random.uniform(-0.03, 0.03))) for ch in c)
-
-def gen_stalls(prefix, cfg):
-    rect = cfg["rect"]; sp = cfg["spacing"]; ms = cfg["min_sep"]
-    x0, y0, x1, y1 = rect
-    out = []
-    n = 0
-    ny = int((y1 - y0) // sp) + 1
-    nx = int((x1 - x0) // sp) + 1
-    cells = [(ix, iy) for iy in range(ny) for ix in range(nx)]
-    random.shuffle(cells)
-    for ix, iy in cells:
-        if n >= cfg["cap"]:
-            break
-        if random.random() > cfg["density"]:
-            continue
-        cx = x0 + ix * sp + sp * 0.5 + random.uniform(-sp*0.28, sp*0.28)
-        cy = y0 + iy * sp + sp * 0.5 + random.uniform(-sp*0.28, sp*0.28)
-        if not (x0 <= cx <= x1 and y0 <= cy <= y1):
-            continue
-        if near_path(cx, cy) or near_reserved(cx, cy, 16):
-            continue
-        if any(math.hypot(cx-px, cy-py) < ms for px, py in placed):
-            continue
-        col = jitter_color(random.choice(cfg["palette"]))
-        lbl = random.choice(cfg["labels"])
-        out.append(stall("%s_stall_%d" % (prefix, n+1), "stall", (cx, cy), col, lbl, ["made","market"], True, 16))
-        placed.append((cx, cy))
-        n += 1
-    return out
-
-def gen_crates(prefix, cfg, count, colors):
-    rect = cfg["rect"]; x0, y0, x1, y1 = rect
-    out = []; n = 0; tries = 0
-    while n < count and tries < count*60:
-        tries += 1
-        cx = random.uniform(x0, x1); cy = random.uniform(y0, y1)
-        if near_path(cx, cy, 18) or near_reserved(cx, cy, 12):
-            continue
-        if any(math.hypot(cx-px, cy-py) < 34 for px, py in placed):
-            continue
-        col = jitter_color(random.choice(colors))
-        out.append(stall("%s_crate_%d" % (prefix, n+1), "crate", (cx, cy), col, "a stack of crates", ["made","market"], True, 9))
-        placed.append((cx, cy)); n += 1
-    return out
-
-stalls = []
-for key in ["spice", "glass", "bone", "rag", "high"]:
-    stalls += gen_stalls(key, KNOTS[key])
-
-# crates thicken the Tangle into a maze; a little fine cargo dresses the High Stalls
-crates = gen_crates("rag", KNOTS["rag"], 18, [(0.50,0.40,0.28),(0.46,0.36,0.26)])
-high_crate_cfg = dict(KNOTS["high"]);
-crates += gen_crates("high", high_crate_cfg, 7, [(0.84,0.72,0.44),(0.80,0.68,0.40)])
-
-lanterns = [stall(i, "lantern", p, c, "a hanging lantern", ["light","made"]) for i, p, c in LANTERNS]
-
-# ── the packed market's PEOPLE (docs/home-world-and-secrets-design.md, W-5) ──────────────
-# Everything below uses its OWN random stream, so the stalls, crates and lanterns above keep exactly
-# the positions they've always had; the people and the forgotten alley only fill in around them.
-people_rng = random.Random(0x5EA75)
-
-# Stallholders: someone minding most stalls, a little in front of the counter, each with a line of
-# their own. Static (they're props, drawn as the shopkeeper figure in their own colours), so a packed
-# market stays cheap to draw on a phone.
-HOLDER_LINES = {
-    "spice": ["\"Smell that? Cardamom from the hill farms. One pinch and the whole tea changes its mind.\"",
-              "\"Honey from the cliff-hives. The bees there have never seen the river, and they don't miss it.\"",
-              "\"My grandmother sold from a boat on this very spot. Now I sell from what's left of it.\"",
-              "\"Try a fig. No, take two. You look like someone who's walked a long way.\"",
-              "\"Saffron's dear this season. Everything's dear, since the water left.\""],
-    "glass": ["\"Every pane here is a little piece of the riverbed, melted down and made to hold light.\"",
-              "\"Hold this lens to your eye. See? Even the dust looks like it's flowing.\"",
-              "\"Bottles for anything you'd like to keep. Breath, rain, a good afternoon.\"",
-              "\"We blow glass at dawn, before the heat. You can hear the furnaces from the Vein.\"",
-              "\"Some say there's a drop of the old river still somewhere in the Run. Glass remembers.\""],
-    "bone":  ["\"Quiet, please. The ledgers here are older than the bazaar.\"",
-              "\"Scrimshaw from river-whale bone. There were whales, you know. Before.\"",
-              "\"We keep records of every bargain ever struck here. Every one but the first.\"",
-              "\"A charm-bone for safe roads? Or for finding your way back to someone?\""],
-    "rag":   ["\"One thing's rubbish, two things is a collection. Three's a business.\"",
-              "\"Charts of where the water will come back. Guaranteed. More or less.\"",
-              "\"Found it in the channel at low dust. Don't ask me what it is, I only sell them.\"",
-              "\"Lockpicks? Never heard of them. Come back after dark.\"",
-              "\"Your fortune: you'll walk a long way, and someone will be glad you came.\""],
-    "high":  ["\"Silk from across the far hills. Feel how it pours, like water used to.\"",
-              "\"The view from up here is free. The jewels, regrettably, are not.\"",
-              "\"Perfume of the old river: wet stone, reeds, and a little moonlight.\"",
-              "\"Rare books, rarer readers. You're welcome to browse.\""],
-}
-HOLDER_LABELS = {"spice": "a spice-seller", "glass": "a glassblower", "bone": "a bonewright",
-                 "rag": "a ragpicker", "high": "a merchant of the High Stalls"}
-HOLDER_COLORS = [(0.86, 0.62, 0.46), (0.62, 0.72, 0.86), (0.80, 0.56, 0.66), (0.66, 0.78, 0.58),
-                 (0.88, 0.76, 0.46), (0.70, 0.62, 0.82), (0.84, 0.70, 0.58), (0.58, 0.70, 0.74)]
-solids_now = [(e["position"][0], e["position"][1]) for e in SPECIAL + stalls + crates + lanterns]
-stallholders = []
-for st in stalls:
-    if people_rng.random() > 0.75:
-        continue
-    knot = st["id"].split("_stall_")[0]
-    hx, hy = st["position"][0], st["position"][1] + 26
-    if near_path(hx, hy, 14) or any(math.hypot(hx - x, hy - y) < 18 for x, y in solids_now if (x, y) != tuple(st["position"])):
-        continue
-    stallholders.append(stall("%s_holder_%d" % (knot, len(stallholders) + 1), "stallholder", (hx, hy),
-                              people_rng.choice(HOLDER_COLORS), HOLDER_LABELS[knot], ["person", "market"],
-                              lore=people_rng.choice(HOLDER_LINES[knot])))
-
-# The forgotten alley in the Glassblowers' Run: the emptiest corner the stalls left, dressed as a
-# place nobody tends any more (a long-closed stall, some crates), with the secret at its end (W-5).
-glass_x0, glass_y0, glass_x1, glass_y1 = KNOTS["glass"]["rect"]
-best_spot = None
-for gx in range(int(glass_x0) + 40, int(glass_x1) - 40, 10):
-    for gy in range(int(glass_y0) + 40, int(glass_y1) - 40, 10):
-        if near_path(gx, gy, 90):
-            continue
-        clear = min(math.hypot(gx - x, gy - y) for x, y in solids_now + [(h["position"][0], h["position"][1]) for h in stallholders])
-        if best_spot is None or clear > best_spot[0]:
-            best_spot = (clear, gx, gy)
-_alley_clear, ALLEY_X, ALLEY_Y = best_spot
+# The forgotten alley: dim, a long-closed stall at its mouth, crates, and the river-drop at its end.
+AL = RECTS["forgotten_alley"]
 alley = [
-    stall("glass_closed_stall", "stall", (ALLEY_X - 34, ALLEY_Y - 30), (0.46, 0.50, 0.56), "an empty stall, long closed", ["made", "market"], True, 16,
-          lore="An empty stall, its awning faded almost white. Nobody has opened it in a long time. Further in, something catches the light."),
-    stall("glass_alley_crate_1", "crate", (ALLEY_X + 30, ALLEY_Y - 26), (0.44, 0.40, 0.34), "some forgotten crates", ["made", "market"], True, 9),
-    stall("glass_alley_crate_2", "crate", (ALLEY_X + 36, ALLEY_Y + 4), (0.42, 0.38, 0.32), "some forgotten crates", ["made", "market"], True, 9),
+    # the long-closed stall stands against the lane wall right beside the alley's mouth
+    prop("alley_closed_stall", "stall", (AL[0] - 50, AL[1] - WALL_T / 2 - 26), (0.46, 0.50, 0.56), "an empty stall, long closed", ["made", "market"], True, 14,
+         lore="An empty stall, its awning faded almost white. Nobody has opened it in a long time. Further in, something catches the light."),
+    prop("alley_crate_1", "crate", (AL[0] + 26, AL[1] + 90), (0.44, 0.40, 0.34), "some forgotten crates", ["made", "market"], True, 9),
+    prop("alley_crate_2", "crate", (AL[2] - 26, AL[1] + 170), (0.42, 0.38, 0.32), "some forgotten crates", ["made", "market"], True, 9),
 ]
 SECRET = {
-    "id": "river_drop", "position": [ALLEY_X, ALLEY_Y + 6], "radius": 120.0,
+    "id": "river_drop", "position": [(AL[0] + AL[2]) / 2, AL[3] - 40], "radius": 120.0,
     "prop": {"type": "river_drop", "color": [0.55, 0.85, 1.0], "label": "a drop of river-glass", "tags": ["shiny", "odd", "glow"]},
-    "lore": "Tucked behind the empty stall: a single drop of river-glass, no bigger than a thumbnail. A ripple of light still moves inside it, as if it remembers the water.",
+    "lore": "At the very end of the alley, where nobody comes: a single drop of glass, no bigger than a thumbnail. A ripple of light still moves inside it, as if it remembers being water.",
     "reveal": {"type": "always"},
-    "found_line": "A drop of the Sleeping River, kept in glass. Somewhere in the Run, someone made it hold light instead of water.",
+    "found_line": "A drop of river-water, kept in glass. Somewhere in the lane, someone once made it hold light instead.",
     "home_line": "Something has changed at home.",
     "qualities": ["crafted", "glowing"],
     "keepsake": {"id": "river_drop", "type": "river_drop", "color": [0.55, 0.85, 1.0], "label": "a drop of river-glass",
                  "line": "The drop of river-glass from the Bazaar. Your companion likes to sit where the light from it falls.",
                  "temperament": {"curiosity": 0.75, "energy": 0.45, "clinginess": 0.4}},
 }
-SECRET_COMMENT = "This world's one SECRET (docs/home-world-and-secrets-design.md, W-5): no puzzle, a small shiny treasure found only by wandering, at the end of a forgotten alley in the Glassblowers' Run. The server honours a claim only here, within 'radius' of 'position'."
 
-# Walking traffic: people strolling the lanes, driven by the server's ambient sim like the Vale's pals
-# (shared, so everyone sees the same crowd) and drawn as people (a 'person' appearance) by the client.
+RESERVED = [(p["position"][0], p["position"][1], 46) for p in special + lanterns + alley] + [
+    (ENTRY[0], ENTRY[1], 70), (PLAYER_SPAWN[0], PLAYER_SPAWN[1], 50), (NPC_COMPANION[0], NPC_COMPANION[1], 30),
+    (ARCH[0], ARCH[1], 90), (SQ_C[0], SQ_C[1], 90)]
+
+# ── stalls against the walls, shoulder to shoulder; someone minding nearly every one ──────────────────
+GOODS = [("a spice stall", "spice_stall"), ("a pepper stall", "spice_stall"), ("a saffron stall", "spice_stall"),
+         ("a tea stall", "spice_stall"), ("a dried-fruit stall", "spice_stall"), ("a lantern-maker's stall", "stall"),
+         ("a rug stall", "stall"), ("a brass stall", "stall"), ("a perfumer's stall", "stall"), ("a sweets stall", "spice_stall"),
+         ("a silk stall", "stall"), ("a glass stall", "stall"), ("a potter's stall", "stall")]
+AWNINGS = [(0.78, 0.26, 0.20), (0.86, 0.56, 0.18), (0.30, 0.50, 0.56), (0.62, 0.30, 0.46), (0.82, 0.70, 0.40), (0.54, 0.32, 0.20)]
+HOLDER_COLORS = [(0.86, 0.62, 0.46), (0.62, 0.72, 0.86), (0.80, 0.56, 0.66), (0.66, 0.78, 0.58),
+                 (0.88, 0.76, 0.46), (0.70, 0.62, 0.82), (0.84, 0.70, 0.58), (0.58, 0.70, 0.74)]
+HOLDER_LINES = [
+    "\"Smell that? Cardamom from the hill farms. One pinch and the whole tea changes its mind.\"",
+    "\"Try a fig. No, take two. You look like someone who's walked a long way.\"",
+    "\"Every lantern in this lane was lit by someone's grandmother, once. We just keep them going.\"",
+    "\"Saffron's dear this season. Worth it, though. Smell the gold in it.\"",
+    "\"Sit a while if you like. Nobody hurries in the evening market.\"",
+    "\"That one's made of brass and patience. Mostly patience.\"",
+    "\"Honey cakes, warm from the stones. Your companion's already decided, I think.\"",
+    "\"Pick a colour, any colour. My dyes hold through a hundred washes and one heartbreak.\"",
+    "\"The best things in the lane are at the end of it. Or so the arch-keepers say.\"",
+    "\"Silk from beyond the far hills. Feel how it pours.\"",
+    "\"Lanterns, lanterns! One for every window you want to come home to.\"",
+    "\"Mind the rugs, friend. Or don't; they've been walked on for a hundred years.\"",
+]
+HOLDER_LABELS = ["a stallholder", "a spice-seller", "a lantern-maker", "a weaver", "a sweet-seller", "a brass-seller"]
+
+solid_spots = [(p["position"][0], p["position"][1]) for p in special + lanterns + alley]
+stalls, holders = [], []
+
+
+def try_stall(x, y, toward):
+    """A stall at (x, y) backed onto a wall, its street side `toward` (a unit (dx, dy))."""
+    # The whole footprint must be in the lane, the wall must really be right behind it (so it's never
+    # in an opening), and nothing reserved or already placed may be too close.
+    if not all(walkable(x + dx, y + dy) for dx in (-28, 0, 28) for dy in (-18, 0, 18)):
+        return False
+    if walkable(x - toward[0] * 55, y - toward[1] * 55):
+        return False
+    if any(math.hypot(x - rx, y - ry) < rr for rx, ry, rr in RESERVED):
+        return False
+    # The great arch is the lane's end: nothing stands between it and the wall behind it.
+    if y < ARCH[1] + 40 and RECTS["arch_lane"][0] <= x <= RECTS["arch_lane"][2]:
+        return False
+    if any(math.hypot(x - sx, y - sy) < 60 for sx, sy in solid_spots):
+        return False
+    label, typ = rng.choice(GOODS)
+    sid = "stall_%d" % (len(stalls) + 1)
+    stalls.append(prop(sid, typ, (x, y), rng.choice(AWNINGS), label, ["made", "market"], True, 16))
+    solid_spots.append((x, y))
+    if rng.random() < 0.9:
+        hx, hy = x + toward[0] * 30, y + toward[1] * 30
+        holders.append(prop("holder_%d" % (len(holders) + 1), "stallholder", (hx, hy), rng.choice(HOLDER_COLORS),
+                            rng.choice(HOLDER_LABELS), ["person", "market"], lore=rng.choice(HOLDER_LINES)))
+    return True
+
+
+INSET = WALL_T / 2 + 26  # wall half-thickness, then the stall's half-depth and a little room
+for name, (x0, y0, x1, y1) in RECTS.items():
+    if name in ("forgotten_alley",):
+        continue
+    for x in range(int(x0) + 40, int(x1) - 30, 64):
+        try_stall(x, y0 + INSET, (0, 1))   # against the north wall, facing south into the lane
+        try_stall(x, y1 - INSET, (0, -1))  # against the south wall, facing north
+    for y in range(int(y0) + 50, int(y1) - 40, 60):
+        try_stall(x0 + INSET + 6, y, (1, 0))   # against the west wall
+        try_stall(x1 - INSET - 6, y, (-1, 0))  # against the east wall
+
+# Rugs down the middle of the lane, every so often.
+RUG_COLORS = [(0.62, 0.18, 0.16), (0.24, 0.30, 0.50), (0.56, 0.34, 0.16), (0.40, 0.20, 0.34)]
+rugs = []
+for name in ("entry_lane", "west_lane"):
+    x0, y0, x1, y1 = RECTS[name]
+    cy = (y0 + y1) / 2
+    for x in range(int(x0) + 140, int(x1) - 100, 200):
+        if not any(math.hypot(x - rx, cy - ry) < rr for rx, ry, rr in RESERVED):
+            rugs.append(prop("rug_%d" % (len(rugs) + 1), "rug", (x, cy + 10), rng.choice(RUG_COLORS), "a worn rug", ["made"]))
+for name in ("turn_north", "arch_lane"):
+    x0, y0, x1, y1 = RECTS[name]
+    cx = (x0 + x1) / 2
+    for y in range(int(y0) + 140, int(y1) - 120, 200):
+        if not any(math.hypot(cx - rx, y - ry) < rr for rx, ry, rr in RESERVED):
+            rugs.append(prop("rug_%d" % (len(rugs) + 1), "rug", (cx, y), rng.choice(RUG_COLORS), "a worn rug", ["made"]))
+
+# ── overhead: strings of lights, bunting and brass lanterns spanning the lane wall to wall ────────────
+garlands = []
+KINDS = ["lights", "bunting", "lights", "lanterns"]
+k = 0
+for name in ("entry_lane", "west_lane"):
+    x0, y0, x1, y1 = RECTS[name]
+    for x in range(int(x0) + 60, int(x1) - 40, 80):
+        garlands.append({"from": [x, y0 + 4], "to": [x + 30, y1 - 4], "sag": 22, "kind": KINDS[k % 4]}); k += 1
+for name in ("turn_north", "arch_lane"):
+    x0, y0, x1, y1 = RECTS[name]
+    for y in range(int(y0) + 60, int(y1) - 40, 80):
+        garlands.append({"from": [x0 + 4, y], "to": [x1 - 4, y + 24], "sag": 18, "kind": KINDS[k % 4]}); k += 1
+# the square: strings from its corners toward the fountain
+for corner in [(SQ[0] + 8, SQ[1] + 8), (SQ[2] - 8, SQ[1] + 8), (SQ[0] + 8, SQ[3] - 8), (SQ[2] - 8, SQ[3] - 8)]:
+    garlands.append({"from": list(corner), "to": [SQ_C[0], SQ_C[1] - 70], "sag": 26, "kind": "lights"})
+    garlands.append({"from": list(corner), "to": [SQ_C[0], SQ_C[1] - 70], "sag": 46, "kind": "bunting"})
+
+# ── walking traffic: people strolling the lane (server-simulated ambient pals, drawn as people) ────────
 HAIR = ["base:hair_short", "base:hair_long", "base:hair_spiky"]
 TOPS = ["base:tee", "base:tank"]
 SKIN = ["golden", "umber", "rose", "fair"]
 HAIR_COLORS = ["bark", "chestnut", "wheat", "slate", "ember"]
 CLOTH = ["river", "clay", "moss", "violet", "stone", "gold"]
 
+
 def random_person():
-    equipped = {"body": "base:body", "legwear": "base:pants", "outfit": people_rng.choice(TOPS),
-                "footwear": "base:shoes", "hair": people_rng.choice(HAIR)}
-    if people_rng.random() < 0.3:
+    equipped = {"body": "base:body", "legwear": "base:pants", "outfit": rng.choice(TOPS),
+                "footwear": "base:shoes", "hair": rng.choice(HAIR)}
+    if rng.random() < 0.3:
         equipped["headwear"] = "base:headband"
-    colors = {"skin_tone": people_rng.choice(SKIN), "hair_color": people_rng.choice(HAIR_COLORS),
-              "top_color": people_rng.choice(CLOTH), "legwear_color": people_rng.choice(CLOTH),
-              "footwear_color": people_rng.choice(CLOTH), "headwear_color": people_rng.choice(CLOTH)}
+    colors = {"skin_tone": rng.choice(SKIN), "hair_color": rng.choice(HAIR_COLORS), "top_color": rng.choice(CLOTH),
+              "legwear_color": rng.choice(CLOTH), "footwear_color": rng.choice(CLOTH), "headwear_color": rng.choice(CLOTH)}
     return {"equipped": equipped, "colors": colors}
 
+
 walkers = []
-for i in range(26):
-    a, b = people_rng.choice(PATHS)
-    t = people_rng.random()
-    wx, wy = a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t
-    walkers.append({"id": "walker_%d" % (i + 1), "home": [round(wx), round(wy)], "roam_radius": 170,
+LANE_PARTS = ["entry_lane", "turn_north", "the_square", "the_square", "west_lane", "arch_lane"]
+for i in range(30):
+    x0, y0, x1, y1 = RECTS[LANE_PARTS[i % len(LANE_PARTS)]]
+    hx = rng.uniform(x0 + 70, x1 - 70)
+    hy = rng.uniform(y0 + 70, y1 - 70)
+    walkers.append({"id": "walker_%d" % (i + 1), "home": [round(hx), round(hy)], "roam_radius": 110,
                     "person": {"appearance": random_person()}})
-print("stallholders:", len(stallholders), "| walkers:", len(walkers), "| alley at", (ALLEY_X, ALLEY_Y), "clear %.0f" % _alley_clear)
 
-counts = {}
-for s in stalls:
-    pre = s["id"].split("_stall_")[0]
-    counts[pre] = counts.get(pre, 0) + 1
-print("stalls per Knot:", counts, "| total stalls:", len(stalls), "| crates:", len(crates), "| lanterns:", len(lanterns))
+# ── checks ────────────────────────────────────────────────────────────────────────────────────────────
+all_props = special + lanterns + stalls + holders + rugs + alley
+ids = [p["id"] for p in all_props]
+assert len(ids) == len(set(ids)), "duplicate ids"
+for p in special + lanterns + stalls + alley:
+    assert walkable(*p["position"]), "%s is outside the lane" % p["id"]
+# Everything that matters is reachable from where you arrive (flood fill over walkable cells, minus solids).
+def cell_of(x, y):
+    return int((x - BOUNDS_MIN[0]) // CELL), int((y - BOUNDS_MIN[1]) // CELL)
+blocked = set()
+for p in all_props:
+    if p.get("solid"):
+        r = p.get("collision_radius", 8) + 8
+        cx, cy = p["position"]
+        for iy in range(int((cy - r - BOUNDS_MIN[1]) // CELL), int((cy + r - BOUNDS_MIN[1]) // CELL) + 1):
+            for ix in range(int((cx - r - BOUNDS_MIN[0]) // CELL), int((cx + r - BOUNDS_MIN[0]) // CELL) + 1):
+                if math.hypot(wx(ix) + CELL / 2 - cx, wy(iy) + CELL / 2 - cy) < r:
+                    blocked.add((ix, iy))
+start = cell_of(*PLAYER_SPAWN)
+seen = {start}
+todo = [start]
+while todo:
+    ix, iy = todo.pop()
+    for nx, ny in ((ix + 1, iy), (ix - 1, iy), (ix, iy + 1), (ix, iy - 1)):
+        if (nx, ny) in seen or not (0 <= nx < NX and 0 <= ny < NY) or not WALK[ny][nx] or (nx, ny) in blocked:
+            continue
+        # keep a body's width off the walls
+        if not all(WALK[ny + dy][nx + dx] for dx in (-2, -1, 0, 1, 2) for dy in (-2, -1, 0, 1, 2) if 0 <= ny + dy < NY and 0 <= nx + dx < NX):
+            continue
+        seen.add((nx, ny))
+        todo.append((nx, ny))
+for what, pos in [("the secret", SECRET["position"]), ("the arch", (ARCH[0], ARCH[1] + 30)), ("the shopkeeper", special[3]["position"]),
+                  ("the fountain's edge", (SQ_C[0], SQ_C[1] + 60)), ("the wet-boots man", (special[4]["position"][0], special[4]["position"][1] + 30))]:
+    assert cell_of(*pos) in seen, "%s at %s isn't reachable from the entrance" % (what, pos)
+print("souk: %d walls, %d roofs, %d stalls, %d stallholders, %d rugs, %d garlands, %d walkers | bounds %s..%s" % (
+    len(walls), len(roofs), len(stalls), len(holders), len(rugs), len(garlands), len(walkers), BOUNDS_MIN, BOUNDS_MAX))
 
-# ── overlap / bounds validation ─────────────────────────────────────────────────────────
-all_solid = []
-for e in SPECIAL + stalls + crates + lanterns + alley:
-    if e.get("solid") or e["type"] in ("signpost","lantern"):
-        r = e.get("collision_radius", {"signpost":7,"lantern":6}.get(e["type"], 8))
-        all_solid.append((e["id"], e["position"][0], e["position"][1], r))
-bad = 0
-for i in range(len(all_solid)):
-    for j in range(i+1, len(all_solid)):
-        a, b = all_solid[i], all_solid[j]
-        d = math.hypot(a[1]-b[1], a[2]-b[2])
-        if d < a[3] + b[3] - 1.0:  # circles actually overlap
-            bad += 1
-            if bad <= 8: print("  OVERLAP", a[0], b[0], "d=%.1f r=%d+%d" % (d, a[3], b[3]))
-for e in SPECIAL + stalls + crates + lanterns:
-    x, y = e["position"]
-    if not (BOUNDS_MIN[0]+10 <= x <= BOUNDS_MAX[0]-10 and BOUNDS_MIN[1]+10 <= y <= BOUNDS_MAX[1]-10):
-        print("  OUT OF BOUNDS", e["id"], e["position"])
-print("solid-overlap pairs:", bad)
-
-# ── emit JSON (one interactable per line, tab-indented, grouped with comments) ───────────
+# ── emit ──────────────────────────────────────────────────────────────────────────────────────────────
 def line(obj):
-    return "\t\t" + json.dumps(obj, separators=(", ", ": "))
+    return "\t\t" + json.dumps(obj, separators=(", ", ": "), ensure_ascii=False)
 
-interactable_groups = [
-    ("the five Vanes — the skyline compass, one tall landmark per Knot", SPECIAL[0:5]),
-    ("the Knuckle plazas: dry well, notice-board, rest shrine", SPECIAL[5:11]),
-    ("one lore signpost per Knot (Examine to read its story fragment)", SPECIAL[11:16]),
-    ("the wet-boots man (Ragpicker's Tangle quest seed)", SPECIAL[16:17]),
-    ("the colour merchant + shop (Spice Knot onboarding)", SPECIAL[17:19]),
-    ("Spice Knot stalls (procedurally packed; tidy rows — onboarding)", [s for s in stalls if s["id"].startswith("spice_")]),
-    ("Glassblowers' Run stalls", [s for s in stalls if s["id"].startswith("glass_")]),
-    ("Bonewrights' Knot stalls (quieter, paler)", [s for s in stalls if s["id"].startswith("bone_")]),
-    ("Ragpicker's Tangle stalls + crates (densest, maziest)", [s for s in stalls if s["id"].startswith("rag_")] + [c for c in crates if c["id"].startswith("rag_")]),
-    ("High Stalls (wealthiest, gilded) + fine cargo", [s for s in stalls if s["id"].startswith("high_")] + [c for c in crates if c["id"].startswith("high_")]),
-    ("lanterns", lanterns),
-    ("stallholders minding the stalls (the packed market's people; each reads out a line)", stallholders),
-    ("the forgotten alley in the Glassblowers' Run (the secret waits at its end)", alley),
-]
-# Groups are separated by a blank line only (JSON has no comments, and a comment OBJECT inside the
-# array would crash to_vec2(it["position"]) — so the group notes live in _props_comment).
-parts = [",\n".join(line(e) for e in group) for _note, group in interactable_groups if group]
-body = ",\n\n".join(parts)
-INTER_COMMENT = "All the props world_art draws, grouped in array order: " + "; ".join(
-    note for note, group in interactable_groups if group) + ". A prop is static scenery unless it opts in with \"interactive\": true (the Vanes, Knuckle furniture, lore signposts, the wet-boots man, and the merchant — each does something or reads out a lore line on Examine; stalls/crates/lanterns just convey themselves by appearance). Stalls/crates are generated by tools/gen_bazaar.py — edit that and re-run to re-pack, don't hand-tune positions."
 
-def vec_line(items):
-    return ",\n".join("\t\t" + json.dumps(x, separators=(", ", ": ")) for x in items)
+def block(items):
+    return ",\n".join(line(x) for x in items)
 
-region_objs = [{"id": r[0], "min": list(r[1]), "max": list(r[2]), "tint": [round(c,2) for c in r[3]]} for r in REGIONS]
-path_objs = [{"from": a, "to": b, "color": [0.50, 0.42, 0.32]} for a, b in PATHS]
 
-HEADER = "THE THOUSAND-KNOT BAZAAR — a sprawling fantasy market wound around the dry bed of the Sleeping River (the river that 'was sold'). Reached from the Vale through the sun-warmed archway. PILLARS: (1) NAVIGATION — the Vein (a sunken dry channel) runs the world's width and every Knot's paths drain into it; five tall VANES are the skyline compass; two KNUCKLE plazas anchor the middle. (2) ATMOSPHERE & LORE — five KNOT districts, each a tinted region with its own palette, Vane, and one story fragment (Examine its lore signpost or a Knuckle notice-board). Stalls are placed procedurally (see tools/gen_bazaar.py) so rows feel packed but stay walkable — tidy in Spice (onboarding), tangled in the Ragpicker's. +y is south, -y is north; colors [r,g,b] 0..1. world_art draws by 'type'; new types: vein + chimney/prism_tower/ivory_spire/crooked_mast/sky_anchor (Vanes), dry_well/notice_board/shrine, wanderer, crate. A prop's optional 'lore' is read out on Examine."
+regions = []
+for name, r in RECTS.items():
+    reg = REGION_OF[name]
+    regions.append({"id": reg if reg != "the_lane" else name, "min": [r[0], r[1]], "max": [r[2], r[3]],
+                    "tint": [round(c, 2) for c in REGION_TINT[reg]]})
+paths = []
+for name in ("entry_lane", "west_lane"):
+    x0, y0, x1, y1 = RECTS[name]
+    paths.append({"from": [x0 + 20, (y0 + y1) / 2], "to": [x1 - 20, (y0 + y1) / 2], "color": [0.58, 0.46, 0.34]})
+for name in ("turn_north", "arch_lane"):
+    x0, y0, x1, y1 = RECTS[name]
+    paths.append({"from": [(x0 + x1) / 2, y0 + 20], "to": [(x0 + x1) / 2, y1 - 20], "color": [0.58, 0.46, 0.34]})
 
-out = []
-out.append("{")
+ART = {
+    "entities": {
+        "ground": {
+            "ramps": {
+                "grass":  [[0.40, 0.30, 0.22], [0.50, 0.38, 0.28], [0.56, 0.43, 0.31], [0.66, 0.52, 0.38]],
+                "lush":   [[0.38, 0.28, 0.20], [0.46, 0.35, 0.25], [0.52, 0.40, 0.29], [0.62, 0.49, 0.36]],
+                "meadow": [[0.42, 0.31, 0.22], [0.52, 0.39, 0.28], [0.58, 0.44, 0.32], [0.68, 0.54, 0.40]],
+                "dirt":   [[0.44, 0.32, 0.23], [0.54, 0.41, 0.30], [0.60, 0.46, 0.34], [0.72, 0.57, 0.42]],
+                "path":   [[0.50, 0.38, 0.28], [0.62, 0.48, 0.36], [0.68, 0.54, 0.40], [0.80, 0.66, 0.50]],
+                "worn":   [[0.48, 0.37, 0.27], [0.58, 0.46, 0.34], [0.64, 0.51, 0.38], [0.76, 0.62, 0.46]],
+            },
+            "accents": [[0.92, 0.56, 0.32], [0.96, 0.84, 0.46], [0.86, 0.42, 0.40], [0.98, 0.92, 0.78]],
+            "scatter": {"density": 0.15, "grass_tint": [1.2, 0.95, 0.7]},
+        },
+        # no meadow bushes or stumps on the cobbles
+        "understory": {"density": 0.0},
+        "ambient_life": {"butterflies": {"count": 0}, "clouds": {"count": 0}, "leaves": {"rate": 0.0},
+                         "fireflies": {"count": 18, "always": True, "color": [1.0, 0.78, 0.42]}},
+    },
+    # Always evening: the day cycle held at dusk, in warm amber rather than the meadows' violet, so the
+    # lanterns throw their full pools of light.
+    "daycycle": {"enabled": True, "hold": 1.0, "stops": [
+        {"t": 0.0, "tint": [1.02, 0.92, 0.80], "vignette": [0.10, 0.05, 0.03], "vstrength": 0.40},
+        {"t": 1.0, "tint": [0.96, 0.78, 0.62], "vignette": [0.12, 0.05, 0.02], "vstrength": 0.52}]},
+}
+
+HEADER = ("THE BAZAAR: a compact, lantern-lit souk, always evening. One winding covered lane between sandstone "
+          "walls: arrive at its east end, it turns north into a little square with a fountain, leaves west, and turns "
+          "north again to the great arch at the far end (the way home). Stalls line it shoulder to shoulder with "
+          "someone minding nearly every one; people walk it; lights, bunting and brass lanterns hang overhead; rugs "
+          "lie on the cobbles; a narrow forgotten alley off the west lane hides the river-drop. Generated by "
+          "tools/gen_bazaar.py: edit that and re-run, don't hand-tune. 'walls' are segment solids (each with the side "
+          "its street is on, 'face'); 'roofs' are the buildings beyond them; 'garlands' hang overhead.")
+
+out = ["{"]
 out.append('\t"_comment": %s,' % json.dumps(HEADER))
 out.append('\t"world_id": "bazaar",')
-out.append('\t"regions": [')
-out.append(vec_line(region_objs))
-out.append('\t],')
+out.append('\t"regions": [\n%s\n\t],' % block(regions))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
-out.append('\t"border": { "ring": true, "spacing": 200, "inset": 28, "jitter": 30, "rows": 1, "row_gap": 54 },')
+out.append('\t"border": { "ring": false },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
-out.append('\t"ground_color": [0.62, 0.52, 0.40],')
-# The pixel ground (data/art.json's "ground" entity) re-coloured for a sun-baked market: dry straw
-# grass, olive scrub, wide patches of bare packed earth, and paler trodden lanes. Deep-merged over
-# art.json by ArtStyle.load_style, like Nocthollow's re-skin.
-ART = {"entities": {"ground": {
-    "ramps": {
-        "grass":  [[0.46, 0.42, 0.28], [0.56, 0.51, 0.34], [0.62, 0.57, 0.38], [0.74, 0.69, 0.48]],
-        "lush":   [[0.36, 0.38, 0.24], [0.44, 0.46, 0.29], [0.50, 0.52, 0.33], [0.62, 0.63, 0.42]],
-        "meadow": [[0.48, 0.44, 0.29], [0.58, 0.53, 0.35], [0.64, 0.59, 0.39], [0.76, 0.71, 0.50]],
-        "dirt":   [[0.47, 0.37, 0.26], [0.57, 0.46, 0.33], [0.63, 0.51, 0.37], [0.76, 0.65, 0.49]],
-        "path":   [[0.54, 0.45, 0.33], [0.66, 0.56, 0.42], [0.72, 0.62, 0.47], [0.84, 0.75, 0.59]],
-        "worn":   [[0.52, 0.46, 0.32], [0.62, 0.55, 0.39], [0.68, 0.61, 0.43], [0.80, 0.73, 0.54]],
-    },
-    "accents": [[0.92, 0.56, 0.32], [0.96, 0.84, 0.46], [0.86, 0.42, 0.40], [0.98, 0.92, 0.78]],
-    "patches": {"lush": {"scale": 0.005, "threshold": 0.80}, "meadow": {"scale": 0.006, "threshold": 0.74},
-                "dirt": {"scale": 0.005, "threshold": 0.58}},
-    "scatter": {"density": 0.6, "grass_tint": [1.25, 1.0, 0.55]},
-}}}
+out.append('\t"ground_color": [0.52, 0.40, 0.30],')
 out.append('\t"art": %s,' % json.dumps(ART, separators=(", ", ": ")))
-out.append('\t"atmosphere": {')
-out.append('\t\t"day_tint": [1.05, 0.97, 0.85],')
-out.append('\t\t"vignette": { "strength": 0.30, "color": [0.10, 0.07, 0.06] },')
-out.append('\t\t"wind": { "strength": 1.6, "speed": 1.0 },')
-out.append('\t\t"ground_noise": { "contrast": 0.12, "tint": [0.42, 0.34, 0.24] },')
-out.append('\t\t"pollen": { "amount": 34, "color": [0.92, 0.84, 0.62] },')
-out.append('\t\t"glow": { "pulse_speed": 1.2 },')
-out.append('\t\t"region_tint_alpha": 0.16')
-out.append('\t},')
-out.append('\t"vein": %s,' % json.dumps(VEIN, separators=(", ", ": ")))
+out.append('\t"atmosphere": { "day_tint": [0.96, 0.80, 0.64], "vignette": { "strength": 0.5, "color": [0.12, 0.05, 0.02] }, '
+           '"wind": { "strength": 0.8, "speed": 0.7 }, "ground_noise": { "contrast": 0.10, "tint": [0.42, 0.30, 0.20] }, '
+           '"pollen": { "amount": 22, "color": [1.0, 0.82, 0.5] }, "glow": { "pulse_speed": 1.2 }, "region_tint_alpha": 0.10 },')
 out.append('\t"player_spawn": %s,' % json.dumps(PLAYER_SPAWN))
 out.append('\t"companion_spawn": %s,' % json.dumps(COMPANION_SPAWN))
-out.append('\t"paths": [')
-out.append(vec_line(path_objs))
-out.append('\t],')
-out.append('\t"flowers": [')
-out.append(vec_line(FLOWERS))
-out.append('\t],')
-out.append('\t"_props_comment": %s,' % json.dumps(INTER_COMMENT))
-out.append('\t"props": [')
-out.append(body)
-out.append('\t],')
-out.append('\t"npc_companion": {')
-out.append('\t\t"position": [-1035, 308],')
-out.append('\t\t"look": { "ear_rest": 7.0, "bounce_base": 2.4, "wag_life": 3.5, "eye_lift": 2.5, "coat_warm": 0.35, "body_scale": 1.12 }')
-out.append('\t},')
-out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
+out.append('\t"paths": [\n%s\n\t],' % block(paths))
+out.append('\t"walls": [\n%s\n\t],' % block(walls))
+out.append('\t"roofs": [\n%s\n\t],' % block(roofs))
+out.append('\t"garlands": [\n%s\n\t],' % block(garlands))
+out.append('\t"props": [\n%s\n\t],' % block(all_props))
+out.append('\t"npc_companion": { "position": %s, "look": { "ear_rest": 7.0, "bounce_base": 2.4, "wag_life": 3.5, "eye_lift": 2.5, "coat_warm": 0.35, "body_scale": 1.12 } },' % json.dumps(NPC_COMPANION))
+out.append('\t"_secret_comment": %s,' % json.dumps("This world's one SECRET (docs/home-world-and-secrets-design.md, W-5): no puzzle, a small shiny treasure found only by wandering, at the end of the forgotten alley off the west lane. The server honours a claim only here, within 'radius' of 'position'."))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
-out.append('\t"_walkers_comment": %s,' % json.dumps("Walking traffic: server-simulated like any ambient pal (shared, so everyone sees the same crowd), drawn by the client as people from each 'person' appearance."))
-out.append('\t"ambient_pals": [')
-out.append(",\n".join("\t\t" + json.dumps(w, separators=(", ", ": ")) for w in walkers))
-out.append('\t],')
+out.append('\t"_walkers_comment": %s,' % json.dumps("Walking traffic: server-simulated like any ambient pal (shared, so everyone sees the same crowd; the walls keep them in the lane), drawn by the client as people from each 'person' appearance."))
+out.append('\t"ambient_pals": [\n%s\n\t],' % block(walkers))
 out.append('\t"portals": [')
-out.append('\t\t{ "id": "bazaar_entry", "type": "portal", "position": [280, 360], "color": [0.96, 0.82, 0.50], "label": "the sun-warmed archway", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" }')
+out.append('\t\t{ "id": "bazaar_entry", "type": "portal", "position": %s, "color": [0.96, 0.82, 0.50], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" },' % json.dumps(list(ENTRY)))
+out.append('\t\t{ "id": "bazaar_arch", "type": "portal", "position": %s, "color": [0.98, 0.76, 0.42], "label": "the great arch", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" }' % json.dumps([ARCH[0], ARCH[1] + 26]))
 out.append('\t]')
 out.append("}")
 text = "\n".join(out) + "\n"
 
-# validate it parses + integrity
 d = json.loads(text)
-props = d["props"]
-ids = [i["id"] for i in props if i.get("id")]
-assert len(ids) == len(set(ids)), "dup ids"
-assert any(i["type"] == "shopkeeper" for i in props), "no shopkeeper"
-assert any(p["id"] == "bazaar_entry" for p in d["portals"]), "no portal"
-assert d["npc_companion"], "no npc"
-# Interactivity opts in: examinable exactly when it has lore or is the shopkeeper.
-for i in props:
+assert any(i["type"] == "shopkeeper" for i in d["props"]), "no shopkeeper"
+for i in d["props"]:
     want = bool(i.get("lore")) or i["type"] == "shopkeeper"
-    assert bool(i.get("interactive", False)) == want, "interactive flag mismatch on %s" % i.get("id")
-interactive = sum(1 for i in props if i.get("interactive"))
-print("PARSES OK | props:", len(props), "| interactive:", interactive, "| real ids:", len(ids))
-
+    assert bool(i.get("interactive", False)) == want, "interactive flag mismatch on %s" % i["id"]
 for path in ["server/priv/world_seeds/bazaar.json", "pokepals/tests/world_fixtures/bazaar.json"]:
     open(path, "w").write(text)
 print("wrote both files")
