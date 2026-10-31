@@ -72,16 +72,21 @@ world is just another lightweight process, and PubSub fan-out across machines is
 
 ## The items, in a suggested order
 
-### SC-0 — Decide what "a crowd" means for us *(open: a decision)*
-"Hundreds to thousands" can mean three different things, and each needs different work:
-- **(a) Online at once, across all worlds.** This is mostly instances plus more machines (SC-5, SC-6).
-- **(b) In one world at once.** This is mostly interest management (SC-4) and batching (SC-3).
-- **(c) On one screen at once,** like a festival in the square. This is mostly client drawing limits
-  (SC-2), and there's a hard ceiling from the phone.
-
-**Suggestion:** aim for (a) in the thousands, about 50–100 in one instance of a world, and a few
-hundred for a deliberate one-off event. That matches the cozy, togetherness feel without asking a
-phone to draw a stadium.
+### ✅ SC-0 — What "a crowd" means for us *(decided 2026-10-31)*
+**The guiding principle:** keep pushing the boundaries of what today's technology can do. For
+reference: a Roblox server usually holds up to about 100 players and a Fortnite match holds 100. Big
+live events run as many parallel copies. EVE Online is the frontier, running one shared universe with
+thousands in a single battle. **The targets:**
+- **One world, no visible copies.** Nobody ever sees "server full", and everyone in the Vale really
+  is in the same Vale. That reshapes SC-5: a big world is split **by area** across processes and
+  machines, and players cross between areas without noticing, instead of being sorted into capped
+  copies.
+- **Thousands in one world at once:** on the order of **10,000** in the Vale, made possible by
+  interest management (SC-4).
+- **Hundreds in one place:** on the order of **500** gathered in the square for an event. The server
+  must carry this.
+- **About 100–200 drawn on a phone at once:** the nearest drawn fully, the next ring more simply
+  (SC-2). The phone sets this ceiling, not the servers.
 
 ### SC-1 — Measure first: a load test with bot players *(open)*
 Before changing the architecture, find where today's code actually breaks:
@@ -122,7 +127,7 @@ This is what you actually felt.
 - **Shared things:** Ruin wards, flares, world events and the like should also only reach nearby
   players, or the whole instance when it's a world-wide event.
 
-### SC-5 — Instances *(open)*
+### SC-5 — Instances *(open; reshaped by SC-0 into seamless splitting by area, see below)*
 - **Cap:** each world can run several copies, each capped (for example at 80 players).
 - **Which copy you join:** joining picks:
   1. the copy your friends or invitees are in;
@@ -133,6 +138,13 @@ This is what you actually felt.
 - **Homes** are already one per player; visiting friends land in that home's single copy.
 - **Open questions:** should the player see which copy they're in? Can they hop to a friend's copy
   directly?
+- **After SC-0:** capped, visible copies are out. What's left of this item is **seamless splitting by
+  area**:
+  - A world's map is divided into areas, each owned by its own process (and later, its own machine).
+  - Players near an area's edge see across the seam, and walking over it hands them to the next area
+    without a visible join.
+  - Capped copies may still be a safety valve for a world that's overfull even when split, but never
+    the normal path.
 
 ### SC-6 — More than one machine *(open)*
 - **Cluster:** the step the code already flags: libcluster to join nodes, and Horde (a cluster-wide
@@ -153,5 +165,5 @@ This is what you actually felt.
 
 ## How we work through it
 
-One item at a time. **SC-0 is a decision for you**, and SC-1 (the load test) should come before any
+One item at a time. SC-0 is decided (above). SC-1 (the load test) should come before any
 architecture change, so we build what the numbers say rather than what we guess.
