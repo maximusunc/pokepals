@@ -96,10 +96,32 @@ signal world_list_received(req: int, offset: int, worlds: Array, more: bool)
 ## The world SECRETS we've found (ids), pushed on every world join, before the spec. Also kept on Net
 ## (discoveries()), since it's per-player and outlives a world hop.
 signal discoveries_received(ids: Array)
-## The server honoured our claim of a world secret. `is_new` is false if we'd already found it.
-signal secret_found(secret_id: String, is_new: bool)
+## The server honoured our claim of a world secret. `is_new` is false if we'd already found it;
+## `with_names` are the friends who were near us when we took it (S-4), for the moment to name.
+signal secret_found(secret_id: String, is_new: bool, with_names: Array)
 ## The server refused a secret claim (we weren't standing at it, or this world doesn't hide it).
 signal secret_refused(secret_id: String)
+## Our public face (FR-0/FR-2): our generated name and friend code. Arrives on every join + re-roll.
+signal profile_received(name: String, friend_code: String)
+## Our social world (FR-1..FR-5): friends (id, name, online, home_now), incoming requests (id, name),
+## who we've asked, who we've blocked, and whether our home is closed. Re-sent whenever any of it changes.
+signal friends_received(snapshot: Dictionary)
+## Someone just asked us to be friends.
+signal friend_request_received(from_id: String, from_name: String)
+## How our own friend request went: { ok, status: "requested"|"friends", name } or { ok: false, reason }.
+signal friend_result(result: Dictionary)
+## A player standing near us invited us to their home (FR-3), for this one visit.
+signal home_invite_received(from_id: String, from_name: String)
+## Someone answered OUR invite.
+signal invite_answered(guest_id: String, guest_name: String, accepted: bool)
+## The server confirmed our answer to an invite ({ owner, accepted, ok }); ok=false means it had lapsed.
+signal invite_result(result: Dictionary)
+## The home we're standing in no longer has us (the owner sent us out, closed it, removed or blocked us).
+signal sent_home()
+## A journal arrived (ours, or a friend's we may read): its owner, their name, and entries newest first.
+signal journal_received(owner_id: String, owner_name: String, entries: Array)
+## The server answered a keepsake choice we sent.
+signal keepsakes_saved(ok: bool)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -159,6 +181,10 @@ var _session_save: Dictionary = {}
 var _world_specs: Dictionary = {}
 # The world secret ids we've found (server-canonical; refreshed on every join and on each new find).
 var _discoveries: Array = []
+# Our name + friend code, and our social snapshot (see friends_received). Kept across world hops.
+var _my_name := ""
+var _friend_code := ""
+var _friends: Dictionary = {}
 
 
 func _ready() -> void:
@@ -375,6 +401,107 @@ func claim_secret(secret_id: String) -> void:
 	if not _can_send():
 		return
 	_push_event("claim_secret", { "id": secret_id })
+
+
+## Our generated name ("" before the first join).
+func my_name() -> String:
+	return _my_name
+
+
+## Our friend code ("" before the first join).
+func friend_code() -> String:
+	return _friend_code
+
+
+## Our latest social snapshot (see friends_received); {} before the first join.
+func friends_snapshot() -> Dictionary:
+	return _friends
+
+
+## How we stand with another player: "friend", "incoming" (they asked us), "requested" (we asked
+## them), "blocked" (we blocked them) or "none".
+func relation(user_id: String) -> String:
+	for f in _friends.get("friends", []):
+		if String(f.get("id", "")) == user_id:
+			return "friend"
+	for r in _friends.get("incoming", []):
+		if String(r.get("id", "")) == user_id:
+			return "incoming"
+	if (_friends.get("outgoing", []) as Array).has(user_id):
+		return "requested"
+	if (_friends.get("blocked", []) as Array).has(user_id):
+		return "blocked"
+	return "none"
+
+
+func reroll_name() -> void:
+	_push_social("reroll_name", {})
+
+
+## Ask a player we can see to be friends (answer: friend_result).
+func request_friend(user_id: String) -> void:
+	_push_social("friend_request", { "to": user_id })
+
+
+## Ask the player holding a friend code to be friends (answer: friend_result).
+func request_friend_by_code(code: String) -> void:
+	_push_social("friend_request", { "code": code })
+
+
+func accept_friend(from_id: String) -> void:
+	_push_social("friend_accept", { "from": from_id })
+
+
+func decline_friend(from_id: String) -> void:
+	_push_social("friend_decline", { "from": from_id })
+
+
+func remove_friend(user_id: String) -> void:
+	_push_social("friend_remove", { "id": user_id })
+
+
+func block_player(user_id: String) -> void:
+	_push_social("block", { "id": user_id })
+
+
+## Ask for a fresh social snapshot (answer: friends_received).
+func request_friends() -> void:
+	_push_social("friends", {})
+
+
+## Invite a player standing in this world home with us, for one visit (FR-3).
+func invite_home(user_id: String) -> void:
+	_push_social("invite_home", { "to": user_id })
+
+
+func answer_invite(owner_id: String, accept: bool) -> void:
+	_push_social("invite_answer", { "from": owner_id, "accept": accept })
+
+
+## Send a visitor in our home back to the Gateway (FR-5).
+func send_visitor_home(user_id: String) -> void:
+	_push_social("send_home", { "id": user_id })
+
+
+## Close (or reopen) our home to every visitor (FR-5).
+func set_home_closed(closed: bool) -> void:
+	_push_social("set_home_closed", { "closed": closed })
+
+
+## Store the companion's keepsake choice (HS-3): ids favourite first, and the spots the bond opens.
+func set_keepsakes(ids: Array, spots: int) -> void:
+	_push_social("set_keepsakes", { "ids": ids, "spots": spots })
+
+
+## Ask for a journal: ours ("" owner) or another player's we may read (answer: journal_received).
+func request_journal(owner_id := "") -> void:
+	_push_social("journal", { "owner": owner_id } if owner_id != "" else {})
+
+
+func _push_social(event: String, payload: Dictionary) -> void:
+	if not _can_send():
+		return
+	_push_event(event, payload)
 
 
 ## The world secret ids we've found so far (empty before our first join).
@@ -657,9 +784,34 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			if fid != "":
 				if not _discoveries.has(fid):
 					_discoveries.append(fid)
-				secret_found.emit(fid, bool(payload.get("new", false)))
+				var names: Variant = payload.get("with", [])
+				secret_found.emit(fid, bool(payload.get("new", false)), names if names is Array else [])
 		"secret_refused":
 			secret_refused.emit(String(payload.get("id", "")))
+		"profile":
+			_my_name = String(payload.get("name", ""))
+			_friend_code = String(payload.get("friend_code", ""))
+			profile_received.emit(_my_name, _friend_code)
+		"friends":
+			_friends = payload.duplicate(true)
+			friends_received.emit(_friends)
+		"friend_request":
+			friend_request_received.emit(String(payload.get("from", "")), String(payload.get("name", "")))
+		"friend_result":
+			friend_result.emit(payload)
+		"home_invite":
+			home_invite_received.emit(String(payload.get("from", "")), String(payload.get("name", "")))
+		"invite_answer":
+			invite_answered.emit(String(payload.get("guest", "")), String(payload.get("name", "")), bool(payload.get("accepted", false)))
+		"invite_result":
+			invite_result.emit(payload)
+		"sent_home":
+			sent_home.emit()
+		"journal":
+			var entries: Variant = payload.get("entries", [])
+			journal_received.emit(String(payload.get("owner", "")), String(payload.get("name", "")), entries if entries is Array else [])
+		"keepsakes_saved":
+			keepsakes_saved.emit(bool(payload.get("ok", false)))
 		"world_list":
 			var worlds: Variant = payload.get("worlds", [])
 			world_list_received.emit(

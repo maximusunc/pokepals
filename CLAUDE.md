@@ -184,8 +184,21 @@ not a blocker** — pick it up if/when a shared world wants it.
 > built (solo, owner-only homes):** the Maze's heart hides a **hedge seed**. Examine it, the server
 > judges the claim (`claim_secret`), and your home (`"world:home:" <> user_id`, built per player by
 > `Server.HomeWorld` from `priv/home/home.json` + a `discoveries` table) grows east into a little
-> hedge spiral. Reached from the Gateway picker's **Homes** tab. Client: `SecretDirector`. Friends and
-> visiting are next (FR-1..FR-5).
+> hedge spiral. Reached from the Gateway picker's **Homes** tab. Client: `SecretDirector`. **Decided
+> since (H6–H8):** worlds will be unbounded and player-built, so no world is boxed into a type or
+> gated behind another. The **journal** records every find; the bounded **home reflects you**, its
+> character shaped by the finds' open-ended *qualities*, with **keepsakes your companion chooses**.
+> **Built since (2026-10-31):**
+> - **Names and friends:** generated two-word names and friend codes (`Server.Profiles`); friends,
+>   requests and blocks (`Server.Friends`). Tap a player for their card; Friends is in the gear menu.
+> - **Visiting:** friends' homes in the Gateway's Homes tab; one-off invites (`Server.HomePasses`);
+>   send a visitor home; close your home.
+> - **The home:** your companion chooses its keepsakes (`KeepsakeChoice` → `Server.Homes`), the
+>   finds' qualities shape it gently, and the glade grows with the bond. A friend's companion naps
+>   there while they're away (`HomeDirector`).
+> - **The journal:** a book at home, and in the gear menu.
+>
+> See the design doc's "Second slice" section.
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping

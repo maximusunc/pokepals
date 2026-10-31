@@ -6,8 +6,9 @@ extends Node
 ## The spec authors it as a `secret` block: an id, where it rests, the prop it shows as, its lore, and
 ## the small, warm lines of the finding. This director lays the prop out (unless you've already found
 ## it, so for you it's simply gone), turns an examine of it into a claim, and plays the finding beat
-## when the SERVER honours that claim: the companion perks up and noses it, the seed is taken, and a
-## soft line says something has changed at home. No fanfare, no popup (S-5).
+## when the SERVER honours that claim: the companion perks up at it, the screen fades to black, the
+## found line rises in white at the centre with "something has changed at home" beneath it, and while
+## it holds the seed is taken; the world fades back without it. No popup, no score (S-5).
 ##
 ## The server is the judge (S-3), so nothing is "found" until it says so: examining only asks.
 
@@ -66,16 +67,27 @@ func examine(entry: Dictionary) -> void:
 
 
 ## The server honoured the claim. Take the seed out of the world and play the small, warm beat.
-func _on_secret_found(secret_id: String, _is_new: bool) -> void:
+func _on_secret_found(secret_id: String, _is_new: bool, with_names: Array) -> void:
 	_claiming = false
 	if _entry.is_empty() or String(_entry["secret"]["id"]) != secret_id:
 		return
 	var secret: Dictionary = _entry["secret"]
 	_companion.delight_at(_entry["pos"])
-	_take()
-	var line := String(secret.get("found_line", ""))
-	var home := String(secret.get("home_line", ""))
-	_host.show_hint((line + "  " + home).strip_edges())
+	# S-4: the moment names the friends who were near you ("Found with Sam."), above the home line.
+	var aside := String(secret.get("home_line", ""))
+	if not with_names.is_empty():
+		aside = "Found with %s.\n%s" % [SecretDirector.names_phrase(with_names), aside]
+	_host.play_moment(String(secret.get("found_line", "")), aside)
+	# Taken under cover of the dark, so the world comes back without it.
+	get_tree().create_timer(_host.MOMENT_FADE_IN).timeout.connect(_take)
+
+
+## "Sam", "Sam and Wren", "Sam, Wren and Moss": how the moment names the friends who were there.
+static func names_phrase(names: Array) -> String:
+	var n: Array = names.map(func(x: Variant) -> String: return String(x))
+	if n.size() <= 1:
+		return "".join(n)
+	return ", ".join(n.slice(0, n.size() - 1)) + " and " + String(n[-1])
 
 
 func _on_secret_refused(_secret_id: String) -> void:

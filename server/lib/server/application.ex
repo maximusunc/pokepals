@@ -23,6 +23,8 @@ defmodule Server.Application do
       # DynamicSupervisor and addressed through this (node-local) Registry.
       {Registry, keys: :unique, name: Server.WorldRegistry},
       {DynamicSupervisor, strategy: :one_for_one, name: Server.WorldSupervisor},
+      # One-off home invites: short-lived, one-visit passes (FR-3). Transient by design.
+      Server.HomePasses,
       # The HTTP/WebSocket listener (Phoenix Channels over Bandit). Bind/port come from config.
       Server.Endpoint
     ]

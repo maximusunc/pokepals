@@ -25,6 +25,14 @@ const PORTAL_RANGE := 22.0
 # The hub's Gateway is a much bigger doorway, so you walk into it from further out.
 const GATEWAY_RANGE := 32.0
 const PORTAL_ARM_BUFFER := 18.0
+## How near a tap must land to another player to open their card rather than order the companion.
+const PLAYER_TAP_RADIUS := 26.0
+# The moment card (play_moment): fade to black, the line, the softer aside a beat later, a hold, back.
+const MOMENT_FADE_IN := 1.0
+const MOMENT_TEXT_FADE := 0.8
+const MOMENT_ASIDE_DELAY := 1.2
+const MOMENT_HOLD := 3.2
+const MOMENT_FADE_OUT := 1.2
 
 # The world SPEC is fully SERVER-HOSTED: the client bundles NO world specs. Net fetches a world's spec
 # on join and caches it (in memory + on disk, keyed by a content etag); we build from that. A cold
@@ -59,6 +67,8 @@ const PORTAL_ARM_BUFFER := 18.0
 var _hunt_dir: HuntDirector
 var _maze_dir: MazeDirector
 var _secret_dir: SecretDirector
+var _social_dir: SocialDirector
+var _home_dir: HomeDirector
 var _shop_dir: ShopDirector
 var _presence_dir: PresenceDirector
 var _ambient_dir: AmbientPalDirector
@@ -74,6 +84,7 @@ var _interactables: Array = []  # examinable things: [ { pos, label, id, tags, k
 var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, target_portal, render_index, armed, gateway? } ]
 # The Gateway's world picker while it's open (the world keeps living under it), else null.
 var _picker: WorldPicker
+var _open_sheets := 0  # social windows currently up (open_sheet); steering returns when the last closes
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
 var _ambient_life: AmbientLife
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
@@ -300,7 +311,11 @@ func _build_world(data: Dictionary) -> void:
 
 	# Opening instruction, then let it quietly fade so the world isn't framed by UI
 	# text while you wander. Any real hint (a whistle, lore, a portal step) cancels the fade and shows.
-	if _ruin.has_wards():
+	if WorldRouter.arrival_hint != "":
+		# A trip that has something to say on arrival (sent back to the Gateway, off to a friend's home).
+		_hint.text = WorldRouter.arrival_hint
+		WorldRouter.arrival_hint = ""
+	elif _ruin.has_wards():
 		_hint.text = "An old slab bars the way deeper.  Tap your companion and choose Go look to send it searching."
 	elif data.has("intro"):
 		# A world may greet you in its own words (Nocthollow's first breath of another planet).
@@ -311,6 +326,10 @@ func _build_world(data: Dictionary) -> void:
 	_intro_tween = create_tween()
 	_intro_tween.tween_interval(5.0)
 	_intro_tween.tween_property(_hint, "modulate:a", 0.0, 1.4)
+
+	# A home: the companion chooses its keepsakes (yours), or theirs naps by its favourite (a friend's).
+	# After the greeting above, so a home's own words take its place.
+	_home_dir.begin(data, _interactables)
 
 	# Shared presence: hand Net our identity once, and listen for peers arriving/moving/leaving.
 	# Everything here is a no-op until the player actually Hosts/Joins via the lobby.
@@ -358,6 +377,15 @@ func _create_directors() -> void:
 	# A brand-new player creates their look before the world seeds their save (see PresenceDirector).
 	_presence_dir.needs_creation.connect(_open_creation)
 
+	# Friends and visiting (tapping players, requests, invites, being sent home) and the home itself
+	# (keepsakes, the resident companion). See docs/home-world-and-secrets-design.md.
+	_social_dir = SocialDirector.new()
+	add_child(_social_dir)
+	_social_dir.setup(self, _presence_dir)
+	_home_dir = HomeDirector.new()
+	add_child(_home_dir)
+	_home_dir.setup(self, _companion, _player, _world_art, _presence_dir, _scenery, _style)
+
 	_ambient_dir = AmbientPalDirector.new()
 	add_child(_ambient_dir)
 	_ambient_dir.setup(_scenery, _style)
@@ -384,6 +412,72 @@ func _create_directors() -> void:
 ## one of the companion's points of interest; it may still wander over and sniff where the seed was.)
 func secret_taken() -> void:
 	_invalidate_nearest()
+
+
+## A MOMENT card, for the beats that deserve the whole screen (a world secret found): the world fades
+## to black, `line` rises in white at the centre, `aside` (optional, softer) joins it a beat later, they
+## hold, then everything fades back to the game. Your steering stands down for its length. All of it is
+## one Tween on nodes in the Fade layer, the CanvasLayer drawn above everything else (layer 100).
+func play_moment(line: String, aside := "") -> void:
+	_set_menu_open(true)
+	var box := VBoxContainer.new()
+	box.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	box.alignment = BoxContainer.ALIGNMENT_CENTER
+	box.add_theme_constant_override("separation", 10)
+	box.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	$Fade.add_child(box)
+	var main := UiStyle.label(line, 14, Color(1, 1, 1), 500)
+	var soft := UiStyle.label(aside, 10, Color(1, 1, 1, 0.7), 500)
+	for l in [main, soft]:
+		l.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(minf(400.0, get_viewport().get_visible_rect().size.x - 48.0), 0)
+		l.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+		l.modulate.a = 0.0
+		box.add_child(l)
+	# A Tween runs its steps in order; parallel() makes the next step start alongside the previous one.
+	var tw := create_tween().set_trans(Tween.TRANS_SINE)
+	tw.tween_property(_fade, "color:a", 1.0, MOMENT_FADE_IN)
+	tw.tween_property(main, "modulate:a", 1.0, MOMENT_TEXT_FADE)
+	if aside != "":
+		tw.tween_interval(MOMENT_ASIDE_DELAY)
+		tw.tween_property(soft, "modulate:a", 1.0, MOMENT_TEXT_FADE)
+	tw.tween_interval(MOMENT_HOLD)
+	tw.tween_property(main, "modulate:a", 0.0, MOMENT_TEXT_FADE)
+	tw.parallel().tween_property(soft, "modulate:a", 0.0, MOMENT_TEXT_FADE)
+	tw.tween_property(_fade, "color:a", 0.0, MOMENT_FADE_OUT)
+	tw.tween_callback(func() -> void:
+		box.queue_free()
+		_set_menu_open(false))
+
+
+## Open one of the small social windows (a player's card, Friends, a journal) over the world. Your
+## steering stands down while it's up and comes back when it closes.
+func open_sheet(sheet: CozySheet) -> void:
+	_open_sheets += 1
+	_set_menu_open(true)
+	sheet.closed.connect(func() -> void:
+		_open_sheets -= 1
+		if _open_sheets <= 0 and _picker == null:
+			_set_menu_open(false))
+	$UI.add_child(sheet)
+
+
+## Travel to another world (or a home) with the usual fade, arriving at `portal_id` (or its spawn),
+## and say `hint` on arrival.
+func travel_to(world_id: String, portal_id: String, hint := "") -> void:
+	if _transitioning:
+		return
+	_transitioning = true
+	WorldRouter.arrival_hint = hint
+	var tw := create_tween()
+	tw.tween_property(_fade, "color:a", 1.0, 0.45)
+	tw.tween_callback(func() -> void: WorldRouter.go_to(world_id, portal_id))
+
+
+## Whether we're standing in our own home (a visitor's card then offers "Send home").
+func is_in_own_home() -> bool:
+	return Net.local_id() != "" and WorldRouter.current_world == WorldRouter.home_id(Net.local_id())
 
 
 ## Show a hint at full opacity (the directors' one channel to the hint line).
@@ -483,6 +577,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		var kind := "shopkeeper" if String(it.get("type", "")) == "shopkeeper" else "prop"
 		if it.has("secret"):
 			kind = "secret"
+		elif bool(it.get("journal", false)):
+			kind = "journal"  # the book on its stand in a home: Examining opens that home's journal
 		var entry := {
 			"pos": WorldData.to_vec2(it["position"]),
 			"label": String(it.get("label", "something")),
@@ -505,6 +601,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			# A glow-plant that blazes up when touched, seen by everyone in the world (see _try_interact).
 			"flare": bool(it.get("flare", false)),
 		}
+		if it.has("keepsake"):
+			entry["keepsake"] = String(it["keepsake"])  # a keepsake the companion chose (HomeDirector)
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)
@@ -746,6 +844,7 @@ func _process(delta: float) -> void:
 	_update_portals(delta)
 	_hunt_dir.update_detector(delta)
 	_maze_dir.update(delta)
+	_home_dir.update(delta)
 	_ruin.update(delta)
 	# F-2 form-verb order in flight: fire its world effect once the companion reaches the object.
 	_update_perform(delta)
@@ -776,6 +875,8 @@ func _gather_gear_items() -> Array:
 	if _return_world != "" and Net.is_active():
 		items.append({ "id": "return", "label": _return_item_label() })
 	if Net.is_active():
+		items.append({ "id": "friends", "label": "Friends" })
+		items.append({ "id": "journal", "label": "Journal" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
 		items.append({ "id": "leave", "label": "Leave game" })
 	items.append({ "id": "dbg", "label": "DBG" })
@@ -806,6 +907,8 @@ func _on_gear_item(id: String) -> void:
 		"new_companion": _on_reset_pressed()
 		"return": _on_return_pressed()
 		"wardrobe": _open_wardrobe()
+		"friends": _social_dir.open_friends()
+		"journal": _social_dir.open_journal()
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
 
@@ -983,6 +1086,11 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	if _encounter_dir.is_searching():
 		return
 	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
+	# A tap on another player opens their card (Befriend, Invite home, …) instead of ordering the companion.
+	var peer := _presence_dir.peer_at(world, PLAYER_TAP_RADIUS)
+	if peer != "":
+		_social_dir.tap_player(peer)
+		return
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:
 		return
@@ -1186,6 +1294,10 @@ func _try_interact() -> void:
 		_world_art.pulse_interactable(int(entry["render_index"]))
 		_secret_dir.examine(entry)
 		return
+	if String(entry["kind"]) == "journal":
+		_world_art.pulse_interactable(int(entry["render_index"]))
+		_social_dir.open_journal(_home_dir.owner_id() if _home_dir.owner_id() != Net.local_id() else "")
+		return
 	# A native creature: it lights up and hops at the attention, your companion perks up at it, and you
 	# read what it is. (Like the flock, it draws itself and holds no world_art render slot.)
 	if String(entry["kind"]) == "creature":
@@ -1337,6 +1449,10 @@ func _show_world_picker(gateway: Dictionary) -> void:
 	if gateway.has("color"):
 		_picker.tint = gateway["color"]
 	_picker.homes = _home_cards()
+	# Friends' homes are listed from our social snapshot; ask for a fresh one (who's home right now).
+	if not Net.friends_received.is_connected(_on_friends_for_picker):
+		Net.friends_received.connect(_on_friends_for_picker)
+	Net.request_friends()
 	_picker.fetch_requested.connect(func(query: String, req: int, offset: int) -> void: Net.list_worlds(query, req, offset))
 	_picker.world_chosen.connect(_on_gateway_world_chosen.bind(String(gateway["id"])))
 	_picker.closed.connect(_close_gateway)
@@ -1348,15 +1464,29 @@ func _show_world_picker(gateway: Dictionary) -> void:
 	_set_menu_open(true)
 
 
-## The Gateway's Homes tab: for now just our own home (friends' homes join it later, FR-4).
+## The Gateway's Homes tab (HW-5/FR-4): our own home first, then each friend's, with whether they're
+## home and whether they're playing.
 func _home_cards() -> Array:
 	if Net.local_id() == "":
 		return []
 	var found := Net.discoveries().size()
 	var blurb := "A glade of your own, waiting to be filled." if found == 0 \
 		else "A glade of your own · %d %s" % [found, "discovery" if found == 1 else "discoveries"]
-	return [{ "world_id": WorldRouter.home_id(Net.local_id()), "name": "Your home", "blurb": blurb,
+	var cards: Array = [{ "world_id": WorldRouter.home_id(Net.local_id()), "name": "Your home", "blurb": blurb,
 		"accent": [0.62, 0.8, 0.62] }]
+	for f in Net.friends_snapshot().get("friends", []):
+		cards.append({
+			"world_id": WorldRouter.home_id(String(f["id"])),
+			"name": "%s's home" % String(f["name"]),
+			"blurb": FriendsPanel.status_text(f),
+			"accent": [0.96, 0.82, 0.5] if bool(f.get("home_now", false)) else [0.8, 0.74, 0.62],
+		})
+	return cards
+
+
+func _on_friends_for_picker(_snapshot: Dictionary) -> void:
+	if _picker != null and is_instance_valid(_picker):
+		_picker.set_homes(_home_cards())
 
 
 func _close_gateway() -> void:

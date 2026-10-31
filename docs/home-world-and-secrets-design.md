@@ -34,12 +34,15 @@ progression.
 ## Framing decisions (settled — these anchor everything after)
 
 - ✅ **H1 — One secret per world.** Each destination world holds exactly **one** secret. Clean,
-  legible, and it maps one-to-one to one discovery in your home. No side-collectibles.
+  legible, and it maps one-to-one to one discovery in your record (your journal, see H6). No
+  side-collectibles.
 - ✅ **H2 — The home is a display only.** Discoveries appear in the home world when earned; the
-  player **does not arrange or place** them. (Where each one appears is authored, see HW-3.) It is
-  a reflection of your journey, not a decorating game.
+  player **does not arrange or place** them. It is a reflection of your journey, not a decorating
+  game. (Since H6/H7: what the home shows is shaped by your finds' qualities and chosen by your
+  companion; still never by the player.)
 - ✅ **H3 — Visits by friendship only.** You can visit a home only if its owner has accepted you as a
-  **friend** (friend request) or invited you. No open/public browsing of homes.
+  **friend** (friend request) or invited you (a one-off invite, FR-3). No open/public browsing of
+  homes.
 - ✅ **H4 — The Gateway links to friends' homes.** The Gateway's world picker gains friends' homes as
   destinations, alongside the catalog worlds. (Your own home is presumably reachable from there too,
   see HW-5.)
@@ -47,6 +50,37 @@ progression.
   of the **companion** beats (the finding, the form-verb objects); it gets **no** world secret.
   Today's destination worlds each get one: **the Ruin, Nocthollow, the Riverbank, the Maze, the
   Bazaar**. New worlds author theirs from day one.
+- ✅ **H6 — The home reflects you; the journal records everything. (Decided 2026-10-31, replacing
+  "one home chunk per world".)** The game should grow to an unbounded number of worlds, including
+  ones players build, so the home can't hold a piece of every world and worlds must never be filed
+  into a fixed set of types. So the two jobs split:
+  - **The record is infinite and unboxed.** Every secret you've found is kept, with no categories:
+    your **journal** (or atlas), browsable by you and your friends. A world built tomorrow fits the
+    same as ours.
+  - **The home is bounded and reflects who you've become by wandering**, the way the companion's
+    look reflects its grown identity rather than listing everything it's done. It does this in two
+    ways (both decided): **qualities** shape the home's character, and **your companion chooses the
+    keepsakes** it displays (H7).
+  - *Considered and set aside:* finite world types, each with a home area (filled by a "main" world,
+    detailed by others). It solved size, but boxed worlds into types, which an unbounded,
+    player-built catalog can't have.
+- ✅ **H7 — Qualities shape the home; the companion picks the keepsakes.**
+  - **Qualities:** each secret carries a few open-ended qualities, written by the world's maker
+    (*glowing, watery, green, old, warm, wild, crafted, quiet…*). They describe the **find**, not the
+    world, several can apply, and they **blend** rather than sort. Your home's character drifts
+    toward the blend of what you've found: many glowing finds and the glade glimmers at dusk, many
+    watery ones and a stream starts to wind through it. Mechanically this mirrors how the
+    companion's identity already drifts.
+  - **Keepsakes:** each secret yields a keepsake. The home has a **bounded** number of places for
+    them, and the **companion** decides which finds live there, from its personality and the bond (a
+    curious companion keeps the strangest things, a cozy one the warmest). The home literally becomes
+    the two of you.
+  - **Player-built worlds** author their secret, its keepsake (from a kit of parts, so it fits the
+    home's art) and its qualities. They never pick a box.
+- ✅ **H8 — Invitation, not lock.** No world is ever gated behind another. Any order or suggestion
+  lives in what the home shows and in gentle nudges (the Gateway surfacing worlds, the companion
+  perking up at them), never in where you're allowed to go. Being able to follow a friend anywhere
+  always beats progression.
 
 ---
 
@@ -72,13 +106,33 @@ not as a plan to act on.
   honest. *Built:* `claim_secret` checks the spec's `secret.id` **and** that the player's last
   reported position (the ~20 Hz `state` stream the World process already keeps) is within the
   secret's `radius`. Answers `secret_found {id, new}` or `secret_refused`.
-- ⬜ **S-4 — Solving together.** If two players crack a secret together, do both get it? (Leaning
-  "yes", since solvable alone and better together, but it needs a decision on what "together" means:
-  same world at the moment of solving? helped?)
+- ✅ **S-4 — Solving together. (Decided 2026-10-31.)**
+  - **Who gets it: revealed for everyone present.** When a player solves a world's puzzle, the secret
+    is revealed for everyone in the world at that moment, and **each person takes their own** by
+    examining it, so everyone gets their own finding moment. (The maze already works this way: each
+    player has their own seed at the heart.) Anyone arriving later can still find it themselves.
+  - **"With whom" (the journal, HS-5): only friends near you.** The people recorded are those on your
+    friends list who are within roughly a screen of you when you take it. Strangers never appear in
+    your journal. Until friends exist (FR-1), nobody is recorded.
+  - **"Found together" with your companion (HS-3): beside you when taken.** The companion is within a
+    short distance of you at the moment you take it.
+  - **The moment names them.** The fade-to-black card adds a soft line, e.g. "Found with Sam." It
+    names the same people as the journal's "with whom" (friends near you); with nobody to name, the
+    moment is unchanged.
+  - *Implications for building:* at claim time the server judges and stores the `together` flag
+    (companion distance, from the `c` the client already streams) and the nearby friends (from the
+    world's transforms, once a friends list exists). A puzzle that "reveals" a secret needs a shared,
+    per-world revealed state (like the Ruin's wards) separate from each player's own find.
 - ✅ **S-5 — The moment of finding: small and warm.** Decided: no popups or fanfare. The companion
   perks up and noses the find, a gentle line plays (for the seed: "A curled seed from the oldest
   hedge… it wants to be planted somewhere of your own"), and a soft note says something changed at
   home.
+  - **Revised after playtest (2026-10-31): "a little underwhelming" as a hint line.** It's now a
+    whole-screen **moment**: the companion perks up, the world fades to black, the found line rises
+    in white at the centre, "Something has changed at home." joins it softly a beat later, they hold,
+    and the world fades back with the seed gone (it's taken while the screen is dark). About 8 s in
+    all. Built as a reusable `play_moment(line, aside)` on the world controller (timings are the
+    `MOMENT_*` constants), so later secrets get the same beat for free.
 
 ### The secrets themselves (one per world; authored one at a time)
 Each needs its own design pass. Per P-2 in the direction doc, aim for 2–3 routes of differing
@@ -113,37 +167,109 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ✅ **HW-2 — The empty home: a small glade that grows.** Decided: a snug clearing that is cozy
   even with nothing in it. Each discovery doesn't just appear, it **widens the home** (new ground, a
   new corner), so more discoveries make a bigger, richer place and a friend's home literally looks
-  traveled. *Built:* the base glade (800×660) has a pond, a bench, a lantern, a mushroom ring, a log,
+  traveled. **Superseded in part by H6:** growth will no longer be "a chunk per discovery" (see
+  HS-4); the empty glade itself stands. *Built:* the base glade (800×660) has a pond, a bench, a lantern, a mushroom ring, a log,
   a HOME signpost ("…keeping space for things you haven't found yet") and a portal back to the Vale's
   Gateway. Each discovery's authored `area` widens the bounds, and the border treeline is re-baked
   around the new size.
-- 🔶 **HW-3 — Where each discovery appears.** Since the home is display-only (H2), each discovery
+- 🅿️ **HW-3 — Where each discovery appears. (Superseded by H6/H7: discoveries become keepsakes the
+  companion places, plus qualities; see HS-1..HS-6.)** Since the home is display-only (H2), each discovery
   has an authored place in the home. A discovery should *change the place* (a glowing pool opens, a
   carved pillar stands), not sit on a shelf. Each one quietly hints at where it came from.
   *First one built:* the hedge seed grows the glade **east** into a walkable hedge spiral, with the
   sprout (examinable) at its heart and a path leading to its entrance. The rest are authored as each
   world's secret is designed.
-- ⬜ **HW-4 — The companion at home.** Does the companion relate to the discoveries (favourite spots,
-  lingering by things it found with you)? Ties to companion-as-self.
+- 🔶 **HW-4 — The companion at home.** Does the companion relate to the discoveries (favourite spots,
+  lingering by things it found with you)? Ties to companion-as-self. *Mostly answered by HS-3:* it
+  naps beside its favourite keepsake and nudges keepsakes you examine.
 - ✅ **HW-5 — Getting home: the Gateway, on its own tab. (Built.)** Decided: the Gateway's world picker gets a
   **separate tab** holding **your home** (and, later, friends' homes, per H4/FR-4), apart from the
   catalog worlds. No Vale portal. Leaving home returns you to the Gateway like any catalog world.
 
-### Friends & visiting
-- ⬜ **FR-1 — A friends list.** There's no friend system today; identity is only the local token.
-  Sending, accepting, and removing friends, stored server-side. *Note:* CLAUDE.md puts real
-  **authentication** out of scope; a friends list over the token is fine, but it's worth a
-  conscious check that it doesn't need accounts.
-- ⬜ **FR-2 — How you find someone to friend.** You meet them in a shared world (tap their avatar)?
-  A share code? Both? Decides how friend requests start.
-- ⬜ **FR-3 — Invitations.** H3 says "invitation/friend request". Is an invite a one-off pass for a
-  non-friend, or just "friends can always come"? Decide if both exist.
-- ⬜ **FR-4 — Friends' homes in the Gateway.** The world picker lists friends' homes (H4): with their
-  name, maybe how many discoveries, maybe whether they're home now. *Reuse:* `WorldPicker` /
-  `WorldDirectory`, `list_worlds`.
-- ⬜ **FR-5 — Visiting etiquette.** Can you visit when the owner is offline? What does a visitor see
-  or do (look only; examine discoveries for their hint)? Safety: the owner can remove a friend at any
-  time, and visiting must never be possible without consent.
+### Home scaling: qualities, keepsakes, journal (from H6/H7; all open)
+- ✅ **HS-1 — The quality vocabulary. (Decided 2026-10-31.)** A **small core set** we define,
+  about eight to start: *glowing, watery, green, old, warm, wild, crafted, quiet*. Makers pick from
+  it; they can't invent their own, so every quality is guaranteed to look good at home. We can grow
+  the set over time. Each find carries **1 to 3** qualities: enough to blend (a glowing, watery
+  find), few enough that each means something.
+- ✅ **HS-2 — How qualities show at home. (Decided 2026-10-31.)**
+  - **What they change: all four channels.** *Light and colour* (palette, glow at dusk, warmth),
+    *living things* (plants, flowers, small ambient creatures), *features* (bigger elements past a
+    threshold, e.g. enough watery finds and a stream winds through the glade), and *sound* (an
+    ambient soundscape; the game has almost no audio yet, so this channel is mostly future work).
+  - **How they respond: proportions, gently.** The home leans toward your *mix* of qualities: a
+    balanced wanderer gets a bit of everything, a night-lover's home glows. Features appear only once
+    a quality is a clear part of you. Every effect is capped, so no mix can make the home garish, and
+    the empty glade still stands on its own (HW-2).
+  - *Open detail for authoring time:* what each of the eight qualities does in each channel, and the
+    thresholds for features.
+- ✅ **HS-3 — Keepsakes and the companion's choice. (Decided 2026-10-31.)**
+  - **How many:** the number of keepsake spots **grows with the bond**, from 3 to about 7. The home
+    reflects the two of you, so it widens as you grow closer, not as you rack up finds. Always
+    bounded.
+  - **How it chooses: personality + shared moments.** Each keepsake carries a small temperament
+    (curiosity / energy / clinginess, the same keys and 0..1 scale as the companion's identity
+    traits and the daemon form's `species_profiles`). The companion favours keepsakes whose
+    temperament is nearest its **grown identity**, the same nearest-match it already uses to pick
+    its signature form. Finds made **together** (the companion right beside you when it was found)
+    count extra. A curious companion keeps the strange things; a snug one keeps the warm ones.
+  - **Changes slowly, with a visible swap.** Choices are stable. When a new find beats a current
+    favourite, the companion makes the swap itself: on your next visit home it's carrying the old
+    keepsake off to the journal and settling the new one. Rare and noticeable, never churning.
+  - **It reads as its own choice through behaviour, not UI.** At home it drifts to and naps beside
+    its favourite keepsake and nudges a keepsake when you examine it, and each keepsake's examine
+    line is written from its point of view ("it won't let anyone else near this one"). This also
+    answers most of HW-4.
+  - *Implications for building (not yet planned):* a find needs to remember whether the companion
+    was with you (a `together` flag on the discovery, judged at claim time); each secret authors its
+    keepsake's temperament; and the chosen set must be **stored** server-side, not recomputed, so
+    choices stay stable and a swap is an event the home can play.
+- ✅ **HS-4 — The glade grows with the keepsake spots. (Decided 2026-10-31.)** The glade widens a
+  little each time the bond adds a keepsake spot (3 to about 7), so size, spots and bond move
+  together. Bounded, and growth follows the relationship, not the number of worlds visited.
+- ✅ **HS-5 — The journal. (Decided 2026-10-31.)**
+  - **Where:** a **book on a stand in your home** that you, or a visiting friend, can examine and
+    leaf through, and also **from the gear menu** anywhere.
+  - **An entry shows:** the keepsake (a small picture) and its found line; **the world it came
+    from**, with a way to travel there (an invitation, per H8); and **when, and with whom** (the
+    date, and the friends who were there). No companion's note.
+  - *Implication:* "with whom" means a find must remember who else was in the world when it was
+    claimed (alongside S-4 and the HS-3 `together` flag).
+- ✅ **HS-6 — The hedge spiral becomes the seed's keepsake. (Decided 2026-10-31.)** The spiral
+  shrinks into a keepsake, a small potted spiral hedge, that the companion may or may not choose to
+  display like any other. The per-discovery "chunk" (the eastern growth, the walkable spiral)
+  retires when the keepsake system is built.
+
+### Friends & visiting (all decided 2026-10-31)
+- ✅ **FR-0 — Player names.** Players have no names today: everyone is relayed to others as
+  "Friend" (`PresenceDirector._local_identity`). Decided: **generated cozy names now**, two
+  friendly words (e.g. "Mossy Lantern", "Quiet Fern") the player can re-roll until they like one.
+  No free text, so nothing needs moderating yet. **Free-text names come later**, only once
+  moderation is in place (the CLAUDE.md child-safety note).
+- ✅ **FR-1 — A friends list.** Sending, accepting and removing friends, stored server-side and keyed
+  by `user_id`. It needs no accounts: like the companion and the wardrobe, it hangs off the identity
+  token, so (as with everything else today) losing the device's token loses it too. Real accounts
+  stay out of scope.
+- ✅ **FR-2 — How a friend request starts: both ways.** **Tap a player nearby** in a shared world to
+  see their name and a "Befriend" option (they get a gentle request to accept), **or** enter their
+  short **friend code**, shared outside the game.
+- ✅ **FR-3 — Visits: friends anytime, plus one-off invites.** Being friends is the permission:
+  friends can visit your home anytime. You can also **tap a nearby non-friend and choose "Invite
+  home"**. If they accept, they travel to your home with you right away, and the invite is good for
+  **that one visit only**.
+- ✅ **FR-4 — Friends' homes in the Gateway.** The Homes tab lists your home and each friend's. A
+  friend's card shows **their name** ("Mossy Lantern's home"), **whether they're home** right now, and
+  **whether they're currently playing** (online anywhere).
+- ✅ **FR-5 — Visiting etiquette and safety.**
+  - **Visits work while you're offline.** Your home is a place, so it's always there for friends.
+  - **Your companion stays home while you're away.** Visiting friends find it napping by its
+    favourite keepsake, and it greets them a little shyly. It's a stand-in drawn from your
+    companion's look; your real companion is still only yours.
+  - **Safety controls from the start:** **remove a friend** (quietly, they're not told); **send a
+    visitor home** (back to the Gateway) while they're there; **block someone** (no more friend
+    requests or invites from them, and they can't see you in the Homes tab); and **close my home**,
+    a switch that pauses all visits, friends included.
+  - Visiting must never be possible without consent: a friendship or a just-accepted one-off invite.
 
 ---
 
@@ -182,6 +308,57 @@ Built: S-1, S-2, S-3, S-5, W-4, HW-1 (owner only), HW-2, HW-3 (hedge seed only),
   deps.
 - **Deploy note:** the new migration must run, and the maze's seed reaches the live game only when
   the server's seeds re-run (they do, idempotently, on container boot).
+
+## Second slice — built (2026-10-31): friends, visiting, keepsakes, qualities, the journal
+
+Built: FR-0..FR-5, HS-1..HS-6, S-4 (except the shared "revealed for everyone" state, see below), the
+fade-to-black moment naming friends.
+
+- **Server:** migration `create_friends_and_homes` (names + friend codes on `accounts`; `friendships`,
+  `friend_requests`, `blocks`, `homes`; `together` / `with_ids` / `card` on `discoveries`).
+  - `Server.Profiles`: generated names and codes.
+  - `Server.Friends`: requests, accepting, quiet removal, blocks, and live events on each player's
+    own `user:<id>` PubSub topic.
+  - `Server.Homes` + `Server.HomePasses`: home state, who may visit, invite offers and one-visit passes.
+  - `Server.Social`: the friends snapshot, an `online` Presence topic, evictions.
+  - `Server.HomeWorld`, rebuilt around keepsakes + qualities; `priv/home/home.json`, regenerated.
+  - In `world_channel.ex`, the server now stamps the player's name on the identity relay, and the
+    channel handles the new events: `reroll_name`, `friend_*`, `block`, `invite_home` /
+    `invite_answer`, `send_home`, `set_home_closed`, `set_keepsakes`, `journal`, `friends`.
+  - `claim_secret` records `together` / `with` and a card.
+  - The maze's secret gained `qualities` and its `keepsake`. Finds made before cards existed fall back
+    to the template's `legacy_cards`, so an existing hedge seed becomes the potted hedge.
+- **Client:**
+  - `KeepsakeChoice` (pure, `scripts/world`, 9 tests).
+  - `SocialDirector` + `HomeDirector` (`scripts/presentation/mechanics`).
+  - `CozySheet` / `ChoiceCard` / `FriendsPanel` / `JournalPanel` (`scripts/presentation`).
+  - Tapping another player opens their card; Friends and Journal are in the gear menu; the Gateway's
+    Homes tab lists friends' homes.
+  - `potted_hedge` and `journal_stand` props.
+  - The `Net` messages for all of the above.
+- **How it plays (owner):** on arriving home, the companion looks over your finds, settles new ones
+  into empty spots, swaps one at most when a find is clearly better loved (you see it carry the old one
+  off), then settles by its favourite. The choice and the bond's spots go to the server. The glade
+  widens on the next visit when the bond has opened a spot.
+- **How it plays (visitor):** a friend's home while they're away has their companion napping by its
+  favourite keepsake. It peeks up at you, and steps aside the moment the owner arrives.
+- **Not built (no consumer yet):** S-4's shared, per-world "revealed" state for puzzle secrets. The
+  maze already gives each player their own seed; this lands with the first puzzle-gated secret. The
+  **sound** channel of qualities (HS-2) is also still future: the game has almost no audio.
+- **Verified:**
+  - Server: `mix test`, 156 tests. The only failures are 4 pre-existing economy/trade tests: Postgres
+    `SUM` returns a `Decimal`, which `ledger_balance` subtracts with `-`. They're unrelated to this
+    work.
+  - Getting there in this sandbox: hex is blocked, so the deps came from GitHub tags through a
+    local-only `mix.local.exs`, with Elixir 1.16 on OTP 25, not the pinned 1.17/27.
+  - Client: the Godot unit suite shows the same 10 failures as a clean `main`.
+  - Runtime harness over the real world scene, all checks passing: a player card on tap, the Friends
+    panel, the journal, a modal invite, the moment naming a friend, the Homes tab with friends, the
+    owner's companion placing a keepsake, and a friend's resident that greets you and steps aside for
+    its owner.
+  - A layout check confirmed nothing sits in the border treeline at 3 or 7 spots, which moved one
+    quality item.
+- **Fixed along the way:** a missing home pass read as valid, because monotonic time can be negative.
 
 ## How we work through it
 

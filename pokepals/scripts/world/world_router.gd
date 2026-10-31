@@ -36,6 +36,10 @@ var current_world := VALE_ID
 ## own player_spawn/companion_spawn (a fresh boot).
 var arrival_portal_id := ""
 
+## A line to show when the next world finishes loading ("That home is closed…", "You head home…"),
+## consumed by world_controller on arrival. Empty = the world's own greeting.
+var arrival_hint := ""
+
 ## True from the moment go_to() is called until world_controller consumes it on _ready(),
 ## so the arriving world knows to fade in from black rather than pop into view.
 var pending_transition := false

@@ -15,6 +15,11 @@ defmodule Server.Discovery do
     field :user_id, :binary_id, primary_key: true
     field :discovery_id, :string, primary_key: true
     field :world_id, :binary_id
+    # S-4/HS-3/HS-5: whether the companion was beside you, which friends were near you, and a
+    # snapshot of the find (world name, keepsake, qualities, found line) for the journal + the home.
+    field :together, :boolean, default: false
+    field :with_ids, {:array, :binary_id}, default: []
+    field :card, :map, default: %{}
     timestamps(type: :utc_datetime_usec, updated_at: false)
   end
 
