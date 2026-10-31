@@ -172,11 +172,22 @@ small game, patience, a time of day, a form only the companion can take, or just
   catalog worlds. No Vale portal. Leaving home returns you to the Gateway like any catalog world.
 
 ### Home scaling: qualities, keepsakes, journal (from H6/H7; all open)
-- ⬜ **HS-1 — The quality vocabulary.** Which qualities exist to start, whether makers can add new
-  ones (and how an unknown quality still means something at home), and how many a secret carries.
-- ⬜ **HS-2 — How qualities show at home.** What each quality changes (light, water, plants, sound,
-  creatures, palette), how strongly, and how they blend. Must stay cozy whatever the mix, and an
-  empty glade still has to stand on its own (HW-2).
+- ✅ **HS-1 — The quality vocabulary. (Decided 2026-10-31.)** A **small core set** we define,
+  about eight to start: *glowing, watery, green, old, warm, wild, crafted, quiet*. Makers pick from
+  it; they can't invent their own, so every quality is guaranteed to look good at home. We can grow
+  the set over time. Each find carries **1 to 3** qualities: enough to blend (a glowing, watery
+  find), few enough that each means something.
+- ✅ **HS-2 — How qualities show at home. (Decided 2026-10-31.)**
+  - **What they change: all four channels.** *Light and colour* (palette, glow at dusk, warmth),
+    *living things* (plants, flowers, small ambient creatures), *features* (bigger elements past a
+    threshold, e.g. enough watery finds and a stream winds through the glade), and *sound* (an
+    ambient soundscape; the game has almost no audio yet, so this channel is mostly future work).
+  - **How they respond: proportions, gently.** The home leans toward your *mix* of qualities: a
+    balanced wanderer gets a bit of everything, a night-lover's home glows. Features appear only once
+    a quality is a clear part of you. Every effect is capped, so no mix can make the home garish, and
+    the empty glade still stands on its own (HW-2).
+  - *Open detail for authoring time:* what each of the eight qualities does in each channel, and the
+    thresholds for features.
 - ✅ **HS-3 — Keepsakes and the companion's choice. (Decided 2026-10-31.)**
   - **How many:** the number of keepsake spots **grows with the bond**, from 3 to about 7. The home
     reflects the two of you, so it widens as you grow closer, not as you rack up finds. Always
