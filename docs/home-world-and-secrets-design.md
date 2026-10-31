@@ -164,8 +164,9 @@ small game, patience, a time of day, a form only the companion can take, or just
   *First one built:* the hedge seed grows the glade **east** into a walkable hedge spiral, with the
   sprout (examinable) at its heart and a path leading to its entrance. The rest are authored as each
   world's secret is designed.
-- ⬜ **HW-4 — The companion at home.** Does the companion relate to the discoveries (favourite spots,
-  lingering by things it found with you)? Ties to companion-as-self.
+- 🔶 **HW-4 — The companion at home.** Does the companion relate to the discoveries (favourite spots,
+  lingering by things it found with you)? Ties to companion-as-self. *Mostly answered by HS-3:* it
+  naps beside its favourite keepsake and nudges keepsakes you examine.
 - ✅ **HW-5 — Getting home: the Gateway, on its own tab. (Built.)** Decided: the Gateway's world picker gets a
   **separate tab** holding **your home** (and, later, friends' homes, per H4/FR-4), apart from the
   catalog worlds. No Vale portal. Leaving home returns you to the Gateway like any catalog world.
@@ -176,10 +177,27 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ⬜ **HS-2 — How qualities show at home.** What each quality changes (light, water, plants, sound,
   creatures, palette), how strongly, and how they blend. Must stay cozy whatever the mix, and an
   empty glade still has to stand on its own (HW-2).
-- ⬜ **HS-3 — Keepsakes and the companion's choice.** How many keepsake places the home has (fixed,
-  or a few more at milestones), how the companion chooses (temperament, bond, recency, what you
-  found together), whether its choices change over time, and how that reads as *its* choice
-  (lingering by a favourite). Ties to HW-4.
+- ✅ **HS-3 — Keepsakes and the companion's choice. (Decided 2026-10-31.)**
+  - **How many:** the number of keepsake spots **grows with the bond**, from 3 to about 7. The home
+    reflects the two of you, so it widens as you grow closer, not as you rack up finds. Always
+    bounded.
+  - **How it chooses: personality + shared moments.** Each keepsake carries a small temperament
+    (curiosity / energy / clinginess, the same keys and 0..1 scale as the companion's identity
+    traits and the daemon form's `species_profiles`). The companion favours keepsakes whose
+    temperament is nearest its **grown identity**, the same nearest-match it already uses to pick
+    its signature form. Finds made **together** (the companion right beside you when it was found)
+    count extra. A curious companion keeps the strange things; a snug one keeps the warm ones.
+  - **Changes slowly, with a visible swap.** Choices are stable. When a new find beats a current
+    favourite, the companion makes the swap itself: on your next visit home it's carrying the old
+    keepsake off to the journal and settling the new one. Rare and noticeable, never churning.
+  - **It reads as its own choice through behaviour, not UI.** At home it drifts to and naps beside
+    its favourite keepsake and nudges a keepsake when you examine it, and each keepsake's examine
+    line is written from its point of view ("it won't let anyone else near this one"). This also
+    answers most of HW-4.
+  - *Implications for building (not yet planned):* a find needs to remember whether the companion
+    was with you (a `together` flag on the discovery, judged at claim time); each secret authors its
+    keepsake's temperament; and the chosen set must be **stored** server-side, not recomputed, so
+    choices stay stable and a swap is an event the home can play.
 - ⬜ **HS-4 — Does the glade still grow?** Gentle growth at a few milestones, or fixed size with
   only character changing.
 - ⬜ **HS-5 — The journal.** Where it lives (the gear menu, a book at home, both), what an entry shows
