@@ -184,8 +184,11 @@ not a blocker** — pick it up if/when a shared world wants it.
 > built (solo, owner-only homes):** the Maze's heart hides a **hedge seed**. Examine it, the server
 > judges the claim (`claim_secret`), and your home (`"world:home:" <> user_id`, built per player by
 > `Server.HomeWorld` from `priv/home/home.json` + a `discoveries` table) grows east into a little
-> hedge spiral. Reached from the Gateway picker's **Homes** tab. Client: `SecretDirector`. Friends and
-> visiting are next (FR-1..FR-5).
+> hedge spiral. Reached from the Gateway picker's **Homes** tab. Client: `SecretDirector`. **Decided
+> since (H6–H8):** worlds will be unbounded and player-built, so no world is boxed into a type or
+> gated behind another. The **journal** records every find; the bounded **home reflects you**, its
+> character shaped by the finds' open-ended *qualities*, with **keepsakes your companion chooses**.
+> The one-chunk-per-world growth is superseded (open items HS-1..HS-6); friends and visiting are FR-1..FR-5.
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping

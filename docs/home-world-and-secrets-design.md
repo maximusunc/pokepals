@@ -34,10 +34,12 @@ progression.
 ## Framing decisions (settled — these anchor everything after)
 
 - ✅ **H1 — One secret per world.** Each destination world holds exactly **one** secret. Clean,
-  legible, and it maps one-to-one to one discovery in your home. No side-collectibles.
+  legible, and it maps one-to-one to one discovery in your record (your journal, see H6). No
+  side-collectibles.
 - ✅ **H2 — The home is a display only.** Discoveries appear in the home world when earned; the
-  player **does not arrange or place** them. (Where each one appears is authored, see HW-3.) It is
-  a reflection of your journey, not a decorating game.
+  player **does not arrange or place** them. It is a reflection of your journey, not a decorating
+  game. (Since H6/H7: what the home shows is shaped by your finds' qualities and chosen by your
+  companion; still never by the player.)
 - ✅ **H3 — Visits by friendship only.** You can visit a home only if its owner has accepted you as a
   **friend** (friend request) or invited you. No open/public browsing of homes.
 - ✅ **H4 — The Gateway links to friends' homes.** The Gateway's world picker gains friends' homes as
@@ -47,6 +49,37 @@ progression.
   of the **companion** beats (the finding, the form-verb objects); it gets **no** world secret.
   Today's destination worlds each get one: **the Ruin, Nocthollow, the Riverbank, the Maze, the
   Bazaar**. New worlds author theirs from day one.
+- ✅ **H6 — The home reflects you; the journal records everything. (Decided 2026-10-31, replacing
+  "one home chunk per world".)** The game should grow to an unbounded number of worlds, including
+  ones players build, so the home can't hold a piece of every world and worlds must never be filed
+  into a fixed set of types. So the two jobs split:
+  - **The record is infinite and unboxed.** Every secret you've found is kept, with no categories:
+    your **journal** (or atlas), browsable by you and your friends. A world built tomorrow fits the
+    same as ours.
+  - **The home is bounded and reflects who you've become by wandering**, the way the companion's
+    look reflects its grown identity rather than listing everything it's done. It does this in two
+    ways (both decided): **qualities** shape the home's character, and **your companion chooses the
+    keepsakes** it displays (H7).
+  - *Considered and set aside:* finite world types, each with a home area (filled by a "main" world,
+    detailed by others). It solved size, but boxed worlds into types, which an unbounded,
+    player-built catalog can't have.
+- ✅ **H7 — Qualities shape the home; the companion picks the keepsakes.**
+  - **Qualities:** each secret carries a few open-ended qualities, written by the world's maker
+    (*glowing, watery, green, old, warm, wild, crafted, quiet…*). They describe the **find**, not the
+    world, several can apply, and they **blend** rather than sort. Your home's character drifts
+    toward the blend of what you've found: many glowing finds and the glade glimmers at dusk, many
+    watery ones and a stream starts to wind through it. Mechanically this mirrors how the
+    companion's identity already drifts.
+  - **Keepsakes:** each secret yields a keepsake. The home has a **bounded** number of places for
+    them, and the **companion** decides which finds live there, from its personality and the bond (a
+    curious companion keeps the strangest things, a cozy one the warmest). The home literally becomes
+    the two of you.
+  - **Player-built worlds** author their secret, its keepsake (from a kit of parts, so it fits the
+    home's art) and its qualities. They never pick a box.
+- ✅ **H8 — Invitation, not lock.** No world is ever gated behind another. Any order or suggestion
+  lives in what the home shows and in gentle nudges (the Gateway surfacing worlds, the companion
+  perking up at them), never in where you're allowed to go. Being able to follow a friend anywhere
+  always beats progression.
 
 ---
 
@@ -119,11 +152,13 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ✅ **HW-2 — The empty home: a small glade that grows.** Decided: a snug clearing that is cozy
   even with nothing in it. Each discovery doesn't just appear, it **widens the home** (new ground, a
   new corner), so more discoveries make a bigger, richer place and a friend's home literally looks
-  traveled. *Built:* the base glade (800×660) has a pond, a bench, a lantern, a mushroom ring, a log,
+  traveled. **Superseded in part by H6:** growth will no longer be "a chunk per discovery" (see
+  HS-4); the empty glade itself stands. *Built:* the base glade (800×660) has a pond, a bench, a lantern, a mushroom ring, a log,
   a HOME signpost ("…keeping space for things you haven't found yet") and a portal back to the Vale's
   Gateway. Each discovery's authored `area` widens the bounds, and the border treeline is re-baked
   around the new size.
-- 🔶 **HW-3 — Where each discovery appears.** Since the home is display-only (H2), each discovery
+- 🅿️ **HW-3 — Where each discovery appears. (Superseded by H6/H7: discoveries become keepsakes the
+  companion places, plus qualities; see HS-1..HS-6.)** Since the home is display-only (H2), each discovery
   has an authored place in the home. A discovery should *change the place* (a glowing pool opens, a
   carved pillar stands), not sit on a shelf. Each one quietly hints at where it came from.
   *First one built:* the hedge seed grows the glade **east** into a walkable hedge spiral, with the
@@ -134,6 +169,23 @@ small game, patience, a time of day, a form only the companion can take, or just
 - ✅ **HW-5 — Getting home: the Gateway, on its own tab. (Built.)** Decided: the Gateway's world picker gets a
   **separate tab** holding **your home** (and, later, friends' homes, per H4/FR-4), apart from the
   catalog worlds. No Vale portal. Leaving home returns you to the Gateway like any catalog world.
+
+### Home scaling: qualities, keepsakes, journal (from H6/H7; all open)
+- ⬜ **HS-1 — The quality vocabulary.** Which qualities exist to start, whether makers can add new
+  ones (and how an unknown quality still means something at home), and how many a secret carries.
+- ⬜ **HS-2 — How qualities show at home.** What each quality changes (light, water, plants, sound,
+  creatures, palette), how strongly, and how they blend. Must stay cozy whatever the mix, and an
+  empty glade still has to stand on its own (HW-2).
+- ⬜ **HS-3 — Keepsakes and the companion's choice.** How many keepsake places the home has (fixed,
+  or a few more at milestones), how the companion chooses (temperament, bond, recency, what you
+  found together), whether its choices change over time, and how that reads as *its* choice
+  (lingering by a favourite). Ties to HW-4.
+- ⬜ **HS-4 — Does the glade still grow?** Gentle growth at a few milestones, or fixed size with
+  only character changing.
+- ⬜ **HS-5 — The journal.** Where it lives (the gear menu, a book at home, both), what an entry shows
+  (the keepsake, the world, when, with whom), and how friends browse it.
+- ⬜ **HS-6 — The hedge spiral.** What becomes of today's per-discovery chunk: the hedge seed's
+  keepsake, what "green" looks like at its fullest, or kept as a special landmark.
 
 ### Friends & visiting
 - ⬜ **FR-1 — A friends list.** There's no friend system today; identity is only the local token.
