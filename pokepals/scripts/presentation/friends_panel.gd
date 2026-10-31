@@ -9,6 +9,7 @@ extends CozySheet
 var _content: VBoxContainer
 var _code_field: LineEdit
 var _result: Label
+var _copy_button: Button
 
 
 func _build() -> void:
@@ -41,8 +42,10 @@ func _render() -> void:
 
 	# Who you are.
 	section("You", _content)
-	row(Net.my_name() if Net.my_name() != "" else "…", [CozySheet.pill("New name", Net.reroll_name)], _content,
-		"Your friend code: %s" % Net.friend_code())
+	row(Net.my_name() if Net.my_name() != "" else "…", [CozySheet.pill("New name", Net.reroll_name)], _content)
+	_copy_button = CozySheet.pill("Copy", _copy_code)
+	_copy_button.disabled = Net.friend_code() == ""
+	row("Friend code: %s" % Net.friend_code(), [_copy_button], _content, "Send it to a friend so they can add you.")
 
 	# Add by code.
 	section("Add a friend by code", _content)
@@ -92,6 +95,17 @@ func _render() -> void:
 	closed_toggle.toggled.connect(Net.set_home_closed)
 	_content.add_child(closed_toggle)
 	note("Friends can visit your home any time, even while you're away. Closing it pauses every visit.", _content)
+
+
+## Put our friend code on the clipboard (the browser's, on the web build), and say so on the button
+## for a moment.
+func _copy_code() -> void:
+	DisplayServer.clipboard_set(Net.friend_code())
+	var button := _copy_button
+	button.text = "Copied!"
+	get_tree().create_timer(1.5, true).timeout.connect(func() -> void:
+		if is_instance_valid(button):
+			button.text = "Copy")
 
 
 ## "In their home", "Playing", or "Away": how a friend is right now.
