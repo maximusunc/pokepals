@@ -14,6 +14,8 @@ var _river: Dictionary = {}  # { rect: Rect2, color: Color, rim: Color } — a l
 var _vein: Dictionary = {}   # { rect, color, rim, cracks } — the bazaar's sunken DRY riverbed artery, or empty
 var _paths: Array = []     # [ { from: Vector2, to: Vector2, color: Color } ]
 var _hedges: Array = []    # [ { a: Vector2, b: Vector2, t: float } ] — the maze's tall hedge walls
+var _walls: Array = []     # [ { a, b, t } ] — a souk's sandstone walls (the Bazaar's lane)
+var _roofs: Array = []     # [ Rect2 ] — the rooftops of the buildings around a souk's lane
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
 var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
@@ -248,6 +250,14 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_hedges.clear()
 	for h in data.get("hedges", []):
 		_hedges.append({ "a": WorldData.to_vec2(h["from"]), "b": WorldData.to_vec2(h["to"]), "t": float(h.get("thickness", 28.0)) })
+	# A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.
+	_walls.clear()
+	for w in data.get("walls", []):
+		_walls.append({ "a": WorldData.to_vec2(w["from"]), "b": WorldData.to_vec2(w["to"]), "t": float(w.get("thickness", 30.0)),
+			"face": String(w.get("face", "")) })
+	_roofs.clear()
+	for r in data.get("roofs", []):
+		_roofs.append(Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])))
 
 	# Flowers carry a per-element wind "phase" (seeded from position) so they don't all
 	# sway in lockstep — the breeze reads as organic, not a metronome.
@@ -273,6 +283,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
 			"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
 			"flare": 0.0,  # a touched glow-plant's blaze, 1 → 0 (see flare_interactable)
+			"person": it.has("person"),  # drawn as a real person (a PlayerView) elsewhere, not here
 		})
 
 	queue_redraw()
@@ -965,6 +976,9 @@ func _draw() -> void:
 
 	# the maze's hedge walls (tall, rounded, slightly extruded so they read as height)
 	_draw_hedges()
+	# a souk's rooftops, then its walls with their arches (the Bazaar's lane)
+	_draw_roofs()
+	_draw_walls()
 
 	# interactable props: contact shadow, the form-hint halo, optional warm glow, then the silhouette.
 	# Indexed (not a plain for-in) because the C-3 highlight set is keyed by index.
@@ -985,6 +999,8 @@ func _draw() -> void:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
 		# stateless props with baked pixel-art get drawn from the sprite and skip the match;
 		# stateful/animated ones (rock, slab, torch, …) fall through to their procedural draw
+		if bool(it.get("person", false)):
+			continue  # stands as a real person (a PlayerView, AmbientPalDirector), not drawn here
 		if _try_blit_prop(it):
 			continue
 		match String(it["type"]):
@@ -1026,6 +1042,8 @@ func _draw() -> void:
 				_draw_light_shaft(it["pos"], it["color"])
 			"warden_lantern":
 				_draw_warden_lantern(it["pos"], it["color"], bool(it.get("opened", false)))
+			"great_arch":
+				_draw_great_arch(it["pos"], it["color"])
 			_:
 				_draw_prop(it["type"], it["pos"], it["color"])
 
@@ -1469,6 +1487,77 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	return true
 
 
+## A souk's rooftops: the building mass beyond the lane's walls, in warm terracotta tile, each block a
+## little different so the skyline doesn't read as one flat sheet.
+func _draw_roofs() -> void:
+	for r: Rect2 in _roofs:
+		var shade := 0.88 + 0.12 * _phase_for(r.position)
+		var base := Color(0.46, 0.28, 0.22) * shade
+		base.a = 1.0
+		draw_rect(r, base)
+		var row := Color(0.34, 0.2, 0.16, 0.55)
+		var y := r.position.y + 9.0
+		while y < r.end.y:
+			draw_line(Vector2(r.position.x, y), Vector2(r.end.x, y), row, 1.0)
+			y += 10.0
+
+
+## A souk's walls: sandstone, extruded so they read as height, with dark arched openings along any
+## run whose open side faces down the screen (the side you see), a few of them glowing warmly.
+const WALL_HEIGHT := 22.0
+func _draw_walls() -> void:
+	if _walls.is_empty():
+		return
+	var lift := Vector2(0, -WALL_HEIGHT)
+	var front := Color(0.60, 0.43, 0.31)
+	var top := Color(0.80, 0.63, 0.45)
+	var hi := Color(0.92, 0.78, 0.58)
+	for w in _walls:
+		draw_line(w["a"] + Vector2(4, 8), w["b"] + Vector2(4, 8), Color(0.06, 0.03, 0.02, 0.25), float(w["t"]) + 2.0)
+	for w in _walls:
+		draw_line(w["a"], w["b"], front, float(w["t"]))
+	for w in _walls:
+		var a: Vector2 = w["a"]
+		var b: Vector2 = w["b"]
+		if absf(a.y - b.y) > 0.5 or String(w["face"]) != "down":
+			continue  # arches only on runs whose street side faces the viewer
+		var x0 := minf(a.x, b.x) + 16.0
+		var x1 := maxf(a.x, b.x) - 16.0
+		var base_y := a.y + float(w["t"]) * 0.5
+		var x := x0
+		while x + 14.0 <= x1:
+			var glow := _phase_for(Vector2(x, base_y)) > 0.7
+			var hole := Color(0.98, 0.72, 0.38, 0.85) if glow else Color(0.20, 0.12, 0.10)
+			draw_rect(Rect2(Vector2(x, base_y - 16.0), Vector2(12, 14)), hole)
+			draw_circle(Vector2(x + 6.0, base_y - 16.0), 6.0, hole)
+			x += 34.0
+	for w in _walls:
+		draw_line(w["a"] + lift, w["b"] + lift, top, float(w["t"]))
+	for w in _walls:
+		draw_line(w["a"] + lift + Vector2(0, -float(w["t"]) * 0.4), w["b"] + lift + Vector2(0, -float(w["t"]) * 0.4), hi, 2.0)
+
+
+## The souk's great arch (the far end of the lane, its way home): two carved pillars under a tall
+## horseshoe arch, a lantern hanging in its mouth.
+func _draw_great_arch(p: Vector2, color: Color) -> void:
+	var stone := color
+	var dark := color.darkened(0.35)
+	draw_rect(Rect2(p + Vector2(-60, -100), Vector2(18, 108)), stone)
+	draw_rect(Rect2(p + Vector2(42, -100), Vector2(18, 108)), stone)
+	draw_rect(Rect2(p + Vector2(-60, -100), Vector2(18, 108)), dark, false, 2.0)
+	draw_rect(Rect2(p + Vector2(42, -100), Vector2(18, 108)), dark, false, 2.0)
+	draw_arc(p + Vector2(0, -100), 51.0, PI, TAU, 32, stone, 18.0)
+	draw_arc(p + Vector2(0, -100), 60.0, PI, TAU, 32, dark, 2.0)
+	draw_arc(p + Vector2(0, -100), 42.0, PI, TAU, 32, dark, 2.0)
+	for k in 7:
+		var ang := PI + float(k + 1) / 8.0 * PI
+		draw_circle(p + Vector2(0, -100) + Vector2(cos(ang), sin(ang)) * 51.0, 2.5, color.lightened(0.35))
+	var flick := 0.85 + 0.15 * sin(_time * 6.0)
+	SoftGlow.draw(self, p + Vector2(0, -74), 30.0 * flick, Color(1.0, 0.74, 0.4, 0.4), 0.6)
+	draw_line(p + Vector2(0, -140), p + Vector2(0, -84), Color(0.3, 0.22, 0.16), 1.0)
+	draw_circle(p + Vector2(0, -76), 6.0, Color(1.0, 0.82, 0.48))
+
+
 ## The last Warden's lantern (W-1): an old iron lantern on a stone post before the great door. Dark and
 ## cold until it's relit (`lit`); then a warm flame and a pool of light. `size` scales it (the keepsake).
 func _draw_warden_lantern(p: Vector2, color: Color, lit: bool, size := 1.0) -> void:
@@ -1588,6 +1677,44 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			for k in 3:
 				draw_line(p + Vector2(-8, -16 + k * 2), p + Vector2(-3, -16 + k * 2), Color(0.55, 0.5, 0.45), 1.0)
 				draw_line(p + Vector2(3, -16 + k * 2), p + Vector2(8, -16 + k * 2), Color(0.55, 0.5, 0.45), 1.0)
+		"rug":
+			# a rug laid on the cobbles: a deep ground, a patterned border, a medallion
+			draw_rect(Rect2(p + Vector2(-26, -14), Vector2(52, 28)), color.darkened(0.15))
+			draw_rect(Rect2(p + Vector2(-26, -14), Vector2(52, 28)), color.lightened(0.25), false, 2.0)
+			draw_rect(Rect2(p + Vector2(-21, -9), Vector2(42, 18)), color.darkened(0.35), false, 1.0)
+			draw_colored_polygon(PackedVector2Array([p + Vector2(0, -7), p + Vector2(9, 0), p + Vector2(0, 7), p + Vector2(-9, 0)]), color.lightened(0.3))
+			for fx in [-28, 26]:
+				for fy in range(-12, 13, 4):
+					draw_line(p + Vector2(fx, fy), p + Vector2(fx + 2, fy), color.lightened(0.4), 1.0)
+		"spice_stall":
+			# a spice stall: a timber counter under a striped awning, heaped with bowls of colour
+			draw_rect(Rect2(p + Vector2(-20, -8), Vector2(3, 24)), Color(0.34, 0.26, 0.18))
+			draw_rect(Rect2(p + Vector2(17, -8), Vector2(3, 24)), Color(0.34, 0.26, 0.18))
+			draw_rect(Rect2(p + Vector2(-22, 4), Vector2(44, 10)), Color(0.48, 0.34, 0.22))
+			var spice_colors := [Color(0.86, 0.36, 0.16), Color(0.94, 0.72, 0.18), Color(0.58, 0.32, 0.18), Color(0.72, 0.16, 0.14), Color(0.62, 0.66, 0.26)]
+			var k0 := int(_phase_for(p) * 7.0)
+			for i in 4:
+				var bx := -15.0 + float(i) * 10.0
+				var sc: Color = spice_colors[(k0 + i) % spice_colors.size()]
+				draw_circle(p + Vector2(bx, 5), 5.0, Color(0.7, 0.56, 0.4))
+				draw_colored_polygon(PackedVector2Array([p + Vector2(bx - 4.5, 4), p + Vector2(bx + 4.5, 4), p + Vector2(bx, -2)]), sc)
+			for i in 5:
+				var awn := color if i % 2 == 0 else color.lightened(0.3)
+				draw_rect(Rect2(p + Vector2(-24 + i * 9.6, -20), Vector2(9.6, 10)), awn)
+			draw_line(p + Vector2(-24, -10), p + Vector2(24, -10), color.darkened(0.3), 1.5)
+		"fountain":
+			# the square's fountain: a round stone basin with water that catches the lantern light
+			draw_circle(p + Vector2(0, 6), 34.0, Color(0.10, 0.07, 0.06, 0.25))
+			draw_circle(p, 32.0, color.darkened(0.15))
+			draw_circle(p, 27.0, Color(0.20, 0.34, 0.42))
+			for k in 3:
+				var rr := fmod(_time * 7.0 + float(k) * 9.0, 27.0)
+				draw_arc(p, rr, 0.0, TAU, 32, Color(1.0, 0.86, 0.6, 0.35 * (1.0 - rr / 27.0)), 1.0)
+			draw_circle(p, 7.0, color)
+			draw_rect(Rect2(p + Vector2(-2, -18), Vector2(4, 16)), color.lightened(0.1))
+			for k in 6:
+				var ang := float(k) / 6.0 * TAU + _time * 0.4
+				draw_circle(p + Vector2(cos(ang), sin(ang) * 0.6) * 9.0 + Vector2(0, -16 + fmod(_time * 20.0 + k * 3.0, 10.0)), 1.2, Color(0.8, 0.92, 1.0, 0.8))
 		"kept_lantern":
 			# the Ruin's keepsake (W-1): the last Warden's lantern, small now, and lit for good
 			_draw_warden_lantern(p + Vector2(0, 4), color, true, 0.75)

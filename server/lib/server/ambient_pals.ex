@@ -21,9 +21,11 @@ defmodule Server.AmbientPals do
 
   The border-ring treeline is generated server-side now (`Server.WorldBorder`) and baked into the spec as
   `border_trees`; the sim adds those as tree circles like any other, so pals avoid the real treeline — the
-  same points the client draws and collides its avatars against. Only hedge segment walls are skipped
-  (they exist just in the maze, which has no pals). A pal that gets wedged abandons its target after a
-  moment (the stuck-guard) rather than grinding into a trunk forever.
+  same points the client draws and collides its avatars against. SEGMENT walls count too: the maze's
+  `hedges` and a souk's `walls` (each `from`/`to` with a `thickness`), pushed off their nearest point
+  exactly like the client's `Solids.nearest_point`, so the Bazaar's walking crowd stays in its lane. A
+  pal that gets wedged abandons its target after a moment (the stuck-guard) rather than grinding into a
+  trunk forever.
 
   Wire shape (`to_list/1`): `[%{id: String, p: [x, y], l: [lx, ly]}]` — position and a facing unit
   vector, the same `[x, y]` JSON encoding the live-transform fan-out uses.
@@ -182,7 +184,9 @@ defmodule Server.AmbientPals do
     {{hx + radius * :math.cos(ang), hy + radius * :math.sin(ang)}, rng2}
   end
 
-  # --- collision: the Elixir port of the client's Solids.build / Solids.resolve (circles only) ---
+  # --- collision: the Elixir port of the client's Solids.build / Solids.resolve ---
+  # An obstacle is a circle %{c: {x, y}, r} or a segment %{a: {x, y}, b: {x, y}, r} (a wall with half its
+  # thickness as r); both are handled through nearest_point/2, as on the client.
 
   defp build_obstacles(core) do
     cfg = Map.get(core, "collision", %{})
@@ -213,7 +217,23 @@ defmodule Server.AmbientPals do
         []
       end
 
-    trees ++ border ++ landmarks ++ props ++ ponds
+    walls =
+      for key <- ["hedges", "walls"], w <- list(Map.get(core, key)),
+          do: %{a: vec(Map.get(w, "from", [0, 0])), b: vec(Map.get(w, "to", [0, 0])), r: num(Map.get(w, "thickness", 28.0)) * 0.5}
+
+    trees ++ border ++ landmarks ++ props ++ ponds ++ walls
+  end
+
+  # The point of an obstacle nearest to (x, y): its centre for a circle, the closest point on the
+  # segment for a wall (the client's Solids.nearest_point).
+  defp nearest_point(%{c: c}, _p), do: c
+
+  defp nearest_point(%{a: {ax, ay}, b: {bx, by}}, {px, py}) do
+    dx = bx - ax
+    dy = by - ay
+    len2 = dx * dx + dy * dy
+    t = if len2 == 0, do: 0.0, else: clampf(((px - ax) * dx + (py - ay) * dy) / len2, 0.0, 1.0)
+    {ax + t * dx, ay + t * dy}
   end
 
   defp solid?(it, type), do: Map.get(it, "solid", Map.has_key?(@solid_types, type)) == true
@@ -247,7 +267,8 @@ defmodule Server.AmbientPals do
   end
 
   defp push_out(point, obs, r) do
-    Enum.reduce(obs, point, fn %{c: {cx, cy}, r: orr}, {x, y} ->
+    Enum.reduce(obs, point, fn %{r: orr} = o, {x, y} ->
+      {cx, cy} = nearest_point(o, {x, y})
       dx = x - cx
       dy = y - cy
       dist = :math.sqrt(dx * dx + dy * dy)
@@ -264,7 +285,8 @@ defmodule Server.AmbientPals do
 
   # Whether a point lies inside any solid (used to reject wander targets before committing to them).
   defp blocked?({x, y}, %__MODULE__{obstacles: obs, radius: r}) do
-    Enum.any?(obs, fn %{c: {cx, cy}, r: orr} ->
+    Enum.any?(obs, fn %{r: orr} = o ->
+      {cx, cy} = nearest_point(o, {x, y})
       dx = x - cx
       dy = y - cy
       dx * dx + dy * dy < (r + orr) * (r + orr)

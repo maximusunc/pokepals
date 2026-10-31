@@ -85,6 +85,28 @@ func spawn_pals(data: Dictionary) -> void:
 		_pals[id] = rc
 
 
+## The people who simply STAND somewhere: props carrying a 'person' look (the Bazaar's stallholders).
+## Each is the same remote PlayerView the walkers use, dressed from that look, parked at the prop's
+## spot and turned to its 'facing' (toward the lane). The server never moves them, so they're
+## purely local; the prop itself stays in the world data, so Examining it still reads its line.
+func spawn_standing_people(data: Dictionary) -> void:
+	for it in data.get("props", []):
+		if not (it is Dictionary) or not (it.get("person", null) is Dictionary):
+			continue
+		var pos := WorldData.to_vec2(it.get("position", [0, 0]))
+		var face := WorldData.to_vec2(it.get("facing", [0, 1]))
+		if face == Vector2.ZERO:
+			face = Vector2.DOWN
+		var pp := PLAYER_SCENE.instantiate() as PlayerView
+		pp.set_remote()
+		pp.name = "StandingPerson_%s" % String(it.get("id", ""))
+		pp.set_style(_style)
+		_scenery.add_child(pp)
+		pp.apply_identity((it["person"] as Dictionary).get("appearance", {}))
+		pp.position = pos
+		pp.set_remote_state(pos, face)
+
+
 ## Stand the ambient pals aside (or bring them back) while the FIRST-MEETING search runs — so every
 ## animal the searching player can see belongs to the search, and none of the set dressing reads as
 ## a candidate that mysteriously won't respond. The server keeps driving positions underneath (the
