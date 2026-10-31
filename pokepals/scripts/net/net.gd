@@ -93,6 +93,13 @@ signal world_join_failed(reason: String)
 ## stale answer can be told apart from the current search; `offset` is where this page starts. Each
 ## world is { world_id, slug, name, blurb, tags, accent, featured, players } — a card, never a spec.
 signal world_list_received(req: int, offset: int, worlds: Array, more: bool)
+## The world SECRETS we've found (ids), pushed on every world join, before the spec. Also kept on Net
+## (discoveries()), since it's per-player and outlives a world hop.
+signal discoveries_received(ids: Array)
+## The server honoured our claim of a world secret. `is_new` is false if we'd already found it.
+signal secret_found(secret_id: String, is_new: bool)
+## The server refused a secret claim (we weren't standing at it, or this world doesn't hide it).
+signal secret_refused(secret_id: String)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -150,6 +157,8 @@ var _session_save: Dictionary = {}
 # revisits skip the download — the server is asked only to confirm the cached etag is still current.
 # DEFERRED SEAM: CDN-fetched heavy assets (textures/audio) belong alongside this when worlds get large.
 var _world_specs: Dictionary = {}
+# The world secret ids we've found (server-canonical; refreshed on every join and on each new find).
+var _discoveries: Array = []
 
 
 func _ready() -> void:
@@ -358,6 +367,24 @@ func list_worlds(query: String, req: int, offset: int = 0, limit: int = 30) -> v
 	if not _can_send():
 		return
 	_push_event("list_worlds", { "q": query, "req": req, "offset": offset, "limit": limit })
+
+
+## Claim this world's SECRET (the examined find). The server judges it (it must be this world's secret,
+## and we must be standing at it) and answers secret_found / secret_refused. A no-op until joined.
+func claim_secret(secret_id: String) -> void:
+	if not _can_send():
+		return
+	_push_event("claim_secret", { "id": secret_id })
+
+
+## The world secret ids we've found so far (empty before our first join).
+func discoveries() -> Array:
+	return _discoveries
+
+
+## Whether we've already found the secret with this id.
+func has_discovery(secret_id: String) -> bool:
+	return _discoveries.has(secret_id)
 
 
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
@@ -619,6 +646,18 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var prop: Variant = payload.get("prop", "")
 			if prop is String and prop != "":
 				prop_flared.emit(prop)
+		"discoveries":
+			var ids: Variant = payload.get("ids", [])
+			_discoveries = (ids as Array).duplicate() if ids is Array else []
+			discoveries_received.emit(_discoveries)
+		"secret_found":
+			var fid := String(payload.get("id", ""))
+			if fid != "":
+				if not _discoveries.has(fid):
+					_discoveries.append(fid)
+				secret_found.emit(fid, bool(payload.get("new", false)))
+		"secret_refused":
+			secret_refused.emit(String(payload.get("id", "")))
 		"world_list":
 			var worlds: Variant = payload.get("worlds", [])
 			world_list_received.emit(
@@ -674,7 +713,8 @@ func _load_disk_cache() -> void:
 ## Mirror one world's cache entry to disk. world_id is a server UUID (used as the filename); guard
 ## against path-y ids just in case so a malformed id can never escape CACHE_DIR.
 func _persist_spec(world_id: String, entry: Dictionary) -> void:
-	if world_id == "" or world_id.contains("/") or world_id.contains("\\") or world_id.contains(".."):
+	# A home ("home:<owner>") isn't cached on disk: it's small, and ':' isn't a legal filename everywhere.
+	if world_id == "" or world_id.contains("/") or world_id.contains("\\") or world_id.contains("..") or world_id.contains(":"):
 		return
 	if not DirAccess.dir_exists_absolute(CACHE_DIR):
 		DirAccess.make_dir_recursive_absolute(CACHE_DIR)

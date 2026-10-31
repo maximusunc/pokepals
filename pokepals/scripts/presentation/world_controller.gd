@@ -58,6 +58,7 @@ const PORTAL_ARM_BUFFER := 18.0
 # every mechanic itself. See scripts/presentation/mechanics/.
 var _hunt_dir: HuntDirector
 var _maze_dir: MazeDirector
+var _secret_dir: SecretDirector
 var _shop_dir: ShopDirector
 var _presence_dir: PresenceDirector
 var _ambient_dir: AmbientPalDirector
@@ -343,6 +344,10 @@ func _create_directors() -> void:
 	add_child(_maze_dir)
 	_maze_dir.setup(self, _companion, _player)
 
+	_secret_dir = SecretDirector.new()
+	add_child(_secret_dir)
+	_secret_dir.setup(self, _companion, _world_art)
+
 	_shop_dir = ShopDirector.new()
 	add_child(_shop_dir)
 	_shop_dir.setup(self, _companion, _world_art, _scenery, _shop, _style)
@@ -374,6 +379,12 @@ func _create_directors() -> void:
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
 # public so each director can stay focused on its own mechanic and lean on the controller for the
 # things that are genuinely world-wide (the hint line, the goal HUD, portals, the wallet). ──
+
+## A world secret was picked up: it no longer prompts, so the cached nearest is stale. (The spot stays
+## one of the companion's points of interest; it may still wander over and sniff where the seed was.)
+func secret_taken() -> void:
+	_invalidate_nearest()
+
 
 ## Show a hint at full opacity (the directors' one channel to the hint line).
 func show_hint(text: String) -> void:
@@ -451,6 +462,9 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 	_return_label = ""
 
 	var combined: Array = data.get("props", []).duplicate()
+	# This world's one secret (the maze's hedge seed), unless we've already found it: the SecretDirector
+	# adds it as a prop so it draws and prompts like any other. See docs/home-world-and-secrets-design.md.
+	_secret_dir.setup_secret(data, combined)
 
 	var poi: Array = []
 	var poi_meta: Array = []
@@ -467,6 +481,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		# A "shopkeeper" prop is examinable like any other, but Examining it opens the shop window
 		# instead of the cozy examine beat — keyed off this kind in _try_interact.
 		var kind := "shopkeeper" if String(it.get("type", "")) == "shopkeeper" else "prop"
+		if it.has("secret"):
+			kind = "secret"
 		var entry := {
 			"pos": WorldData.to_vec2(it["position"]),
 			"label": String(it.get("label", "something")),
@@ -489,6 +505,9 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			# A glow-plant that blazes up when touched, seen by everyone in the world (see _try_interact).
 			"flare": bool(it.get("flare", false)),
 		}
+		if kind == "secret":
+			entry["secret"] = it["secret"]
+			_secret_dir.adopt_entry(entry)
 		_interactables.append(entry)
 		poi.append(entry["pos"])
 		poi_meta.append({ "pos": entry["pos"], "id": prop_id, "tags": entry["tags"] })
@@ -1111,6 +1130,8 @@ func _nearest_interactable_to_point(world: Vector2) -> int:
 			continue
 		if String(e.get("kind", "prop")) == "encounter_pal" and _encounter_dir.should_skip(e):
 			continue
+		if SecretDirector.is_taken(e):
+			continue
 		var d: float = world.distance_to(e["pos"])
 		if d <= best_dist:
 			best = i
@@ -1160,6 +1181,10 @@ func _try_interact() -> void:
 		return
 	if String(entry["kind"]) == "shopkeeper":
 		_shop_dir.open_shop(entry)
+		return
+	if String(entry["kind"]) == "secret":
+		_world_art.pulse_interactable(int(entry["render_index"]))
+		_secret_dir.examine(entry)
 		return
 	# A native creature: it lights up and hops at the attention, your companion perks up at it, and you
 	# read what it is. (Like the flock, it draws itself and holds no world_art render slot.)
@@ -1311,6 +1336,7 @@ func _show_world_picker(gateway: Dictionary) -> void:
 	_picker.process_mode = Node.PROCESS_MODE_ALWAYS  # still works if the lobby gate pauses the tree
 	if gateway.has("color"):
 		_picker.tint = gateway["color"]
+	_picker.homes = _home_cards()
 	_picker.fetch_requested.connect(func(query: String, req: int, offset: int) -> void: Net.list_worlds(query, req, offset))
 	_picker.world_chosen.connect(_on_gateway_world_chosen.bind(String(gateway["id"])))
 	_picker.closed.connect(_close_gateway)
@@ -1320,6 +1346,17 @@ func _show_world_picker(gateway: Dictionary) -> void:
 		Net.disconnected.connect(_dismiss_picker)
 	$UI.add_child(_picker)
 	_set_menu_open(true)
+
+
+## The Gateway's Homes tab: for now just our own home (friends' homes join it later, FR-4).
+func _home_cards() -> Array:
+	if Net.local_id() == "":
+		return []
+	var found := Net.discoveries().size()
+	var blurb := "A glade of your own, waiting to be filled." if found == 0 \
+		else "A glade of your own · %d %s" % [found, "discovery" if found == 1 else "discoveries"]
+	return [{ "world_id": WorldRouter.home_id(Net.local_id()), "name": "Your home", "blurb": blurb,
+		"accent": [0.62, 0.8, 0.62] }]
 
 
 func _close_gateway() -> void:
@@ -1340,7 +1377,8 @@ func _dismiss_picker() -> void:
 ## spawn). WorldRouter remembers we left by this gateway, so the way home sets us back down here.
 func _on_gateway_world_chosen(world_id: String, world_name: String, gateway_id: String) -> void:
 	_transitioning = true
-	_show_hint("You step through the great gate toward %s…" % world_name)
+	var toward := "home" if world_id.begins_with(WorldRouter.HOME_PREFIX) else world_name
+	_show_hint("You step through the great gate toward %s…" % toward)
 	# The picker melts away on its own while we fade to black. Your control stays off through the fade
 	# (the picker is still up until we leave), so you don't wander out of the gate mid-trip.
 	var tw := create_tween()
@@ -1392,6 +1430,9 @@ func _scan_nearest_interactable() -> int:
 			continue
 		# A native creature stood aside (the first-meeting search hides the world's animal life) doesn't prompt.
 		if String(e.get("kind", "prop")) == "creature" and not (is_instance_valid(e["view"]) and (e["view"] as Node2D).visible):
+			continue
+		# A world secret already picked up is gone.
+		if SecretDirector.is_taken(e):
 			continue
 		var d := _player.position.distance_to(e["pos"])
 		if d <= best_dist:
