@@ -122,6 +122,8 @@ func _refresh_avatar() -> void:
 		_avatar_layers = []
 		return
 	_avatar_layers = AvatarCompositor.load_layers(_appearance.resolved_layers(_catalog))
+	_pose_key = -1  # a new outfit is a new picture
+	queue_redraw()
 
 
 ## Hand the avatar its shared art direction (palette + light). Called by the world. The
@@ -163,7 +165,7 @@ func _process(delta: float) -> void:
 	# Face where we're heading; hold the last facing when standing still.
 	if velocity.length() > 8.0:
 		_facing = _facing.lerp(velocity.normalized(), 1.0 - exp(-8.0 * delta))
-	queue_redraw()
+	_redraw_if_pose_changed()
 
 
 ## A REMOTE puppet: no input, no collision (its owner is authoritative over it). We just glide
@@ -176,7 +178,36 @@ func _process_remote(delta: float) -> void:
 	velocity = (position - before) / maxf(delta, 0.0001)
 	var aim := velocity.normalized() if velocity.length() > 8.0 else _target_facing
 	_facing = _facing.lerp(aim, 1.0 - exp(-8.0 * delta))
-	queue_redraw()
+	_redraw_if_pose_changed()
+
+
+## Repaint only when the picture would actually change. A wardrobe avatar's image depends on just
+## two things: which way it faces (down / up / left / right) and which walk frame it's on (or the
+## standing pose). Moving it is the node's position, which needs no repaint. So someone standing
+## still is painted once, and someone walking about 8 times a second, not every frame: a crowd
+## (the Bazaar's 78 people) stops costing a full re-composite of every figure, every frame.
+## The procedural fallback look animates continuously, so it keeps repainting each frame.
+var _pose_key := -1
+
+
+func _redraw_if_pose_changed() -> void:
+	if not AvatarCompositor.has_drawable(_avatar_layers):
+		queue_redraw()
+		return
+	var f := _facing.normalized() if _facing.length() >= 0.01 else Vector2.DOWN
+	var dir := 3  # down
+	if f.y < -0.5:
+		dir = 0
+	elif absf(f.x) > 0.35:
+		dir = 1 if f.x > 0.0 else 2
+	var frame := -1
+	if velocity.length() > SpriteActor.MOVE_GATE:
+		var cfg: Dictionary = _avatar_layers[0].get("cfg", {})
+		frame = int(_time * float(cfg.get("fps", 8.0)))
+	var key := dir * 1000003 + frame + 1
+	if key != _pose_key:
+		_pose_key = key
+		queue_redraw()
 
 
 ## False while a menu is up over the live world (the Gateway's picker, the wardrobe): the world keeps
