@@ -165,7 +165,12 @@ func _ready() -> void:
 ## Build the whole world from its (server-provided) spec CORE: lay out contents, place the player and
 ## companion, draw it, wire collisions, regions, the UI buttons, and shared presence. Called straight
 ## from _ready when the spec is already cached, or from _on_world_spec_arrived on a cold first visit.
-func _build_world(data: Dictionary) -> void:
+func _build_world(cached: Dictionary) -> void:
+	# Build from our OWN copy. Laying a world out folds its secret, portals, gateway and hunt rocks into
+	# data["props"]; done on the shared cached spec, the second build of the same world in a session
+	# would find them already there and add them all again (a found secret then left a duplicate behind
+	# that could be "found" over and over).
+	var data: Dictionary = cached.duplicate(true)
 	var arrival_id := WorldRouter.arrival_portal_id
 
 	# Shared art direction (palette + light): the one place the whole look is tuned — re-skinned per

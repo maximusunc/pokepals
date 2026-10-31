@@ -11,27 +11,42 @@ var _frames := 0
 var _done := false
 
 
+var _phase := 1        # 1: the first build and its checks; 2: a second build of the same world
+var _fails := 0
+var _cache_props := 0  # how many props the cached spec held before we built anything
+
+
+func _build() -> void:
+	var router := root.get_node("/root/WorldRouter")
+	var net := root.get_node("/root/Net")
+	router.current_world = router.BAZAAR_ID
+	router.arrival_portal_id = "bazaar_entry"
+	router.pending_transition = true
+	var scene: PackedScene = load("res://scenes/world.tscn")
+	_world = scene.instantiate()
+	root.add_child(_world)
+	# world_controller defers its build until a join confirms the live spec; this is that confirmation.
+	net.emit_signal("world_spec_unchanged", router.BAZAAR_ID)
+
+
 func _process(_delta: float) -> bool:
 	_frames += 1
 	if _done:
 		return true
 
 	if _world == null:
-		var router := root.get_node("/root/WorldRouter")
-		var net := root.get_node("/root/Net")
-		net.prime_world_spec(router.BAZAAR_ID, WorldData.load_json("res://tests/world_fixtures/bazaar.json"))
-		router.current_world = router.BAZAAR_ID
-		router.arrival_portal_id = "bazaar_entry"
-		router.pending_transition = true
-		var scene: PackedScene = load("res://scenes/world.tscn")
-		_world = scene.instantiate()
-		root.add_child(_world)
-		# world_controller defers its build until a join confirms the live spec; this is that confirmation.
-		net.emit_signal("world_spec_unchanged", router.BAZAAR_ID)
+		if _phase == 1:
+			var router := root.get_node("/root/WorldRouter")
+			var net := root.get_node("/root/Net")
+			net.prime_world_spec(router.BAZAAR_ID, WorldData.load_json("res://tests/world_fixtures/bazaar.json"))
+			_cache_props = (net.cached_spec_core(router.BAZAAR_ID).get("props", []) as Array).size()
+		_build()
+		_frames = 0
 		return false
 	if _frames < 6:
 		return false
-	_done = true
+	if _phase == 2:
+		return _second_build_checks()
 
 	var fails := 0
 
@@ -65,6 +80,24 @@ func _process(_delta: float) -> bool:
 			owned = bool(c.get("owned", false))
 	fails += _check(owned, "the purchased colour is marked owned")
 
+	# The world's secret (the river-drop) is in the examine list exactly once, and laying the world out
+	# didn't write into the shared cached spec (it used to, so a second build doubled the secret).
+	fails += _check(_secret_entries() == 1, "the secret is in the world once (got %d)" % _secret_entries())
+	fails += _check(_cached_props() == _cache_props, "building didn't change the cached spec (%d props, was %d)" % [_cached_props(), _cache_props])
+
+	# Now build the same world again from the same cache, as a revisit in one session does.
+	_fails = fails
+	_world.queue_free()
+	_world = null
+	_phase = 2
+	return false
+
+
+func _second_build_checks() -> bool:
+	_done = true
+	var fails := _fails
+	fails += _check(_secret_entries() == 1, "a second build still has the secret once (got %d)" % _secret_entries())
+	fails += _check(_cached_props() == _cache_props, "the cached spec is still untouched (%d props)" % _cached_props())
 	if fails == 0:
 		print("ALL BAZAAR SMOKE CHECKS PASSED")
 		quit(0)
@@ -72,6 +105,19 @@ func _process(_delta: float) -> bool:
 		print("BAZAAR SMOKE FAILED: %d" % fails)
 		quit(1)
 	return true
+
+
+func _secret_entries() -> int:
+	var n := 0
+	for e in _world._interactables:
+		if String(e.get("kind", "")) == "secret":
+			n += 1
+	return n
+
+
+func _cached_props() -> int:
+	var router := root.get_node("/root/WorldRouter")
+	return (root.get_node("/root/Net").cached_spec_core(router.BAZAAR_ID).get("props", []) as Array).size()
 
 
 func _shopkeeper_entry() -> Dictionary:
