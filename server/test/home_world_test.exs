@@ -36,7 +36,8 @@ defmodule Server.HomeWorldTest do
     assert k["lore"] == "It guards this one."
     assert k["position"] == hd(template()["keepsake_spots"])
     assert core["home"]["keepsakes"] == ["hedge_seed"]
-    assert [%{"id" => "hedge_seed", "together" => true}] = core["home"]["finds"]
+    assert [%{"id" => "hedge_seed", "together" => true, "type" => "potted_hedge"}] = core["home"]["finds"]
+    assert length(core["home"]["spot_positions"]) == 3
   end
 
   test "keepsakes beyond the open spots, or with no find behind them, don't show" do

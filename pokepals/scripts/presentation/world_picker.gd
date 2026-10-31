@@ -294,6 +294,13 @@ func _card(w: Dictionary) -> Button:
 
 # --- events -------------------------------------------------------------------------------
 
+## Fresh Homes cards (a friend just came home, or the snapshot arrived): re-draw if they're showing.
+func set_homes(cards: Array) -> void:
+	homes = cards
+	if _tab == "homes" and is_inside_tree():
+		_render()
+
+
 func _on_tab_pressed(tab: String) -> void:
 	_tab = tab
 	_render()

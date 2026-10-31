@@ -1545,6 +1545,28 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_arc(p + Vector2(1, -3), 3.0, -PI * 0.2, PI * 1.3, 10, color.darkened(0.35), 1.5)
 			draw_circle(p + Vector2(-1.5, -5), 1.2, color.lightened(0.4))
 			draw_line(p + Vector2(3, -7), p + Vector2(6, -11), Color(0.55, 0.82, 0.42), 1.5)
+		"potted_hedge":
+			# the hedge seed's keepsake (HS-6): a clay pot holding a tiny spiral of clipped hedge
+			draw_rect(Rect2(p + Vector2(-9, -2), Vector2(18, 11)), Color(0.66, 0.4, 0.28))
+			draw_rect(Rect2(p + Vector2(-10, -4), Vector2(20, 4)), Color(0.74, 0.47, 0.32))
+			draw_line(p + Vector2(-8, 4), p + Vector2(8, 4), Color(0.56, 0.33, 0.22), 1.0)
+			draw_circle(p + Vector2(0, -11), 9.0, color.darkened(0.25))
+			draw_circle(p + Vector2(0, -12), 8.0, color)
+			draw_arc(p + Vector2(0, -12), 5.5, 0.2, TAU * 0.85, 14, color.darkened(0.4), 1.5)
+			draw_arc(p + Vector2(0.8, -12), 2.6, 1.4, TAU * 0.95, 10, color.darkened(0.4), 1.5)
+			draw_circle(p + Vector2(-3, -16), 1.3, color.lightened(0.35))
+		"journal_stand":
+			# a little wooden lectern with an open book: the home's journal (HS-5)
+			draw_rect(Rect2(p + Vector2(-2, -6), Vector2(4, 14)), color.darkened(0.2))
+			draw_rect(Rect2(p + Vector2(-7, 6), Vector2(14, 3)), color.darkened(0.3))
+			var top := PackedVector2Array([p + Vector2(-12, -8), p + Vector2(12, -8), p + Vector2(10, -16), p + Vector2(-10, -16)])
+			draw_colored_polygon(top, color)
+			draw_rect(Rect2(p + Vector2(-10, -18), Vector2(9, 8)), Color(0.96, 0.93, 0.84))
+			draw_rect(Rect2(p + Vector2(1, -18), Vector2(9, 8)), Color(0.93, 0.9, 0.8))
+			draw_line(p + Vector2(0, -18), p + Vector2(0, -10), Color(0.6, 0.5, 0.4), 1.0)
+			for k in 3:
+				draw_line(p + Vector2(-8, -16 + k * 2), p + Vector2(-3, -16 + k * 2), Color(0.55, 0.5, 0.45), 1.0)
+				draw_line(p + Vector2(3, -16 + k * 2), p + Vector2(8, -16 + k * 2), Color(0.55, 0.5, 0.45), 1.0)
 		"hedge_sprout":
 			# the seed, grown: a young sapling curling up out of a moss mound, a few bright leaves
 			draw_circle(p + Vector2(0, 5), 11.0, Color(0.34, 0.5, 0.3))

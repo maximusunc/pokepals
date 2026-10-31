@@ -67,15 +67,27 @@ func examine(entry: Dictionary) -> void:
 
 
 ## The server honoured the claim. Take the seed out of the world and play the small, warm beat.
-func _on_secret_found(secret_id: String, _is_new: bool) -> void:
+func _on_secret_found(secret_id: String, _is_new: bool, with_names: Array) -> void:
 	_claiming = false
 	if _entry.is_empty() or String(_entry["secret"]["id"]) != secret_id:
 		return
 	var secret: Dictionary = _entry["secret"]
 	_companion.delight_at(_entry["pos"])
-	_host.play_moment(String(secret.get("found_line", "")), String(secret.get("home_line", "")))
+	# S-4: the moment names the friends who were near you ("Found with Sam."), above the home line.
+	var aside := String(secret.get("home_line", ""))
+	if not with_names.is_empty():
+		aside = "Found with %s.\n%s" % [SecretDirector.names_phrase(with_names), aside]
+	_host.play_moment(String(secret.get("found_line", "")), aside)
 	# Taken under cover of the dark, so the world comes back without it.
 	get_tree().create_timer(_host.MOMENT_FADE_IN).timeout.connect(_take)
+
+
+## "Sam", "Sam and Wren", "Sam, Wren and Moss": how the moment names the friends who were there.
+static func names_phrase(names: Array) -> String:
+	var n: Array = names.map(func(x: Variant) -> String: return String(x))
+	if n.size() <= 1:
+		return "".join(n)
+	return ", ".join(n.slice(0, n.size() - 1)) + " and " + String(n[-1])
 
 
 func _on_secret_refused(_secret_id: String) -> void:

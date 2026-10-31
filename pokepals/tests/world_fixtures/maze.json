@@ -1982,7 +1982,9 @@
 		"prop": {"type": "hedge_seed", "color": [0.58, 0.44, 0.28], "label": "a curled seed", "tags": ["plant", "odd"]},
 		"lore": "Tucked in the moss at the very heart of the maze: a curled seed from the oldest hedge. It's warm, as if something inside it is already listening.",
 		"found_line": "A curled seed from the oldest hedge… it wants to be planted somewhere of your own.",
-		"home_line": "Something has changed at home."
+		"home_line": "Something has changed at home.",
+		"qualities": ["green", "quiet"],
+		"keepsake": {"id": "potted_hedge", "type": "potted_hedge", "color": [0.42, 0.66, 0.36], "label": "a potted spiral hedge", "line": "The seed from the heart of the Hedge Maze, grown into a tiny spiral of hedge. Your companion curls up beside it as if it's guarding it.", "temperament": {"curiosity": 0.7, "energy": 0.3, "clinginess": 0.55}}
 	},
 	"_maze_guide_comment": "A flow field toward the centre (per corridor cell: 1=N 2=E 3=S 4=W, 0=centre), used ONLY to let the companion subtly point the way along the solved path after you've stood still a while. Presentation hint \u2014 it never moves you. Map a world pos to a cell with round((p-origin)/pitch); dirs is row-major (cy*cols + cx).",
 	"maze_guide": {

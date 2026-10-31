@@ -81,6 +81,9 @@ defmodule Server.HomeWorld do
       "owner_id" => Map.get(state, :owner_id),
       "owner_name" => Map.get(state, :owner_name, ""),
       "spots" => spots,
+      # Where the open keepsake spots are, so the owner's client can settle a new keepsake (or swap
+      # one) in place before the next rebuild.
+      "spot_positions" => template |> Map.get("keepsake_spots", []) |> Enum.take(spots),
       "keepsakes" => Map.get(state, :keepsakes, []) |> Enum.filter(&Map.has_key?(card_map, &1)) |> Enum.take(spots),
       # Every find, for the owner's companion to choose from (KeepsakeChoice, on the client).
       "finds" => Enum.map(cards, fn {id, card} -> finds_entry(id, card) end)
@@ -249,6 +252,9 @@ defmodule Server.HomeWorld do
     %{
       "id" => id,
       "label" => Map.get(k, "label", ""),
+      "type" => Map.get(k, "type", "chime_stone"),
+      "color" => Map.get(k, "color", [0.7, 0.7, 0.7]),
+      "line" => Map.get(k, "line", ""),
       "temperament" => Map.get(k, "temperament", %{}),
       "together" => Map.get(card, "together", false)
     }

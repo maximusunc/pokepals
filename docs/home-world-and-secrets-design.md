@@ -309,6 +309,57 @@ Built: S-1, S-2, S-3, S-5, W-4, HW-1 (owner only), HW-2, HW-3 (hedge seed only),
 - **Deploy note:** the new migration must run, and the maze's seed reaches the live game only when
   the server's seeds re-run (they do, idempotently, on container boot).
 
+## Second slice — built (2026-10-31): friends, visiting, keepsakes, qualities, the journal
+
+Built: FR-0..FR-5, HS-1..HS-6, S-4 (except the shared "revealed for everyone" state, see below), the
+fade-to-black moment naming friends.
+
+- **Server:** migration `create_friends_and_homes` (names + friend codes on `accounts`; `friendships`,
+  `friend_requests`, `blocks`, `homes`; `together` / `with_ids` / `card` on `discoveries`).
+  - `Server.Profiles`: generated names and codes.
+  - `Server.Friends`: requests, accepting, quiet removal, blocks, and live events on each player's
+    own `user:<id>` PubSub topic.
+  - `Server.Homes` + `Server.HomePasses`: home state, who may visit, invite offers and one-visit passes.
+  - `Server.Social`: the friends snapshot, an `online` Presence topic, evictions.
+  - `Server.HomeWorld`, rebuilt around keepsakes + qualities; `priv/home/home.json`, regenerated.
+  - In `world_channel.ex`, the server now stamps the player's name on the identity relay, and the
+    channel handles the new events: `reroll_name`, `friend_*`, `block`, `invite_home` /
+    `invite_answer`, `send_home`, `set_home_closed`, `set_keepsakes`, `journal`, `friends`.
+  - `claim_secret` records `together` / `with` and a card.
+  - The maze's secret gained `qualities` and its `keepsake`. Finds made before cards existed fall back
+    to the template's `legacy_cards`, so an existing hedge seed becomes the potted hedge.
+- **Client:**
+  - `KeepsakeChoice` (pure, `scripts/world`, 9 tests).
+  - `SocialDirector` + `HomeDirector` (`scripts/presentation/mechanics`).
+  - `CozySheet` / `ChoiceCard` / `FriendsPanel` / `JournalPanel` (`scripts/presentation`).
+  - Tapping another player opens their card; Friends and Journal are in the gear menu; the Gateway's
+    Homes tab lists friends' homes.
+  - `potted_hedge` and `journal_stand` props.
+  - The `Net` messages for all of the above.
+- **How it plays (owner):** on arriving home, the companion looks over your finds, settles new ones
+  into empty spots, swaps one at most when a find is clearly better loved (you see it carry the old one
+  off), then settles by its favourite. The choice and the bond's spots go to the server. The glade
+  widens on the next visit when the bond has opened a spot.
+- **How it plays (visitor):** a friend's home while they're away has their companion napping by its
+  favourite keepsake. It peeks up at you, and steps aside the moment the owner arrives.
+- **Not built (no consumer yet):** S-4's shared, per-world "revealed" state for puzzle secrets. The
+  maze already gives each player their own seed; this lands with the first puzzle-gated secret. The
+  **sound** channel of qualities (HS-2) is also still future: the game has almost no audio.
+- **Verified:**
+  - Server: `mix test`, 156 tests. The only failures are 4 pre-existing economy/trade tests: Postgres
+    `SUM` returns a `Decimal`, which `ledger_balance` subtracts with `-`. They're unrelated to this
+    work.
+  - Getting there in this sandbox: hex is blocked, so the deps came from GitHub tags through a
+    local-only `mix.local.exs`, with Elixir 1.16 on OTP 25, not the pinned 1.17/27.
+  - Client: the Godot unit suite shows the same 10 failures as a clean `main`.
+  - Runtime harness over the real world scene, all checks passing: a player card on tap, the Friends
+    panel, the journal, a modal invite, the moment naming a friend, the Homes tab with friends, the
+    owner's companion placing a keepsake, and a friend's resident that greets you and steps aside for
+    its owner.
+  - A layout check confirmed nothing sits in the border treeline at 3 or 7 spots, which moved one
+    quality item.
+- **Fixed along the way:** a missing home pass read as valid, because monotonic time can be negative.
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

@@ -29,6 +29,8 @@ var _style: ArtStyle
 # An identity packet that lands before its pair exists is stashed and applied the moment it spawns.
 var _remote_pairs: Dictionary = {}
 var _pending_identity: Dictionary = {}
+# Each peer's name (FR-0), from their identity packet (the server stamps it, so it can't be faked).
+var _peer_names: Dictionary = {}
 var _net_accum := 0.0          # accumulates toward the next NET_SEND_INTERVAL broadcast
 var _save_accum := 0.0         # accumulates toward the next server SAVE_INTERVAL push
 var _bounds := Rect2()         # the world's walkable bounds, kept to CLAMP untrusted remote positions
@@ -206,6 +208,32 @@ func remote_player_positions() -> Array:
 	return out
 
 
+## A peer's name, or "a wanderer" if their identity hasn't arrived yet.
+func peer_name(peer_id: String) -> String:
+	return String(_peer_names.get(peer_id, "a wanderer"))
+
+
+## Whether a peer is in this world with us right now.
+func has_peer(peer_id: String) -> bool:
+	return _remote_pairs.has(peer_id)
+
+
+## The peer whose avatar stands nearest a world point, within `radius`, or "" (a tap on a player).
+func peer_at(world_pos: Vector2, radius: float) -> String:
+	var best := ""
+	var best_d := radius
+	for peer_id in _remote_pairs:
+		var rp: Node2D = _remote_pairs[peer_id]["player"]
+		if not is_instance_valid(rp):
+			continue
+		# Measured to the middle of the body, not the feet, so a tap on the figure itself counts.
+		var d := world_pos.distance_to(rp.position + Vector2(0, -14))
+		if d <= best_d:
+			best = peer_id
+			best_d = d
+	return best
+
+
 ## Every remote player + companion node (whose footsteps glow on a world that asks for it).
 func remote_actors() -> Array:
 	var out: Array = []
@@ -224,6 +252,7 @@ func _on_peer_left(peer_id: String) -> void:
 		(pair["companion"] as Node).queue_free()
 		_remote_pairs.erase(peer_id)
 	_pending_identity.erase(peer_id)
+	_peer_names.erase(peer_id)
 
 
 ## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
@@ -237,11 +266,14 @@ func _on_disconnected() -> void:
 		(pair["companion"] as Node).queue_free()
 	_remote_pairs.clear()
 	_pending_identity.clear()
+	_peer_names.clear()
 
 
 ## A peer's identity arrived. If its puppets exist, dress them now; otherwise stash it until they
 ## spawn (the packet can race ahead of peer_joined). Untrusted input — validated by the appliers.
 func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
+	if payload.has("name"):
+		_peer_names[peer_id] = String(payload["name"])
 	if _remote_pairs.has(peer_id):
 		_apply_remote_identity(peer_id, payload)
 	else:
