@@ -94,6 +94,12 @@ const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkee
 var _prop_lights := {}
 # How long a FLARE (a touched glow-plant blazing up, seen by everyone in the world) takes to fade, and
 # how much bigger + brighter its light gets at the peak.
+# The static bake (StaticBake, opted into by a world's "static_bake" art entity): once the souk's walls,
+# roofs and unmoving props have been drawn into textures, the live pass skips them.
+var bake_only := false             # true on the hidden copy that draws into the bake
+var _bake_types := {}              # what the bake copy draws: type -> true
+var _baked_types := {}             # live copy: types already in the baked layer
+var _structure_baked := false      # live copy: walls + roofs are in the baked layer
 const FLARE_FADE := 0.16   # per second → about six seconds of afterglow
 const FLARE_GROW := 2.2
 
@@ -126,23 +132,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_portal_tex = SpriteSlot.resolve(_style.entity("portal"), "sprite")
 
-	# Pixel-art prop sprites: for each type listed in entities.props, load its base (and tint)
-	# by convention if the files exist. Missing files just leave the type on procedural drawing.
-	_prop_base.clear()
-	_prop_tint.clear()
-	var props_cfg: Dictionary = _style.entity("props")
-	if String(props_cfg.get("render", "")) == "sprite":
-		var prefix := String(props_cfg.get("prefix", "res://assets/sprites/prop_"))
-		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
-		for t in props_cfg.get("types", []) + props_cfg.get("extra_types", []):
-			var ty := String(t)
-			var base_path := prefix + ty + "_base.png"
-			if not ResourceLoader.exists(base_path):
-				continue
-			_prop_base[ty] = ResourceLoader.load(base_path)
-			var tint_path := prefix + ty + "_tint.png"
-			if ResourceLoader.exists(tint_path):
-				_prop_tint[ty] = ResourceLoader.load(tint_path)
+	_load_prop_sprites()
 
 	# C-3's halo knobs, from the art direction (the set of lit objects comes from the controller).
 	var fh: Dictionary = _style.form_highlight()
@@ -250,14 +240,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_hedges.clear()
 	for h in data.get("hedges", []):
 		_hedges.append({ "a": WorldData.to_vec2(h["from"]), "b": WorldData.to_vec2(h["to"]), "t": float(h.get("thickness", 28.0)) })
-	# A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.
-	_walls.clear()
-	for w in data.get("walls", []):
-		_walls.append({ "a": WorldData.to_vec2(w["from"]), "b": WorldData.to_vec2(w["to"]), "t": float(w.get("thickness", 30.0)),
-			"face": String(w.get("face", "")) })
-	_roofs.clear()
-	for r in data.get("roofs", []):
-		_roofs.append(Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])))
+	_parse_structure(data)
 
 	# Flowers carry a per-element wind "phase" (seeded from position) so they don't all
 	# sway in lockstep — the breeze reads as organic, not a metronome.
@@ -273,20 +256,124 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_interactables.clear()
 	_form_highlights.clear()   # the indices they keyed just went away with the old list
 	for it in data.get("props", []):
-		_interactables.append({
-			"pos": WorldData.to_vec2(it["position"]),
-			"color": WorldData.to_color(it["color"]),
-			"type": String(it.get("type", "")),
-			"pulse": 0.0,
-			"examined": false,   # rocks flip this on when turned over
-			"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
-			"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
-			"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
-			"flare": 0.0,  # a touched glow-plant's blaze, 1 → 0 (see flare_interactable)
-			"person": it.has("person"),  # drawn as a real person (a PlayerView) elsewhere, not here
-		})
+		_interactables.append(_interactable_entry(it))
+
+	# Drop any previous bake, then (if this world opts in) bake its static structure afresh.
+	_baked_types = {}
+	_structure_baked = false
+	for c in get_children():
+		if c.has_meta("static_bake"):
+			c.queue_free()
+	var bake_cfg: Dictionary = _style.entity("static_bake")
+	if bool(bake_cfg.get("enabled", false)):
+		var types := {}
+		for t in bake_cfg.get("types", []):
+			types[String(t)] = true
+		StaticBake.run(self, data, _style, types)
 
 	queue_redraw()
+
+
+## Pixel-art prop sprites: for each type listed in entities.props, load its base (and tint) by
+## convention if the files exist. Missing files just leave the type on procedural drawing.
+func _load_prop_sprites() -> void:
+	_prop_base.clear()
+	_prop_tint.clear()
+	var props_cfg: Dictionary = _style.entity("props")
+	if String(props_cfg.get("render", "")) == "sprite":
+		var prefix := String(props_cfg.get("prefix", "res://assets/sprites/prop_"))
+		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
+		for t in props_cfg.get("types", []) + props_cfg.get("extra_types", []):
+			var ty := String(t)
+			var base_path := prefix + ty + "_base.png"
+			if not ResourceLoader.exists(base_path):
+				continue
+			_prop_base[ty] = ResourceLoader.load(base_path)
+			var tint_path := prefix + ty + "_tint.png"
+			if ResourceLoader.exists(tint_path):
+				_prop_tint[ty] = ResourceLoader.load(tint_path)
+
+
+## A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.
+func _parse_structure(data: Dictionary) -> void:
+	_walls.clear()
+	for w in data.get("walls", []):
+		_walls.append({ "a": WorldData.to_vec2(w["from"]), "b": WorldData.to_vec2(w["to"]), "t": float(w.get("thickness", 30.0)),
+			"face": String(w.get("face", "")) })
+	_roofs.clear()
+	for r in data.get("roofs", []):
+		_roofs.append(Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])))
+
+
+func _interactable_entry(it: Dictionary) -> Dictionary:
+	return {
+		"pos": WorldData.to_vec2(it["position"]),
+		"color": WorldData.to_color(it["color"]),
+		"type": String(it.get("type", "")),
+		"pulse": 0.0,
+		"examined": false,   # rocks flip this on when turned over
+		"content": "",       # what a turned-over rock revealed: salamander | decoy | empty
+		"missed": false,     # true if revealed by the run-out reveal-all (drawn dimmed)
+		"wall": String(it.get("wall", "h")),  # "v" → this gate plugs a VERTICAL wall (rotate its art 90°)
+		"flare": 0.0,  # a touched glow-plant's blaze, 1 → 0 (see flare_interactable)
+		"person": it.has("person"),  # drawn as a real person (a PlayerView) elsewhere, not here
+	}
+
+
+## The hidden copy StaticBake draws into its textures: only the region washes, the walls and roofs,
+## and the props of the baked types (with their contact shadows), frozen at time zero. It builds no
+## ground, runs no _process, and never culls.
+func render_bake(data: Dictionary, style: ArtStyle, types: Dictionary) -> void:
+	bake_only = true
+	set_process(false)
+	_style = style
+	_bounds = WorldData.bounds_rect(data)
+	_bake_types = types
+	_region_tint_alpha = float(data.get("atmosphere", {}).get("region_tint_alpha", 0.12))
+	_region_tints.clear()
+	for r in data.get("regions", []):
+		if r.has("tint"):
+			var rmin := WorldData.to_vec2(r["min"])
+			_region_tints.append({ "rect": Rect2(rmin, WorldData.to_vec2(r["max"]) - rmin), "color": WorldData.to_color(r["tint"]) })
+	_load_prop_sprites()
+	_parse_structure(data)
+	_interactables.clear()
+	for it in data.get("props", []):
+		if types.has(String(it.get("type", ""))) and not it.has("person"):
+			_interactables.append(_interactable_entry(it))
+	queue_redraw()
+
+
+## The live copy adopts a finished bake: each piece becomes a sprite drawn just behind WorldArt's own
+## pass (over the ground), with premultiplied blending because that's how a transparent viewport
+## stores what was drawn into it. From now on the live pass skips everything the bake holds.
+func adopt_bake(pieces: Array, types: Dictionary) -> void:
+	var mat := CanvasItemMaterial.new()
+	mat.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	for piece in pieces:
+		var spr := Sprite2D.new()
+		spr.set_meta("static_bake", true)
+		spr.texture = piece[1]
+		spr.centered = false
+		spr.position = (piece[0] as Rect2).position
+		spr.material = mat
+		spr.show_behind_parent = true
+		add_child(spr)
+	_baked_types = types
+	_structure_baked = true
+	queue_redraw()
+
+
+func _draw_bake() -> void:
+	for rt in _region_tints:
+		var c: Color = rt["color"]
+		c.a = _region_tint_alpha
+		draw_rect(rt["rect"], c)
+	_draw_roofs()
+	_draw_walls()
+	for it in _interactables:
+		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
+		_draw_prop_body(it)
 
 
 func _parse_pond(pond: Dictionary) -> Dictionary:
@@ -842,6 +929,9 @@ func _draw() -> void:
 	# Cull to what the camera can see, so this loop's cost scales with the screen, not the
 	# world. `has_area()` is false in headless / before the camera exists → we draw everything
 	# (the whole-world backdrop below is never culled anyway, so the world is never blank).
+	if bake_only:
+		_draw_bake()
+		return
 	var vis := ViewCull.visible_world_rect(self, CULL_MARGIN)
 	var cull := vis.has_area()
 
@@ -857,7 +947,7 @@ func _draw() -> void:
 			draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
 
 	# per-region mood wash, so each named area feels distinct underfoot
-	for rt in _region_tints:
+	for rt in ([] if _structure_baked else _region_tints):  # (baked in, under the walls, once baked)
 		if cull and not vis.intersects(rt["rect"]):
 			continue
 		var c: Color = rt["color"]
@@ -977,8 +1067,9 @@ func _draw() -> void:
 	# the maze's hedge walls (tall, rounded, slightly extruded so they read as height)
 	_draw_hedges()
 	# a souk's rooftops, then its walls with their arches (the Bazaar's lane)
-	_draw_roofs()
-	_draw_walls()
+	if not _structure_baked:
+		_draw_roofs()
+		_draw_walls()
 
 	# interactable props: contact shadow, the form-hint halo, optional warm glow, then the silhouette.
 	# Indexed (not a plain for-in) because the C-3 highlight set is keyed by index.
@@ -988,6 +1079,10 @@ func _draw() -> void:
 			continue
 		if bool(it.get("taken", false)):
 			continue  # picked up (a world secret, once found): gone from the world
+		if bool(it.get("person", false)):
+			continue  # stands as a real person (a PlayerView, AmbientPalDirector), not drawn here
+		if _baked_types.has(it["type"]):
+			continue  # already in the baked static layer, shadow and all
 		_draw_prop_light(it)
 		_draw_light_pool(it["type"], it["pos"])
 		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
@@ -997,60 +1092,62 @@ func _draw() -> void:
 		var pulse: float = it["pulse"]
 		if pulse > 0.0:
 			draw_circle(it["pos"], 20.0 + 12.0 * pulse, Color(1, 1, 1, 0.18 * pulse))
-		# stateless props with baked pixel-art get drawn from the sprite and skip the match;
-		# stateful/animated ones (rock, slab, torch, …) fall through to their procedural draw
-		if bool(it.get("person", false)):
-			continue  # stands as a real person (a PlayerView, AmbientPalDirector), not drawn here
-		if _try_blit_prop(it):
-			continue
-		match String(it["type"]):
-			"rock":
-				_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
-			"slab":
-				_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
-			"plate":
-				_draw_plate(it["pos"], it["color"], bool(it.get("opened", false)))
-			"wedge":
-				_draw_wedge(it["pos"], it["color"])
-			"column":
-				_draw_column(it["pos"], it["color"])
-			"nook":
-				_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
-			"ember":
-				_draw_ember(it["pos"], it["color"], bool(it.get("opened", false)))
-			"brazier":
-				_draw_brazier(it["pos"], it["color"], bool(it.get("opened", false)))
-			"mural":
-				_draw_mural(it["pos"], it["color"], bool(it.get("opened", false)))
-			"facade":
-				_draw_facade(it["pos"], it["color"])
-			"stairs":
-				_draw_stairs(it["pos"], it["color"])
-			"carving":
-				_draw_carving(it["pos"], it["color"])
-			"torch":
-				_draw_torch(it["pos"], it["color"])
-			"roots":
-				_draw_roots(it["pos"], it["color"])
-			"broken_pillar":
-				_draw_broken_pillar(it["pos"], it["color"])
-			"rubble_pile":
-				_draw_rubble_pile(it["pos"], it["color"])
-			"pool":
-				_draw_pool(it["pos"], it["color"])
-			"light_shaft":
-				_draw_light_shaft(it["pos"], it["color"])
-			"warden_lantern":
-				_draw_warden_lantern(it["pos"], it["color"], bool(it.get("opened", false)))
-			"great_arch":
-				_draw_great_arch(it["pos"], it["color"])
-			_:
-				_draw_prop(it["type"], it["pos"], it["color"])
+		_draw_prop_body(it)
 
 	# NOTE: trees and landmarks (great trees) are no longer drawn here. They're spawned
 	# as individual TreeView nodes under the y-sorted Scenery layer so the player and
 	# companion can pass behind/in front of them by ground position. This pass renders
 	# only the always-underneath backdrop (ground, grass, flowers, paths, ponds, props).
+
+
+## One prop's own figure (no shadow, light or highlight): a baked sprite when it has one, else its
+## procedural drawing. Shared by the live pass and the static bake (see StaticBake).
+func _draw_prop_body(it: Dictionary) -> void:
+	if _try_blit_prop(it):
+		return
+	match String(it["type"]):
+		"rock":
+			_draw_rock(it["pos"], it["color"], bool(it["examined"]), String(it["content"]), bool(it.get("missed", false)))
+		"slab":
+			_draw_slab(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
+		"plate":
+			_draw_plate(it["pos"], it["color"], bool(it.get("opened", false)))
+		"wedge":
+			_draw_wedge(it["pos"], it["color"])
+		"column":
+			_draw_column(it["pos"], it["color"])
+		"nook":
+			_draw_nook(it["pos"], it["color"], bool(it.get("opened", false)), String(it.get("wall", "h")) == "v")
+		"ember":
+			_draw_ember(it["pos"], it["color"], bool(it.get("opened", false)))
+		"brazier":
+			_draw_brazier(it["pos"], it["color"], bool(it.get("opened", false)))
+		"mural":
+			_draw_mural(it["pos"], it["color"], bool(it.get("opened", false)))
+		"facade":
+			_draw_facade(it["pos"], it["color"])
+		"stairs":
+			_draw_stairs(it["pos"], it["color"])
+		"carving":
+			_draw_carving(it["pos"], it["color"])
+		"torch":
+			_draw_torch(it["pos"], it["color"])
+		"roots":
+			_draw_roots(it["pos"], it["color"])
+		"broken_pillar":
+			_draw_broken_pillar(it["pos"], it["color"])
+		"rubble_pile":
+			_draw_rubble_pile(it["pos"], it["color"])
+		"pool":
+			_draw_pool(it["pos"], it["color"])
+		"light_shaft":
+			_draw_light_shaft(it["pos"], it["color"])
+		"warden_lantern":
+			_draw_warden_lantern(it["pos"], it["color"], bool(it.get("opened", false)))
+		"great_arch":
+			_draw_great_arch(it["pos"], it["color"])
+		_:
+			_draw_prop(it["type"], it["pos"], it["color"])
 
 
 ## --- pixel-art water --------------------------------------------------------------------

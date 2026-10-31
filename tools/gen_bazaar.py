@@ -388,6 +388,9 @@ ART = {
         },
         # no meadow bushes or stumps on the cobbles
         "understory": {"density": 0.0},
+        # The souk's walls, roofs and unmoving stalls are drawn once into textures (StaticBake), not
+        # repainted every frame. Anything that sways, flickers or glows stays live.
+        "static_bake": {"enabled": True, "types": ["stall", "spice_stall", "rug", "crate"]},
         "ambient_life": {"butterflies": {"count": 0}, "clouds": {"count": 0}, "leaves": {"rate": 0.0},
                          "fireflies": {"count": 18, "always": True, "color": [1.0, 0.78, 0.42]}},
     },
