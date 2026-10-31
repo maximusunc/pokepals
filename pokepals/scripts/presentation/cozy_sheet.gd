@@ -10,6 +10,12 @@ extends Control
 
 signal closed()
 
+## How long after opening the sheet ignores every tap. On a phone, the browser sends its own
+## "compatibility" mouse click a moment after the finger lifts, so the very tap that opened a sheet
+## arrives a second time once it's on screen. Without this it lands on the backdrop (closing the sheet
+## at once) or on whatever button happens to sit under the finger.
+const OPEN_GRACE := 0.45
+
 var width := 340.0
 var modal := false
 
@@ -40,6 +46,12 @@ func _ready() -> void:
 	_build()
 	modulate.a = 0.0
 	create_tween().tween_property(self, "modulate:a", 1.0, 0.2)
+	# A transparent shield on top for the first moment: it swallows the opening tap's echo, then goes.
+	var shield := Control.new()
+	shield.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	shield.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(shield)
+	get_tree().create_timer(OPEN_GRACE, true).timeout.connect(shield.queue_free)
 
 
 ## Fill `body`. Overridden by each sheet.
