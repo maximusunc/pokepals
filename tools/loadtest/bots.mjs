@@ -30,6 +30,11 @@ const PREFIX = args.prefix || "lt";
 if (!WORLD) { console.error("--world <uuid> is required"); process.exit(2); }
 
 const topic = `world:${WORLD}`;
+// The bots' own health: if this process's event loop is lagging, it's reading slowly and the latency
+// it reports is partly ITS fault (TCP backs up into the server). Reported so a run can be trusted.
+import { monitorEventLoopDelay } from "node:perf_hooks";
+const loopLag = monitorEventLoopDelay({ resolution: 20 });
+loopLag.enable();
 const now = () => Date.now();
 
 // ── aggregate stats (reset each reporting window) ──────────────────────────────────────────────────────
@@ -38,6 +43,7 @@ let win = { sent: 0, recvState: 0, recvOther: 0, bytes: 0, lat: [] };
 const allLat = [];           // every latency sample during the steady part (after the ramp)
 const steadyFrom = () => startedAt + (RAMP + 2) * 1000;
 let startedAt = 0;
+let maxLoopLag = 0;  // worst per-second p99 event-loop lag seen after the ramp
 
 function pct(arr, p) {
   if (arr.length === 0) return null;
@@ -173,9 +179,13 @@ const report = setInterval(() => {
   const p50 = pct(win.lat, 50), p95 = pct(win.lat, 95);
   console.log(`${tag} t=${((now() - startedAt) / 1000).toFixed(0)}s joined=${total.joined} failed=${total.failed} ` +
     `sent/s=${win.sent} recv/bot/s=${(win.recvState / n).toFixed(0)} KB/bot/s=${(win.bytes / n / 1024).toFixed(1)} ` +
-    `lat p50=${p50 ?? "-"}ms p95=${p95 ?? "-"}ms`);
+    `lat p50=${p50 ?? "-"}ms p95=${p95 ?? "-"}ms loop_lag_p99=${(loopLag.percentile(99) / 1e6).toFixed(0)}ms`);
+  loopLag.reset();
   win = { sent: 0, recvState: 0, recvOther: 0, bytes: 0, lat: [] };
 }, 1000);
+setInterval(() => {
+  if (now() >= steadyFrom()) maxLoopLag = Math.max(maxLoopLag, loopLag.percentile(99) / 1e6);
+}, 900);
 
 setTimeout(() => {
   clearInterval(report);
@@ -188,6 +198,7 @@ setTimeout(() => {
     kb_per_bot_per_s: Math.round((total.bytes / n / 1024 / SECONDS) * 10) / 10,
     latency_ms: { p50: pct(allLat, 50), p95: pct(allLat, 95), p99: pct(allLat, 99), max: pct(allLat, 100), samples: allLat.length },
     steady_seconds: steadySecs,
+    bot_loop_lag_max_ms: Math.round(maxLoopLag),
   };
   console.log(`${tag} SUMMARY ${JSON.stringify(summary)}`);
   if (args.json) {

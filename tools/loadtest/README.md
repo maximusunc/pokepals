@@ -48,5 +48,7 @@ Notes:
 - **Accounts.** Bots log in with tokens `lt-bot-<n>`, so each run reuses the same accounts. They're
   ordinary rows in whatever database the server uses, so **don't point this at production**
   casually.
-- **Bot CPU.** On one machine the bots compete with the server for CPU. Watch the bots' own load. For
+- **Bot CPU.** On one machine the bots compete with the server for CPU. Each bot process reports its
+  own event-loop lag (`loop_lag_p99`, and `bot_loop_lag_max_ms` in its summary). If that climbs into
+  the hundreds of ms, the bots are reading too slowly and part of the measured latency is theirs. For
   the server's true ceiling, run the bots from a different machine than the server.

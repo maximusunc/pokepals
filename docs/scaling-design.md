@@ -88,16 +88,53 @@ thousands in a single battle. **The targets:**
 - **About 100–200 drawn on a phone at once:** the nearest drawn fully, the next ring more simply
   (SC-2). The phone sets this ceiling, not the servers.
 
-### SC-1 — Measure first: a load test with bot players *(open)*
-Before changing the architecture, find where today's code actually breaks:
-- **Bots:** a small bot client (an Elixir mix task speaking the real WebSocket protocol) that joins a
-  world and walks around at 20 Hz. Run 10, 50, 100, 300, 1,000 of them.
-- **Server measurements:** CPU and scheduler use, the world process's mailbox length (a growing
-  mailbox means it can't keep up), bytes out per second, and update delay at the client.
-- **Client measurements:** one real client in the crowd, measuring its frame rate and draw calls. The
-  `perf` harness used for the Bazaar can be kept as a tool for this.
-- **Output:** a short table of where it breaks and which resource runs out first. That table decides
-  what SC-2 to SC-6 need to look like.
+### ✅ SC-1 — Measure first: a load test with bot players *(built and run 2026-10-31)*
+**The tools:** `tools/loadtest/` (see its README).
+- `bots.mjs`: Node bots that speak the real client protocol. They join a world, wander, send the
+  client's packet at 20 Hz, and measure how old each peer update is when it lands.
+- `probe.exs`: attaches to the running server node and samples CPU, the run queue and the mailboxes.
+- `run.sh`: steps the crowd up.
+
+**The rig:** a dev server and the bots on the same 4-core cloud container, in the Vale, 40 s per step.
+
+| bots in one world | each bot receives / s | KB / bot / s | latency p50 | p95 | p99 | server CPU | worst relay mailbox |
+|---|---|---|---|---|---|---|---|
+| 10 | 171 | 65 | 1 ms | 2 ms | 3 ms | 4% | 1 |
+| 50 | 883 | 200 | 4 ms | 11 ms | 16 ms | 43% | 5 |
+| 60 | 1,052 | 233 | 8 ms | 21 ms | 30 ms | 61% | 16 |
+| 70 | 1,176 | 255 | 26 ms | 54 ms | 64 ms | 79% | 49 |
+| **80** | 262 | 61 | **2.8 s** | **20.7 s** | 27 s | 100% | **8,939** |
+| 100 | 158 | 38 | 12 s | 28 s | 31 s | 100% | 6,611 (358,000 queued in all) |
+
+**What it shows:**
+- **It breaks between 70 and 80 players in one world.** The cause is the N² relay. At 70 players the
+  server makes about 97,000 pushes a second; at 80 it would need about 126,000, and it can't keep up.
+- **Where it backs up: the per-player WebSocket connection processes.** At 100 bots they held 358,000
+  unsent messages in total, memory climbed from 60 MB to 1.7 GB, and latency ran away.
+  - Every movement is JSON-encoded and framed **separately for every recipient**.
+  - That is N × (N − 1) × 20 encodes a second.
+- **The world process itself was fine.** Its mailbox stayed small. The cost is the fan-out, not the
+  simulation.
+- **It's not the bots.** At 100 bots, spread over three processes, their event loops lagged at most
+  25–85 ms while they received only ~140 of the ~1,980 messages a second they should have. The
+  server's own process used about 2.7 of the 4 cores.
+- **Bandwidth is a phone problem even before the server breaks.** At 70 players each client is pulled
+  **255 KB/s (about 2 Mbit/s)** of JSON. That's too much for mobile data and battery, and it grows
+  with the crowd.
+
+**Caveats:**
+- The bots shared the server's 4 cores. A dedicated server box would break somewhat later, but the N²
+  shape is the same.
+- This tests movement only: no friends traffic, saves or Ruin wards.
+- Each step joined ~25 bots a second.
+
+**What it means for the order of work:**
+- **SC-3 (batched, compact ticks) attacks the measured bottleneck directly.** One bundle per client per
+  tick, encoded once, with rounded coordinates:
+  - it turns N × (N − 1) × 20 encodes into about N × 20 sends;
+  - it cuts the bytes several-fold.
+- **SC-4 (interest management)** then stops a client's bundle growing with the whole world.
+- Re-run SC-1 after each, so every step is measured.
 
 ### SC-2 — A client drawing budget *(open)*
 This is what you actually felt.
@@ -165,5 +202,5 @@ This is what you actually felt.
 
 ## How we work through it
 
-One item at a time. SC-0 is decided (above). SC-1 (the load test) should come before any
-architecture change, so we build what the numbers say rather than what we guess.
+One item at a time. SC-0 is decided and SC-1 has run (above): today's code holds about 70 players in
+one world. The numbers point at SC-3 next, then SC-4, re-running SC-1 after each.
