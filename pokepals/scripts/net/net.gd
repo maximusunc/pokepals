@@ -738,6 +738,12 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var sid := String(payload.get("id", ""))
 			if sid != "":
 				state_received.emit(sid, _decode_state(_strip_id(payload)))
+		"states":
+			# SC-3: one bundle per server tick of everyone who moved (our own entry included; skipped).
+			var s: Variant = payload.get("s", [])
+			if s is Array:
+				for pair in _decode_states(s, _my_id):
+					state_received.emit(pair[0], pair[1])
 		"load":
 			var companion: Variant = payload.get("companion")
 			var appearance: Variant = payload.get("appearance")
@@ -892,6 +898,27 @@ static func _encode_state(payload: Dictionary) -> Dictionary:
 	for k in payload:
 		var v: Variant = payload[k]
 		out[k] = [v.x, v.y] if v is Vector2 else v
+	return out
+
+
+## SC-3's bundle entries, [id, px, py, fx, fy, cx, cy, lx, ly], → [[id, { p, pf, c, cl }], ...] with
+## Vector2 values: the same dictionary a single "state" frame decodes to, so the presence layer is
+## unchanged. Skips our own entry, malformed entries, and anyone with no position yet; a field that
+## wasn't sent (null slots) is left out. Pure + static, unit-testable.
+static func _decode_states(entries: Array, my_id: String) -> Array:
+	var out: Array = []
+	for e in entries:
+		if not (e is Array) or e.size() < 9 or not (e[0] is String) or e[0] == "" or e[0] == my_id:
+			continue
+		var st := {}
+		var keys := ["p", "pf", "c", "cl"]
+		for k in 4:
+			var x: Variant = e[1 + k * 2]
+			var y: Variant = e[2 + k * 2]
+			if _is_number(x) and _is_number(y):
+				st[keys[k]] = Vector2(x, y)
+		if st.has("p"):
+			out.append([e[0], st])
 	return out
 
 

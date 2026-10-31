@@ -9,10 +9,17 @@ defmodule Server.World do
   through a `Registry` keyed by `world_id`. State is transient/in-memory — a crash restarts the world
   empty and its players re-sync on the next ~20 Hz tick (no player is harmed).
 
-  Flow (per world):
+  Flow (per world), since SC-3 (docs/scaling-design.md):
 
-      PlayerChannel handle_in("state") --cast--> World(world_id)  (stores latest)
-      World(world_id) --PubSub.broadcast on state_topic(world_id)--> that world's channels --push-->
+      PlayerChannel handle_in("state") --cast--> World(world_id)  (sanitizes, stores latest, marks dirty)
+      World(world_id), every 50 ms --Endpoint.broadcast "states" on "world:<id>"--> every socket
+
+  The tick sends ONE bundle of every transform that changed since the last tick (`Server.WorldStates`
+  is its compact format). `Endpoint.broadcast` on the channel topic uses Phoenix's "fastlane": the
+  message is serialized to JSON once and that same frame goes straight to every player's socket,
+  without passing through each player's channel process. So a tick costs one encode however many
+  players there are, where it used to be one encode per recipient per movement. Each client skips its
+  own entry. The ambient pals ride the same tick (every other one, 10 Hz), sent the same way.
 
   ── DEFERRED SEAMS (scale — NOT built; flagged):
     * WRITE-BEHIND PERSISTENCE of transient state (Oban) — nothing here is worth persisting yet.
@@ -27,9 +34,12 @@ defmodule Server.World do
   @registry Server.WorldRegistry
   @supervisor Server.WorldSupervisor
 
-  # Ambient-pal simulation cadence: advance + broadcast at 10 Hz (the client eases the stream into 60 fps).
-  @tick_ms 100
-  @tick_dt 0.1
+  # The world's tick (SC-3): every 50 ms (20 Hz, the client's send rate) flush the bundle of changed
+  # transforms; every other tick (10 Hz) also advance the ambient-pal sim and send it. The client eases
+  # both streams into 60 fps.
+  @tick_ms 50
+  @ambient_every 2
+  @ambient_dt 0.1
 
   # --- client API ---
 
@@ -62,7 +72,11 @@ defmodule Server.World do
   @spec wards(String.t()) :: [map()]
   def wards(world_id), do: GenServer.call(via(world_id), :wards)
 
-  @doc "The PubSub topic this world broadcasts live transforms on."
+  @doc "The channel topic every player in `world_id` is joined to (where the tick's bundles go)."
+  @spec channel_topic(String.t()) :: String.t()
+  def channel_topic(world_id), do: "world:" <> world_id
+
+  @doc "The PubSub topic this world broadcasts its other shared state on (the Ruin's wards)."
   @spec state_topic(String.t()) :: String.t()
   def state_topic(world_id), do: "world:#{world_id}:state"
 
@@ -106,20 +120,31 @@ defmodule Server.World do
        # Shared ambient-pal sim: pure wander logic (incl. obstacle avoidance), ticked while at least one
        # player is here. `ticking` guards against scheduling more than one :tick timer at a time.
        ambient: Server.AmbientPals.new(ambient_core),
+       # SC-3: who moved since the last tick (their entries go in the next bundle), and the tick count
+       # (the ambient sim steps on every @ambient_every-th tick).
+       dirty: MapSet.new(),
+       tick_n: 0,
        ticking: false
      }}
   end
 
   @impl true
   def handle_cast({:update, user_id, transform}, state) do
-    was_empty = map_size(state.transforms) == 0
-    state = put_in(state.transforms[user_id], transform)
-    Phoenix.PubSub.broadcast(Server.PubSub, state_topic(state.world_id), {:world_state, user_id, transform})
-    {:noreply, maybe_start_ticking(state, was_empty)}
+    case Server.WorldStates.sanitize(transform) do
+      nil ->
+        # Nothing usable to relay, but the sender is still HERE (presence in this world is "has a
+        # transform"; the Ruin resets when that empties), so note them without sending anything.
+        {:noreply, maybe_start_ticking(%{state | transforms: Map.put_new(state.transforms, user_id, %{})})}
+
+      clean ->
+        state = %{state | transforms: Map.put(state.transforms, user_id, clean), dirty: MapSet.put(state.dirty, user_id)}
+        {:noreply, maybe_start_ticking(state)}
+    end
   end
 
   def handle_cast({:forget, user_id}, state) do
     transforms = Map.delete(state.transforms, user_id)
+    state = %{state | dirty: MapSet.delete(state.dirty, user_id)}
 
     # Drop this player's weight from every plate (a disconnect mid-puzzle releases what they held).
     occupants = for {key, set} <- state.occupants, into: %{}, do: {key, MapSet.delete(set, user_id)}
@@ -157,23 +182,34 @@ defmodule Server.World do
 
   def handle_call(:ambient, _from, state), do: {:reply, Server.AmbientPals.to_list(state.ambient), state}
 
-  # Advance the ambient-pal sim and fan the new transforms out — but only while someone is here to see
-  # them. When the world empties, stop the loop (the next join restarts it); idle worlds cost nothing.
+  # The world's tick: send the bundle of whoever moved, and (every other tick) advance the ambient-pal
+  # sim and send that, but only while someone is here to see it. When the world empties, stop the loop
+  # (the next arrival restarts it); idle worlds cost nothing.
   @impl true
   def handle_info(:tick, state) do
     if map_size(state.transforms) == 0 do
-      {:noreply, %{state | ticking: false}}
+      {:noreply, %{state | ticking: false, dirty: MapSet.new()}}
     else
-      ambient = Server.AmbientPals.tick(state.ambient, @tick_dt)
+      topic = channel_topic(state.world_id)
 
-      Phoenix.PubSub.broadcast(
-        Server.PubSub,
-        state_topic(state.world_id),
-        {:world_ambient, Server.AmbientPals.to_list(ambient)}
-      )
+      if MapSet.size(state.dirty) > 0 do
+        moved = Map.take(state.transforms, MapSet.to_list(state.dirty))
+        Server.Endpoint.broadcast(topic, "states", Server.WorldStates.bundle(moved))
+      end
+
+      n = state.tick_n + 1
+
+      ambient =
+        if rem(n, @ambient_every) == 0 and Server.AmbientPals.any?(state.ambient) do
+          a = Server.AmbientPals.tick(state.ambient, @ambient_dt)
+          Server.Endpoint.broadcast(topic, "ambient_state", %{pals: Server.AmbientPals.to_list(a)})
+          a
+        else
+          state.ambient
+        end
 
       Process.send_after(self(), :tick, @tick_ms)
-      {:noreply, %{state | ambient: ambient}}
+      {:noreply, %{state | ambient: ambient, dirty: MapSet.new(), tick_n: n}}
     end
   end
 
@@ -181,15 +217,13 @@ defmodule Server.World do
 
   # --- internals ---
 
-  # Kick off the 10 Hz ambient tick when the first player arrives (and the world actually has pals).
-  # No-op if already ticking or there's nothing to simulate, so it can be called on every transform.
-  defp maybe_start_ticking(state, was_empty) do
-    if was_empty and not state.ticking and Server.AmbientPals.any?(state.ambient) do
-      Process.send_after(self(), :tick, @tick_ms)
-      %{state | ticking: true}
-    else
-      state
-    end
+  # Kick off the tick when someone's here. No-op if it's already running, so it's called on every
+  # transform.
+  defp maybe_start_ticking(%{ticking: true} = state), do: state
+
+  defp maybe_start_ticking(state) do
+    Process.send_after(self(), :tick, @tick_ms)
+    %{state | ticking: true}
   end
 
   # A player's companion uncovered a plate (its search nosed it out).
