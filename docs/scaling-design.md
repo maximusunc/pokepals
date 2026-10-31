@@ -145,14 +145,53 @@ This is what you actually felt.
   - Hide anyone farther away.
 - **Phone checks:** test on a real phone, not only desktop.
 
-### SC-3 — Batched, compact world ticks *(open)*
-- **One bundle per tick:** the world process keeps the latest transform per player and, on a fixed
-  tick (10–20 Hz), sends one bundle per client. It does not rebroadcast every incoming message. The
-  ambient pals join that same tick.
-- **Encode once:** encode each bundle a single time, not once per socket.
-- **Smaller messages:** round positions to whole numbers, and drop fields that haven't changed.
-- **Effect:** each client gets about 20 messages a second whatever the crowd size. Messages still grow
-  with the number of nearby players, which is SC-4's job.
+### ✅ SC-3 — Batched, compact world ticks *(built 2026-10-31)*
+**What changed:**
+- **The tick:** `Server.World` keeps each player's latest transform. Every 50 ms it broadcasts **one
+  `"states"` bundle** of whoever moved.
+- **Encoded once:** the bundle goes out through `Endpoint.broadcast` on the world's channel topic.
+  That's Phoenix's "fastlane": the bundle is JSON-encoded **once** and the same frame goes straight to
+  every socket, without passing through each player's channel process.
+- **Ambient pals** ride the same tick at 10 Hz, sent the same way.
+- **The bundle format** is `Server.WorldStates`: positional arrays
+  `[id, px, py, fx, fy, cx, cy, lx, ly]`, with positions in whole pixels and directions to two decimals.
+- **Sanitizing:** the server keeps only those four known fields, so junk a client puts in its packet
+  is never stored or relayed.
+- **Clients** skip their own entry. The join snapshot is one bundle too.
+
+**Load test after SC-3** (same rig and steps as SC-1):
+
+| bots in one world | before SC-3: p95 latency | after: p95 | after: p99 | after: server CPU | after: KB / bot / s | after: world mailbox (worst) |
+|---|---|---|---|---|---|---|
+| 10 | 2 ms | 49 ms | 51 ms | 2% | 49 | 0 |
+| 50 | 11 ms | 52 ms | 56 ms | 6% (was 43%) | 108 (was 200) | 0 |
+| 100 | **28 s (collapsed)** | 62 ms | 81 ms | 11% | 165 | 1 |
+| 200 | — | 84 ms | 114 ms | 35% | 194 | 200 |
+| 300 | — | 163 ms | 391 ms | 45% | 184 | 868 |
+| 500 | — | 400 ms | 712 ms | 70% | 111\* | 6,005 |
+| ~700 → ~900 (joining) | — | 1.4 s → 4.7 s | | 95–100% | | 39,063 |
+
+\* Averaged over the whole step, including the join ramp, and the bots were starting to fall behind.
+The bots' own event-loop lag stayed under 90 ms through 500.
+
+**What it shows:**
+- **Capacity:** one world now holds about **500 players** before latency gets bad, up from **about 75**.
+  At 100 it's comfortable: 11% CPU where the old code had collapsed.
+- **Small crowds pay a little latency:** about 25 ms more on average, since an update now waits for
+  the next 50 ms tick. The client's easing hides this.
+- **The new limit is the single world process:**
+  - it takes in 20 packets a second from every player (10,000 a second at 500);
+  - it builds an N-entry bundle 20 times a second;
+  - its mailbox is what backs up past ~500.
+- **Join storms are N² too.** Each arrival sends a presence update to every channel, so the channels'
+  mailboxes grew while ~900 bots were joining.
+- **Bandwidth is still too high for phones in a crowd.** Every client still receives every player:
+  about 165 KB/s each at 100 players. That's SC-4's job.
+
+**Next:**
+- **SC-4 (interest management)** fixes both the bandwidth and the bundle size.
+- **SC-5 (splitting a world by area)** fixes the single-process limit. Each area's process handles
+  only its own players' packets.
 
 ### SC-4 — Interest management *(open)*
 - **Grid:** a spatial grid inside each world (or instance).
@@ -202,5 +241,6 @@ This is what you actually felt.
 
 ## How we work through it
 
-One item at a time. SC-0 is decided and SC-1 has run (above): today's code holds about 70 players in
-one world. The numbers point at SC-3 next, then SC-4, re-running SC-1 after each.
+One item at a time. SC-0 is decided, SC-1 has run, and SC-3 is built: one world went from about 75
+players to about 500. Next is SC-4 (interest management), then SC-5 (splitting a world by area),
+re-running the load test after each.

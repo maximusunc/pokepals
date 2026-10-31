@@ -15,6 +15,8 @@ static func run_all() -> int:
 	fails += _test_decode_arrays_to_vectors()
 	fails += _test_round_trip_preserves_transforms()
 	fails += _test_decode_leaves_non_pair_arrays_alone()
+	fails += _test_states_bundle_decodes_like_single_frames()
+	fails += _test_states_bundle_skips_self_and_junk()
 	return fails
 
 
@@ -89,3 +91,23 @@ static func _test_decode_leaves_non_pair_arrays_alone() -> int:
 	fails += _ok(dec["trio"] is Array and (dec["trio"] as Array).size() == 3, "a 3-element array is not mistaken for a Vector2")
 	fails += _ok(dec["words"] is Array, "a 2-element non-number array is left as an array")
 	return fails
+
+
+# SC-3: a "states" bundle entry decodes to the same Vector2 dict a single "state" frame does.
+static func _test_states_bundle_decodes_like_single_frames() -> int:
+	var out: Array = NetScript._decode_states([["peer", 12, -3, 1, 0, 40, 8, -1, 0]], "me")
+	var ok: bool = out.size() == 1 and out[0][0] == "peer" and out[0][1] == {
+		"p": Vector2(12, -3), "pf": Vector2(1, 0), "c": Vector2(40, 8), "cl": Vector2(-1, 0) }
+	return _ok(ok, "a states entry decodes to { p, pf, c, cl } Vector2s")
+
+
+static func _test_states_bundle_skips_self_and_junk() -> int:
+	var out: Array = NetScript._decode_states([
+		["me", 1, 1, 0, 1, 1, 1, 0, 1],            # our own echo
+		["nopos", null, null, 0, 1, 5, 5, 0, 1],   # no position yet
+		["short", 1, 2],                           # malformed
+		"garbage",
+		["half", 3, 4, null, null, null, null, null, null],  # only a position
+	], "me")
+	var ok: bool = out.size() == 1 and out[0][0] == "half" and out[0][1] == { "p": Vector2(3, 4) }
+	return _ok(ok, "states skips our own entry, junk and position-less entries; missing fields are left out")

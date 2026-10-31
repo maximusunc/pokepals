@@ -130,8 +130,10 @@ defmodule Server.WorldChannel do
     # concern (same in every world); the bazaar's shop reads it, every other world just ignores it.
     push(socket, "economy", economy_snapshot(user_id))
 
-    for {peer_id, transform} <- World.snapshot(world_id), peer_id != user_id do
-      push(socket, "state", Map.put(transform, "id", peer_id))
+    # Where everyone already here is right now, as one bundle in the same form as the live ticks.
+    case Map.delete(World.snapshot(world_id), user_id) do
+      peers when map_size(peers) == 0 -> :ok
+      peers -> push(socket, "states", Server.WorldStates.bundle(peers))
     end
 
     # The ambient pals' current positions, so a late joiner sees them where they are right now rather
@@ -151,15 +153,8 @@ defmodule Server.WorldChannel do
     {:noreply, assign(socket, :known, known)}
   end
 
-  # A live transform from this world: push to our client unless it's our own echo.
-  def handle_info({:world_state, from_user, transform}, socket) do
-    if from_user == socket.assigns.user_id do
-      {:noreply, socket}
-    else
-      push(socket, "state", Map.put(transform, "id", from_user))
-      {:noreply, socket}
-    end
-  end
+  # (Live transforms and the ambient pals no longer pass through here: since SC-3 the world process
+  # broadcasts one "states" / "ambient_state" bundle per tick straight to every socket. See Server.World.)
 
   # The shared Ruin ward state changed (someone's companion uncovered/weighted a plate): relay it to
   # our client, which renders the reveal / slab-raise. Everyone in the world converges on this truth.
@@ -168,12 +163,6 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
-  # A tick of the world's ambient-pal sim: relay the batch of pal transforms to our client, which eases
-  # each puppet toward its new spot. The same shared truth reaches every player, so pals are consistent.
-  def handle_info({:world_ambient, pals}, socket) do
-    push(socket, "ambient_state", %{pals: pals})
-    {:noreply, socket}
-  end
 
   # ── Social events, from our own user topic (Server.Friends.notify/2) ──
 

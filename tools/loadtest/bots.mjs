@@ -3,7 +3,8 @@
 // channels v2 over a WebSocket, exactly as scripts/net/net.gd does), join one world, and wander about
 // near its spawn, sending their transforms at the client's rate (20 Hz). They measure what a real
 // player would feel:
-//   - how many messages / bytes per second each one receives,
+//   - how many peer updates / bytes per second each one receives (a peer update is one entry in a
+//     "states" bundle since SC-3, or one "state" frame from an older server),
 //   - LATENCY: every bot stamps its packets with the send time ("t", ms), and the server relays the
 //     transform untouched, so a receiver on the same machine can tell how old each peer update is
 //     when it lands. A server that can't keep up shows here first, as latency climbing.
@@ -39,7 +40,7 @@ const now = () => Date.now();
 
 // ── aggregate stats (reset each reporting window) ──────────────────────────────────────────────────────
 const total = { connected: 0, joined: 0, failed: 0, closed: 0, sent: 0, recvState: 0, recvOther: 0, bytes: 0 };
-let win = { sent: 0, recvState: 0, recvOther: 0, bytes: 0, lat: [] };
+let win = { sent: 0, recvState: 0, recvOther: 0, bytes: 0, frames: 0, lat: [] };
 const allLat = [];           // every latency sample during the steady part (after the ramp)
 const steadyFrom = () => startedAt + (RAMP + 2) * 1000;
 let startedAt = 0;
@@ -95,6 +96,22 @@ class Bot {
     let f;
     try { f = JSON.parse(data); } catch { return; }
     const [, , , event, payload] = f;
+    if (event === "states" && payload && Array.isArray(payload.s)) {
+      // SC-3: one bundle per server tick: [[id, px, py, fx, fy, cx, cy, lx, ly, t?], ...]
+      win.frames++;
+      for (const e of payload.s) {
+        if (!Array.isArray(e) || e[0] === this.myId) continue;
+        win.recvState++;
+        total.recvState++;
+        if (typeof e[9] === "number") {
+          const lat = now() - e[9];
+          win.lat.push(lat);
+          if (now() >= steadyFrom()) allLat.push(lat);
+        }
+      }
+      return;
+    }
+    if (event === "welcome" && payload) this.myId = payload.id;
     if (event === "state") {
       win.recvState++;
       total.recvState++;
@@ -181,7 +198,7 @@ const report = setInterval(() => {
     `sent/s=${win.sent} recv/bot/s=${(win.recvState / n).toFixed(0)} KB/bot/s=${(win.bytes / n / 1024).toFixed(1)} ` +
     `lat p50=${p50 ?? "-"}ms p95=${p95 ?? "-"}ms loop_lag_p99=${(loopLag.percentile(99) / 1e6).toFixed(0)}ms`);
   loopLag.reset();
-  win = { sent: 0, recvState: 0, recvOther: 0, bytes: 0, lat: [] };
+  win = { sent: 0, recvState: 0, recvOther: 0, bytes: 0, frames: 0, lat: [] };
 }, 1000);
 setInterval(() => {
   if (now() >= steadyFrom()) maxLoopLag = Math.max(maxLoopLag, loopLag.percentile(99) / 1e6);

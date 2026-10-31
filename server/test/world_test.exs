@@ -46,13 +46,34 @@ defmodule Server.WorldTest do
     assert World.snapshot(b) == %{"ub" => %{"p" => [2, 2]}}
   end
 
-  test "an update broadcasts on that world's own state topic" do
+  test "updates go out as one bundle per tick on that world's channel topic (SC-3)" do
     w = wid()
     World.ensure_started(w)
-    Phoenix.PubSub.subscribe(Server.PubSub, World.state_topic(w))
+    Server.Endpoint.subscribe(World.channel_topic(w))
 
     World.update_transform(w, "u9", %{"p" => [7, 8]})
+    World.update_transform(w, "u8", %{"p" => [1.6, 2.4], "pf" => [0.123, -0.987]})
 
-    assert_receive {:world_state, "u9", %{"p" => [7, 8]}}
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: entries}}, 500
+    assert Enum.sort(entries) == [
+             ["u8", 2, 2, 0.12, -0.99, nil, nil, nil, nil],
+             ["u9", 7, 8, nil, nil, nil, nil, nil, nil]
+           ]
+  end
+
+  test "a tick with nobody moving sends nothing" do
+    w = wid()
+    World.ensure_started(w)
+    Server.Endpoint.subscribe(World.channel_topic(w))
+    World.update_transform(w, "u1", %{"p" => [1, 1]})
+    assert_receive %Phoenix.Socket.Broadcast{event: "states"}, 500
+    refute_receive %Phoenix.Socket.Broadcast{event: "states"}, 200
+  end
+
+  test "junk fields aren't stored or relayed" do
+    w = wid()
+    World.ensure_started(w)
+    World.update_transform(w, "u1", %{"p" => [1, 1], "evil" => String.duplicate("x", 1000), "c" => "nope"})
+    assert World.snapshot(w) == %{"u1" => %{"p" => [1, 1]}}
   end
 end

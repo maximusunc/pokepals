@@ -331,7 +331,7 @@ defmodule Server.WorldChannelTest do
       assert_push "join", %{id: _}
 
       push(s1, "state", %{"p" => [1, 2]})
-      assert_push "state", %{"p" => [1, 2], "id" => ^id1}
+      assert_push "states", %{s: [[^id1, 1, 2 | _]]}, 500
     end
 
     test "a state frame does not cross into another world" do
@@ -343,7 +343,9 @@ defmodule Server.WorldChannelTest do
       assert_push "welcome", %{id: _}
 
       push(s1, "state", %{"p" => [9, 9]})
-      refute_push "state", %{}
+      # (s1 hears its own entry, which a client skips; nothing reaches the other world's socket)
+      topic2 = "world:" <> w2
+      refute_receive %Phoenix.Socket.Message{topic: ^topic2, event: "states"}, 300
     end
   end
 end
