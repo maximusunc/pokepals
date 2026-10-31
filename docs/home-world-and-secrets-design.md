@@ -105,9 +105,23 @@ not as a plan to act on.
   honest. *Built:* `claim_secret` checks the spec's `secret.id` **and** that the player's last
   reported position (the ~20 Hz `state` stream the World process already keeps) is within the
   secret's `radius`. Answers `secret_found {id, new}` or `secret_refused`.
-- ⬜ **S-4 — Solving together.** If two players crack a secret together, do both get it? (Leaning
-  "yes", since solvable alone and better together, but it needs a decision on what "together" means:
-  same world at the moment of solving? helped?)
+- ✅ **S-4 — Solving together. (Decided 2026-10-31.)**
+  - **Who gets it: revealed for everyone present.** When a player solves a world's puzzle, the secret
+    is revealed for everyone in the world at that moment, and **each person takes their own** by
+    examining it, so everyone gets their own finding moment. (The maze already works this way: each
+    player has their own seed at the heart.) Anyone arriving later can still find it themselves.
+  - **"With whom" (the journal, HS-5): only friends near you.** The people recorded are those on your
+    friends list who are within roughly a screen of you when you take it. Strangers never appear in
+    your journal. Until friends exist (FR-1), nobody is recorded.
+  - **"Found together" with your companion (HS-3): beside you when taken.** The companion is within a
+    short distance of you at the moment you take it.
+  - **The moment names them.** The fade-to-black card adds a soft line, e.g. "Found with Sam." It
+    names the same people as the journal's "with whom" (friends near you); with nobody to name, the
+    moment is unchanged.
+  - *Implications for building:* at claim time the server judges and stores the `together` flag
+    (companion distance, from the `c` the client already streams) and the nearby friends (from the
+    world's transforms, once a friends list exists). A puzzle that "reveals" a secret needs a shared,
+    per-world revealed state (like the Ruin's wards) separate from each player's own find.
 - ✅ **S-5 — The moment of finding: small and warm.** Decided: no popups or fanfare. The companion
   perks up and noses the find, a gentle line plays (for the seed: "A curled seed from the oldest
   hedge… it wants to be planted somewhere of your own"), and a soft note says something changed at
