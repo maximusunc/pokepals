@@ -63,12 +63,42 @@ func begin(data: Dictionary, interactables: Array) -> void:
 	if not _active:
 		return
 	_owner_id = String(_home.get("owner_id", ""))
-	if _owner_id == Net.local_id():
-		_arrange_keepsakes(interactables)
+	_interactables_ref = interactables
+	_start_when_ready()
+
+
+## Whose home this is, and what it does, needs two things we may not have yet on arrival: our own id
+## (from the join's welcome) and, if it's ours, our REAL companion (re-dressed from our save; a fresh
+## scene starts with an un-met placeholder, which would choose nothing). If either is missing, wait for
+## our save to arrive: it comes after the welcome, and the presence layer applies it first (we listen
+## deferred), so by then both are in place.
+var _interactables_ref: Array = []
+var _started := false
+
+
+func _start_when_ready() -> void:
+	if _started:
+		return
+	var mine := Net.local_id() != "" and _owner_id == Net.local_id()
+	if Net.local_id() == "" or (mine and not _companion.is_met()):
+		if not Net.save_loaded.is_connected(_on_save_arrived):
+			Net.save_loaded.connect(_on_save_arrived, CONNECT_DEFERRED)
+		return
+	_started = true
+	if mine:
+		_arrange_keepsakes(_interactables_ref)
 	else:
-		_spawn_resident(interactables)
+		_spawn_resident(_interactables_ref)
 		var owner_name := String(_home.get("owner_name", "someone"))
 		_host.show_hint("%s's home." % owner_name)
+
+
+func _on_save_arrived(_companion_data, _appearance) -> void:
+	if not _active or _started:
+		return
+	if Net.local_id() != "" and _owner_id == Net.local_id() and not _companion.is_met():
+		return  # truly not met yet (the first meeting comes first); nothing to choose with
+	_start_when_ready()
 
 
 func update(_delta: float) -> void:
