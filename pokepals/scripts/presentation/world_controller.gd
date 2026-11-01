@@ -340,13 +340,15 @@ func _build_world(cached: Dictionary) -> void:
 	_intro_tween.tween_interval(5.0)
 	_intro_tween.tween_property(_hint, "modulate:a", 0.0, 1.4)
 
-	# A home: the companion chooses its keepsakes (yours), or theirs naps by its favourite (a friend's).
-	# After the greeting above, so a home's own words take its place.
-	_home_dir.begin(data, _interactables)
-
 	# Shared presence: hand Net our identity once, and listen for peers arriving/moving/leaving.
-	# Everything here is a no-op until the player actually Hosts/Joins via the lobby.
+	# Everything here is a no-op until the player actually Hosts/Joins via the lobby. This also
+	# re-dresses our placeholder companion from the in-session save, so it must come BEFORE the home.
 	_setup_net()
+
+	# A home: the companion chooses its keepsakes (yours), or theirs naps by its favourite (a friend's).
+	# After the greeting above, so a home's own words take its place, and after _setup_net, so it's our
+	# REAL companion that chooses (the fresh scene's placeholder isn't "met", and chose nothing).
+	_home_dir.begin(data, _interactables)
 
 	# The world is now fully assembled: let the per-frame logic (_process / _unhandled_input) run. Until
 	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
