@@ -69,8 +69,13 @@ func _process(_delta: float) -> bool:
 
 	# Our pair, in the world's light.
 	fails += _check(_world._player.material is ShaderMaterial, "the player wears the world's pastel light")
-	var aura = _world._player.get_node_or_null("OtherworldAura")
-	fails += _check(aura != null and aura.bubble_motes, "little bubbles drift round the player")
+	fails += _check(_world._player.get_node_or_null("VisitorBubble") != null and _world._player.get_node_or_null("VisitorBubbleFront") != null, "the player walks about inside a bubble")
+	fails += _check(_world._companion.get_node_or_null("VisitorBubble") != null, "so does the companion")
+	var pb: VisitorBubble = _world._player.get_node_or_null("VisitorBubble")
+	var cb: VisitorBubble = _world._companion.get_node_or_null("VisitorBubble")
+	if pb != null and cb != null:
+		fails += _check(cb.radius < pb.radius, "the companion's bubble is the smaller one")
+	fails += _check(_world._player.get_node_or_null("OtherworldAura") == null, "the bubble replaces the old glow")
 	fails += _check(int(_world._style.entity("ambient_life").get("bubbles", {}).get("count", 0)) > 0, "the air is full of bubbles")
 
 	# No native creature is a companion form.

@@ -335,14 +335,16 @@
 			"line_amount": 0.55,
 			"line_cut": 0.16,
 			"pulse_speed": 0.0,
-			"aura": [
-				1.0,
-				0.82,
-				0.94
-			],
-			"aura_radius": 18,
-			"motes": 3,
-			"mote_style": "bubble"
+			"bubble": {
+				"tint": [
+					1.0,
+					0.76,
+					0.92
+				],
+				"radius": 21,
+				"y": -9,
+				"pop_delay": 0.5
+			}
 		}
 	},
 	"atmosphere": {"day_tint": [1.0, 1.0, 1.0], "vignette": {"strength": 0.2, "color": [0.86, 0.72, 0.92]}, "wind": {"strength": 1.6, "speed": 0.7}, "ground_noise": {"contrast": 0.1, "tint": [1.0, 0.82, 0.92]}, "region_tint_alpha": 0.12, "grass": {"max": 0}, "soft_ground": {"dots": {"count": 800, "radius": [8, 34], "alpha": 0.16, "colors": [[1.0, 0.72, 0.9], [1.0, 0.9, 0.56], [0.62, 0.84, 1.0], [0.6, 0.92, 0.8], [1, 1, 1]]}}, "fizz": {"per_pond": 9, "color": [1.0, 1.0, 1.0]}},
