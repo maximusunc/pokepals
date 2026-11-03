@@ -246,10 +246,14 @@
 			},
 			"prop_lights": {
 				"chime_bubble": {
-					"radius": 26,
-					"y": -26,
-					"alpha": 0.22,
-					"motes": 1
+					"radius": 40,
+					"y": -44,
+					"alpha": 0.34,
+					"motes": 4,
+					"bob": 3,
+					"size": 1.6,
+					"saturate": true,
+					"ripple": true
 				},
 				"bubble_lamp": {
 					"radius": 26,

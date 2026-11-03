@@ -1721,6 +1721,16 @@ func _draw_prop_light(it: Dictionary) -> void:
 	var c: Color = it["color"]
 	var flare: float = it["flare"]
 	var phase := _phase_for(p)
+	# On a pale ground a pastel glow vanishes: "saturate" deepens the light's tint so it still reads,
+	# and "ripple" sends a slow ring of it spreading out over the ground every couple of seconds, so
+	# movement catches the eye from across the screen (Bobbledown's chime-bubbles).
+	if bool(cfg.get("saturate", false)):
+		c = Color.from_hsv(c.h, minf(1.0, c.s * 2.2 + 0.25), c.v * 0.92)
+	if bool(cfg.get("ripple", false)):
+		var rt := fposmod(_time * 0.42 + phase, 1.0)
+		draw_set_transform(p + Vector2(0, 6), 0.0, Vector2(1.0, 0.45))
+		draw_arc(Vector2.ZERO, 10.0 + 46.0 * rt, 0.0, TAU, 32, Color(c.r, c.g, c.b, 0.5 * (1.0 - rt)), 2.0 + 2.0 * (1.0 - rt))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var breathe := 0.85 + 0.15 * sin(_time * _glow_pulse_speed + phase)
 	var r := float(cfg.get("radius", 26.0)) * breathe * (1.0 + FLARE_GROW * flare)
 	var a := float(cfg.get("alpha", 0.30)) + 0.45 * flare
@@ -1780,7 +1790,8 @@ func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
 ## A smooth @2x prop: drawn at half size, base → tint (the instance's colour) → gloss, and squashed
 ## about its feet by `wobble` (a touched sweet jiggles: wider-and-shorter, then taller, settling).
 func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, lift: float, wobble: float) -> void:
-	var s: float = _prop_scale[type]
+	# A light may also ask for its prop to be drawn larger ("size"), so a landmark prop stands out.
+	var s: float = _prop_scale[type] * float((_prop_lights.get(type, {}) as Dictionary).get("size", 1.0))
 	var sz := base.get_size() * s
 	var feet := p + Vector2(0, 8.0 - lift)
 	var j := sin(wobble * 18.0) * wobble * 0.18
@@ -1808,7 +1819,11 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	var t := String(it["type"])
 	if _PROP_OVERLAY.has(t) or not _prop_base.has(t):
 		return false
-	_blit_prop_sprite(t, it["pos"], it["color"], 0.0, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
+	# A prop light may ask its prop to "bob" (px): it floats gently up and down, so it catches the eye
+	# from further off (Bobbledown's chime-bubbles).
+	var bob := float((_prop_lights.get(t, {}) as Dictionary).get("bob", 0.0))
+	var lift := (0.5 + 0.5 * sin(_time * 1.7 + _phase_for(it["pos"]) * 3.0)) * bob if bob > 0.0 else 0.0
+	_blit_prop_sprite(t, it["pos"], it["color"], lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 

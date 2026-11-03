@@ -374,7 +374,8 @@ ART = {
         "props": {"extra_types": ["marsh_stone", "bubble_bloom", "jellybeans", "puff_bush", "fizz_spring", "candy_bench",
                                   "chime_bubble", "bubble_lamp", "pebble_pops", "cloud_cushion", "sign_bubble"]},
         "prop_lights": {
-            "chime_bubble": {"radius": 26, "y": -26, "alpha": 0.22, "motes": 1},
+            "chime_bubble": {"radius": 40, "y": -44, "alpha": 0.34, "motes": 4, "bob": 3, "size": 1.6,
+                             "saturate": True, "ripple": True},
             "bubble_lamp": {"radius": 26, "y": -27, "alpha": 0.26},
             "bubble_bloom": {"radius": 14, "y": -15, "alpha": 0.14},
             "fizz_spring": {"radius": 16, "y": -4, "alpha": 0.16, "motes": 3},
