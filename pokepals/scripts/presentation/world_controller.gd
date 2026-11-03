@@ -145,6 +145,7 @@ func _ready() -> void:
 	var world_id := WorldRouter.current_world
 	Net.world_spec_received.connect(_on_world_spec_arrived)
 	Net.world_spec_unchanged.connect(_on_world_spec_unchanged)
+	Net.relocate_requested.connect(_on_relocate_requested)
 	# WHEN to build. Paint instantly from the cache ONLY when we're already in a live session — a world
 	# hop / revisit, where the server is about to re-confirm the very spec we cached and instant paint is
 	# the nice feel. On a cold, DISCONNECTED boot we must connect before we can play anyway (online-only),
@@ -710,11 +711,23 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 
 
 ## Put the player and companion down: beside the named arrival portal if we travelled here
-## (stepping OUT of it), otherwise at the world's authored spawn points.
+## (stepping OUT of it), where we left off if this is the first world of a returning session (the
+## server remembers it, Server.Whereabouts), otherwise at the world's authored spawn points.
 func _place_arrivals(data: Dictionary, arrival_id: String) -> void:
 	var p_spawn := WorldData.to_vec2(data["player_spawn"])
 	var c_spawn := WorldData.to_vec2(data["companion_spawn"])
-	if arrival_id != "":
+	var resume_pos: Variant = Net.take_resume_position(WorldRouter.current_world) if arrival_id == "" else null
+	if resume_pos is Vector2:
+		var rp: Vector2 = resume_pos
+		p_spawn = rp
+		c_spawn = rp + Vector2(-26, 16)
+		# If we left off standing in a doorway, don't let it whisk us away the moment we arrive: it
+		# stays quiet until we step clear, just as the portal we arrive through does.
+		for p in _portals:
+			var reach := GATEWAY_RANGE if p.get("gateway", false) else PORTAL_RANGE
+			if p_spawn.distance_to(p["pos"]) <= reach + PORTAL_ARM_BUFFER:
+				p["armed"] = false
+	elif arrival_id != "":
 		var anchors: Array = data.get("portals", []).duplicate()
 		if data.has("gateway"):
 			anchors.append(data["gateway"])
@@ -1661,6 +1674,16 @@ func _on_world_spec_arrived(world_id: String, _version: int, _spec: Dictionary) 
 		# roster re-arrives after the rebuild) and reload the scene to rebuild from the now-cached spec.
 		Net.leave_world()
 		get_tree().reload_current_scene()
+
+
+## Our first join asked to resume, and the server says we were last in ANOTHER world: go there instead.
+## Only while this scene is still waiting for its first build (a cold boot behind the connect gate) —
+## the scene simply re-targets its join, and builds that world when its spec lands.
+func _on_relocate_requested(world_id: String) -> void:
+	if world_id == "" or _built_etag != "":
+		return
+	WorldRouter.current_world = world_id
+	Net.enter_world(world_id)
 
 
 ## The server confirmed our cached spec is still current (we sent a matching known_etag on join, so it
