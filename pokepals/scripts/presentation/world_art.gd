@@ -1032,15 +1032,16 @@ func _draw() -> void:
 
 	# (the pixel ground's litter — tufts, clover, pebbles, leaves, flowers — is drawn by _litter_under)
 
-	# a soft world's sugared dapples
-	for d in _dots:
-		var dp: Vector2 = d["pos"]
-		var dr: float = d["r"]
-		if cull and not vis.grow(dr).has_point(dp):
-			continue
-		var dc: Color = d["color"]
-		draw_circle(dp, dr, dc, true, -1.0, true)
-		draw_circle(dp + _style.light_dir() * dr * 0.3, dr * 0.55, Color(1, 1, 1, dc.a * 0.35), true, -1.0, true)
+	# a soft world's sugared dapples: one quad each from the same pre-drawn disc, so they batch into a
+	# handful of draw calls (an anti-aliased circle apiece cost ~200 calls and ~20k triangles a frame)
+	if not _dots.is_empty():
+		var dtex := _dapple_texture()
+		for d in _dots:
+			var dp: Vector2 = d["pos"]
+			var dr: float = d["r"]
+			if cull and not vis.grow(dr).has_point(dp):
+				continue
+			draw_texture_rect(dtex, Rect2(dp - Vector2(dr, dr), Vector2(dr, dr) * 2.0), false, d["color"])
 
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
@@ -1257,16 +1258,37 @@ func _draw_ribbon(pts: PackedVector2Array, color: Color) -> void:
 	var shade := PackedVector2Array()
 	for q in pts:
 		shade.append(q + Vector2(0, 3))
-	draw_polyline(shade, Color(sh.r, sh.g, sh.b, 0.08), 24.0, true)
+	# Only the ribbon's outer edge is anti-aliased: everything else lies inside it (or is faint enough
+	# that a hard edge can't be seen), and every anti-aliased stroke roughly doubles its triangles.
+	draw_polyline(shade, Color(sh.r, sh.g, sh.b, 0.08), 24.0)
 	draw_polyline(pts, color.darkened(0.06), 22.0, true)
-	draw_polyline(pts, color, 18.0, true)
+	draw_polyline(pts, color, 18.0)
 	var lit := PackedVector2Array()
 	for q in pts:
 		lit.append(q + Vector2(0, -3))
-	draw_polyline(lit, Color(1, 1, 1, 0.28), 5.0, true)
+	draw_polyline(lit, Color(1, 1, 1, 0.28), 5.0)
 	for end in [pts[0], pts[pts.size() - 1]]:
 		draw_circle(end, 11.0, color.darkened(0.06), true, -1.0, true)
 		draw_circle(end, 9.0, color, true, -1.0, true)
+
+
+## The dapple's disc, drawn once: smooth-edged, a touch more opaque in a crown toward the light.
+static var _dapple_tex: ImageTexture = null
+
+func _dapple_texture() -> Texture2D:
+	if _dapple_tex == null:
+		var n := 128
+		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var ld := _style.light_dir()
+		var crown := Vector2(0.5, 0.5) + ld * 0.15
+		for y in n:
+			for x in n:
+				var p := (Vector2(x, y) + Vector2(0.5, 0.5)) / float(n)
+				var edge := clampf((0.5 - p.distance_to(Vector2(0.5, 0.5))) * float(n) / 1.5, 0.0, 1.0)
+				var lift := clampf((0.28 - p.distance_to(crown)) * float(n) / 3.0, 0.0, 1.0)
+				img.set_pixel(x, y, Color(1, 1, 1, edge * (0.78 + 0.22 * lift)))
+		_dapple_tex = ImageTexture.create_from_image(img)
+	return _dapple_tex
 
 
 ## A soft world's pond: the water, then a lighter, sky-lit lens toward the light and a gentle sheen
@@ -1300,11 +1322,11 @@ func _draw_fizz(vis: Rect2, cull: bool) -> void:
 		var br: float = float(b["r"]) * (0.7 + 0.5 * t)
 		var bp := base + Vector2(sin(t * 9.0 + float(b["phase"]) * 6.0) * 2.0, -t * 26.0)
 		if t < 0.88:
-			draw_arc(bp, br, 0.0, TAU, 14, Color(_fizz_color.r, _fizz_color.g, _fizz_color.b, 0.75), 1.0, true)
-			draw_circle(bp + Vector2(-br * 0.35, -br * 0.4), br * 0.28, Color(1, 1, 1, 0.85), true, -1.0, true)
+			draw_arc(bp, br, 0.0, TAU, 12, Color(_fizz_color.r, _fizz_color.g, _fizz_color.b, 0.75), 1.0)
+			draw_circle(bp + Vector2(-br * 0.35, -br * 0.4), br * 0.28, Color(1, 1, 1, 0.85))
 		else:
 			var pop := (t - 0.88) / 0.12
-			draw_arc(bp, br * (1.0 + pop * 1.4), 0.0, TAU, 14, Color(1, 1, 1, 0.6 * (1.0 - pop)), 1.0, true)
+			draw_arc(bp, br * (1.0 + pop * 1.4), 0.0, TAU, 12, Color(1, 1, 1, 0.6 * (1.0 - pop)), 1.0)
 
 
 ## --- pixel-art water --------------------------------------------------------------------
@@ -1762,8 +1784,12 @@ func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, li
 	var sz := base.get_size() * s
 	var feet := p + Vector2(0, 8.0 - lift)
 	var j := sin(wobble * 18.0) * wobble * 0.18
-	draw_set_transform(feet, 0.0, Vector2(1.0 + j, 1.0 - j))
-	var rect := Rect2(Vector2(-sz.x * 0.5, -sz.y), sz)
+	# Only a wobbling prop gets its own transform: a transform change breaks draw-call batching, so the
+	# hundreds of props at rest draw in world space and batch together.
+	var wobbling := absf(j) > 0.001
+	if wobbling:
+		draw_set_transform(feet, 0.0, Vector2(1.0 + j, 1.0 - j))
+	var rect := Rect2(Vector2(-sz.x * 0.5, -sz.y) + (Vector2.ZERO if wobbling else feet), sz)
 	draw_texture_rect(base, rect, false)
 	var tint: Texture2D = _prop_tint.get(type)
 	if tint != null:
@@ -1771,7 +1797,8 @@ func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, li
 	var gloss: Texture2D = _prop_gloss.get(type)
 	if gloss != null:
 		draw_texture_rect(gloss, rect, false)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if wobbling:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## True (and drawn) if this prop is a plain static type with baked pixel-art — those are drawn
