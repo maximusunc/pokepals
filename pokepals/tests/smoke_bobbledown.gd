@@ -95,6 +95,7 @@ func _process(_delta: float) -> bool:
 	var chime_ids: Array = secret.get("reveal", {}).get("props", [])
 	fails += _check(chime_ids.size() == 7, "seven chime-bubbles hold the lullaby")
 	fails += _check(_secret_entries().is_empty(), "the first breath hasn't risen yet")
+	fails += _check(_lit_chimes(chime_ids) == 0, "a visit before the secret is found starts with every chime waiting")
 	var lines: Array = secret["reveal"]["lines"]
 	for i in chime_ids.size():
 		var idx := _index_of(String(chime_ids[i]))
@@ -117,6 +118,15 @@ func _process(_delta: float) -> bool:
 	if found.size() == 1:
 		fails += _check((found[0]["pos"] as Vector2).distance_to(WorldData.to_vec2(secret["position"])) < 1.0, "it rose where the secret rests")
 
+	# A revisit once the secret is found: every chime shows as rung from the start.
+	for id in chime_ids:
+		var ci := _index_of(String(id))
+		if ci >= 0:
+			art.set_lit(int(_world._interactables[ci]["render_index"]), false)
+	_world._secret_dir._secret = {}  # what setup_secret leaves for a secret already found
+	_world._secret_dir.after_world_drawn()
+	fails += _check(_lit_chimes(chime_ids) == chime_ids.size(), "once it's found, every chime shows as rung on a revisit")
+
 	var router := root.get_node("/root/WorldRouter")
 	fails += _check(_world._return_world == router.HUB_ID and _world._return_portal == router.HUB_GATEWAY_ID, "the way home is the Vale's Gateway")
 
@@ -137,6 +147,15 @@ func _ring(idx: int) -> void:
 	if near != idx:
 		print("  note: nearest was %s, not the chime" % _world._interactables[near].get("id", "?"))
 	_world._try_interact()
+
+
+func _lit_chimes(ids: Array) -> int:
+	var n := 0
+	for id in ids:
+		var i := _index_of(String(id))
+		if i >= 0 and bool(_world._world_art._interactables[int(_world._interactables[i]["render_index"])].get("opened", false)):
+			n += 1
+	return n
 
 
 func _index_of(id: String) -> int:

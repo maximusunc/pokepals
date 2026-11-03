@@ -200,6 +200,7 @@ func _build_world(cached: Dictionary) -> void:
 	_maze_dir.note_player_baseline()  # baseline for the maze idle-timer's movement check
 
 	_world_art.render_world(data, _style)
+	_secret_dir.after_world_drawn()  # a world whose song you've already sung shows its chimes rung
 	_apply_atmosphere(data.get("atmosphere", {}))
 	_setup_daycycle(_style.daycycle())
 
