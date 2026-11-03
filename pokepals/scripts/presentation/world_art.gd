@@ -1032,15 +1032,16 @@ func _draw() -> void:
 
 	# (the pixel ground's litter — tufts, clover, pebbles, leaves, flowers — is drawn by _litter_under)
 
-	# a soft world's sugared dapples
-	for d in _dots:
-		var dp: Vector2 = d["pos"]
-		var dr: float = d["r"]
-		if cull and not vis.grow(dr).has_point(dp):
-			continue
-		var dc: Color = d["color"]
-		draw_circle(dp, dr, dc, true, -1.0, true)
-		draw_circle(dp + _style.light_dir() * dr * 0.3, dr * 0.55, Color(1, 1, 1, dc.a * 0.35), true, -1.0, true)
+	# a soft world's sugared dapples: one quad each from the same pre-drawn disc, so they batch into a
+	# handful of draw calls (an anti-aliased circle apiece cost ~200 calls and ~20k triangles a frame)
+	if not _dots.is_empty():
+		var dtex := _dapple_texture()
+		for d in _dots:
+			var dp: Vector2 = d["pos"]
+			var dr: float = d["r"]
+			if cull and not vis.grow(dr).has_point(dp):
+				continue
+			draw_texture_rect(dtex, Rect2(dp - Vector2(dr, dr), Vector2(dr, dr) * 2.0), false, d["color"])
 
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
@@ -1257,16 +1258,37 @@ func _draw_ribbon(pts: PackedVector2Array, color: Color) -> void:
 	var shade := PackedVector2Array()
 	for q in pts:
 		shade.append(q + Vector2(0, 3))
-	draw_polyline(shade, Color(sh.r, sh.g, sh.b, 0.08), 24.0, true)
+	# Only the ribbon's outer edge is anti-aliased: everything else lies inside it (or is faint enough
+	# that a hard edge can't be seen), and every anti-aliased stroke roughly doubles its triangles.
+	draw_polyline(shade, Color(sh.r, sh.g, sh.b, 0.08), 24.0)
 	draw_polyline(pts, color.darkened(0.06), 22.0, true)
-	draw_polyline(pts, color, 18.0, true)
+	draw_polyline(pts, color, 18.0)
 	var lit := PackedVector2Array()
 	for q in pts:
 		lit.append(q + Vector2(0, -3))
-	draw_polyline(lit, Color(1, 1, 1, 0.28), 5.0, true)
+	draw_polyline(lit, Color(1, 1, 1, 0.28), 5.0)
 	for end in [pts[0], pts[pts.size() - 1]]:
 		draw_circle(end, 11.0, color.darkened(0.06), true, -1.0, true)
 		draw_circle(end, 9.0, color, true, -1.0, true)
+
+
+## The dapple's disc, drawn once: smooth-edged, a touch more opaque in a crown toward the light.
+static var _dapple_tex: ImageTexture = null
+
+func _dapple_texture() -> Texture2D:
+	if _dapple_tex == null:
+		var n := 128
+		var img := Image.create(n, n, false, Image.FORMAT_RGBA8)
+		var ld := _style.light_dir()
+		var crown := Vector2(0.5, 0.5) + ld * 0.15
+		for y in n:
+			for x in n:
+				var p := (Vector2(x, y) + Vector2(0.5, 0.5)) / float(n)
+				var edge := clampf((0.5 - p.distance_to(Vector2(0.5, 0.5))) * float(n) / 1.5, 0.0, 1.0)
+				var lift := clampf((0.28 - p.distance_to(crown)) * float(n) / 3.0, 0.0, 1.0)
+				img.set_pixel(x, y, Color(1, 1, 1, edge * (0.78 + 0.22 * lift)))
+		_dapple_tex = ImageTexture.create_from_image(img)
+	return _dapple_tex
 
 
 ## A soft world's pond: the water, then a lighter, sky-lit lens toward the light and a gentle sheen
@@ -1300,11 +1322,11 @@ func _draw_fizz(vis: Rect2, cull: bool) -> void:
 		var br: float = float(b["r"]) * (0.7 + 0.5 * t)
 		var bp := base + Vector2(sin(t * 9.0 + float(b["phase"]) * 6.0) * 2.0, -t * 26.0)
 		if t < 0.88:
-			draw_arc(bp, br, 0.0, TAU, 14, Color(_fizz_color.r, _fizz_color.g, _fizz_color.b, 0.75), 1.0, true)
-			draw_circle(bp + Vector2(-br * 0.35, -br * 0.4), br * 0.28, Color(1, 1, 1, 0.85), true, -1.0, true)
+			draw_arc(bp, br, 0.0, TAU, 12, Color(_fizz_color.r, _fizz_color.g, _fizz_color.b, 0.75), 1.0)
+			draw_circle(bp + Vector2(-br * 0.35, -br * 0.4), br * 0.28, Color(1, 1, 1, 0.85))
 		else:
 			var pop := (t - 0.88) / 0.12
-			draw_arc(bp, br * (1.0 + pop * 1.4), 0.0, TAU, 14, Color(1, 1, 1, 0.6 * (1.0 - pop)), 1.0, true)
+			draw_arc(bp, br * (1.0 + pop * 1.4), 0.0, TAU, 12, Color(1, 1, 1, 0.6 * (1.0 - pop)), 1.0)
 
 
 ## --- pixel-art water --------------------------------------------------------------------
@@ -1699,6 +1721,22 @@ func _draw_prop_light(it: Dictionary) -> void:
 	var c: Color = it["color"]
 	var flare: float = it["flare"]
 	var phase := _phase_for(p)
+	# On a pale ground a pastel glow vanishes: "saturate" deepens the light's tint so it still reads,
+	# and "ripple" sends a slow ring of it spreading out over the ground every couple of seconds, so
+	# movement catches the eye from across the screen (Bobbledown's chime-bubbles).
+	if bool(cfg.get("saturate", false)):
+		c = Color.from_hsv(c.h, minf(1.0, c.s * 2.2 + 0.25), c.v * 0.92)
+	# A prop you've RUNG (Bobbledown's chime-bubbles, see SecretDirector) reads as done at a glance: it
+	# stops calling (no ripple, no bob), its light turns a steady warm gold, and notes drift up from it.
+	var rung := bool(it.get("opened", false))
+	if rung:
+		c = RUNG_GOLD
+		_draw_rising_notes(p + Vector2(0, float(cfg.get("y", -8.0))), c, phase)
+	if bool(cfg.get("ripple", false)) and not rung:
+		var rt := fposmod(_time * 0.42 + phase, 1.0)
+		draw_set_transform(p + Vector2(0, 6), 0.0, Vector2(1.0, 0.45))
+		draw_arc(Vector2.ZERO, 10.0 + 46.0 * rt, 0.0, TAU, 32, Color(c.r, c.g, c.b, 0.5 * (1.0 - rt)), 2.0 + 2.0 * (1.0 - rt))
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 	var breathe := 0.85 + 0.15 * sin(_time * _glow_pulse_speed + phase)
 	var r := float(cfg.get("radius", 26.0)) * breathe * (1.0 + FLARE_GROW * flare)
 	var a := float(cfg.get("alpha", 0.30)) + 0.45 * flare
@@ -1755,15 +1793,37 @@ func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## The colour a rung chime turns: its note, its halo and the notes it lets go of.
+const RUNG_GOLD := Color(1.0, 0.76, 0.22)
+
+
+## Little music notes drifting up and away from either side of a rung chime, each fading as it rises.
+func _draw_rising_notes(p: Vector2, c: Color, phase: float) -> void:
+	for k in 2:
+		var t := fposmod(_time * 0.3 + float(k) * 0.5 + phase, 1.0)
+		var side := float(k * 2 - 1)
+		var np := p + Vector2(side * (16.0 + t * 8.0) + sin(t * 6.0 + float(k)) * 3.0, 8.0 - t * 26.0)
+		var a := sin(t * PI)
+		var nc := Color(c.r * 0.85, c.g * 0.72, c.b * 0.5, a)
+		draw_circle(np, 2.8, nc, true, -1.0, true)
+		draw_line(np + Vector2(2.4, 0), np + Vector2(2.4, -9.0), nc, 1.4, true)
+		draw_line(np + Vector2(2.4, -9.0), np + Vector2(5.8, -7.0), nc, 1.4, true)
+
+
 ## A smooth @2x prop: drawn at half size, base → tint (the instance's colour) → gloss, and squashed
 ## about its feet by `wobble` (a touched sweet jiggles: wider-and-shorter, then taller, settling).
 func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, lift: float, wobble: float) -> void:
-	var s: float = _prop_scale[type]
+	# A light may also ask for its prop to be drawn larger ("size"), so a landmark prop stands out.
+	var s: float = _prop_scale[type] * float((_prop_lights.get(type, {}) as Dictionary).get("size", 1.0))
 	var sz := base.get_size() * s
 	var feet := p + Vector2(0, 8.0 - lift)
 	var j := sin(wobble * 18.0) * wobble * 0.18
-	draw_set_transform(feet, 0.0, Vector2(1.0 + j, 1.0 - j))
-	var rect := Rect2(Vector2(-sz.x * 0.5, -sz.y), sz)
+	# Only a wobbling prop gets its own transform: a transform change breaks draw-call batching, so the
+	# hundreds of props at rest draw in world space and batch together.
+	var wobbling := absf(j) > 0.001
+	if wobbling:
+		draw_set_transform(feet, 0.0, Vector2(1.0 + j, 1.0 - j))
+	var rect := Rect2(Vector2(-sz.x * 0.5, -sz.y) + (Vector2.ZERO if wobbling else feet), sz)
 	draw_texture_rect(base, rect, false)
 	var tint: Texture2D = _prop_tint.get(type)
 	if tint != null:
@@ -1771,7 +1831,8 @@ func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, li
 	var gloss: Texture2D = _prop_gloss.get(type)
 	if gloss != null:
 		draw_texture_rect(gloss, rect, false)
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	if wobbling:
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
 ## True (and drawn) if this prop is a plain static type with baked pixel-art — those are drawn
@@ -1781,7 +1842,16 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	var t := String(it["type"])
 	if _PROP_OVERLAY.has(t) or not _prop_base.has(t):
 		return false
-	_blit_prop_sprite(t, it["pos"], it["color"], 0.0, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
+	# A prop light may ask its prop to "bob" (px): it floats gently up and down, so it catches the eye
+	# from further off (Bobbledown's chime-bubbles).
+	var bob := float((_prop_lights.get(t, {}) as Dictionary).get("bob", 0.0))
+	var col: Color = it["color"]
+	if bool(it.get("opened", false)) and bob > 0.0:
+		# a rung chime has stopped calling: it rests, and the note curled inside it turns gold
+		bob = 0.0
+		col = RUNG_GOLD
+	var lift := (0.5 + 0.5 * sin(_time * 1.7 + _phase_for(it["pos"]) * 3.0)) * bob if bob > 0.0 else 0.0
+	_blit_prop_sprite(t, it["pos"], col, lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 

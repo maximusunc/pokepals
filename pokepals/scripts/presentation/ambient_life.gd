@@ -217,18 +217,18 @@ func _draw_bubble(b: Dictionary) -> void:
 	if age > life:
 		# the pop: a quick ring flung outward, and a few droplets
 		var pop := (age - life) / 0.25
-		draw_arc(p, r * (1.0 + pop * 1.6), 0.0, TAU, 16, Color(1, 1, 1, 0.7 * (1.0 - pop)), 1.0, true)
+		draw_arc(p, r * (1.0 + pop * 1.6), 0.0, TAU, 12, Color(1, 1, 1, 0.7 * (1.0 - pop)), 1.0)
 		for k in 4:
 			var a := float(k) * TAU / 4.0 + float(b["phase"])
-			draw_circle(p + Vector2(cos(a), sin(a)) * r * (1.2 + pop * 2.0), 0.7, Color(1, 1, 1, 0.8 * (1.0 - pop)), true, -1.0, true)
+			draw_circle(p + Vector2(cos(a), sin(a)) * r * (1.2 + pop * 2.0), 0.7, Color(1, 1, 1, 0.8 * (1.0 - pop)))
 		return
 	var w := sin(_time * 3.0 + float(b["phase"])) * 0.08
 	draw_set_transform(p, 0.0, Vector2(1.0 + w, 1.0 - w))
-	draw_circle(Vector2.ZERO, r, Color(c.r, c.g, c.b, 0.10 * fade_in), true, -1.0, true)
+	draw_circle(Vector2.ZERO, r, Color(c.r, c.g, c.b, 0.10 * fade_in))
 	var hue := fposmod(_time * 0.1 + float(b["phase"]), 1.0)
 	draw_arc(Vector2.ZERO, r, 0.0, PI, 10, Color(c.r, c.g, c.b, 0.65 * fade_in), 1.0, true)
 	draw_arc(Vector2.ZERO, r, PI, TAU, 10, Color.from_hsv(hue, 0.35, 1.0, 0.6 * fade_in), 1.0, true)
-	draw_circle(Vector2(-r * 0.38, -r * 0.4), maxf(0.6, r * 0.22), Color(1, 1, 1, 0.9 * fade_in), true, -1.0, true)
+	draw_circle(Vector2(-r * 0.38, -r * 0.4), maxf(0.6, r * 0.22), Color(1, 1, 1, 0.9 * fade_in))
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
