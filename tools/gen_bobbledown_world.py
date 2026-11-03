@@ -397,7 +397,8 @@ ART = {
         "cast": [1.0, 0.72, 0.86], "cast_amount": 0.08,
         "saturation": 0.95,
         "line_glow": [0.56, 0.38, 0.62], "line_amount": 0.55, "line_cut": 0.16, "pulse_speed": 0.0,
-        "bubble": {"tint": [1.0, 0.76, 0.92], "radius": 21, "y": -9, "pop_delay": 0.5},
+        "bubble": {"tint": [1.0, 0.76, 0.92], "radius": 21, "y": -9, "pop_delay": 0.5,
+                   "companion": {"radius": 21, "y": -8}},
     },
 }
 

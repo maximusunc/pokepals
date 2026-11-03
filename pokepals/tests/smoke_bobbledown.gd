@@ -74,7 +74,8 @@ func _process(_delta: float) -> bool:
 	var pb: VisitorBubble = _world._player.get_node_or_null("VisitorBubble")
 	var cb: VisitorBubble = _world._companion.get_node_or_null("VisitorBubble")
 	if pb != null and cb != null:
-		fails += _check(cb.radius < pb.radius, "the companion's bubble is the smaller one")
+		var bcfg: Dictionary = _world._style.actor_look().get("bubble", {})
+		fails += _check(is_equal_approx(cb.radius, float(bcfg.get("companion", {}).get("radius", -1))), "the companion's bubble is its own size (room for ears and tails)")
 	fails += _check(_world._player.get_node_or_null("OtherworldAura") == null, "the bubble replaces the old glow")
 	fails += _check(int(_world._style.entity("ambient_life").get("bubbles", {}).get("count", 0)) > 0, "the air is full of bubbles")
 

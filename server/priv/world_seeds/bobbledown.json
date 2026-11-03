@@ -343,7 +343,11 @@
 				],
 				"radius": 21,
 				"y": -9,
-				"pop_delay": 0.5
+				"pop_delay": 0.5,
+				"companion": {
+					"radius": 21,
+					"y": -8
+				}
 			}
 		}
 	},
