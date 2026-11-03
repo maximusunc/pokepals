@@ -969,9 +969,9 @@ func open_slab(index: int) -> void:
 
 ## Toggle an interactable's lit/held state (the Paired Hall plate glow, which comes and goes as weight
 ## lands and lifts — unlike open_slab, which only ever turns ON). Pulses on the rising edge.
-func set_lit(index: int, on: bool) -> void:
+func set_lit(index: int, on: bool, quiet := false) -> void:
 	if index >= 0 and index < _interactables.size():
-		if on and not bool(_interactables[index].get("opened", false)):
+		if on and not quiet and not bool(_interactables[index].get("opened", false)):
 			_interactables[index]["pulse"] = 1.0
 		_interactables[index]["opened"] = on
 
@@ -1814,9 +1814,12 @@ func _draw_rising_notes(p: Vector2, c: Color, phase: float) -> void:
 ## about its feet by `wobble` (a touched sweet jiggles: wider-and-shorter, then taller, settling).
 func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, lift: float, wobble: float) -> void:
 	# A light may also ask for its prop to be drawn larger ("size"), so a landmark prop stands out.
-	var s: float = _prop_scale[type] * float((_prop_lights.get(type, {}) as Dictionary).get("size", 1.0))
+	var k := float((_prop_lights.get(type, {}) as Dictionary).get("size", 1.0))
+	var s: float = _prop_scale[type] * k
 	var sz := base.get_size() * s
-	var feet := p + Vector2(0, 8.0 - lift)
+	# The art's feet sit 8 world px above the image's bottom edge: a larger draw grows that margin too,
+	# so push the image down by the extra, keeping the feet (and the baked shadow) on the ground.
+	var feet := p + Vector2(0, 8.0 + 8.0 * (k - 1.0) - lift)
 	var j := sin(wobble * 18.0) * wobble * 0.18
 	# Only a wobbling prop gets its own transform: a transform change breaks draw-call batching, so the
 	# hundreds of props at rest draw in world space and batch together.
@@ -1842,16 +1845,12 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	var t := String(it["type"])
 	if _PROP_OVERLAY.has(t) or not _prop_base.has(t):
 		return false
-	# A prop light may ask its prop to "bob" (px): it floats gently up and down, so it catches the eye
-	# from further off (Bobbledown's chime-bubbles).
-	var bob := float((_prop_lights.get(t, {}) as Dictionary).get("bob", 0.0))
+	# A rung prop whose light ripples (Bobbledown's chime-bubbles) has stopped calling: the note curled
+	# inside it turns gold.
 	var col: Color = it["color"]
-	if bool(it.get("opened", false)) and bob > 0.0:
-		# a rung chime has stopped calling: it rests, and the note curled inside it turns gold
-		bob = 0.0
+	if bool(it.get("opened", false)) and bool((_prop_lights.get(t, {}) as Dictionary).get("ripple", false)):
 		col = RUNG_GOLD
-	var lift := (0.5 + 0.5 * sin(_time * 1.7 + _phase_for(it["pos"]) * 3.0)) * bob if bob > 0.0 else 0.0
-	_blit_prop_sprite(t, it["pos"], col, lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
+	_blit_prop_sprite(t, it["pos"], col, 0.0, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 
