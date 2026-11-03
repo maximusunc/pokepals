@@ -14,6 +14,12 @@ defmodule Server.WorldChannel do
     * push `load` (our canonical companion + appearance — a per-USER concern, same in every world),
     * replay the world's transform `snapshot` so peers already moving appear at once.
 
+  A cold boot joins with `resume: true` (Server.Whereabouts): if the player was last in ANOTHER world
+  they can still enter, the join is refused with `reason: "relocate"` and that `world_id`, and the
+  client joins there instead; if they were last in THIS world, a `resume` push (before the spec) tells
+  the client where to set them down. While they're here we note their latest position from their
+  transforms and save it every so often, and once more when they leave.
+
   Thereafter: `identity` → Presence.update; `state` → cast to this world's `Server.World`; `flare` →
   relay a touched glow-plant to everyone else in the world; `save` → persist by user_id; `list_worlds` → a `world_list` page of the directory (the Vale's Gateway);
   presence diffs → join/identity/leave frames. The sender id is always
@@ -21,7 +27,7 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Discoveries, Economy, Friends, HomePasses, Homes, HomeWorld, Presence, PresenceFrames, Profiles, Saves, Social, World, Worlds}
+  alias Server.{Discoveries, Economy, Friends, HomePasses, Homes, HomeWorld, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
   @shop_currency "coins"
@@ -35,6 +41,10 @@ defmodule Server.WorldChannel do
   # world whose spec carries the "reach_center" goal, so it can't be claimed from anywhere else.
   @maze_reward 10
 
+  # How often a moving player's position is written to Postgres (Server.Whereabouts), so a server
+  # restart costs at most this much of where they were. They're also saved when they leave.
+  @whereabouts_every_ms 15_000
+
   intercept ["presence_diff"]
 
   # A player's HOME WORLD (`"world:home:" <> owner_user_id`): not a catalog row but a spec built for its
@@ -45,22 +55,25 @@ defmodule Server.WorldChannel do
   def join("world:home:" <> owner_id, payload, socket) do
     user_id = socket.assigns.user_id
 
-    if owner_id != "" and Homes.can_visit?(user_id, owner_id) do
-      if user_id != owner_id and not Friends.friends?(user_id, owner_id), do: HomePasses.consume(owner_id, user_id)
-      definition = HomeWorld.definition(owner_id, user_id)
-      world_id = definition.world_id
-      World.ensure_started(world_id, [], ambient_core(definition))
-      send(self(), :after_join)
+    with {:ok, resume_p} <- resume(payload, user_id, HomeWorld.world_id(owner_id)) do
+      if owner_id != "" and Homes.can_visit?(user_id, owner_id) do
+        if user_id != owner_id and not Friends.friends?(user_id, owner_id), do: HomePasses.consume(owner_id, user_id)
+        definition = HomeWorld.definition(owner_id, user_id)
+        world_id = definition.world_id
+        World.ensure_started(world_id, [], ambient_core(definition))
+        send(self(), :after_join)
 
-      {:ok,
-       assign(socket, %{
-         world_id: world_id,
-         definition: definition,
-         known_etag: Map.get(payload, "known_etag", ""),
-         known: MapSet.new()
-       })}
-    else
-      {:error, %{reason: "not_allowed"}}
+        {:ok,
+         assign(socket, %{
+           world_id: world_id,
+           definition: definition,
+           known_etag: Map.get(payload, "known_etag", ""),
+           known: MapSet.new(),
+           resume_p: resume_p
+         })}
+      else
+        {:error, %{reason: "not_allowed"}}
+      end
     end
   end
 
@@ -71,17 +84,20 @@ defmodule Server.WorldChannel do
         {:error, %{reason: "unknown_world"}}
 
       definition ->
-        World.ensure_started(world_id, ward_defs(definition), ambient_core(definition))
-        known_etag = Map.get(payload, "known_etag", "")
-        send(self(), :after_join)
+        with {:ok, resume_p} <- resume(payload, socket.assigns.user_id, world_id) do
+          World.ensure_started(world_id, ward_defs(definition), ambient_core(definition))
+          known_etag = Map.get(payload, "known_etag", "")
+          send(self(), :after_join)
 
-        {:ok,
-         assign(socket, %{
-           world_id: world_id,
-           definition: definition,
-           known_etag: known_etag,
-           known: MapSet.new()
-         })}
+          {:ok,
+           assign(socket, %{
+             world_id: world_id,
+             definition: definition,
+             known_etag: known_etag,
+             known: MapSet.new(),
+             resume_p: resume_p
+           })}
+        end
     end
   end
 
@@ -96,6 +112,15 @@ defmodule Server.WorldChannel do
     # ETAG (Worlds.etag/1), so any back-end edit to a world invalidates the client's cache on its
     # own — there is no version to remember to bump and no new client build to ship for a world edit.
     etag = Worlds.etag(definition)
+
+    # A cold boot resuming in this very world: where to set the player down. Sent BEFORE the spec, so
+    # it's already known when the client builds the world and places its player.
+    case socket.assigns[:resume_p] do
+      [x, y] -> push(socket, "resume", %{world_id: world_id, p: [x, y]})
+      _ -> :ok
+    end
+
+    Process.send_after(self(), :save_whereabouts, @whereabouts_every_ms)
 
     # The world secrets we've found — a per-USER concern, like the save. Sent BEFORE the spec, so a world
     # built straight from it already knows to leave a found secret out (the maze's seed, once taken).
@@ -193,13 +218,30 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Every so often, save where we're standing (if we've moved since last time), so even a server that
+  # goes down without a goodbye remembers roughly where everyone was.
+  def handle_info(:save_whereabouts, socket) do
+    Process.send_after(self(), :save_whereabouts, @whereabouts_every_ms)
+    {:noreply, save_whereabouts(socket)}
+  end
+
   def handle_info(_msg, socket), do: {:noreply, socket}
 
   @impl true
   def terminate(_reason, socket) do
     case socket.assigns do
-      %{world_id: world_id, user_id: user_id} -> World.forget(world_id, user_id)
-      _ -> :ok
+      %{world_id: world_id, user_id: user_id} ->
+        # A failed last write (the database briefly away) mustn't stop us leaving the world cleanly.
+        try do
+          save_whereabouts(socket)
+        rescue
+          e -> Logger.warning("couldn't save whereabouts on leave: #{Exception.message(e)}")
+        end
+
+        World.forget(world_id, user_id)
+
+      _ ->
+        :ok
     end
 
     :ok
@@ -227,7 +269,12 @@ defmodule Server.WorldChannel do
 
   def handle_in("state", payload, socket) do
     World.update_transform(socket.assigns.world_id, socket.assigns.user_id, payload)
-    {:noreply, socket}
+
+    # Note where we are, for Server.Whereabouts (written out on a timer and on leaving, not per packet).
+    case Whereabouts.position(payload) do
+      nil -> {:noreply, socket}
+      p -> {:noreply, assign(socket, :last_p, p)}
+    end
   end
 
   # A shared-world Ruin ward INTENT from this player's companion: "uncover" (its search nosed out a
@@ -538,6 +585,35 @@ defmodule Server.WorldChannel do
   end
 
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  # A cold boot asks to RESUME where it left off (`"resume": true`). `{:ok, [x, y]}` = it was last in
+  # `world_id` itself, set it down there; `{:ok, nil}` = nothing to resume here (or not asked); and an
+  # `{:error, relocate}` refuses this join in favour of the world it was last in (Server.Whereabouts).
+  defp resume(%{"resume" => true}, user_id, world_id) do
+    case Whereabouts.resume_target(user_id, world_id) do
+      {:here, p} -> {:ok, p}
+      {:elsewhere, other} -> {:error, %{reason: "relocate", world_id: other}}
+      :none -> {:ok, nil}
+    end
+  end
+
+  defp resume(_payload, _user_id, _world_id), do: {:ok, nil}
+
+  # Write our latest position out to Server.Whereabouts, if it's changed since we last did.
+  defp save_whereabouts(socket) do
+    case socket.assigns do
+      %{last_p: p, world_id: world_id, user_id: user_id} when p != nil ->
+        if p != socket.assigns[:saved_p] do
+          Whereabouts.remember(user_id, world_id, p)
+          assign(socket, :saved_p, p)
+        else
+          socket
+        end
+
+      _ ->
+        socket
+    end
+  end
 
   # A world id as a catalog UUID (what a discovery remembers it was found in), or nil for a home.
   defp catalog_id(world_id) do

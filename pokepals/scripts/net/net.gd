@@ -88,6 +88,10 @@ signal world_spec_unchanged(world_id: String)
 ## reason "unknown_world"; usually the server hasn't been seeded). The lobby surfaces this instead of
 ## hanging on "loading".
 signal world_join_failed(reason: String)
+## Our first join this run asked to RESUME where we left off, and the server says we were last in a
+## DIFFERENT world (one we can still enter): it refused this join so we can go there instead. Not a
+## failure — the not-yet-built world just re-targets (see world_controller).
+signal relocate_requested(world_id: String)
 
 ## A page of the world DIRECTORY arrived (answering list_worlds): `req` echoes the request's number so a
 ## stale answer can be told apart from the current search; `offset` is where this page starts. Each
@@ -185,6 +189,13 @@ var _discoveries: Array = []
 var _my_name := ""
 var _friend_code := ""
 var _friends: Dictionary = {}
+# True until our first world join of this run succeeds: that join asks the server to RESUME where we
+# last stood (Server.Whereabouts). Later joins — world hops, reconnects mid-session — never do: you're
+# already standing somewhere.
+var _resume_pending: bool = true
+# Where the server says to set us down on resuming: { "world": world_id, "pos": Vector2 }, or {} if
+# none. Arrives just before the spec and is consumed by the world's first placement (take_resume_position).
+var _resume: Dictionary = {}
 
 
 func _ready() -> void:
@@ -224,6 +235,16 @@ func is_active() -> bool:
 ## Our id — our user_id (empty before our first world 'welcome').
 func local_id() -> String:
 	return _my_id
+
+
+## Where to set the player down in `world_id` on resuming a previous session (a Vector2), or null if
+## there's nothing to resume there. One-shot: the first placement takes it.
+func take_resume_position(world_id: String) -> Variant:
+	if _resume.is_empty() or String(_resume["world"]) != world_id:
+		return null
+	var pos: Vector2 = _resume["pos"]
+	_resume = {}
+	return pos
 
 
 ## CONNECT to the server at `base_url` (host:port, optionally with the "/ws" mount). Net rewrites it
@@ -612,7 +633,10 @@ func _switch_to_world() -> void:
 	_joined = false
 	_join_in_flight = true
 	_world_join_ref = _next_ref()
-	_send_raw([_world_join_ref, _world_join_ref, _world_topic(wid), "phx_join", { "known_etag": _desired_known_etag }])
+	var join_payload := { "known_etag": _desired_known_etag }
+	if _resume_pending:
+		join_payload["resume"] = true
+	_send_raw([_world_join_ref, _world_join_ref, _world_topic(wid), "phx_join", join_payload])
 
 
 func _flush_identity() -> void:
@@ -682,6 +706,12 @@ func _handle_reply(arr: Array, payload: Dictionary) -> void:
 		reason = String((response as Dictionary).get("reason", reason))
 	_joined = false
 	_join_in_flight = false
+	if reason == "relocate":
+		# Not a failure: we were last in another world. We never got into this one, so forget it (no
+		# phx_leave owed) and let the world scene re-target the join.
+		_current_world = ""
+		relocate_requested.emit(String((response as Dictionary).get("world_id", "")))
+		return
 	world_join_failed.emit(reason)
 
 
@@ -704,10 +734,16 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var uwid := String(payload.get("world_id", ""))
 			if uwid != "":
 				world_spec_unchanged.emit(uwid)
+		"resume":
+			# Where we left off in this world (only on the first join of a run, and before the spec).
+			var rp: Variant = payload.get("p", [])
+			if rp is Array and (rp as Array).size() == 2:
+				_resume = { "world": String(payload.get("world_id", "")), "pos": Vector2(float(rp[0]), float(rp[1])) }
 		"welcome":
 			# We're in the world: adopt our id, mark joined, flush identity, learn who's here.
 			_my_id = String(payload.get("id", ""))
 			_joined = true
+			_resume_pending = false
 			_join_in_flight = false
 			_flush_identity()
 			var peers: Variant = payload.get("peers", [])
