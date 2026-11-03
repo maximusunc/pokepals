@@ -166,7 +166,9 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   `data/pals.json`).
 > - **Soft ground:** a world's `ground` entity can render `"soft"`. That gives pastel dapples,
 >   rounded candy-ribbon paths, perfectly round ponds that **fizz**, and no grass. `AmbientLife`
->   gains drifting, popping **bubbles**, and `actor_look` gains `"mote_style": "bubble"`.
+>   gains drifting, popping **bubbles**. An `actor_look` with a `bubble` block puts every player
+>   and companion inside a soap bubble of their own (`VisitorBubble`), which pops into being on
+>   arrival and wobbles as they walk: you're just a visitor here.
 > - **Native creatures:** bobbling, puffkin, wobbler, rollypoll and bubblefin.
 > - **Secret (W-6):** ring all seven chime-bubbles in one visit and the Burbler's first breath
 >   rises. This is a new reveal type, `touch_all`, checked by the server from the flares it relays.

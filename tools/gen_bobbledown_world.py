@@ -388,15 +388,16 @@ ART = {
         {"t": 1.0, "tint": [1.0, 0.95, 0.97], "vignette": [1.0, 0.76, 0.84], "vstrength": 0.24},
     ]},
     # Visitors keep their own (pixel) look, which is rather the point -- you're the square ones here --
-    # but in the world's light: a pastel lift, the dark outline softened to plum, a pink aura with
-    # little bubbles drifting round you.
+    # but in the world's light: a pastel lift, the dark outline softened to plum. And each of you walks
+    # about inside a soap bubble of your own (VisitorBubble), which pops into being as you arrive:
+    # you're just a visitor in a bubble world.
     "actor_look": {
         "shadow_mult": [0.86, 0.76, 0.98], "shadow_boost": 1.2,
         "light_mult": [1.0, 0.96, 0.98], "light_boost": 1.06,
         "cast": [1.0, 0.72, 0.86], "cast_amount": 0.08,
         "saturation": 0.95,
         "line_glow": [0.56, 0.38, 0.62], "line_amount": 0.55, "line_cut": 0.16, "pulse_speed": 0.0,
-        "aura": [1.0, 0.82, 0.94], "aura_radius": 18, "motes": 3, "mote_style": "bubble",
+        "bubble": {"tint": [1.0, 0.76, 0.92], "radius": 21, "y": -9, "pop_delay": 0.5},
     },
 }
 
