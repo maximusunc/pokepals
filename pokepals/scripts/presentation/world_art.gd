@@ -1726,7 +1726,13 @@ func _draw_prop_light(it: Dictionary) -> void:
 	# movement catches the eye from across the screen (Bobbledown's chime-bubbles).
 	if bool(cfg.get("saturate", false)):
 		c = Color.from_hsv(c.h, minf(1.0, c.s * 2.2 + 0.25), c.v * 0.92)
-	if bool(cfg.get("ripple", false)):
+	# A prop you've RUNG (Bobbledown's chime-bubbles, see SecretDirector) reads as done at a glance: it
+	# stops calling (no ripple, no bob), its light turns a steady warm gold, and notes drift up from it.
+	var rung := bool(it.get("opened", false))
+	if rung:
+		c = RUNG_GOLD
+		_draw_rising_notes(p + Vector2(0, float(cfg.get("y", -8.0))), c, phase)
+	if bool(cfg.get("ripple", false)) and not rung:
 		var rt := fposmod(_time * 0.42 + phase, 1.0)
 		draw_set_transform(p + Vector2(0, 6), 0.0, Vector2(1.0, 0.45))
 		draw_arc(Vector2.ZERO, 10.0 + 46.0 * rt, 0.0, TAU, 32, Color(c.r, c.g, c.b, 0.5 * (1.0 - rt)), 2.0 + 2.0 * (1.0 - rt))
@@ -1787,6 +1793,23 @@ func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+## The colour a rung chime turns: its note, its halo and the notes it lets go of.
+const RUNG_GOLD := Color(1.0, 0.76, 0.22)
+
+
+## Little music notes drifting up and away from either side of a rung chime, each fading as it rises.
+func _draw_rising_notes(p: Vector2, c: Color, phase: float) -> void:
+	for k in 2:
+		var t := fposmod(_time * 0.3 + float(k) * 0.5 + phase, 1.0)
+		var side := float(k * 2 - 1)
+		var np := p + Vector2(side * (16.0 + t * 8.0) + sin(t * 6.0 + float(k)) * 3.0, 8.0 - t * 26.0)
+		var a := sin(t * PI)
+		var nc := Color(c.r * 0.85, c.g * 0.72, c.b * 0.5, a)
+		draw_circle(np, 2.8, nc, true, -1.0, true)
+		draw_line(np + Vector2(2.4, 0), np + Vector2(2.4, -9.0), nc, 1.4, true)
+		draw_line(np + Vector2(2.4, -9.0), np + Vector2(5.8, -7.0), nc, 1.4, true)
+
+
 ## A smooth @2x prop: drawn at half size, base → tint (the instance's colour) → gloss, and squashed
 ## about its feet by `wobble` (a touched sweet jiggles: wider-and-shorter, then taller, settling).
 func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, lift: float, wobble: float) -> void:
@@ -1822,8 +1845,13 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	# A prop light may ask its prop to "bob" (px): it floats gently up and down, so it catches the eye
 	# from further off (Bobbledown's chime-bubbles).
 	var bob := float((_prop_lights.get(t, {}) as Dictionary).get("bob", 0.0))
+	var col: Color = it["color"]
+	if bool(it.get("opened", false)) and bob > 0.0:
+		# a rung chime has stopped calling: it rests, and the note curled inside it turns gold
+		bob = 0.0
+		col = RUNG_GOLD
 	var lift := (0.5 + 0.5 * sin(_time * 1.7 + _phase_for(it["pos"]) * 3.0)) * bob if bob > 0.0 else 0.0
-	_blit_prop_sprite(t, it["pos"], it["color"], lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
+	_blit_prop_sprite(t, it["pos"], col, lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 
