@@ -20,6 +20,7 @@ const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation",
 var color := Color(0.5, 0.95, 1.0)
 var radius := 26.0
 var motes := 3
+var bubble_motes := false  # "mote_style": "bubble" — the motes are little soap bubbles (Bobbledown)
 var _time := 0.0
 
 
@@ -43,6 +44,7 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	aura.color = WorldData.to_color(look.get("aura", [0.5, 0.95, 1.0]))
 	aura.radius = float(look.get("aura_radius", 26.0)) * size
 	aura.motes = int(look.get("motes", 3))
+	aura.bubble_motes = String(look.get("mote_style", "")) == "bubble"
 	actor.add_child(aura)
 
 
@@ -60,5 +62,9 @@ func _draw() -> void:
 	for k in motes:
 		var a := _time * (0.9 + 0.15 * float(k)) + float(k) * TAU / float(maxi(1, motes))
 		var p := Vector2(cos(a) * radius * 0.55, -radius * 0.4 + sin(a * 1.7) * radius * 0.25)
+		if bubble_motes:
+			draw_arc(p, 2.2, 0.0, TAU, 12, Color(color.r, color.g, color.b, 0.8), 0.8, true)
+			draw_circle(p + Vector2(-0.8, -0.8), 0.6, Color(1, 1, 1, 0.9), true, -1.0, true)
+			continue
 		draw_circle(p, 1.4, Color(color.r, color.g, color.b, 0.75))
 		draw_circle(p, 0.7, Color(1, 1, 1, 0.9))

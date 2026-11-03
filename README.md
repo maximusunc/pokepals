@@ -85,6 +85,7 @@ godot --headless --path pokepals --script res://tests/run_tests.gd
 godot --headless --path pokepals --script res://tests/smoke_world.gd
 godot --headless --path pokepals --script res://tests/smoke_ui.gd
 godot --headless --path pokepals --script res://tests/smoke_gateway.gd
+godot --headless --path pokepals --script res://tests/smoke_bobbledown.gd
 ```
 
 Opening the project in the Godot editor once does the same import as the first

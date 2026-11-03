@@ -154,6 +154,25 @@ not a blocker** — pick it up if/when a shared world wants it.
 > light (`GlowTrail`). Art: `pokepals/tools/gen_nocthollow.py` over `tools/pixelart/nocthollow.py`.
 > Layout and lore: `tools/gen_nocthollow_world.py`. Any later world can re-skin itself the same way.
 
+> **Bobbledown (2026-11):** the one world that **breaks from the pixel art**. It's a soft, round,
+> pastel world (3800×3000) that was *breathed, not built*. Its story: the Old Burbler sleeps under
+> the Fizzwell, a lagoon that never stops fizzing, and every bubble it breathes out became a hill, a
+> tree or a creature. Nothing there has a corner; visitors stay pixel, the square ones, on purpose.
+> Reached through the Gateway (featured).
+> - **Smooth art:** `pokepals/tools/softart/bobbledown.py` (Pillow + numpy) shades spheres and
+>   supersamples them into `@2x` PNGs. The client draws any `@2x` image at half size with linear
+>   filtering: trees and growths (`TreeView.tex_scale`), props (base, tint, then an untinted
+>   **gloss** layer; they **wobble** like jelly when touched) and creatures (`"hd": true` in
+>   `data/pals.json`).
+> - **Soft ground:** a world's `ground` entity can render `"soft"`. That gives pastel dapples,
+>   rounded candy-ribbon paths, perfectly round ponds that **fizz**, and no grass. `AmbientLife`
+>   gains drifting, popping **bubbles**, and `actor_look` gains `"mote_style": "bubble"`.
+> - **Native creatures:** bobbling, puffkin, wobbler, rollypoll and bubblefin.
+> - **Secret (W-6):** ring all seven chime-bubbles in one visit and the Burbler's first breath
+>   rises. This is a new reveal type, `touch_all`, checked by the server from the flares it relays.
+>
+> Layout and lore: `tools/gen_bobbledown_world.py`. Art: `pokepals/tools/gen_bobbledown.py`.
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

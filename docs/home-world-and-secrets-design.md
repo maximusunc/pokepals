@@ -140,7 +140,7 @@ elegance, not lock-and-key. Vary the *kind* of secret so it never reads as a che
 small game, patience, a time of day, a form only the companion can take, or just noticing.
 Each world's secret is a different *kind* (decided 2026-10-31): the Maze is reaching a place, the
 Ruin is solving it, Nocthollow is stillness, the Riverbank is a skill moment, and the Bazaar is
-wandering.
+wandering. Bobbledown (W-6) is gathering: a song you complete by visiting every corner.
 
 - ✅ **W-1 — The Ruin: the last Warden's lantern. (Built.)** Before the great door
   stands the dark lantern the last Warden kept lit, alone, until they were gone. Once the door is
@@ -189,6 +189,20 @@ wandering.
     wandering: at the end of a **short empty alley off the west lane**, a single **glass
     river-drop** that still holds a ripple of light.
   - **Keepsake:** the glass river-drop. **Qualities:** crafted, glowing.
+
+- ✅ **W-6 — Bobbledown: the Burbler's lullaby. (Built, 2026-11-03.)** The round world was
+  breathed, not built, by the Old Burbler asleep under the Fizzwell. Its lullaby is seven notes, one
+  in each of seven **chime-bubbles**, one per region (Popping Green, Gumdrop Hills, the Puffwood,
+  Jellybottom, Lollipop Grove, the Bubblefield and the Pillow Dunes). Ring all seven in one visit and
+  the Burbler's **first breath**, a bubble that has never popped, rises to the Fizzwell's south shore.
+  - **How it's told:** the High Hush's sign and stone tell the story and name the seven. Each new
+    chime reads the next line of the lullaby, so progress is felt and never counted (S-5). A rung
+    chime stays lit for you, and a repeat says you've sung that part already.
+  - **Mechanics:** a new reveal type, `touch_all` (`reveal.props`, `lines`, `again_line`,
+    `reveal_line`). The chimes are ordinary flare props, so friends see each one ring. The server
+    remembers which flare props you touched this visit and only honours the claim once every chime
+    is among them (`Server.SecretReveal`). Leaving resets the song, like the hunt, and nothing is lost.
+  - **Keepsake:** the first breath, in a little cream cup. **Qualities:** old, watery.
 
 ### The home world
 - ✅ **HW-1 — A per-player world. (Built, owner-only for now.)** `Server.HomeWorld` builds an

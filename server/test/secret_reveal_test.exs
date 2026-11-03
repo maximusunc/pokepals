@@ -27,6 +27,14 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{hunt_found: 10, hunt_goal: goal})
   end
 
+  test "the first bubble only rises once every chime-bubble has been rung this visit" do
+    secret = %{"reveal" => %{"type" => "touch_all", "props" => ["chime_a", "chime_b", "chime_c"]}}
+    refute SecretReveal.met?(secret, %{})
+    refute SecretReveal.met?(secret, %{touched: MapSet.new(["chime_a", "chime_b"])})
+    assert SecretReveal.met?(secret, %{touched: MapSet.new(["chime_a", "chime_b", "chime_c", "a_bloom"])})
+    refute SecretReveal.met?(%{"reveal" => %{"type" => "touch_all", "props" => []}}, %{touched: MapSet.new()})
+  end
+
   test "an unknown reveal type is never met" do
     refute SecretReveal.met?(%{"reveal" => %{"type" => "made_up"}}, %{})
   end

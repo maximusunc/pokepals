@@ -30,6 +30,10 @@ var sway_gain := 1.0
 var glow_color := Color(0, 0, 0, 0)
 var glow_radius := 0.0
 var glow_y := -24.0
+# How many world units one texel covers. 1 for the pixel-art groves; 0.5 for smooth "@2x" art
+# (Bobbledown's), which is baked at twice the world resolution and drawn at half size, linearly
+# filtered, so its curves stay smooth when the view is scaled up.
+var tex_scale := 1.0
 
 var _time := 0.0
 
@@ -60,7 +64,8 @@ func _draw() -> void:
 
 func _draw_normal() -> void:
 	var cs := _sway(sway_gain)  # canopy catches the most wind
-	_draw_shadow(Vector2(0, 4), 18.0, 0.20)
+	if tex_scale == 1.0:
+		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow
 	_draw_glow(cs)
 	if _draw_sprite(cs, 6.0):
 		return
@@ -83,7 +88,8 @@ func _draw_normal() -> void:
 ## WorldArt._draw_landmark, now origin-relative so it sorts like any other tree).
 func _draw_great() -> void:
 	var sway := _sway(1.4 * sway_gain)
-	_draw_shadow(Vector2(0, 8), 36.0, 0.22)
+	if tex_scale == 1.0:
+		_draw_shadow(Vector2(0, 8), 36.0, 0.22)
 	_draw_glow(sway)
 	if _draw_sprite(sway, 8.0):
 		return
@@ -127,8 +133,11 @@ func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
 
 
 func _blit(t: Texture2D, off_x: float, base_y: float) -> void:
-	var sz := t.get_size()
-	draw_texture(t, Vector2(off_x - sz.x * 0.5, base_y - sz.y))
+	var sz := t.get_size() * tex_scale
+	if tex_scale == 1.0:
+		draw_texture(t, Vector2(off_x - sz.x * 0.5, base_y - sz.y))
+	else:
+		draw_texture_rect(t, Rect2(Vector2(off_x - sz.x * 0.5, base_y - sz.y), sz), false)
 
 
 ## A soft, flattened ground shadow — the cheapest, biggest depth cue we have. Drawn as

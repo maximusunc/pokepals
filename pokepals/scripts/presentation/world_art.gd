@@ -21,6 +21,13 @@ var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: 
 var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
 var _region_tints: Array = []   # [ { rect: Rect2, color: Color } ] — per-area mood wash
 var _sparkles: Array = []  # [ { pos, color, phase } ] — a glowing world's twinkling ground specks
+# The SOFT ground (a world whose "ground" entity renders "soft": Bobbledown, the round world): no pixels
+# and no grass tufts, but big pastel dapples like sugared polka dots, paths as rounded candy ribbons
+# with a glossy stripe, and ponds that FIZZ, bubbles rising through the water and popping at the top.
+var _soft := false
+var _dots: Array = []      # [ { pos, r, color, phase } ]
+var _fizz: Array = []      # [ { pond: int, off: Vector2, speed, phase, r } ] — bubbles rising in ponds
+var _fizz_color := Color(1, 1, 1)
 # The pixel-art ground (GroundLayer): when the art direction asks for it, the floor, the paths and the
 # sandy shores are drawn by a shader child instead of the gradient + stretched noise + stroked paths
 # below, and the ground is dressed with clustered pixel DETAILS from a sprite atlas.
@@ -83,6 +90,11 @@ var _portal_tex: Texture2D = null
 # `entities.props` list in art.json (convention: prop_<type>_base/_tint.png).
 var _prop_base := {}   # type: String -> Texture2D
 var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
+# Smooth "@2x" props (Bobbledown's, tools/gen_bobbledown.py): baked at twice the world resolution and
+# drawn at half size, plus an untinted GLOSS layer over the tint (so a coloured sweet keeps its white
+# shine). They're soft, so they wobble like jelly when touched instead of only pulsing.
+var _prop_gloss := {}  # type -> Texture2D
+var _prop_scale := {}  # type -> float (0.5 for @2x art; absent = 1)
 # These props still animate (flame/glow), so they blit their baked vessel inside their own
 # draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
 const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true, "carving": true }
@@ -150,6 +162,8 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_grass_max = int((atmo.get("grass", {}) as Dictionary).get("max", 240))
 	_build_ground_noise(atmo.get("ground_noise", {}))
 	_scatter_sparkles(atmo.get("sparkles", {}))
+	_soft = String(_style.entity("ground").get("render", "")) == "soft"
+	_scatter_dots(atmo.get("soft_ground", {}).get("dots", {}) if _soft else {})
 
 	# Per-region mood wash: a soft color over each named area that carries a "tint", so
 	# the grove, meadow, glade and hollow each feel like somewhere distinct underfoot.
@@ -174,11 +188,21 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	# of water: a shore skips any stretch that runs through another pond's water instead of drawing a
 	# seam across the lake. A lone pond (every meadow pond) keeps its whole ring as its shore.
 	for pd in _ponds:
-		pd["ring"] = _organic_ring(pd["center"], pd["radius"], _phase_for(pd["center"]))
+		if _soft:
+			# a soft world's water is truly round: a smooth circle (a lagoon of several reads as bubbles
+			# run together), not a wobbly bank
+			var circle := PackedVector2Array()
+			for k in 96:
+				var a := float(k) / 96.0 * TAU
+				circle.append(pd["center"] + Vector2(cos(a), sin(a)) * float(pd["radius"]))
+			pd["ring"] = circle
+		else:
+			pd["ring"] = _organic_ring(pd["center"], pd["radius"], _phase_for(pd["center"]))
 	for i in _ponds.size():
 		_ponds[i]["shore"] = _shore_runs(i)
 		_ponds[i]["shallows"] = _inset_runs(_ponds[i], SHALLOWS_INSET)
 		_ponds[i]["foam"] = _foam_specks(_ponds[i]["shore"], _ponds[i]["center"])
+	_seed_fizz(atmo.get("fizz", {}) if _soft else {})
 
 	# A long river band (the Riverbank world): one big water rectangle along an edge, drawn
 	# like the ponds but rectangular, with a lighter rim and drifting ripples.
@@ -279,19 +303,28 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 func _load_prop_sprites() -> void:
 	_prop_base.clear()
 	_prop_tint.clear()
+	_prop_gloss.clear()
+	_prop_scale.clear()
 	var props_cfg: Dictionary = _style.entity("props")
 	if String(props_cfg.get("render", "")) == "sprite":
 		var prefix := String(props_cfg.get("prefix", "res://assets/sprites/prop_"))
 		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
 		for t in props_cfg.get("types", []) + props_cfg.get("extra_types", []):
 			var ty := String(t)
-			var base_path := prefix + ty + "_base.png"
+			# smooth @2x art first, then the pixel-art convention
+			var suffix := "@2x.png" if ResourceLoader.exists(prefix + ty + "_base@2x.png") else ".png"
+			var base_path := prefix + ty + "_base" + suffix
 			if not ResourceLoader.exists(base_path):
 				continue
 			_prop_base[ty] = ResourceLoader.load(base_path)
-			var tint_path := prefix + ty + "_tint.png"
+			var tint_path := prefix + ty + "_tint" + suffix
 			if ResourceLoader.exists(tint_path):
 				_prop_tint[ty] = ResourceLoader.load(tint_path)
+			if suffix != ".png":
+				_prop_scale[ty] = 0.5
+				var gloss_path := prefix + ty + "_gloss" + suffix
+				if ResourceLoader.exists(gloss_path):
+					_prop_gloss[ty] = ResourceLoader.load(gloss_path)
 
 
 ## A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.
@@ -784,6 +817,8 @@ func _scatter_grass() -> void:
 	_grass.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC0FFEE
+	if _soft or _grass_max <= 0:
+		return  # a soft world has no blades of grass
 	var count := int(clampf(_bounds.size.x * _bounds.size.y / 26000.0, 40, _grass_max))
 	var base := _style.color("grass")
 	for i in count:
@@ -820,6 +855,47 @@ func _scatter_sparkles(cfg: Dictionary) -> void:
 			"phase": rng.randf() * TAU,
 			"speed": rng.randf_range(0.5, 1.4),
 		})
+
+
+## A soft world's ground dapples: big, faint pastel discs (sugared polka dots), each with a lighter
+## crown toward the light. atmosphere.soft_ground.dots = { count, colors, radius: [min, max], alpha }.
+func _scatter_dots(cfg: Dictionary) -> void:
+	_dots.clear()
+	var count := int(cfg.get("count", 0))
+	var colors: Array = cfg.get("colors", [])
+	if count <= 0 or colors.is_empty():
+		return
+	var rr: Array = cfg.get("radius", [14, 60])
+	var alpha := float(cfg.get("alpha", 0.22))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xB0BB1E
+	for i in count:
+		var c := WorldData.to_color(colors[rng.randi() % colors.size()])
+		c.a = alpha * rng.randf_range(0.6, 1.0)
+		_dots.append({
+			"pos": Vector2(_bounds.position.x + rng.randf() * _bounds.size.x, _bounds.position.y + rng.randf() * _bounds.size.y),
+			"r": rng.randf_range(float(rr[0]), float(rr[1])), "color": c, "phase": rng.randf() * TAU,
+		})
+
+
+## A soft world's ponds fizz: a handful of bubbles per pond, each rising from its own spot and popping.
+## atmosphere.fizz = { per_pond, color }. The bubbles are just seeds; their motion is a function of time.
+func _seed_fizz(cfg: Dictionary) -> void:
+	_fizz.clear()
+	var per := int(cfg.get("per_pond", 0))
+	if per <= 0:
+		return
+	_fizz_color = WorldData.to_color(cfg.get("color", [1, 1, 1]))
+	var rng := RandomNumberGenerator.new()
+	rng.seed = 0xF122
+	for i in _ponds.size():
+		var r: float = _ponds[i]["radius"]
+		var n := int(clampf(float(per) * r / 120.0, 3, per * 3))
+		for k in n:
+			var a := rng.randf() * TAU
+			var d := sqrt(rng.randf()) * r * 0.72
+			_fizz.append({ "pond": i, "off": Vector2(cos(a), sin(a) * 0.8) * d, "speed": rng.randf_range(0.25, 0.6),
+				"phase": rng.randf(), "r": rng.randf_range(1.6, 3.6) })
 
 
 ## A glow-plant was touched (by us, or — relayed by the server — by anyone in the world): blaze its
@@ -956,6 +1032,16 @@ func _draw() -> void:
 
 	# (the pixel ground's litter — tufts, clover, pebbles, leaves, flowers — is drawn by _litter_under)
 
+	# a soft world's sugared dapples
+	for d in _dots:
+		var dp: Vector2 = d["pos"]
+		var dr: float = d["r"]
+		if cull and not vis.grow(dr).has_point(dp):
+			continue
+		var dc: Color = d["color"]
+		draw_circle(dp, dr, dc, true, -1.0, true)
+		draw_circle(dp + _style.light_dir() * dr * 0.3, dr * 0.55, Color(1, 1, 1, dc.a * 0.35), true, -1.0, true)
+
 	# grass tufts (drawn low, swaying), giving the ground some life and texture
 	for g in _grass:
 		if cull and not vis.has_point(g["pos"]):
@@ -983,7 +1069,9 @@ func _draw() -> void:
 		if cull and not vis.intersects((p["box"] as Rect2).grow(8.0)):
 			continue
 		var pts: PackedVector2Array = p["pts"]
-		if _ground == null:
+		if _soft:
+			_draw_ribbon(pts, p["color"])
+		elif _ground == null:
 			draw_polyline(pts, p["color"], 16.0)   # on the pixel ground the floor itself is the trail
 		if p["glow"]:
 			var pc: Color = (p["color"] as Color).lightened(0.4)
@@ -1038,6 +1126,8 @@ func _draw() -> void:
 		var ring: PackedVector2Array = pond["ring"]
 		if _pond_tex != null:
 			_fill_water(ring, _pond_tex, _pond_world_tile, _water_scroll(_pond_tex, false))
+		elif _soft:
+			_draw_soft_pond(pond)
 		else:
 			draw_colored_polygon(ring, pond["color"])
 			for k in 2:
@@ -1046,9 +1136,16 @@ func _draw() -> void:
 				draw_arc(center, rr, 0.0, TAU, 40, Color(0.85, 0.92, 0.95, 0.22 * (1.0 - t)), 1.5)
 		shown.append(pond)
 	for pond in shown:
+		if _soft:
+			for run in pond["shore"]:
+				draw_polyline(run, _water_rim, 5.0, true)
+				draw_polyline(run, Color(1, 1, 1, 0.5), 1.5, true)
+			continue
 		_draw_shallows(pond["shallows"], pond["foam"], vis if cull else Rect2())
 		for run in pond["shore"]:
 			draw_polyline(run, _water_rim, 2.0)
+	if _soft:
+		_draw_fizz(vis, cull)
 
 	# soft halos around glowing litter (a night world's glowcaps, shards, reeds, lilies)
 	_draw_litter_glow(vis, cull)
@@ -1085,7 +1182,8 @@ func _draw() -> void:
 			continue  # already in the baked static layer, shadow and all
 		_draw_prop_light(it)
 		_draw_light_pool(it["type"], it["pos"])
-		_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)
+		if not _prop_scale.has(it["type"]):
+			_draw_shadow(it["pos"] + Vector2(0, 6), 11.0, 0.16)  # smooth @2x art bakes its own soft shadow
 		if _form_highlights.has(i):
 			_draw_form_highlight(it["pos"])
 		_draw_glow(it["type"], it["pos"])
@@ -1148,6 +1246,65 @@ func _draw_prop_body(it: Dictionary) -> void:
 			_draw_great_arch(it["pos"], it["color"])
 		_:
 			_draw_prop(it["type"], it["pos"], it["color"])
+
+
+## A soft world's path: a rounded candy ribbon (a soft shadow, the body, a glossy stripe down its
+## middle, and round ends), anti-aliased, never a stroked line with square ends.
+func _draw_ribbon(pts: PackedVector2Array, color: Color) -> void:
+	if pts.size() < 2:
+		return
+	var sh := _style.color("shadow")
+	var shade := PackedVector2Array()
+	for q in pts:
+		shade.append(q + Vector2(0, 3))
+	draw_polyline(shade, Color(sh.r, sh.g, sh.b, 0.08), 24.0, true)
+	draw_polyline(pts, color.darkened(0.06), 22.0, true)
+	draw_polyline(pts, color, 18.0, true)
+	var lit := PackedVector2Array()
+	for q in pts:
+		lit.append(q + Vector2(0, -3))
+	draw_polyline(lit, Color(1, 1, 1, 0.28), 5.0, true)
+	for end in [pts[0], pts[pts.size() - 1]]:
+		draw_circle(end, 11.0, color.darkened(0.06), true, -1.0, true)
+		draw_circle(end, 9.0, color, true, -1.0, true)
+
+
+## A soft world's pond: the water, then a lighter, sky-lit lens toward the light and a gentle sheen
+## band, like looking into a glass of something fizzy.
+func _draw_soft_pond(pond: Dictionary) -> void:
+	var ring: PackedVector2Array = pond["ring"]
+	var c: Color = pond["color"]
+	draw_colored_polygon(ring, c)
+	var center: Vector2 = pond["center"]
+	var r: float = pond["radius"]
+	var ld := _style.light_dir()
+	for k in 3:
+		var f := 0.78 - float(k) * 0.2
+		var lens := PackedVector2Array()
+		for q in ring:
+			lens.append(center + (q - center) * f + ld * r * (0.12 + 0.06 * float(k)))
+		draw_colored_polygon(lens, Color(1, 1, 1, 0.07))
+	var sheen := 0.5 + 0.5 * sin(_time * 0.6 + _phase_for(center))
+	draw_arc(center + ld * r * 0.35, r * 0.42, PI * 1.05, PI * 1.55, 18, Color(1, 1, 1, 0.22 + 0.14 * sheen), 3.0, true)
+
+
+## The fizz: bubbles rising up through the ponds (screen-up, since the pond is seen from above at an
+## angle), swelling a little as they go, then popping in a quick ring at the top of their climb.
+func _draw_fizz(vis: Rect2, cull: bool) -> void:
+	for b in _fizz:
+		var pond: Dictionary = _ponds[int(b["pond"])]
+		var base: Vector2 = pond["center"] + b["off"]
+		if cull and not vis.has_point(base):
+			continue
+		var t := fposmod(_time * float(b["speed"]) + float(b["phase"]), 1.0)
+		var br: float = float(b["r"]) * (0.7 + 0.5 * t)
+		var bp := base + Vector2(sin(t * 9.0 + float(b["phase"]) * 6.0) * 2.0, -t * 26.0)
+		if t < 0.88:
+			draw_arc(bp, br, 0.0, TAU, 14, Color(_fizz_color.r, _fizz_color.g, _fizz_color.b, 0.75), 1.0, true)
+			draw_circle(bp + Vector2(-br * 0.35, -br * 0.4), br * 0.28, Color(1, 1, 1, 0.85), true, -1.0, true)
+		else:
+			var pop := (t - 0.88) / 0.12
+			draw_arc(bp, br * (1.0 + pop * 1.4), 0.0, TAU, 14, Color(1, 1, 1, 0.6 * (1.0 - pop)), 1.0, true)
 
 
 ## --- pixel-art water --------------------------------------------------------------------
@@ -1545,6 +1702,10 @@ func _draw_prop_light(it: Dictionary) -> void:
 	var breathe := 0.85 + 0.15 * sin(_time * _glow_pulse_speed + phase)
 	var r := float(cfg.get("radius", 26.0)) * breathe * (1.0 + FLARE_GROW * flare)
 	var a := float(cfg.get("alpha", 0.30)) + 0.45 * flare
+	# A prop you've RUNG for yourself (Bobbledown's chime-bubbles, see SecretDirector) keeps shining.
+	if bool(it.get("opened", false)):
+		a += 0.22
+		r *= 1.25
 	SoftGlow.draw(self, p + Vector2(0, 4), r * 1.2, Color(c.r, c.g, c.b, a * 0.6), 0.42)
 	SoftGlow.draw(self, p + Vector2(0, float(cfg.get("y", -8.0))), r, Color(c.r, c.g, c.b, a))
 	var motes := int(cfg.get("motes", 0)) + (6 if flare > 0.05 else 0)
@@ -1559,9 +1720,12 @@ func _draw_prop_light(it: Dictionary) -> void:
 ## like the trees/characters). Draws the fixed BASE layer, then the grayscale TINT layer
 ## modulated by the instance's `color` (so a lantern globe / mushroom cap / crystal takes the
 ## prop's own colour). No-op if this type has no baked base. `lift` nudges it up (an idle bob).
-func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0) -> void:
+func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0, wobble := 0.0) -> void:
 	var base: Texture2D = _prop_base.get(type)
 	if base == null:
+		return
+	if _prop_scale.has(type):
+		_blit_soft_prop(type, base, p, color, lift, wobble)
 		return
 	var sz := base.get_size()
 	# Feet at p + 8, matching the player/companion ground plane (SpriteSlot.draw), so props
@@ -1573,6 +1737,43 @@ func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0) -> v
 		draw_texture(tint, origin, color)
 
 
+## A bubble that never pops: a faint fill, an iridescent rim whose colours slide round it, a window
+## glint, and a gentle wobble (it breathes, a little wider, a little taller).
+func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
+	var w := sin(_time * 2.1) * 0.06
+	SoftGlow.draw(self, c, r * 2.2, Color(tint.r, tint.g, tint.b, 0.22), 0.6)
+	draw_set_transform(c, 0.0, Vector2(1.0 + w, 1.0 - w))
+	draw_circle(Vector2.ZERO, r, Color(tint.r, tint.g, tint.b, 0.16), true, -1.0, true)
+	var segs := 24
+	for k in segs:
+		var a0 := float(k) / float(segs) * TAU
+		var hue := fposmod(float(k) / float(segs) + _time * 0.12, 1.0)
+		var film := Color.from_hsv(hue, 0.28, 1.0, 0.75)
+		draw_arc(Vector2.ZERO, r, a0, a0 + TAU / float(segs) + 0.02, 3, film, 1.8, true)
+	draw_arc(Vector2.ZERO, r * 0.62, PI * 1.08, PI * 1.42, 8, Color(1, 1, 1, 0.9), 2.0, true)
+	draw_circle(Vector2(r * 0.42, r * 0.38), r * 0.1, Color(1, 1, 1, 0.8), true, -1.0, true)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## A smooth @2x prop: drawn at half size, base → tint (the instance's colour) → gloss, and squashed
+## about its feet by `wobble` (a touched sweet jiggles: wider-and-shorter, then taller, settling).
+func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, lift: float, wobble: float) -> void:
+	var s: float = _prop_scale[type]
+	var sz := base.get_size() * s
+	var feet := p + Vector2(0, 8.0 - lift)
+	var j := sin(wobble * 18.0) * wobble * 0.18
+	draw_set_transform(feet, 0.0, Vector2(1.0 + j, 1.0 - j))
+	var rect := Rect2(Vector2(-sz.x * 0.5, -sz.y), sz)
+	draw_texture_rect(base, rect, false)
+	var tint: Texture2D = _prop_tint.get(type)
+	if tint != null:
+		draw_texture_rect(tint, rect, false, color)
+	var gloss: Texture2D = _prop_gloss.get(type)
+	if gloss != null:
+		draw_texture_rect(gloss, rect, false)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 ## True (and drawn) if this prop is a plain static type with baked pixel-art — those are drawn
 ## straight from the sprite. Animated/stateful types (flame vessels, the hunt rocks, Ruin gates)
 ## return false so they keep their procedural draw (the flame ones blit their vessel themselves).
@@ -1580,7 +1781,7 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	var t := String(it["type"])
 	if _PROP_OVERLAY.has(t) or not _prop_base.has(t):
 		return false
-	_blit_prop_sprite(t, it["pos"], it["color"])
+	_blit_prop_sprite(t, it["pos"], it["color"], 0.0, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 
@@ -1860,6 +2061,18 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_colored_polygon(drop, Color(color.r, color.g, color.b, 0.85))
 			draw_arc(p + Vector2(0, -1), 2.5 + 1.5 * fmod(_time * 0.6, 1.0), 0.0, TAU, 14, Color(1, 1, 1, 0.6 * (1.0 - fmod(_time * 0.6, 1.0))), 1.0)
 			draw_circle(p + Vector2(-1.5, -5), 1.2, Color(1, 1, 1, 0.9))
+		"first_bubble":
+			# Bobbledown's secret: the Old Burbler's very first breath, a bubble that has never popped,
+			# bobbing just above the shore of the Fizzwell
+			_draw_forever_bubble(p + Vector2(0, -14 + sin(_time * 1.4) * 2.5), 11.0, color)
+			draw_circle(p + Vector2(0, 6), 8.0, Color(0.42, 0.3, 0.48, 0.14), true, -1.0, true)
+		"kept_bubble":
+			# its keepsake: the same bubble, resting in a little cream cup on a stem
+			draw_circle(p + Vector2(0, 6), 9.0, Color(0.42, 0.3, 0.48, 0.16), true, -1.0, true)
+			draw_line(p + Vector2(0, 6), p + Vector2(0, -4), Color(1.0, 0.94, 0.86), 3.0, true)
+			draw_circle(p + Vector2(0, 6), 6.0, Color(1.0, 0.92, 0.86), true, -1.0, true)
+			draw_arc(p + Vector2(0, -6), 7.0, 0.15, PI - 0.15, 14, Color(1.0, 0.9, 0.84), 3.0, true)
+			_draw_forever_bubble(p + Vector2(0, -15 + sin(_time * 1.2) * 1.2), 8.0, color)
 		"stallholder":
 			# a stallholder minding their stall (the Bazaar's packed market): the shopkeeper figure in their
 			# own colours, with a little idle bob, offset so each seems to breathe on their own
