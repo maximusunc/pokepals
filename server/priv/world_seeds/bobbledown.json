@@ -250,7 +250,6 @@
 					"y": -44,
 					"alpha": 0.34,
 					"motes": 4,
-					"bob": 3,
 					"size": 1.6,
 					"saturate": true,
 					"ripple": true

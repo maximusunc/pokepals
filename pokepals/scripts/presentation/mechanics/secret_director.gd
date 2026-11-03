@@ -45,6 +45,7 @@ var _gate: StillnessGate
 var _lights: MereLights
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
+var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
 
 
 func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: PlayerView, interactables: Array) -> void:
@@ -69,6 +70,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		_lights.queue_free()  # a rebuilt world lays its secret out afresh
 	_lights = null
 	var secret: Dictionary = data.get("secret", {})
+	_found_props = []
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
+		_found_props = (secret["reveal"] as Dictionary).get("props", [])
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -153,6 +157,21 @@ func on_touched(entry: Dictionary) -> bool:
 		line = String(lines[clampi(_rung.size() - 1, 0, lines.size() - 1)])
 	_host.show_hint(line)
 	return true
+
+
+## The world is drawn: if we found this world's touch_all secret on an earlier visit, its props show as
+## rung (quietly, no pulse), so it's clear at a glance that you've already sung this world's song.
+## Before it's found, every visit starts with them all waiting again.
+func after_world_drawn() -> void:
+	if _found_props.is_empty() or not _secret.is_empty():
+		return  # not a touch_all world, or still to be found this visit
+	_light_found_props()
+
+
+func _light_found_props() -> void:
+	for e in _interactables:
+		if _found_props.has(String(e.get("id", ""))):
+			_world_art.set_lit(int(e["render_index"]), true, true)
 
 
 ## How many of a touch_all reveal's props we've rung this visit (tests, and the smoke check).
@@ -241,6 +260,9 @@ func _on_secret_refused(_secret_id: String) -> void:
 func _on_discoveries(ids: Array) -> void:
 	if not _entry.is_empty() and not is_taken(_entry) and ids.has(String(_entry["secret"]["id"])):
 		_take()
+	# found on another device (or the list arrived after the build): its chimes show as rung too
+	if not _secret.is_empty() and ids.has(String(_secret.get("id", ""))) and not _found_props.is_empty():
+		_light_found_props()
 
 
 func _take() -> void:
