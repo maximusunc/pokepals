@@ -37,16 +37,19 @@ var _stretch_v := 0.0        # ... and its velocity
 
 
 ## Give `actor` its bubble: `cfg` is the look's `bubble` block, `size` scales it (a companion's is
-## smaller than its person's). Returns the back half.
+## smaller than its person's). A companion (size < 1) uses the block's own `companion` radius and y
+## when it has them: an animal is wide for its height (a fox's ears and tail), so a straight scale-down
+## of the person's bubble clips it. Returns the back half.
 static func attach(actor: CanvasItem, cfg: Dictionary, size := 1.0) -> VisitorBubble:
 	var halves: Array = []
+	var comp: Dictionary = cfg.get("companion", {}) if size < 1.0 else {}
 	for is_front in [false, true]:
 		var b := VisitorBubble.new()
 		b.name = "VisitorBubbleFront" if is_front else "VisitorBubble"
 		b.front = is_front
 		b.show_behind_parent = not is_front
-		b.radius = float(cfg.get("radius", 19.0)) * size
-		b.center_y = float(cfg.get("y", -9.0)) * size
+		b.radius = float(comp.get("radius", float(cfg.get("radius", 19.0)) * size))
+		b.center_y = float(comp.get("y", float(cfg.get("y", -9.0)) * size))
 		b.tint = WorldData.to_color(cfg.get("tint", [1.0, 0.78, 0.92]))
 		b.pop_delay = float(cfg.get("pop_delay", 0.5))
 		actor.add_child(b)
