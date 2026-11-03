@@ -29,7 +29,10 @@ defmodule Server.Seeds do
       tags: ["maze", "explore", "hedges"], accent: [0.46, 0.66, 0.42]},
     %{world_id: "66666666-6666-6666-6666-666666666666", slug: "nocthollow", name: "Nocthollow", file: "nocthollow.json",
       blurb: "A night that never ends, and a world that glows to fill it. Wander among living light and strange, gentle creatures.",
-      tags: ["night", "glow", "explore", "creatures", "otherworld"], accent: [0.45, 0.85, 1.0], featured: true}
+      tags: ["night", "glow", "explore", "creatures", "otherworld"], accent: [0.45, 0.85, 1.0], featured: true},
+    %{world_id: "77777777-7777-7777-7777-777777777777", slug: "bobbledown", name: "Bobbledown", file: "bobbledown.json",
+      blurb: "A soft, round world breathed by a sleeping giant. Gumdrop hills, fizzing water, and creatures that bounce.",
+      tags: ["round", "soft", "bubbles", "explore", "creatures", "otherworld"], accent: [1.0, 0.72, 0.88], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

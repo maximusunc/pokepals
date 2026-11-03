@@ -240,15 +240,19 @@ defmodule Server.WorldChannel do
   end
 
   # A glow-plant FLARE: this player touched a prop that blazes up when touched (the night world's
-  # blooms), and everyone ELSE in the world should see it light too. Purely a relay — no state is kept,
+  # blooms), and everyone ELSE in the world should see it light too. A relay — no world state is kept,
   # the light fades on its own on every client — but only for a prop this world's spec actually marks
-  # `"flare": true`, so a client can't spray arbitrary events at the room.
+  # `"flare": true`, so a client can't spray arbitrary events at the room. This visit's touches are
+  # remembered on the socket: a `touch_all` secret (Bobbledown's chime-bubbles) only shows once every
+  # one of its props has been touched (Server.SecretReveal).
   def handle_in("flare", %{"prop" => prop_id}, socket) when is_binary(prop_id) do
     if flare_prop?(socket.assigns.definition, prop_id) do
       broadcast_from!(socket, "flared", %{prop: prop_id})
+      touched = socket.assigns |> Map.get(:touched, MapSet.new()) |> MapSet.put(prop_id)
+      {:noreply, assign(socket, :touched, touched)}
+    else
+      {:noreply, socket}
     end
-
-    {:noreply, socket}
   end
 
   def handle_in("save", payload, socket) do
@@ -339,7 +343,8 @@ defmodule Server.WorldChannel do
     pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
 
     # How it becomes findable (Server.SecretReveal): a door that must be open, a perfect hunt this visit.
-    reveal_ctx = %{wards: World.wards(world_id), hunt_found: Map.get(socket.assigns, :hunt_found, 0), hunt_goal: core["goal"] || %{}}
+    reveal_ctx = %{wards: World.wards(world_id), hunt_found: Map.get(socket.assigns, :hunt_found, 0), hunt_goal: core["goal"] || %{},
+      touched: Map.get(socket.assigns, :touched, MapSet.new())}
 
     if Discoveries.claimable?(core, secret_id, pos) and Server.SecretReveal.met?(core["secret"], reveal_ctx) do
       # S-4: was the companion beside us, and which friends were near (about a screen away)?

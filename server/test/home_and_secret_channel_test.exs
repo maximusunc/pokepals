@@ -267,6 +267,33 @@ defmodule Server.HomeAndSecretChannelTest do
     assert_push "secret_found", %{id: "elder_scale", new: true}
   end
 
+  test "the first bubble can only be claimed once every chime-bubble was rung this visit" do
+    t = "chimes-#{System.unique_integer([:positive])}"
+    uid = user_id(t)
+
+    w =
+      seed_world_with(%{
+        "props" => [
+          %{"id" => "chime_a", "type" => "chime_bubble", "flare" => true},
+          %{"id" => "chime_b", "type" => "chime_bubble", "flare" => true},
+          %{"id" => "plain", "type" => "marsh_stone"}
+        ],
+        "secret" => %{"id" => "first_bubble", "position" => [0.0, 0.0], "radius" => 120.0,
+                      "reveal" => %{"type" => "touch_all", "props" => ["chime_a", "chime_b"]}}
+      })
+
+    {:ok, _, socket} = subscribe_and_join(connect_as(t), "world:" <> w, %{})
+    stand_at(socket, w, uid, [5.0, 5.0])
+    push(socket, "flare", %{"prop" => "chime_a"})
+    push(socket, "flare", %{"prop" => "plain"})
+    push(socket, "claim_secret", %{"id" => "first_bubble"})
+    assert_push "secret_refused", %{id: "first_bubble"}
+
+    push(socket, "flare", %{"prop" => "chime_b"})
+    push(socket, "claim_secret", %{"id" => "first_bubble"})
+    assert_push "secret_found", %{id: "first_bubble", new: true}
+  end
+
   test "a lantern behind a shut door can't be claimed" do
     t = "lantern-#{System.unique_integer([:positive])}"
     uid = user_id(t)
