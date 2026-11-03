@@ -193,7 +193,8 @@ wandering. Bobbledown (W-6) is gathering: a song you complete by visiting every 
 - ✅ **W-6 — Bobbledown: the Burbler's lullaby. (Built, 2026-11-03.)** The round world was
   breathed, not built, by the Old Burbler asleep under the Fizzwell. Its lullaby is seven notes, one
   in each of seven **chime-bubbles**, one per region (Popping Green, Gumdrop Hills, the Puffwood,
-  Jellybottom, Lollipop Grove, the Bubblefield and the Pillow Dunes). Ring all seven in one visit and
+  Jellybottom, Lollipop Grove, the Bubblefield and the Pillow Dunes), each resting by that region's
+  landmark (a great puff, a sign or a stone), well in from the edge of the world. Ring all seven in one visit and
   the Burbler's **first breath**, a bubble that has never popped, rises to the Fizzwell's south shore.
   - **How it's told:** the High Hush's sign and stone tell the story and name the seven. Each new
     chime reads the next line of the lullaby, so progress is felt and never counted (S-5). A rung

@@ -145,7 +145,7 @@ SPECIAL += [
     prop("hush_sign", "sign_bubble", (-120, -1080), LILAC, "an old round sign",
          "\"Down at the bottom of the Fizzwell sleeps the Old Burbler, round as a moon and soft as a cloud. Every breath it takes in its sleep rises as a bubble, and every bubble that ever rose became something: a hill, a tree, a bobbling. That is why nothing here has a corner.\""),
     prop("hush_stone", "marsh_stone", (120, -1110), LILAC, "a listening stone", solid=True, radius=9,
-         lore="Carved into the stone, very small: \"They say the Burbler's first breath never popped. They say it's kept safe down there, waiting for someone to sing the Burbler its lullaby. Seven notes, kept in seven chime-bubbles, all over Bobbledown.\""),
+         lore="Carved into the stone, very small: \"They say the Burbler's first breath never popped. They say it's kept safe down there, waiting for someone to sing the Burbler its lullaby. Seven notes, kept in seven chime-bubbles, each one resting by a landmark of Bobbledown.\""),
     prop("hush_bench", "candy_bench", (0, -940), LILAC, "a bench on the hush",
          "It's very quiet up here. You can hear the Fizzwell below, and every so often a pop, very small and very far away."),
 ]
@@ -168,14 +168,16 @@ SPECIAL += [
 
 # ── the seven CHIME-BUBBLES: one note of the Burbler's lullaby each (this world's secret) ─────────
 CHIME_LORE = "A chime-bubble on its curly stand, a little note curled up inside it. It rings one round, warm note when you touch it."
+# Each rests by its region's landmark (a great puff, or the region's sign or stone), well in from the
+# edge of the world, so the hunt is a wander between the places you'd notice anyway.
 CHIMES = [
-    ("chime_green", (-260, 1240), BUBBLEGUM),
-    ("chime_hills", (-1500, -1150), STRAWBERRY),
-    ("chime_puffwood", (-1650, -60), LILAC),
-    ("chime_jellybottom", (-1420, 1360), SKY),
-    ("chime_lollipop", (1580, -1180), LEMON),
-    ("chime_bubblefield", (1700, 150), MINT),
-    ("chime_dunes", (1640, 1300), PEACH),
+    ("chime_green", (175, 935), BUBBLEGUM),          # by the welcome sign, where you arrive
+    ("chime_hills", (-1215, -395), STRAWBERRY),      # under the great puff in Gumdrop Hills
+    ("chime_puffwood", (-1410, 380), LILAC),         # under the Puffwood's great puff
+    ("chime_jellybottom", (-960, 1100), SKY),        # by the stone above the pools
+    ("chime_lollipop", (1075, -665), LEMON),         # beside the Lollipop Grove sign
+    ("chime_bubblefield", (1585, -245), MINT),       # under the great puff at the Bubblefield's edge
+    ("chime_dunes", (1180, 1265), PEACH),            # by the sunken cloud cushion in the dunes
 ]
 for cid, pos, col in CHIMES:
     SPECIAL.append(prop(cid, "chime_bubble", pos, col, "a chime-bubble", CHIME_LORE, tags=["chime", "music", "round"], flare=True))
@@ -510,6 +512,8 @@ assert len(SECRET["reveal"]["lines"]) == len(CHIMES) - 1
 for cid, pos, _ in CHIMES:
     region = [r for r in REGIONS if r[1][0] <= pos[0] <= r[2][0] and r[1][1] <= pos[1] <= r[2][1]]
     assert region, cid
+    assert abs(pos[0]) < BOUNDS_MAX[0] - 250 and abs(pos[1]) < BOUNDS_MAX[1] - 200, "%s is too near the edge" % cid
+    assert all(math.hypot(pos[0] - pd["center"][0], pos[1] - pd["center"][1]) > pd["radius"] + 30 for pd in PONDS), cid
 kinds = {}
 for t in d["trees"]:
     k = t[2] if len(t) > 2 else "tree"
