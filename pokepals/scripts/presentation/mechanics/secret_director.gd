@@ -21,6 +21,10 @@ extends Node
 ##     you (StillnessGate), while lights gather over it (MereLights); then the prop rises (Nocthollow);
 ##   * `hunt_perfect`: nothing shows until a hunt finds every salamander in one go; then the prop
 ##     appears (the Riverbank's elder).
+##   * `touch_all`: nothing shows until you've touched every one of the reveal's `props` (flare props)
+##     in one visit; each one you ring stays lit for you and reads the next of the reveal's `lines`, so
+##     the progress is told, never counted; the last brings the prop up (Bobbledown's seven
+##     chime-bubbles and the Burbler's first breath).
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -40,6 +44,7 @@ var _interactables: Array      # the controller's examine list (staged reveals a
 var _gate: StillnessGate
 var _lights: MereLights
 var _last_player_pos := Vector2.ZERO
+var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 
 
 func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: PlayerView, interactables: Array) -> void:
@@ -67,6 +72,7 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
+	_rung = {}
 	match _reveal_type():
 		"stillness":
 			# Nothing to see yet: the lights wait over the water for you to be still.
@@ -79,6 +85,8 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_world_art.add_child(_lights)
 		"hunt_perfect":
 			pass  # appears only after a perfect hunt (on_hunt_won)
+		"touch_all":
+			pass  # appears once every one of its props has been touched (on_touched)
 		_:
 			combined.append(_secret_prop())
 
@@ -118,6 +126,38 @@ func update(delta: float) -> void:
 func on_hunt_won(_found: int) -> void:
 	if _reveal_type() == "hunt_perfect" and _entry.is_empty() and not _secret.is_empty():
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## We touched a prop (touch_all): if it's one of the reveal's props we haven't rung yet this visit, keep
+## it lit for us, read the next line of the reveal (or, for the last, bring the secret up) and return
+## true, so the controller doesn't also read its ordinary lore. Anything else returns false.
+func on_touched(entry: Dictionary) -> bool:
+	if _secret.is_empty() or _reveal_type() != "touch_all" or not _entry.is_empty():
+		return false
+	var r: Dictionary = _secret["reveal"]
+	var ids: Array = r.get("props", [])
+	var id := String(entry.get("id", ""))
+	if not ids.has(id):
+		return false
+	_world_art.set_lit(int(entry["render_index"]), true)
+	if _rung.has(id):
+		_host.show_hint(String(r.get("again_line", entry.get("lore", ""))))
+		return true
+	_rung[id] = true
+	if _rung.size() >= ids.size():
+		_reveal(String(r.get("reveal_line", "")))
+		return true
+	var lines: Array = r.get("lines", [])
+	var line := String(entry.get("lore", ""))
+	if not lines.is_empty():
+		line = String(lines[clampi(_rung.size() - 1, 0, lines.size() - 1)])
+	_host.show_hint(line)
+	return true
+
+
+## How many of a touch_all reveal's props we've rung this visit (tests, and the smoke check).
+func rung_count() -> int:
+	return _rung.size()
 
 
 ## Bring a staged secret into the world: draw its prop, add it to the examine list, let the companion

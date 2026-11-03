@@ -1339,6 +1339,9 @@ func _try_interact() -> void:
 		_world_art.flare_interactable(int(entry["render_index"]))
 		Net.send_flare(String(entry["id"]))
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+	# A prop a secret is waiting on (Bobbledown's chime-bubbles): the SecretDirector tells this part of it.
+	if _secret_dir.on_touched(entry):
+		return
 	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
 	# handled by the RuinController; if it claims this prop, we're done.
 	if _ruin.try_examine(entry):

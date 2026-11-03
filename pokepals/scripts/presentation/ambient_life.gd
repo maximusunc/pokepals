@@ -11,6 +11,8 @@ extends Node2D
 ##   fireflies   { count, color, always } — blink on as dusk deepens (always: a night world keeps them)
 ##   clouds      { count, alpha, speed }  — huge soft shadows drifting with the wind across the world
 ##   leaves      { rate, colors }         — leaves let go of on-screen trees, flutter down, settle, fade
+##   bubbles     { count, colors }        — soap bubbles drifting up and across on the breeze, wobbling,
+##                                          and popping (Bobbledown: the round world's air is full of them)
 ## Only what's near the camera is simulated: butterflies and fireflies that wander off screen are
 ## quietly re-spawned at its edge, so the cost doesn't grow with the size of the world.
 
@@ -31,6 +33,8 @@ var _butterflies: Array = []  # [{ pos, ang, speed, rest, phase, color }]
 var _fireflies: Array = []    # [{ pos, home, phase }]
 var _clouds: Array = []       # [{ pos, r, lobes: [Vector2 offsets] }]
 var _leaves: Array = []       # [{ pos, ground, phase, landed, color }]
+var _bubble_cfg: Dictionary = {}
+var _bubbles: Array = []      # [{ pos, r, phase, life, age, color }]
 var _shadow := Color(0.05, 0.07, 0.10)
 var _quality := 1.0   # art.json's quality.detail: scales the creature counts and leaf rate
 
@@ -45,6 +49,7 @@ func setup(bounds: Rect2, style: ArtStyle, tree_positions: PackedVector2Array, w
 	_ff_cfg = cfg.get("fireflies", {})
 	_cloud_cfg = cfg.get("clouds", {})
 	_leaf_cfg = cfg.get("leaves", {})
+	_bubble_cfg = cfg.get("bubbles", {})
 	_quality = WorldArt.detail_quality(style)
 	_wind = Vector2(1.0, 0.25).normalized() * clampf(wind_strength / 2.6, 0.4, 2.0)
 	for i in int(_cloud_cfg.get("count", 0)):
@@ -72,6 +77,7 @@ func _process(delta: float) -> void:
 	_tick_butterflies(delta, vis)
 	_tick_fireflies(delta, vis)
 	_tick_leaves(delta, vis)
+	_tick_bubbles(delta, vis)
 	queue_redraw()
 
 
@@ -173,6 +179,59 @@ func _tick_leaves(delta: float, vis: Rect2) -> void:
 		l["pos"] = p
 
 
+## ---- bubbles ----
+
+func _tick_bubbles(delta: float, vis: Rect2) -> void:
+	var want := int(float(_bubble_cfg.get("count", 0)) * _quality)
+	if want <= 0:
+		return
+	var colors: Array = _bubble_cfg.get("colors", [[1, 1, 1]])
+	while _bubbles.size() < want:
+		var start := _random_in(vis)
+		if _bubbles.size() >= want / 2:
+			start.y = vis.end.y + 10.0  # after the first fill, new ones rise in from below
+		_bubbles.append({
+			"pos": start, "r": _rng.randf_range(2.5, 7.5), "phase": _rng.randf() * TAU,
+			"life": _rng.randf_range(7.0, 16.0), "age": 0.0,
+			"color": WorldData.to_color(colors[_rng.randi() % colors.size()]),
+		})
+	for i in range(_bubbles.size() - 1, -1, -1):
+		var b: Dictionary = _bubbles[i]
+		b["age"] = float(b["age"]) + delta
+		var p: Vector2 = b["pos"]
+		var rise := 9.0 + 14.0 / float(b["r"])   # little ones rise quicker
+		p += Vector2(_wind.x * 6.0 + sin(_time * 0.8 + float(b["phase"])) * 7.0, -rise) * delta
+		b["pos"] = p
+		# popped (it ran its life out), or drifted off the view: gone; the next tick tops the count back up
+		if float(b["age"]) > float(b["life"]) + 0.25 or not vis.grow(120.0).has_point(p):
+			_bubbles.remove_at(i)
+
+
+func _draw_bubble(b: Dictionary) -> void:
+	var p: Vector2 = b["pos"]
+	var r: float = b["r"]
+	var c: Color = b["color"]
+	var age: float = b["age"]
+	var life: float = b["life"]
+	var fade_in := clampf(age / 0.8, 0.0, 1.0)
+	if age > life:
+		# the pop: a quick ring flung outward, and a few droplets
+		var pop := (age - life) / 0.25
+		draw_arc(p, r * (1.0 + pop * 1.6), 0.0, TAU, 16, Color(1, 1, 1, 0.7 * (1.0 - pop)), 1.0, true)
+		for k in 4:
+			var a := float(k) * TAU / 4.0 + float(b["phase"])
+			draw_circle(p + Vector2(cos(a), sin(a)) * r * (1.2 + pop * 2.0), 0.7, Color(1, 1, 1, 0.8 * (1.0 - pop)), true, -1.0, true)
+		return
+	var w := sin(_time * 3.0 + float(b["phase"])) * 0.08
+	draw_set_transform(p, 0.0, Vector2(1.0 + w, 1.0 - w))
+	draw_circle(Vector2.ZERO, r, Color(c.r, c.g, c.b, 0.10 * fade_in), true, -1.0, true)
+	var hue := fposmod(_time * 0.1 + float(b["phase"]), 1.0)
+	draw_arc(Vector2.ZERO, r, 0.0, PI, 10, Color(c.r, c.g, c.b, 0.65 * fade_in), 1.0, true)
+	draw_arc(Vector2.ZERO, r, PI, TAU, 10, Color.from_hsv(hue, 0.35, 1.0, 0.6 * fade_in), 1.0, true)
+	draw_circle(Vector2(-r * 0.38, -r * 0.4), maxf(0.6, r * 0.22), Color(1, 1, 1, 0.9 * fade_in), true, -1.0, true)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
 ## ---- drawing (everything snapped to whole pixels) ----
 
 func _draw() -> void:
@@ -199,6 +258,10 @@ func _draw() -> void:
 	if day > 0.01:
 		for b in _butterflies:
 			_draw_butterfly(b, day)
+
+	for b in _bubbles:
+		if vis.has_point(b["pos"]):
+			_draw_bubble(b)
 
 	var ff := _firefly_strength()
 	if ff > 0.01:

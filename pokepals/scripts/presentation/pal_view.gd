@@ -32,6 +32,7 @@ var _fly_row := -1
 var _idle_cols := 0
 var _idle_fps := 5.0
 var _rows: Dictionary = {}
+var _scale := 1.0  # 0.5 for a smooth @2x sheet (see _sheet_path)
 
 var _target_pos := Vector2.ZERO
 var _look := Vector2.DOWN
@@ -69,8 +70,20 @@ static func supported(species: String, variant: int) -> bool:
 
 
 static func _sheet_path(reg: Dictionary, species: String, variant: int) -> String:
-	var n := int((reg.get("species", {}) as Dictionary).get(species, {}).get("variants", 1))
-	return "res://assets/pals/%s_%d.png" % [species, clampi(variant, 0, n - 1)]
+	var entry: Dictionary = (reg.get("species", {}) as Dictionary).get(species, {})
+	var n := int(entry.get("variants", 1))
+	# "hd": true — a smooth, anti-aliased sheet baked at twice the world size (Bobbledown's round
+	# creatures, tools/gen_bobbledown.py): <species>_<v>@2x.png, cells 2 x "frame", drawn at half size.
+	var suffix := "@2x" if bool(entry.get("hd", false)) else ""
+	return "res://assets/pals/%s_%d%s.png" % [species, clampi(variant, 0, n - 1), suffix]
+
+
+## The cell size and draw scale of a species' sheet: [frame: Array, scale: float].
+static func _frame_of(reg: Dictionary, species: String) -> Array:
+	var frame: Array = reg.get("frame", [32, 32])
+	if bool((reg.get("species", {}) as Dictionary).get(species, {}).get("hd", false)):
+		return [[int(frame[0]) * 2, int(frame[1]) * 2], 0.5]
+	return [frame, 1.0]
 
 
 ## Everything needed to DRAW a species as pal art: its sheet texture, the (registry-clamped) coat
@@ -86,7 +99,8 @@ static func sheet_info(species: String, variant: int) -> Dictionary:
 		"tex": load(_sheet_path(reg, species, variant)),
 		"variant": clampi(variant, 0, maxi(1, declared) - 1),
 		"sheet": {
-			"frame": reg.get("frame", [32, 32]),
+			"frame": _frame_of(reg, species)[0],
+			"scale": _frame_of(reg, species)[1],
 			"fps": float(reg.get("fps", 10.0)),
 			"cols": int(reg.get("move_frames", 8)),
 			"rows": reg.get("rows", {}),
@@ -121,7 +135,8 @@ var _seeded := false
 
 
 func _ready() -> void:
-	texture_filter = TEXTURE_FILTER_NEAREST
+	# pixel art stays crisp; a smooth @2x sheet (set up before we entered the tree) stays linear
+	texture_filter = TEXTURE_FILTER_NEAREST if _scale == 1.0 else TEXTURE_FILTER_LINEAR
 	_target_pos = position
 
 
@@ -132,9 +147,13 @@ func setup_species(species: String, variant: int) -> bool:
 	if not supported(species, variant):
 		return false
 	_tex = load(_sheet_path(reg, species, variant))
-	var frame: Array = reg.get("frame", [32, 32])
+	var fr := _frame_of(reg, species)
+	var frame: Array = fr[0]
 	_fw = int(frame[0])
 	_fh = int(frame[1])
+	_scale = float(fr[1])
+	# smooth art stays linearly filtered (it's drawn at half size); pixel art stays crisp
+	texture_filter = TEXTURE_FILTER_LINEAR if _scale != 1.0 else TEXTURE_FILTER_NEAREST
 	_fps = float(reg.get("fps", 10.0))
 	_cols = int(reg.get("move_frames", 8))
 	_rows = reg.get("rows", {})
@@ -238,6 +257,7 @@ func _draw() -> void:
 	# ambient pal passes no bounce/squash/offset, so it renders exactly as the hand-rolled draw did before.
 	PalSprite.draw(self, _tex, { "look": look, "speed": _speed, "time": _time, "bounce": bounce, "squash": squash, "offset": _shy_off }, {
 		"frame": [_fw, _fh],
+		"scale": _scale,
 		"fps": _fps,
 		"cols": _cols,
 		"rows": _rows,

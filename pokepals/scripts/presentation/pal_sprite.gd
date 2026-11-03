@@ -63,7 +63,9 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 		var phase := float(ci.get_instance_id() % 997) * 0.37
 		col = cols + int((t + phase) * float(cfg.get("idle_fps", 5.0))) % idle_cols
 	var region := Rect2(col * fw, row * fh, fw, fh)
-	var dest := Rect2(-fw * 0.5, FOOT_Y - fh, fw, fh)
+	# A smooth "@2x" sheet (Bobbledown's creatures) has cells twice the world size, drawn at `scale` 0.5.
+	var sc: float = cfg.get("scale", 1.0)
+	var dest := Rect2(-fw * 0.5 * sc, FOOT_Y - fh * sc, fw * sc, fh * sc)
 
 	# Fold the left-facing mirror, the reaction squash (scaled about the ground line so it pops from
 	# its feet, not its centre) and the idle bounce into one transform. With squash=0, bounce=0 and

@@ -86,11 +86,15 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 	if cfg.is_empty() and kind != fallback:
 		cfg = style.entity(fallback)
 	var variants: Array = []
+	var hd := false   # smooth "@2x" art (see TreeView.tex_scale)
 	var raw: Array = cfg.get("variants", [cfg])
 	for v in raw:
 		var vc: Dictionary = cfg.duplicate()
 		vc.erase("variants")
 		vc.merge(v, true)
+		for key in ["sprite", "trunk", "canopy"]:
+			if String(vc.get(key, "")).contains("@2x"):
+				hd = true
 		variants.append({
 			"tex": SpriteSlot.resolve(vc),
 			"trunk": SpriteSlot.resolve(vc, "trunk"),
@@ -102,6 +106,7 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 		"glow_radius": float(cfg.get("glow_radius", 0.0)),
 		"glow_y": float(cfg.get("glow_y", -24.0)),
 		"sway": float(cfg.get("sway", 1.0)),
+		"hd": hd,
 	}
 	cache[kind] = art
 	return art
@@ -120,7 +125,10 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.glow_radius = art["glow_radius"]
 	# Crisp pixel art when the 640x360 view is scaled up to the window. A glowing growth (Nocthollow's)
 	# keeps linear filtering, or its soft halo would turn blocky.
-	if float(art["glow_radius"]) <= 0.0:
+	# Smooth @2x art (Bobbledown's) is drawn at half size and stays linear too.
+	if bool(art.get("hd", false)):
+		tree.tex_scale = 0.5
+	elif float(art["glow_radius"]) <= 0.0:
 		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	tree.glow_y = art["glow_y"]
 	tree.sway_gain = art["sway"]
