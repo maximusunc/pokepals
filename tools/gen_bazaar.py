@@ -434,8 +434,8 @@ out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=Fals
 out.append('\t"_walkers_comment": %s,' % json.dumps("Walking traffic: server-simulated like any ambient pal (shared, so everyone sees the same crowd; the walls keep them in the lane), drawn by the client as people from each 'person' appearance."))
 out.append('\t"ambient_pals": [\n%s\n\t],' % block(walkers))
 out.append('\t"portals": [')
-out.append('\t\t{ "id": "bazaar_entry", "type": "portal", "position": %s, "color": [0.96, 0.82, 0.50], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" },' % json.dumps(list(ENTRY)))
-out.append('\t\t{ "id": "bazaar_arch", "type": "portal", "position": %s, "color": [0.98, 0.76, 0.42], "label": "the great arch", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" }' % json.dumps([ARCH[0], ARCH[1] + 26]))
+out.append('\t\t{ "id": "bazaar_entry", "type": "portal", "position": %s, "color": [0.96, 0.82, 0.50], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway" },' % json.dumps(list(ENTRY)))
+out.append('\t\t{ "id": "bazaar_arch", "type": "portal", "position": %s, "color": [0.98, 0.76, 0.42], "label": "the great arch", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway" }' % json.dumps([ARCH[0], ARCH[1] + 26]))
 out.append('\t]')
 out.append("}")
 text = "\n".join(out) + "\n"

@@ -2395,10 +2395,27 @@
 	"_return_comment": "Where the always-available 'Return to the Vale' button sends you.",
 	"return": {
 		"world": "11111111-1111-1111-1111-111111111111",
-		"portal": "vale_maze_portal",
+		"portal": "vale_gateway",
 		"label": "Return to the Vale"
 	},
+	"_portals_comment": "Both lead home to the Vale's Gateway: maze_entry stands in the gap of the outer hedge, just behind where you arrive; maze_heart waits at the centre for whoever finds it.",
 	"portals": [
+		{
+			"id": "maze_entry",
+			"type": "portal",
+			"position": [
+				0.0,
+				956.0
+			],
+			"color": [
+				0.46,
+				0.66,
+				0.42
+			],
+			"label": "the way back to the Vale",
+			"target_world": "11111111-1111-1111-1111-111111111111",
+			"target_portal": "vale_gateway"
+		},
 		{
 			"id": "maze_heart",
 			"type": "portal",
@@ -2413,7 +2430,7 @@
 			],
 			"label": "a shimmering portal",
 			"target_world": "11111111-1111-1111-1111-111111111111",
-			"target_portal": "vale_maze_portal"
+			"target_portal": "vale_gateway"
 		}
 	]
 }

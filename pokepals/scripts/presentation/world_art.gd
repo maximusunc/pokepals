@@ -80,9 +80,6 @@ var _pool_world_tile := 64.0
 # Absent → the flat-green procedural hedges below.
 var _hedge_tex: Texture2D = null
 var _hedge_world_tile := 44.0
-# Optional grayscale portal sprite — tinted per-portal at draw time (each portal carries its
-# own colour). Absent → the procedural shimmering ovals in _draw_prop's "portal" case.
-var _portal_tex: Texture2D = null
 
 # Optional pixel-art prop sprites (tools/gen_props.py), keyed by prop type. Each has a BASE
 # layer (fixed materials) and, when its colour is data, a grayscale TINT layer drawn with the
@@ -142,7 +139,6 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_hedge_world_tile = float(hedge_cfg.get("world_tile", 44.0))
 	if _pond_tex != null or _river_tex != null or _pool_tex != null or _hedge_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
-	_portal_tex = SpriteSlot.resolve(_style.entity("portal"), "sprite")
 
 	_load_prop_sprites()
 
@@ -1628,37 +1624,17 @@ func _draw_form_highlight(p: Vector2) -> void:
 	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
-## The Vale's GATEWAY — the hub's door to every world. Two standing stones and a lintel frame a tall
-## shimmering doorway (the portal oval, scaled up) whose colour drifts slowly through the hues, since
-## it leads everywhere rather than to one place. `color` is the stone-tinted base hue from the spec.
-func _draw_gateway(p: Vector2, color: Color) -> void:
-	var stone := Color(0.62, 0.6, 0.56)
-	var stone_dark := stone.darkened(0.25)
-	var center := p + Vector2(0, -30)
-	# the doorway's light: hue drifts around the spec colour; alpha breathes
-	var hue := color
-	hue.h = fposmod(color.h + 0.08 * sin(_time * 0.35), 1.0)
-	var breathe := 0.8 + 0.2 * sin(_time * 1.6)
-	draw_set_transform(center, 0.0, Vector2(1.0, 1.7))
-	draw_circle(Vector2.ZERO, 21.0, Color(hue.r, hue.g, hue.b, 0.22 * breathe))
-	draw_circle(Vector2.ZERO, 16.0 * (0.94 + 0.06 * breathe), Color(hue.r, hue.g, hue.b, 0.5))
-	draw_circle(Vector2.ZERO, 9.0, Color(1, 1, 1, 0.3 + 0.15 * breathe))
-	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-	for k in 5:
-		var ang := _time * 1.1 + float(k) * TAU / 5.0
-		draw_circle(center + Vector2(cos(ang) * 18.0, sin(ang) * 32.0), 1.8, Color(1, 1, 1, 0.75))
-	# the standing stones, each a slightly leaning slab with a darker face edge
-	for side in [-1.0, 1.0]:
-		var x: float = side * 27.0
-		var pillar := PackedVector2Array([
-			p + Vector2(x - 7, 4), p + Vector2(x + 7, 4),
-			p + Vector2(x + 6 - side, -62), p + Vector2(x - 6 - side, -62)])
-		draw_colored_polygon(pillar, stone)
-		draw_line(p + Vector2(x + side * 6, 4), p + Vector2(x + side * 5 - side, -62), stone_dark, 2.0)
-	# the lintel laid across the top
-	var lintel := Rect2(p + Vector2(-38, -72), Vector2(76, 12))
-	draw_rect(lintel, stone.lightened(0.06))
-	draw_rect(Rect2(lintel.position + Vector2(0, 9), Vector2(lintel.size.x, 3)), stone_dark)
+## The pool of light a doorway throws on the ground at its foot (the small stone ring, or the Vale's
+## Gateway arch). Only this part lives here, under the actors; the doorway itself stands in the
+## y-sorted Scenery layer as a PortalView, so you can walk behind it. The Gateway's light drifts
+## through the hues in step with its PortalView (same clock source: both start with the scene).
+func _draw_portal_ground(p: Vector2, color: Color, kind: String) -> void:
+	var c := PortalView.tint_at(kind, color, _time)
+	var breathe := 0.5 + 0.5 * sin(_time * 1.6 + _phase_for(p))
+	var big := kind == "gateway"
+	var r := (60.0 if big else 30.0) * (0.95 + 0.08 * breathe)
+	SoftGlow.draw(self, p + Vector2(0, -2), r, Color(c.r, c.g, c.b, (0.26 if big else 0.30) + 0.08 * breathe + 0.10 * _dusk), 0.38)
+	SoftGlow.draw(self, p + Vector2(0, -2), r * 0.45, Color(c.r, c.g, c.b, 0.22 + 0.08 * breathe), 0.38)
 
 
 ## A warm, breathing radial glow under the lit props (lantern, crystal). Faked with a
@@ -1693,14 +1669,6 @@ func _draw_glow(type: String, p: Vector2) -> void:
 			warm = Color(1.0, 0.85, 0.5)
 		"crystal":
 			warm = Color(0.6, 0.85, 1.0)
-		"portal":
-			warm = Color(0.74, 0.7, 1.0)
-		"gateway":
-			# the hub's great gate: a wider, brighter halo than a small portal, so it reads from afar
-			var breathe_g := 0.85 + 0.15 * sin(_time * _glow_pulse_speed)
-			for k in 4:
-				draw_circle(p + Vector2(0, -30), (64.0 - float(k) * 13.0) * breathe_g, Color(0.84, 0.78, 1.0, 0.06))
-			return
 		_:
 			return
 	var breathe := 0.82 + 0.18 * sin(_time * _glow_pulse_speed)
@@ -2201,31 +2169,9 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 				draw_line(p + Vector2(0, -6 + keeper_bob), p + Vector2(0, 6), color.darkened(0.2), 1.0)
 				draw_circle(p + Vector2(0, -14 + keeper_bob), 5.0, keeper_skin)
 				draw_arc(p + Vector2(0, -14 + keeper_bob), 5.0, PI, TAU, 12, color.darkened(0.1), 3.0)
-		"gateway":
-			_draw_gateway(p, color)
-		"portal":
-			# an upright shimmering doorway, gently breathing, with sparks circling its rim
-			var center := p + Vector2(0, -18)
-			if _portal_tex != null:
-				# the baked pixel-art energy oval, tinted this portal's colour; its alpha breathes
-				var breathe := 0.82 + 0.18 * sin(_time * 2.0)
-				var sz := _portal_tex.get_size()
-				draw_texture(_portal_tex, center - sz * 0.5, Color(color.r, color.g, color.b, breathe))
-				draw_circle(center, 3.0 + 0.8 * sin(_time * 2.0), Color(1, 1, 1, 0.5))  # hot core pulse
-				for k in 3:
-					var ang := _time * 1.6 + float(k) * TAU / 3.0
-					draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
-			else:
-				# procedural fallback: upright shimmering ovals, gently breathing, sparks circling
-				var sway := 0.9 + 0.1 * sin(_time * 2.0)
-				draw_set_transform(center, 0.0, Vector2(1.0, 1.9))
-				draw_circle(Vector2.ZERO, 13.0, Color(color.r, color.g, color.b, 0.22))
-				draw_circle(Vector2.ZERO, 10.0 * sway, Color(color.r, color.g, color.b, 0.5))
-				draw_circle(Vector2.ZERO, 6.0 * sway, Color(1, 1, 1, 0.35))
-				draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
-				for k in 3:
-					var ang := _time * 1.6 + float(k) * TAU / 3.0
-					draw_circle(center + Vector2(cos(ang) * 11.0, sin(ang) * 20.0), 1.6, Color(1, 1, 1, 0.7))
+		"gateway", "portal":
+			# the doorway itself is a PortalView in the Scenery layer; here, only its light on the ground
+			_draw_portal_ground(p, color, type)
 		# ── The Thousand-Knot Bazaar: the five Vanes (one tall landmark per Knot, the skyline compass),
 		# the Knuckle furniture (dry well, notice-board, shrine), the wet-boots wanderer, and cargo crates.
 		# Each is a small placeholder silhouette; the Vanes are drawn tall so they read as "steer by me".

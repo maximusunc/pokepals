@@ -302,7 +302,7 @@
 		{"id": "walker_30", "home": [-465, -74], "roam_radius": 110, "person": {"appearance": {"equipped": {"body": "base:body", "legwear": "base:pants", "outfit": "base:tank", "footwear": "base:shoes", "hair": "base:hair_long"}, "colors": {"skin_tone": "rose", "hair_color": "bark", "top_color": "stone", "legwear_color": "clay", "footwear_color": "moss", "headwear_color": "stone"}}}}
 	],
 	"portals": [
-		{ "id": "bazaar_entry", "type": "portal", "position": [1030, 385], "color": [0.96, 0.82, 0.50], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" },
-		{ "id": "bazaar_arch", "type": "portal", "position": [-435, -434], "color": [0.98, 0.76, 0.42], "label": "the great arch", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_bazaar_portal" }
+		{ "id": "bazaar_entry", "type": "portal", "position": [1030, 385], "color": [0.96, 0.82, 0.50], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway" },
+		{ "id": "bazaar_arch", "type": "portal", "position": [-435, -434], "color": [0.98, 0.76, 0.42], "label": "the great arch", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway" }
 	]
 }

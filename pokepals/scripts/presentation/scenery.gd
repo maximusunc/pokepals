@@ -47,7 +47,7 @@ func _process(delta: float) -> void:
 func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	# Clear any trees from a previous populate (actors are kept — they're scene-defined).
 	for child in get_children():
-		if child is TreeView or child.has_meta("understory"):
+		if child is TreeView or child is PortalView or child.has_meta("understory"):
 			child.queue_free()
 	_trees.clear()
 
@@ -190,3 +190,15 @@ func add_understory(spots: Array, style: ArtStyle) -> void:
 ## the same sway offset every frame and across runs (mirrors WorldArt._phase_for).
 func _phase_for(p: Vector2) -> float:
 	return fposmod(p.x * 0.013 + p.y * 0.021, TAU)
+
+
+## Stand a doorway between worlds in the depth-sorted layer: the small stone ring ("portal") or the
+## Vale's arch ("gateway"), at its foot `pos`, glowing `color`. Returned so the caller can keep it.
+## It animates itself (there are only ever a handful), and is cleared with the trees on populate().
+func add_portal(pos: Vector2, kind: String, color: Color, style: ArtStyle) -> PortalView:
+	var pv := PortalView.new()
+	pv.setup(kind, color, style)
+	pv.position = pos
+	pv.name = "Portal_%d_%d" % [int(pos.x), int(pos.y)]
+	add_child(pv)
+	return pv

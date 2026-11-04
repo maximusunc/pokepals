@@ -29,7 +29,7 @@ python animal_motion.py   # animal_motion.png + animal_motion.gif
 python gait.py            # gaits.png + gaits.gif + idles.gif (quadruped walks, hops, idles)
 python trees.py           # trees.png (tree + great tree, ramp variants) + grove.png (every grove design + understory)
 python water.py           # water.png (pond/river/pool tiles, tiled 2x2)
-python portal.py          # portal.png (neutral oval + tint swatches)
+python portal.py          # portal_preview.png (the ring in every tint + the Gateway arch)
 python props.py           # props.png (every small prop, demo-tinted, on grass)
 python hedge.py           # hedge.png (leafy tile, tiled 2x2, lit + face)
 python ground.py          # ground.png (terrain tiles coloured with the default ramps + the detail atlas)
@@ -238,20 +238,23 @@ chunkier pixels). Remove the entries (or the files) and the water falls back to 
 engine fill. WorldArt enables `texture_repeat` so the tile wraps across the shape.
 
 ### Recolor or reshape a portal (`portal.py`)
-A portal is the odd one out: it's baked GRAYSCALE, because every portal in the world carries
-its own color as data (a gold sun-warmed archway, a green hedge-gap, a purple shimmer, a blue
-way-home). The client tints the one neutral sprite per-portal with `modulate`, so a value-v
-pixel becomes `v * color` — the bright core lands on the full hue, the dark rim on a deep shade
-of it. Unlike a solid object it's shaded RADIALLY (it's energy, not lit from a side), and the
-bands are ordered-dithered so the gradient reads as chunky pixels; the edge feathers out with a
-stipple. The breathing pulse and the orbiting sparks stay procedural in WorldArt.
-- **Bigger / rounder / brighter:** edit `W,H`/`RX,RY` (the oval), `LEVELS` (how many value
-  bands), or the `1.0 - 0.72*d` falloff and the `d < 0.22` solid core. Rerun, eyeball
-  `portal.png` (it renders the neutral sprite plus real-color tint swatches on grass).
+Two portals: the small **mossy stone ring** that stands in every world as its way home, and the
+Vale's **grand carved arch**, the Gateway. Each bakes three layers on one canvas so they line up
+by construction: the **frame** (stonework, moss, vines, steps; full colour, lit from the top-left
+like everything else), the **swirl** (a sheet of `FRAMES` grayscale frames of a spiral turning one
+arm-period, so it loops seamlessly), and the **runes** (a white glow mask over the carved glyphs).
+The swirl and runes are GRAYSCALE because every portal carries its own colour as data: the client
+tints them per-portal with `modulate`. The breathing, halo, rising motes and the Gateway's slow
+drift through the hues stay procedural in `PortalView`.
+- **Reshape the ring / arch:** `RING_OUT`/`RING_IN`/`RING_STONES`, or `ARCH_IN`/`ARCH_OUT`/
+  `PILLAR_W`/`ARCH_STONES`. If you move the opening or the foot, update `anchor_y` and `opening`
+  for that entity in `data/art.json` (the baker prints the geometry).
+- **The energy:** `make_swirl_sheet` (arms, twist, the bright heart, `LEVELS`).
+- **Runes:** `GLYPHS` (3x5 carved shapes) and which stones carry them.
 
-This feeds `tools/gen_portal.py`, which bakes `assets/sprites/portal.png` with a `.import`
-sidecar. The game uses it the moment `data/art.json`'s `entities.portal` names a `sprite`
-(`render: "sprite"`); remove it and portals fall back to the procedural shimmering ovals.
+Rerun and eyeball `portal_preview.png`. This feeds `tools/gen_portal.py`, which bakes
+`assets/sprites/portal_ring*.png` and `gateway_arch*.png` with `.import` sidecars; remove them
+and the portals fall back to procedural drawing.
 
 ### Add or edit a small prop (`props.py`)
 The world's small hand-placed things share one module with a **two-layer** output, mirroring

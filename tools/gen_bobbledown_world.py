@@ -34,6 +34,10 @@ BOUNDS_MIN = (-1900, -1500)
 BOUNDS_MAX = (1900, 1500)
 PLAYER_SPAWN = [0, 1060]
 COMPANION_SPAWN = [-34, 1090]
+PORTALS = [
+    {"id": "bobbledown_way_home", "type": "portal", "position": [0, 1130], "color": [1.0, 0.72, 0.88], "label": "the way back to the Vale",
+     "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway"},
+]
 
 STRAWBERRY = (1.00, 0.62, 0.72)
 MINT = (0.60, 0.92, 0.80)
@@ -493,7 +497,10 @@ out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
-out.append('\t"ambient_pals": [\n%s\n\t]' % block(CREATURES))
+out.append('\t"ambient_pals": [\n%s\n\t],' % block(CREATURES))
+# The way home: a small portal at the foot of the candy path, just behind where you arrive. Like every way home it
+# sets you down at the Vale's Gateway (its id is WorldRouter.HUB_GATEWAY_ID on the client).
+out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))
 out.append("}")
 text = "\n".join(out) + "\n"
 

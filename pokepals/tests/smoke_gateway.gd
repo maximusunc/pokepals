@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless smoke test for the Vale's Gateway. Loads the real World scene (the Vale) offline as if we'd
-## just come home through the gateway, then checks: the gateway sits beside the four small direct
-## portals; we arrived standing clear of it (disarmed, no instant reopen); walking into it offline only
+## just come home through the gateway, then checks: the gateway is the Vale's only doorway (no small
+## direct portals); we arrived standing clear of it (disarmed, no instant reopen); walking into it offline only
 ## shows a hint; the picker opens over the LIVE world (never paused — it's shared) with your own
 ## steering stood down, shows the server's cards (dropping a stale answer), backs out cleanly handing
 ## control back, and picking a world starts the trip; and WorldRouter sends
@@ -36,14 +36,14 @@ func _process(_delta: float) -> bool:
 	var fails := 0
 	var router := root.get_node("/root/WorldRouter")
 
-	# The layout: one gateway plus the four small direct portals.
+	# The layout: the gateway is the only doorway (every other world has its own small portal home).
 	var gw := _find_portal(router.HUB_GATEWAY_ID)
 	fails += _check(not gw.is_empty() and gw.get("gateway", false), "the Vale has its gateway")
 	var small := 0
 	for p in _world._portals:
 		if not p.get("gateway", false):
 			small += 1
-	fails += _check(small == 4, "the four small direct portals are still there (%d)" % small)
+	fails += _check(small == 0, "the gateway is the only doorway (%d small portals)" % small)
 	fails += _check(_world._return_world == "", "the hub itself offers no Return to the Vale")
 	if gw.is_empty():
 		return _finish(fails + 1)

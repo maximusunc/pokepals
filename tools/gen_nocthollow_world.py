@@ -25,6 +25,10 @@ BOUNDS_MIN = (-2250, -1750)
 BOUNDS_MAX = (2250, 1750)
 PLAYER_SPAWN = [0, 1150]
 COMPANION_SPAWN = [-30, 1180]
+PORTALS = [
+    {"id": "nocthollow_way_home", "type": "portal", "position": [-72, 1150], "color": [0.62, 0.56, 1.0], "label": "the way back to the Vale",
+     "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway"},
+]
 
 # ── regions: (id, min, max, tint) — named areas the companion feels it has reached ─────────────────
 REGIONS = [
@@ -345,6 +349,9 @@ ART = {
     },
     "light": {"shadow_alpha": 0.32, "rim_strength": 0.3},
     "entities": {
+        # The way home's stone ring, re-lit for the night: the stone sinks into the indigo dark so the
+        # swirl and its glowing runes carry the light (the art is shared, only its lighting changes).
+        "portal": {"frame_tint": [0.46, 0.46, 0.68]},
         # The meadow's pixel ground, re-grown as night moss: deep indigo-teal floor with glowing specks
         # where the meadow would have flowers, trails of luminous moss (its glowing paths baked into the
         # floor), a pale lumen-sand rim round the mere, and its own litter -- glow-tipped moss, glowcaps,
@@ -555,7 +562,10 @@ out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
 # This world's one SECRET (docs/home-world-and-secrets-design.md, W-2): stillness by the Mere.
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
-out.append('\t"ambient_pals": [\n%s\n\t]' % block(CREATURES))
+out.append('\t"ambient_pals": [\n%s\n\t],' % block(CREATURES))
+# The way home: a small portal inside the landing's ring of rune-stones, just west of where you arrive. Like every way home it
+# sets you down at the Vale's Gateway (its id is WorldRouter.HUB_GATEWAY_ID on the client).
+out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))
 out.append("}")
 text = "\n".join(out) + "\n"
 
