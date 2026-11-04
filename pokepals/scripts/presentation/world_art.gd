@@ -1633,8 +1633,8 @@ func _draw_portal_ground(p: Vector2, color: Color, kind: String) -> void:
 	var breathe := 0.5 + 0.5 * sin(_time * 1.6 + _phase_for(p))
 	var big := kind == "gateway"
 	var r := (60.0 if big else 30.0) * (0.95 + 0.08 * breathe)
-	SoftGlow.draw(self, p + Vector2(0, -2), r, Color(c.r, c.g, c.b, (0.26 if big else 0.30) + 0.08 * breathe + 0.10 * _dusk), 0.38)
-	SoftGlow.draw(self, p + Vector2(0, -2), r * 0.45, Color(c.r, c.g, c.b, 0.22 + 0.08 * breathe), 0.38)
+	SoftGlow.draw(self, p + Vector2(0, 5), r, Color(c.r, c.g, c.b, (0.26 if big else 0.30) + 0.08 * breathe + 0.10 * _dusk), 0.38)
+	SoftGlow.draw(self, p + Vector2(0, 5), r * 0.45, Color(c.r, c.g, c.b, 0.22 + 0.08 * breathe), 0.38)
 
 
 ## A warm, breathing radial glow under the lit props (lantern, crystal). Faked with a

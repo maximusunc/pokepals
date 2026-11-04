@@ -98,9 +98,10 @@ def export_all():
     _save(arch.frame, "gateway_arch.png")
     _save(portal.make_arch_swirl(arch), "gateway_arch_swirl.png")
     _save(arch.runes, "gateway_arch_runes.png")
-    print("geometry: ring %dx%d anchor_y %d, arch %dx%d anchor_y %d, %d swirl frames" % (
+    print("geometry: ring %dx%d foot row %d, arch %dx%d foot row %d, %d swirl frames" % (
         portal.RING_W, portal.RING_H, portal.RING_ANCHOR_Y, portal.ARCH_W, portal.ARCH_H,
-        portal.ARCH_ANCHOR_Y, portal.FRAMES))
+        portal.ARCH_ANCHOR_Y + 8, portal.FRAMES))  # the arch's steps reach 8 px below its point
+    print("(art.json anchor_y = the foot row: the canvas row that lands on the ground plane)")
 
 
 def preview(path):

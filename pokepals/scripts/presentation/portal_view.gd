@@ -17,6 +17,7 @@ extends Node2D
 
 const GATEWAY_HUE_SPEED := 0.012  # turns of the colour wheel per second: one slow lap in ~80 s
 const CULL_MARGIN := 160.0
+const GROUND_Y := 8.0  # the house ground plane: sprites' feet sit this far below their origin
 
 var kind := "portal"          # "portal" (the small ring) or "gateway" (the Vale's arch)
 var color := Color(0.74, 0.66, 0.96)
@@ -26,8 +27,8 @@ var _swirl_tex: Texture2D = null
 var _runes_tex: Texture2D = null
 var _frames := 8
 var _fps := 8.0
-var _anchor_y := 57.0
-var _opening := Vector2(0, -26)     # the doorway's centre, relative to the foot
+var _anchor_y := 57.0             # the canvas row that stands on the ground plane (origin + 8)
+var _opening := Vector2(0, -18)     # the doorway's centre, relative to the foot
 var _opening_r := Vector2(11.5, 18.5)
 var _motes := 7
 var _frame_tint := Color(1, 1, 1)
@@ -47,8 +48,8 @@ func setup(p_kind: String, p_color: Color, style: ArtStyle) -> void:
 	_frames = maxi(1, int(cfg.get("frames", 8)))
 	_fps = float(cfg.get("fps", 8.0))
 	var big := kind == "gateway"
-	_anchor_y = float(cfg.get("anchor_y", 122.0 if big else 57.0))
-	var op: Array = cfg.get("opening", [0, -46, 21, 38] if big else [0, -26, 11.5, 18.5])
+	_anchor_y = float(cfg.get("anchor_y", 130.0 if big else 57.0))
+	var op: Array = cfg.get("opening", [0, -46, 21, 38] if big else [0, -18, 11.5, 18.5])
 	_opening = Vector2(float(op[0]), float(op[1]))
 	_opening_r = Vector2(float(op[2]), float(op[3]))
 	_motes = int(cfg.get("motes", 16 if big else 7))
@@ -108,12 +109,19 @@ func _draw() -> void:
 		_draw_motes(c)
 		return
 	var sz := _frame_tex.get_size()
-	var top_left := Vector2(-sz.x * 0.5, -_anchor_y)
+	# Plant it like every other sprite: its foot row lands on the shared ground plane 8 px below the
+	# origin (SpriteSlot.draw, the props, the player), so it stands on the ground beside the actors.
+	var top_left := Vector2(-sz.x * 0.5, GROUND_Y - _anchor_y)
 	# the energy: one frame of the swirl sheet, tinted, ticking round at _fps
 	if _swirl_tex != null:
-		var f := int(floor(_time * _fps + _phase)) % _frames
-		var region := Rect2(Vector2(f * sz.x, 0), sz)
-		draw_texture_rect_region(_swirl_tex, Rect2(top_left, sz), region, Color(c.r, c.g, c.b, 1.0))
+		# cross-fade each frame into the next, so even a slow turn glides instead of ticking
+		var tf := _time * _fps + _phase
+		var f := int(floor(tf)) % _frames
+		var blend := tf - floor(tf)
+		var dest := Rect2(top_left, sz)
+		draw_texture_rect_region(_swirl_tex, dest, Rect2(Vector2(f * sz.x, 0), sz), Color(c.r, c.g, c.b, 1.0))
+		var f2 := (f + 1) % _frames
+		draw_texture_rect_region(_swirl_tex, dest, Rect2(Vector2(f2 * sz.x, 0), sz), Color(c.r, c.g, c.b, blend))
 		# a hot, breathing heart
 		var hb := _breathe(2.2)
 		draw_circle(_opening, 2.0 + 1.2 * hb, Color(1, 1, 1, 0.35 + 0.25 * hb))
