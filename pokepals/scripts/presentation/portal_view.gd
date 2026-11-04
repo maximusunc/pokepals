@@ -116,8 +116,8 @@ func _draw() -> void:
 	if _swirl_tex != null:
 		# cross-fade each frame into the next, so even a slow turn glides instead of ticking
 		var tf := _time * _fps + _phase
-		var f := int(floor(tf)) % _frames
-		var blend := tf - floor(tf)
+		var f := int(floorf(tf)) % _frames
+		var blend := tf - floorf(tf)
 		var dest := Rect2(top_left, sz)
 		draw_texture_rect_region(_swirl_tex, dest, Rect2(Vector2(f * sz.x, 0), sz), Color(c.r, c.g, c.b, 1.0))
 		var f2 := (f + 1) % _frames
