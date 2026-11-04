@@ -1567,5 +1567,8 @@
 		{"id": "pillow_dunes_puffkin_0", "home": [1621, 1084], "roam_radius": 220, "region": "pillow_dunes", "species": "puffkin", "variant": 1},
 		{"id": "pillow_dunes_puffkin_1", "home": [992, 939], "roam_radius": 220, "region": "pillow_dunes", "species": "puffkin", "variant": 0},
 		{"id": "pillow_dunes_puffkin_2", "home": [1610, 877], "roam_radius": 220, "region": "pillow_dunes", "species": "puffkin", "variant": 2}
+	],
+	"portals": [
+		{"id": "bobbledown_way_home", "type": "portal", "position": [0, 1130], "color": [1.0, 0.72, 0.88], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway"}
 	]
 }

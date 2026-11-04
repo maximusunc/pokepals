@@ -76,9 +76,9 @@
 		"roam_radius": 2400.0,
 		"wander_min_radius": 80.0
 	},
-	"_portals_comment": "Doorways between worlds (walk through them). The entry portal here returns to the Vale, landing the player beside the Vale's portal. A second 'all ten found' portal is created at runtime nearby when the hunt completes.",
+	"_portals_comment": "Doorways between worlds (walk through them). The entry portal here, beside where you arrive, returns to the Vale, setting you down at its Gateway. A second 'all ten found' portal is created at runtime nearby when the hunt completes.",
 	"portals": [
-		{ "id": "riverbank_entry", "type": "portal", "position": [-30, -90], "color": [0.66, 0.80, 0.96], "label": "the portal home", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_portal" }
+		{ "id": "riverbank_entry", "type": "portal", "position": [-30, -90], "color": [0.66, 0.80, 0.96], "label": "the portal home", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway" }
 	],
 	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, W-3). 'reveal' says how it becomes findable (see SecretDirector / Server.SecretReveal); the server honours a claim only here, within 'radius' of 'position', and only once the reveal's condition holds.",
 	"secret": {

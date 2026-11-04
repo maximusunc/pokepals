@@ -80,6 +80,13 @@
 			"rim_strength": 0.3
 		},
 		"entities": {
+			"portal": {
+				"frame_tint": [
+					0.46,
+					0.46,
+					0.68
+				]
+			},
 			"ground": {
 				"render": "pixel",
 				"ramps": {
@@ -2437,5 +2444,8 @@
 		{"id": "elder_hollow_lumejelly_3", "home": [-715, -1200], "roam_radius": 220, "region": "elder_hollow", "species": "lumejelly", "variant": 0},
 		{"id": "elder_hollow_lanternsnail_0", "home": [-2096, -1080], "roam_radius": 120, "region": "elder_hollow", "species": "lanternsnail", "variant": 2},
 		{"id": "elder_hollow_lanternsnail_1", "home": [-1331, -1147], "roam_radius": 120, "region": "elder_hollow", "species": "lanternsnail", "variant": 2}
+	],
+	"portals": [
+		{"id": "nocthollow_way_home", "type": "portal", "position": [-72, 1150], "color": [0.62, 0.56, 1.0], "label": "the way back to the Vale", "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway"}
 	]
 }

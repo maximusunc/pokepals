@@ -11,8 +11,9 @@ Layout:
   * A square grid of NxN corridor cells, walls (hedges) between and around them.
   * A 3x3 open PLAZA at the dead centre with the portal back to the Vale in the
     middle of it. Reaching it pays 10 coins (server-authoritative; see
-    world_channel.ex). The portal is the ONLY way back besides the Return button.
-  * A single ENTRANCE gap in the south perimeter; the player spawns just inside it.
+    world_channel.ex).
+  * A single ENTRANCE gap in the south perimeter; the player spawns just inside it, with
+    a portal home standing in the gap behind them. Both portals lead to the Vale's Gateway.
 
 Geometry is data-only: world_controller/solids/world_art read the "hedges" array
 (segments with a thickness) the same way the Ruin reads its columns. Re-run this
@@ -36,6 +37,7 @@ PAD = 22.0               # thin margin between the perimeter hedge and the world
 WORLD_ID = "maze"
 VALE_ID = "11111111-1111-1111-1111-111111111111"
 OUT = os.path.join(os.path.dirname(__file__), "..", "server", "priv", "world_seeds", "maze.json")
+FIXTURE = os.path.join(os.path.dirname(__file__), "..", "pokepals", "tests", "world_fixtures", "maze.json")
 
 # Doubled-grid size: corridor cells at odd indices, walls at even indices.
 G = 2 * CELLS + 1
@@ -274,6 +276,8 @@ def main():
     spawn_gy = 2 * (CELLS - 1) + 1
     spawn_x = center_of(2 * CENTER + 1)
     spawn_y = center_of(spawn_gy)
+    # The way home stands IN the entrance gap of the south perimeter, just behind where you arrive.
+    entry_y = center_of(spawn_gy + 1) + 6
 
     half = SPAN / 2.0 + PAD
     plaza_half = (PLAZA_RADIUS + 0.5) * (CORRIDOR + HEDGE)
@@ -338,17 +342,26 @@ def main():
         ),
         "maze_guide": guide,
         "_return_comment": "Where the always-available 'Return to the Vale' button sends you.",
-        "return": {"world": VALE_ID, "portal": "vale_maze_portal", "label": "Return to the Vale"},
+        "return": {"world": VALE_ID, "portal": "vale_gateway", "label": "Return to the Vale"},
+        "_portals_comment": (
+            "Both lead home to the Vale's Gateway: maze_entry stands in the gap of the outer hedge, "
+            "just behind where you arrive; maze_heart waits at the centre for whoever finds it."
+        ),
         "portals": [
+            {"id": "maze_entry", "type": "portal", "position": [round(spawn_x, 1), round(entry_y, 1)],
+             "color": [0.46, 0.66, 0.42], "label": "the way back to the Vale",
+             "target_world": VALE_ID, "target_portal": "vale_gateway"},
             {"id": "maze_heart", "type": "portal", "position": [round(cx_world, 1), round(cy_world, 1)],
              "color": [0.74, 0.66, 0.96], "label": "a shimmering portal",
-             "target_world": VALE_ID, "target_portal": "vale_maze_portal"},
+             "target_world": VALE_ID, "target_portal": "vale_gateway"},
         ],
     }
 
-    with open(OUT, "w") as f:
-        json.dump(spec, f, indent="\t")
-        f.write("\n")
+    # the client's smoke-test fixture is an exact copy of the seed
+    for path in (OUT, FIXTURE):
+        with open(path, "w") as f:
+            json.dump(spec, f, indent="\t")
+            f.write("\n")
     print(f"Wrote {os.path.relpath(OUT)}: {CELLS}x{CELLS} maze, {len(hedges)} hedges, "
            f"span {SPAN:.0f}px, centre ({cx_world:.0f},{cy_world:.0f}).")
 

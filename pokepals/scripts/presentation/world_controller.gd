@@ -232,6 +232,10 @@ func _build_world(cached: Dictionary) -> void:
 	# Scenery layer, using the same border points as the colliders so drawing matches.
 	_scenery.populate(data, border_pts, _style)
 	_scenery.add_understory(_world_art.understory_spots(), _style)
+	# Every doorway (each world's portal home, the Vale's Gateway) stands in the same depth-sorted
+	# layer as a PortalView, so you walk in front of it or behind it; WorldArt draws only its light.
+	for p in _portals:
+		_scenery.add_portal(p["pos"], "gateway" if p.get("gateway", false) else "portal", p["color"], _style)
 	# The small life in the air (butterflies, fireflies at dusk, cloud shadows, falling leaves), drawn
 	# just above the scenery so a cloud's shadow passes over the trees too.
 	_ambient_life = AmbientLife.new()
@@ -670,6 +674,7 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			"pos": pos,
 			"target_world": String(pd["target_world"]),
 			"target_portal": String(pd["target_portal"]),
+			"color": WorldData.to_color(pd.get("color", [0.74, 0.66, 0.96])),
 			"render_index": p_render_index,
 			"armed": String(pd["id"]) != arrival_id,
 		})
@@ -1438,12 +1443,15 @@ func _on_prop_flared(prop_id: String) -> void:
 ## HuntDirector calls this once its goal resolves.
 func open_completion_portal(at: Vector2) -> void:
 	var pos := at + Vector2(46, -28)
-	var render_index := _world_art.add_interactable(pos, Color(0.74, 0.66, 0.96), "portal")
+	var tint := Color(0.74, 0.66, 0.96)
+	var render_index := _world_art.add_interactable(pos, tint, "portal")
+	_scenery.add_portal(pos, "portal", tint, _style)
 	_portals.append({
 		"id": "riverbank_exit_complete",
 		"pos": pos,
 		"target_world": _home_world,
 		"target_portal": _home_portal,
+		"color": tint,
 		"render_index": render_index,
 		"armed": true,
 	})

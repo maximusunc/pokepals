@@ -1,28 +1,26 @@
 #!/usr/bin/env python3
-"""Export the pixel-art portal as a single grayscale sprite for the world.
+"""Export the pixel-art portals: the small mossy stone ring (every world's way home) and the Vale's
+grand carved arch (the Gateway).
 
-The ART lives in tools/pixelart/portal.py (a radial, dithered energy oval, shaded neutral).
-This tool only bakes it into the shape the client reads: one PNG the client draws tinted.
+The ART lives in tools/pixelart/portal.py. Each portal bakes three images on one canvas, so they line
+up by construction (PortalView draws all three at the same anchor):
 
-Why grayscale / why one sprite: every portal in the world carries its own color (a gold
-sun-warmed archway, a green hedge-gap, a purple shimmer, a blue way-home — it's data on the
-prop). So the sprite is a neutral energy oval and WorldArt tints it per-portal with `modulate`
-at draw time. One baked sprite serves every portal color. The breathing pulse and the sparks
-orbiting the rim stay procedural in WorldArt (like the trees' sway), so this bakes only the
-still shape.
+  * <name>.png        the stonework, moss and vines, in full colour (never tinted)
+  * <name>_swirl.png  a sheet of FRAMES grayscale swirl frames side by side, tinted per-portal at draw
+                      time with the portal's own colour (every portal's colour is data, so one sheet
+                      serves them all)
+  * <name>_runes.png  a white mask of the carved runes, drawn over the frame in the portal's colour
+                      with a breathing alpha, so the runes glow
 
-Why this exists at all: WorldArt already supports drop-in art. If data/art.json's
-`entities.portal` sets `render: "sprite"` and names a `sprite` image that exists, WorldArt
-draws it (tinted) instead of the procedural shimmering ovals; a missing file silently falls
-back to the procedural draw, so the repo and the headless smoke test stay green with no art.
+The breathing, rising motes, halo and the Gateway's drift through the hues stay procedural in the
+client. data/art.json's `entities.portal` / `entities.gateway` name these files and the geometry the
+client needs (anchor, opening); a missing file falls back to procedural drawing.
 
-Output: res://assets/sprites/portal.png (+ a committed .import sidecar, identical recipe to
-the tree/water/pal bakers, so the game never needs Python). After regenerating, run
-`godot --headless --path pokepals --import` so Godot rebuilds its import cache.
+Output: res://assets/sprites/portal_ring*.png and gateway_arch*.png (+ committed .import sidecars,
+the same lossless recipe as the tree / water / pal bakers).
 
 Run from anywhere:  python3 pokepals/tools/gen_portal.py [--preview out.png]
 """
-
 import os
 import sys
 import hashlib
@@ -92,7 +90,17 @@ def _save(img, name):
 
 def export_all():
     os.makedirs(OUT_DIR, exist_ok=True)
-    _save(portal.make_portal(), "portal.png")
+    ring = portal.make_ring()
+    _save(ring.frame, "portal_ring.png")
+    _save(portal.make_ring_swirl(ring), "portal_ring_swirl.png")
+    _save(ring.runes, "portal_ring_runes.png")
+    arch = portal.make_arch()
+    _save(arch.frame, "gateway_arch.png")
+    _save(portal.make_arch_swirl(arch), "gateway_arch_swirl.png")
+    _save(arch.runes, "gateway_arch_runes.png")
+    print("geometry: ring %dx%d anchor_y %d, arch %dx%d anchor_y %d, %d swirl frames" % (
+        portal.RING_W, portal.RING_H, portal.RING_ANCHOR_Y, portal.ARCH_W, portal.ARCH_H,
+        portal.ARCH_ANCHOR_Y, portal.FRAMES))
 
 
 def preview(path):

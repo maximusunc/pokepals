@@ -132,7 +132,11 @@ not a blocker** — pick it up if/when a shared world wants it.
 > new catalog card columns, `listed`/`featured`, plus a live per-world player count from Presence). A
 > world added to the catalog needs **no portal and no Vale edit**: you arrive at its spawn, and its way
 > home (any portal back, or the now-default "Return to the Vale") sets you down at the Gateway, since
-> `WorldRouter` remembers you left by it. The four small direct portals stay as shortcuts around it.
+> `WorldRouter` remembers you left by it. The Gateway is the Vale's **only** doorway now (the small
+> direct portals are gone), and **every world has a small portal home beside where you arrive**, all
+> pointed at the Gateway. Portals are pixel art (`tools/gen_portal.py`): a mossy stone ring for the
+> small ones, a grand carved arch for the Gateway, each with a tinted swirl and glowing runes, drawn by
+> `PortalView` as y-sorted nodes in the Scenery layer so you can walk behind them.
 
 > **Nocthollow (2026-10):** the first world that looks like **another planet**. It's a big (4500×3500)
 > bioluminescent night world for walking, looking and touching, with no goal and no puzzle. Eight
