@@ -23,7 +23,13 @@ extends Node
 ## The search just began (the world hides the ambient pals + form highlights while it runs).
 signal search_started
 ## The companion is now at the player's side, met and revealed (the world brings the HUD back).
-signal bonded
+## ceremonial: true when the bonding ceremony just played; false for the quiet fold-up (a save race
+## said the companion was already met).
+signal bonded(ceremonial: bool)
+
+## While true, a search that's due waits instead of starting. The world holds it while a brand-new
+## player reads the welcome and chooses their look, so the flock appears with the "go find it" card.
+var held := false
 
 var _host: Node          # world_controller — for show_hint (same seam the other directors use)
 var _player: Node2D
@@ -90,9 +96,14 @@ func update(_delta: float) -> void:
 	if _searching:
 		_update_search()
 		return
-	if not _save_settled or not _companion.is_local() or _companion.is_met():
+	if held or not _save_settled or not _companion.is_local() or _companion.is_met():
 		return
 	_begin_search()
+
+
+## Whether the server's save has arrived, so is_met() can be trusted (never, offline/headless).
+func is_settled() -> bool:
+	return _save_settled
 
 
 func _update_search() -> void:
@@ -235,7 +246,7 @@ func _finish(ceremonial: bool) -> void:
 		else:
 			pal.depart(_player.position)
 	_flock.clear()
-	bonded.emit()
+	bonded.emit(ceremonial)
 
 
 func _find(entry: Dictionary) -> Dictionary:

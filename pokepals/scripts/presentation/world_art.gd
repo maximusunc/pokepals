@@ -954,6 +954,14 @@ func take_interactable(index: int) -> void:
 		queue_redraw()
 
 
+## Hide or show an interactable for now (unlike take_interactable, this can be undone): the Gateway's
+## glow stays off the ground until a newcomer has found their companion.
+func set_interactable_hidden(index: int, hidden: bool) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["hidden"] = hidden
+		queue_redraw()
+
+
 ## Raise a Ruin slab: it draws lifted (an open doorway under a hoisted lintel) from here on, with a
 ## pulse of acknowledgement. The collider is removed separately by the controller (Solids rebuild) —
 ## this is the visual half. Called when a ward's plate is weighted and the slab opens.
@@ -1173,6 +1181,8 @@ func _draw() -> void:
 			continue
 		if bool(it.get("taken", false)):
 			continue  # picked up (a world secret, once found): gone from the world
+		if bool(it.get("hidden", false)):
+			continue  # not here for now (the Gateway, until a newcomer has found their companion)
 		if bool(it.get("person", false)):
 			continue  # stands as a real person (a PlayerView, AmbientPalDirector), not drawn here
 		if _baked_types.has(it["type"]):

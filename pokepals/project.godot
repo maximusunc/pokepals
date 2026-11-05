@@ -14,6 +14,10 @@ config/name="Kithbound"
 run/main_scene="res://scenes/world.tscn"
 config/features=PackedStringArray("4.6", "GL Compatibility")
 config/icon="res://icon.svg"
+boot_splash/bg_color=Color(0.105882354, 0.08235294, 0.0627451, 1)
+boot_splash/image="res://assets/loading/boot_splash.png"
+boot_splash/fullsize=true
+boot_splash/use_filter=false
 
 [autoload]
 

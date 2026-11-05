@@ -5,10 +5,25 @@ extends Control
 ## native — see Net.default_server_url). This overlay auto-connects, reflects status, and steps aside
 ## once the server has handed back your companion (save_loaded). If the link can't be made it offers a
 ## Retry. Pure presentation.
+##
+## It's also the LAST of the three loading stages: the web download page (web/shell.html) and the boot
+## splash (assets/loading/boot_splash.png) show the same wordmark and the same fox on the same
+## background, at the same spots, so the hand-off from one to the next is seamless. Those two are baked
+## by tools/gen_loading.py; the LOADING LAYOUT numbers below mirror its layout constants.
 
+# LOADING LAYOUT, on the 640x360 canvas (mirrors tools/gen_loading.py):
+const BG := Color("1b1510")       # gen_loading.BG, also the boot splash's bg_color
+const BG_OVER_WORLD := Color(0.106, 0.082, 0.063, 0.82)  # after a disconnect: the world dims beneath
+const WORDMARK_SIZE := 16         # gen_loading.WORDMARK_SIZE
+const BOX_TOP := 99.0 - 180.0     # the wordmark's ink starts 7px into its Label, at y=106
+const GAP := 12.0                 # puts the fox's 64px box at y=132 (gen_loading.FOX_TOP)
+
+@onready var _backdrop: ColorRect = $Backdrop
+@onready var _box: VBoxContainer = $Box
 @onready var _title: Label = $Box/Title
 @onready var _status: Label = $Box/Status
 @onready var _retry_button: Button = $Box/RetryButton
+var _fox: TrottingFox
 
 
 func _ready() -> void:
@@ -39,6 +54,9 @@ func _ready() -> void:
 		visible = false
 		get_tree().paused = false
 		return
+	# A cold boot: nothing is drawn behind us yet (just the engine's grey clear colour), so the gate is
+	# fully opaque here, continuing the boot splash.
+	_backdrop.color = BG
 	get_tree().paused = true
 	_begin_connect()
 
@@ -47,10 +65,19 @@ func _ready() -> void:
 ## same pixel-caps treatment as the wardrobe's WARDROBE header), quiet paper status text,
 ## and the gold primary button for Retry.
 func _apply_style() -> void:
+	_title.text = "KITHBOUND"
 	var wordmark := UiFonts.pixel(false, 1)
 	if wordmark != null:
 		_title.add_theme_font_override("font", wordmark)
-	_title.add_theme_font_size_override("font_size", 11)
+	_title.add_theme_font_size_override("font_size", WORDMARK_SIZE)
+	_box.offset_top = BOX_TOP
+	_box.add_theme_constant_override("separation", int(GAP))
+	# The fox, between the wordmark and the status line. It trots while we're connecting and stands
+	# still while we wait on a Retry.
+	_fox = TrottingFox.new(2)
+	_fox.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_box.add_child(_fox)
+	_box.move_child(_fox, _title.get_index() + 1)
 	_title.add_theme_color_override("font_shadow_color", Color(20.0 / 255.0, 14.0 / 255.0, 8.0 / 255.0, 0.55))
 	_title.add_theme_constant_override("shadow_offset_x", 0)
 	_title.add_theme_constant_override("shadow_offset_y", 1)
@@ -63,10 +90,12 @@ func _apply_style() -> void:
 ## page origin, native reads the baked-in config (see Net.default_server_url).
 func _begin_connect() -> void:
 	_retry_button.visible = false
+	_fox.trotting = true
 	var err := Net.connect_to(Net.default_server_url())
 	if err != OK:
 		_status.text = "Couldn't start connecting (error %d)." % err
 		_retry_button.visible = true
+		_fox.trotting = false
 		return
 	_status.text = "Connecting…"
 
@@ -98,6 +127,7 @@ func _on_connection_failed() -> void:
 		return
 	_status.text = "Couldn't reach the server. Check that it's running, then retry."
 	_retry_button.visible = true
+	_fox.trotting = false
 
 
 ## We reached the server but it refused to let us into the world — almost always because the server's
@@ -110,6 +140,7 @@ func _on_world_join_failed(reason: String) -> void:
 	else:
 		_status.text = "The server refused entry to the world (%s)." % reason
 	_retry_button.visible = true
+	_fox.trotting = false
 
 
 ## The link dropped. With no offline mode, the player returns to the gate to reconnect.
@@ -124,9 +155,11 @@ func _reshow() -> void:
 	# Re-freeze the world under the opaque gate: no movement, and no portal can fire to sneak us back
 	# into a disconnected world. Offer Retry — there's nothing else to configure.
 	get_tree().paused = true
+	_backdrop.color = BG_OVER_WORLD
 	visible = true
 	modulate.a = 1.0
 	_retry_button.visible = true
+	_fox.trotting = false
 
 
 ## True if this lobby is detached from the scene tree — it's a torn-down husk that should NOT react.

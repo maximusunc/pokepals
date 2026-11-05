@@ -85,6 +85,12 @@ var _portals: Array = []  # walk-through doorways: [ { id, pos, target_world, ta
 # The Gateway's world picker while it's open (the world keeps living under it), else null.
 var _picker: WorldPicker
 var _open_sheets := 0  # social windows currently up (open_sheet); steering returns when the last closes
+# The newcomer's path (see ONBOARDING below): the Vale's Gateway stays out of the world until you've
+# found your companion, then breathes itself into being in a little cutscene.
+var _gateway: Dictionary = {}          # this world's Gateway entry in _portals ({} if it has none)
+var _gateway_view: PortalView = null
+var _gateway_hidden := false
+var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
 var _ambient_life: AmbientLife
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
@@ -235,7 +241,10 @@ func _build_world(cached: Dictionary) -> void:
 	# Every doorway (each world's portal home, the Vale's Gateway) stands in the same depth-sorted
 	# layer as a PortalView, so you walk in front of it or behind it; WorldArt draws only its light.
 	for p in _portals:
-		_scenery.add_portal(p["pos"], "gateway" if p.get("gateway", false) else "portal", p["color"], _style)
+		var pv := _scenery.add_portal(p["pos"], "gateway" if p.get("gateway", false) else "portal", p["color"], _style)
+		if p.get("gateway", false):
+			_gateway = p
+			_gateway_view = pv
 	# The small life in the air (butterflies, fireflies at dusk, cloud shadows, falling leaves), drawn
 	# just above the scenery so a cloud's shadow passes over the trees too.
 	_ambient_life = AmbientLife.new()
@@ -485,7 +494,8 @@ func open_sheet(sheet: CozySheet) -> void:
 	_set_menu_open(true)
 	sheet.closed.connect(func() -> void:
 		_open_sheets -= 1
-		if _open_sheets <= 0 and _picker == null:
+		# (Not while the wardrobe is up: the first-run welcome hands straight over to it.)
+		if _open_sheets <= 0 and _picker == null and _customizer == null:
 			_set_menu_open(false))
 	$UI.add_child(sheet)
 
@@ -897,6 +907,7 @@ func _process(delta: float) -> void:
 	# the nearest-examinable cache must rescan; and the bottom-right companion radial stays out of
 	# sight — it appears for the first time at the bonding beat (_on_companion_found).
 	_encounter_dir.update(delta)
+	_sync_gateway()
 	if _encounter_dir.is_searching():
 		_invalidate_nearest()
 		_radial.visible = false
@@ -922,6 +933,7 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "friends", "label": "Friends" })
 		items.append({ "id": "journal", "label": "Journal" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
+		items.append({ "id": "welcome", "label": "Welcome" })
 		items.append({ "id": "leave", "label": "Leave game" })
 	items.append({ "id": "dbg", "label": "DBG" })
 	return items
@@ -953,15 +965,119 @@ func _on_gear_item(id: String) -> void:
 		"wardrobe": _open_wardrobe()
 		"friends": _social_dir.open_friends()
 		"journal": _social_dir.open_journal()
+		"welcome": _open_cards([], false)
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
 
 
-## First-run CREATION: a brand-new player picks their look before the world seeds their save. Opens the
-## customizer in "create" mode (the world lives on under it, but you can't walk off until you're done) so
-## they dress before wandering. On confirm, PresenceDirector.apply_local_look performs the first push_save.
+# ============================================================================================
+# ONBOARDING — a newcomer's first minutes, as one path:
+#   1. the "welcome" card (it shows their starting look)        <- needs_creation (_open_creation)
+#   2. the wardrobe, in "create" mode                           <- the welcome's button
+#   3. the search for their companion begins, with the "find" card  <- _on_search_started
+#      (the search is HELD until now, so the flock appears with the card, not under the welcome)
+#   4. the bonding ceremony (EncounterDirector), then the Gateway breathes itself into being: the
+#      camera glides over to watch it appear, and back                <- _on_companion_found
+#   5. the "explore" card
+# The Gateway is out of the world for anyone whose companion isn't met yet (_sync_gateway), on their
+# own screen only: friends in the Vale keep theirs. Someone who left mid-search picks up at step 3.
+# New Companion (a debugging aid) replays the whole path from step 1 on the same account: name,
+# friends, journal and coins are kept. The words are data (data/welcome.json); WelcomePanel lays
+# them out.
+# ============================================================================================
+
+## A brand-new player (no look stored yet): hold the search, welcome them, and let them dress. On the
+## wardrobe's confirm, PresenceDirector.apply_local_look performs the first push_save, and the search
+## is let go (see _open_customizer).
 func _open_creation() -> void:
-	_open_customizer("create")
+	_encounter_dir.held = true
+	_open_cards(["welcome"], true, func() -> void: _open_customizer("create"))
+
+
+## Show some of the newcomer's cards (data/welcome.json "cards"), then call `then`. An onboarding
+## card is modal: it's read through to its button, never waved away by a stray tap. An empty `ids`
+## is the gear menu's reread: every card in order, closeable any time.
+func _open_cards(ids: Array, onboarding: bool, then := Callable()) -> void:
+	var panel := WelcomePanel.new()
+	if ids.is_empty():
+		var data := WelcomePanel.load_data()
+		panel.card_ids = data.get("reread_order", ["welcome", "find", "explore"])
+		panel.final_button = String(data.get("reread_button", "Back to the world"))
+	else:
+		panel.card_ids = ids
+	panel.modal = onboarding
+	panel.catalog = _ensure_cosmetics()
+	panel.avatar = PlayerAppearance.from_dict(_player.appearance_dict(), panel.catalog)
+	if then.is_valid():
+		panel.finished.connect(then)
+	open_sheet(panel)
+
+
+func _ensure_cosmetics() -> CosmeticsCatalog:
+	if _cosmetics == null:
+		_cosmetics = CosmeticsCatalog.load_catalog(_player.cosmetics_path)
+	return _cosmetics
+
+
+## Keep the Gateway's presence in step with the companion: out of the world while it isn't met yet
+## (once the save has settled, so offline runs and smoke tests always have it), back once it is. The
+## reveal cutscene takes over for the moment of bonding; this quietly covers everything else: a
+## returning player's save arriving, a reconnect race, a New Companion reset.
+func _sync_gateway() -> void:
+	if _gateway.is_empty() or _gateway_revealing:
+		return
+	var want_hidden := _encounter_dir.is_settled() and not _companion.is_met()
+	if want_hidden != _gateway_hidden:
+		_set_gateway_hidden(want_hidden)
+
+
+func _set_gateway_hidden(hidden: bool) -> void:
+	_gateway_hidden = hidden
+	_gateway["hidden"] = hidden
+	if hidden:
+		_gateway["armed"] = false
+	if _gateway_view != null:
+		_gateway_view.visible = not hidden
+	_world_art.set_interactable_hidden(int(_gateway["render_index"]), hidden)
+
+
+## The bond is made: bring the Gateway into the world, in a little cutscene. Your steering stands
+## down, the camera glides west to where the Gateway belongs, it breathes itself into being, the
+## camera glides home, and the "explore" card follows. Without a Gateway in this world, just the card.
+func _reveal_gateway() -> void:
+	if _gateway.is_empty() or not _gateway_hidden or _gateway_view == null:
+		_open_cards(["explore"], true)
+		return
+	_gateway_revealing = true
+	var hint := String(WelcomePanel.load_data().get("gateway_reveal_hint", ""))
+	_set_menu_open(true)
+	var gate_pos: Vector2 = _gateway["pos"] + Vector2(0, -24)  # frame the arch, not its foot
+	var tw := create_tween()
+	tw.tween_interval(2.4)  # let the bonding settle: the hearts, and the companion falling in beside you
+	tw.tween_callback(func() -> void: _camera.glide_to(gate_pos, 2.6))
+	tw.tween_interval(3.0)
+	tw.tween_callback(_pop_gateway.bind(hint))
+	tw.tween_interval(2.6)
+	tw.tween_callback(func() -> void: _camera.glide_to(_player.global_position, 2.2))
+	tw.tween_interval(2.4)
+	tw.tween_callback(_end_gateway_reveal)
+
+
+## The cutscene's high point: the Gateway appears where the camera is looking.
+func _pop_gateway(hint: String) -> void:
+	_set_gateway_hidden(false)
+	_gateway["armed"] = false  # it re-arms once you've stepped clear, like any doorway you arrive at
+	_gateway_view.pop_in()
+	if hint != "":
+		_show_hint(hint)
+
+
+## The camera is home: hand everything back, then the "explore" card.
+func _end_gateway_reveal() -> void:
+	_camera.release()
+	_gateway_revealing = false
+	_set_menu_open(false)
+	_open_cards(["explore"], true)
 
 
 ## Reopen the wardrobe from the gear menu to restyle mid-play. Same overlay, "wardrobe" mode: Done applies
@@ -973,8 +1089,7 @@ func _open_wardrobe() -> void:
 func _open_customizer(mode: String) -> void:
 	if _customizer != null:
 		return  # already dressing
-	if _cosmetics == null:
-		_cosmetics = CosmeticsCatalog.load_catalog(_player.cosmetics_path)
+	_ensure_cosmetics()
 	# Seed from the live look. In "create" mode that live look is the fresh default (nothing saved yet).
 	var start := PlayerAppearance.from_dict(_player.appearance_dict(), _cosmetics)
 	_customizer = AvatarCustomizer.new()
@@ -982,7 +1097,8 @@ func _open_customizer(mode: String) -> void:
 	_customizer.setup(_cosmetics, start, mode, _shop_dir.balance() if _shop_dir != null else 0)
 	_customizer.confirmed.connect(func(look: Dictionary) -> void:
 		_presence_dir.apply_local_look(look)
-		_close_customizer())
+		_close_customizer()
+		_encounter_dir.held = false)  # dressed (or restyled): the search for a companion may begin
 	if mode == "wardrobe":
 		_customizer.canceled.connect(_close_customizer)
 	$UI.add_child(_customizer)
@@ -1031,11 +1147,12 @@ func _on_return_pressed() -> void:
 
 ## Start a fresh companion (immediate, no confirm — the item only appears once you have a fully bonded
 ## companion to start over from, and drops out of the gear menu again the next frame after reset).
-## The fresh self is UNMET, so the EncounterDirector notices on the very next frame and the
-## finding-your-companion search plays again — a new partner is found, never just issued.
+## A debugging aid: it replays the whole newcomer's path (see ONBOARDING) on this same account. The
+## fresh self is UNMET, so once the welcome and the wardrobe are done the search plays again (a new
+## partner is found, never just issued), and the Gateway hides until the cutscene brings it back.
 func _on_reset_pressed() -> void:
 	_companion.reset()
-	_show_hint("Your companion slips back into the wild… and somewhere nearby, a new one is waiting.")
+	_open_creation()  # holds the search until you've dressed, exactly as for a brand-new player
 
 
 ## The first-meeting search just began: the world empties down to the meeting itself. The ambient
@@ -1044,12 +1161,13 @@ func _on_reset_pressed() -> void:
 func _on_search_started() -> void:
 	_ambient_dir.set_hidden(true)
 	_refresh_form_highlights()
+	_open_cards(["find"], true)
 
 
 ## The player found their true companion (or a settled save said the meeting already happened):
 ## bring the ambient world back, light the form layer, fade the bottom-right companion radial in
 ## for the very first time, and persist the met companion right away so the moment can't be lost.
-func _on_companion_found() -> void:
+func _on_companion_found(ceremonial: bool) -> void:
 	_ambient_dir.set_hidden(false)
 	_refresh_form_highlights()
 	_radial.modulate.a = 0.0
@@ -1057,6 +1175,9 @@ func _on_companion_found() -> void:
 	create_tween().tween_property(_radial, "modulate:a", 1.0, 0.9)
 	if Net.is_active():
 		_presence_dir.push_save()
+	# Then the Gateway breathes itself into being (the quiet path, a save race, is _sync_gateway's).
+	if ceremonial:
+		_reveal_gateway()
 
 
 func _unhandled_input(event: InputEvent) -> void:
@@ -1465,6 +1586,8 @@ func _update_portals(_delta: float) -> void:
 	if _picker != null:
 		return
 	for p in _portals:
+		if bool(p.get("hidden", false)):
+			continue  # the Gateway, before a newcomer has found their companion: not here yet
 		var d := _player.position.distance_to(p["pos"])
 		var reach := GATEWAY_RANGE if p.get("gateway", false) else PORTAL_RANGE
 		if not bool(p["armed"]):

@@ -225,6 +225,30 @@ not a blocker** — pick it up if/when a shared world wants it.
 >
 > See the design doc's "Second slice" section.
 
+> **Loading screen & welcome (2026-11):** the three things you see before the world appear as one
+> continuous screen: the KITHBOUND wordmark and a little fox (fox_0's sheet) on a deep warm-ink
+> background, at the same spots on the 640×360 canvas.
+> - **Web:** the download page is a custom HTML shell (`web/shell.html`, set in the Web export preset).
+>   The fox trots over a gold progress path.
+> - **Boot splash:** `assets/loading/boot_splash.png`, the engine's still image; the fox stands.
+> - **Connection gate:** `lobby.gd`; the fox trots (`TrottingFox`) while connecting.
+>
+> The shell and splash are baked by `pokepals/tools/gen_loading.py` from
+> `tools/loading/shell_template.html`; edit the template, then re-run.
+>
+> **A newcomer's path** (the ONBOARDING section of `world_controller.gd`, cards by `WelcomePanel`,
+> words in `data/welcome.json`):
+> 1. The **welcome** card, with a portrait of their starting look.
+> 2. The wardrobe.
+> 3. The **find** card, as the search for their companion begins. The search is held until now.
+> 4. The bonding, then a little **cutscene**: the camera glides to the Vale's Gateway, which pops
+>    into being (`PortalView.pop_in`), and back.
+> 5. The **explore** card.
+>
+> The Gateway is out of the world, on your own screen only, until your companion is met. **New
+> Companion** (a debugging aid) replays the whole path from step 1 on the same account, keeping your
+> name, friends, journal and coins. The gear menu's **Welcome** rereads all three cards.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

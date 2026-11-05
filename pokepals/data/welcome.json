@@ -1,0 +1,37 @@
+{
+  "_comment": "The newcomer's cards, and their words. Edit freely: scripts/presentation/welcome_panel.gd only lays them out. Order of play for a brand-new player: 'welcome' (shows their starting look) -> the wardrobe -> 'find' (as the search for their companion begins; also after New Companion, or if they left mid-search) -> bonding -> the Gateway appears (gateway_reveal_hint) -> 'explore'. Each card: eyebrow (small caps), heading, body (short paragraphs), optional tip (small print), button (its button's label), optional show_avatar (a live portrait of the player). The gear menu's Welcome replays 'reread_order', ending on 'reread_button'.",
+  "cards": {
+    "welcome": {
+      "eyebrow": "Welcome to Kithbound",
+      "heading": "A place to be, not a task.",
+      "body": [
+        "Kithbound is a gentle world to wander, linger in, and share with friends. There's nothing to win and no way to lose.",
+        "This is you. Make yourself at home: you can change your look any time from the gear menu."
+      ],
+      "show_avatar": true,
+      "button": "Choose your look"
+    },
+    "find": {
+      "eyebrow": "Your companion",
+      "heading": "This world is better with a companion.",
+      "body": [
+        "Everyone here is bound to one creature: a partner who follows you everywhere, shifts its shape now and then, and slowly grows to reflect who you are.",
+        "Yours is out there among the wild ones nearby. Walk up close and Examine them. You'll know yours when you find it."
+      ],
+      "tip": "Move with WASD, the arrow keys, or the on-screen stick. Space or Enter (or the Examine bubble) looks at what's near you.",
+      "button": "Go find it"
+    },
+    "explore": {
+      "eyebrow": "Together now",
+      "heading": "Now go explore.",
+      "body": [
+        "The great Gateway opens onto other worlds, and each one hides a secret.",
+        "What you find is written in your journal, and your home grows with it. Bring friends: it's all better together."
+      ],
+      "button": "Off we go"
+    }
+  },
+  "reread_order": ["welcome", "find", "explore"],
+  "reread_button": "Back to the world",
+  "gateway_reveal_hint": "And where the meadow ended, a great gate breathes itself into being."
+}
