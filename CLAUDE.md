@@ -245,9 +245,9 @@ not a blocker** — pick it up if/when a shared world wants it.
 >    into being (`PortalView.pop_in`), and back.
 > 5. The **explore** card.
 >
-> The Gateway is out of the world, on your own screen only, until your companion is met. A New
-> Companion reset replays steps 3–4 with a quick reveal and no camera trip. The gear menu's
-> **Welcome** rereads all three cards.
+> The Gateway is out of the world, on your own screen only, until your companion is met. **New
+> Companion** (a debugging aid) replays the whole path from step 1 on the same account, keeping your
+> name, friends, journal and coins. The gear menu's **Welcome** rereads all three cards.
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping

@@ -91,7 +91,6 @@ var _gateway: Dictionary = {}          # this world's Gateway entry in _portals 
 var _gateway_view: PortalView = null
 var _gateway_hidden := false
 var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
-var _search_after_reset := false       # the current search came from New Companion: a shorter reveal
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
 var _ambient_life: AmbientLife
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
@@ -981,9 +980,10 @@ func _on_gear_item(id: String) -> void:
 #      camera glides over to watch it appear, and back                <- _on_companion_found
 #   5. the "explore" card
 # The Gateway is out of the world for anyone whose companion isn't met yet (_sync_gateway), on their
-# own screen only: friends in the Vale keep theirs. Someone who left mid-search picks up at step 3; a
-# New Companion reset replays 3 and gets a quick reveal (no camera trip, no "explore" card). The
-# words are data (data/welcome.json); WelcomePanel lays them out.
+# own screen only: friends in the Vale keep theirs. Someone who left mid-search picks up at step 3.
+# New Companion (a debugging aid) replays the whole path from step 1 on the same account: name,
+# friends, journal and coins are kept. The words are data (data/welcome.json); WelcomePanel lays
+# them out.
 # ============================================================================================
 
 ## A brand-new player (no look stored yet): hold the search, welcome them, and let them dress. On the
@@ -1041,22 +1041,14 @@ func _set_gateway_hidden(hidden: bool) -> void:
 	_world_art.set_interactable_hidden(int(_gateway["render_index"]), hidden)
 
 
-## The bond is made: bring the Gateway into the world. The full version is a little cutscene. Your
-## steering stands down, the camera glides west to where the Gateway belongs, it breathes itself into
-## being, the camera glides home, and the "explore" card follows. After a New Companion reset it just
-## appears where it stands (no camera trip, no card). Without a Gateway in this world, a first-timer
-## still gets the card.
-func _reveal_gateway(full: bool) -> void:
+## The bond is made: bring the Gateway into the world, in a little cutscene. Your steering stands
+## down, the camera glides west to where the Gateway belongs, it breathes itself into being, the
+## camera glides home, and the "explore" card follows. Without a Gateway in this world, just the card.
+func _reveal_gateway() -> void:
 	if _gateway.is_empty() or not _gateway_hidden or _gateway_view == null:
-		if full:
-			_open_cards(["explore"], true)
+		_open_cards(["explore"], true)
 		return
 	_gateway_revealing = true
-	if not full:
-		_set_gateway_hidden(false)
-		_gateway_view.pop_in()
-		_gateway_revealing = false
-		return
 	var hint := String(WelcomePanel.load_data().get("gateway_reveal_hint", ""))
 	_set_menu_open(true)
 	var gate_pos: Vector2 = _gateway["pos"] + Vector2(0, -24)  # frame the arch, not its foot
@@ -1155,12 +1147,12 @@ func _on_return_pressed() -> void:
 
 ## Start a fresh companion (immediate, no confirm — the item only appears once you have a fully bonded
 ## companion to start over from, and drops out of the gear menu again the next frame after reset).
-## The fresh self is UNMET, so the EncounterDirector notices on the very next frame and the
-## finding-your-companion search plays again — a new partner is found, never just issued.
+## A debugging aid: it replays the whole newcomer's path (see ONBOARDING) on this same account. The
+## fresh self is UNMET, so once the welcome and the wardrobe are done the search plays again (a new
+## partner is found, never just issued), and the Gateway hides until the cutscene brings it back.
 func _on_reset_pressed() -> void:
-	_search_after_reset = true
 	_companion.reset()
-	_show_hint("Your companion slips back into the wild… and somewhere nearby, a new one is waiting.")
+	_open_creation()  # holds the search until you've dressed, exactly as for a brand-new player
 
 
 ## The first-meeting search just began: the world empties down to the meeting itself. The ambient
@@ -1185,8 +1177,7 @@ func _on_companion_found(ceremonial: bool) -> void:
 		_presence_dir.push_save()
 	# Then the Gateway breathes itself into being (the quiet path, a save race, is _sync_gateway's).
 	if ceremonial:
-		_reveal_gateway(not _search_after_reset)
-	_search_after_reset = false
+		_reveal_gateway()
 
 
 func _unhandled_input(event: InputEvent) -> void:
