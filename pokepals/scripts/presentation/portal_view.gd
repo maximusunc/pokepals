@@ -35,6 +35,7 @@ var _frame_tint := Color(1, 1, 1)
 var _time := 0.0
 var _phase := 0.0
 var _halo: DrawProxy
+var _pop := -1.0                  # the arrival burst's progress, 0..1 (negative: not popping)
 
 
 ## Set it up from the art style's entity for this kind. Call before adding it to the tree.
@@ -106,6 +107,8 @@ func _draw() -> void:
 	var c := current_tint()
 	if _frame_tex == null:
 		_draw_procedural(c)
+		if _pop >= 0.0 and _pop < 1.0:
+			_draw_pop(c)
 		_draw_motes(c)
 		return
 	var sz := _frame_tex.get_size()
@@ -126,12 +129,42 @@ func _draw() -> void:
 		var hb := _breathe(2.2)
 		draw_circle(_opening, 2.0 + 1.2 * hb, Color(1, 1, 1, 0.35 + 0.25 * hb))
 	draw_texture(_frame_tex, top_left, _frame_tint)
+	if _pop >= 0.0 and _pop < 1.0:
+		_draw_pop(c)
 	# the runes glow in the portal's colour, lifted toward white so they read as light on stone
 	if _runes_tex != null:
 		var rb := _breathe(1.3)
 		var lit := c.lerp(Color(1, 1, 1), 0.45)
 		draw_texture(_runes_tex, top_left, Color(lit.r, lit.g, lit.b, 0.45 + 0.55 * rb))
 	_draw_motes(c)
+
+
+## Breathe the doorway into being (the Gateway appearing for a newly bonded player): it grows up out
+## of the ground with an elastic overshoot while a flash fills the opening and a ring of light and a
+## burst of sparks spread from it. Makes the node visible; returns when the animation is set going.
+func pop_in() -> void:
+	visible = true
+	scale = Vector2(0.15, 0.02)
+	_pop = 0.0
+	var grow := create_tween()
+	grow.tween_property(self, "scale", Vector2.ONE, 1.1).set_trans(Tween.TRANS_ELASTIC).set_ease(Tween.EASE_OUT)
+	var burst := create_tween()
+	burst.tween_property(self, "_pop", 1.0, 1.8).set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_OUT)
+	burst.tween_callback(func() -> void: _pop = -1.0)
+
+
+## The arrival burst, in the doorway's own colour: a white flash in the opening, an expanding ring,
+## and sparks flung outward along fixed spokes, all fading as _pop runs 0 -> 1.
+func _draw_pop(c: Color) -> void:
+	var fade := 1.0 - _pop
+	var r := maxf(_opening_r.x, _opening_r.y)
+	draw_circle(_opening, r * (0.6 + 0.8 * _pop), Color(1, 1, 1, 0.75 * fade * fade))
+	draw_arc(_opening, r * (1.0 + 4.0 * _pop), 0.0, TAU, 48, Color(c.r, c.g, c.b, 0.8 * fade), 2.0)
+	for i in 14:
+		var a := TAU * float(i) / 14.0 + 0.3
+		var d := r * (0.8 + 3.2 * _pop) * (0.85 + 0.3 * fmod(float(i) * 0.618, 1.0))
+		var p := _opening + Vector2(cos(a), sin(a)) * d
+		draw_rect(Rect2(p - Vector2(1, 1), Vector2(2, 2)), c.lerp(Color(1, 1, 1), 0.5) * Color(1, 1, 1, fade))
 
 
 ## Sparks of the portal's light rising through the doorway and a little way above it, each on its

@@ -25,6 +25,7 @@ extends Camera2D
 var _player: Node2D
 var _companion: Node2D
 var _lead := Vector2.ZERO  # smoothed look-ahead offset
+var _cinematic := false     # a glide (a little cutscene) has the camera; the follow stands down
 
 
 func _ready() -> void:
@@ -49,8 +50,37 @@ func set_bounds(rect: Rect2) -> void:
 	limit_bottom = int(rect.position.y + rect.size.y)
 
 
+## A little cutscene: glide the camera to look at `point` over `secs`, easing in and out, and hold
+## there (the usual follow stands down) until release(). The point is clamped to where the camera can
+## actually look, so the glide never stalls against the world's edge. Returns the glide's Tween.
+func glide_to(point: Vector2, secs: float) -> Tween:
+	_cinematic = true
+	var tw := create_tween().set_trans(Tween.TRANS_SINE).set_ease(Tween.EASE_IN_OUT)
+	tw.tween_property(self, "global_position", _clamp_to_limits(point), secs)
+	return tw
+
+
+## Hand the camera back to the player after a glide_to.
+func release() -> void:
+	_cinematic = false
+	_lead = Vector2.ZERO
+
+
+func _clamp_to_limits(p: Vector2) -> Vector2:
+	var half := get_viewport_rect().size / zoom * 0.5
+	var lo := Vector2(limit_left, limit_top) + half
+	var hi := Vector2(limit_right, limit_bottom) - half
+	if lo.x > hi.x:
+		lo.x = (lo.x + hi.x) * 0.5
+		hi.x = lo.x
+	if lo.y > hi.y:
+		lo.y = (lo.y + hi.y) * 0.5
+		hi.y = lo.y
+	return p.clamp(lo, hi)
+
+
 func _process(delta: float) -> void:
-	if _player == null:
+	if _player == null or _cinematic:
 		return
 
 	# Lead the framing toward where the player is heading. We read the player's

@@ -234,9 +234,20 @@ not a blocker** — pick it up if/when a shared world wants it.
 > - **Connection gate:** `lobby.gd`; the fox trots (`TrottingFox`) while connecting.
 >
 > The shell and splash are baked by `pokepals/tools/gen_loading.py` from
-> `tools/loading/shell_template.html`; edit the template, then re-run. A brand-new player then gets a
-> **welcome** (`WelcomePanel`, a few pages whose words live in `data/welcome.json`) before choosing
-> their look. Anyone can reread it from the gear menu's **Welcome** item.
+> `tools/loading/shell_template.html`; edit the template, then re-run.
+>
+> **A newcomer's path** (the ONBOARDING section of `world_controller.gd`, cards by `WelcomePanel`,
+> words in `data/welcome.json`):
+> 1. The **welcome** card, with a portrait of their starting look.
+> 2. The wardrobe.
+> 3. The **find** card, as the search for their companion begins. The search is held until now.
+> 4. The bonding, then a little **cutscene**: the camera glides to the Vale's Gateway, which pops
+>    into being (`PortalView.pop_in`), and back.
+> 5. The **explore** card.
+>
+> The Gateway is out of the world, on your own screen only, until your companion is met. A New
+> Companion reset replays steps 3–4 with a quick reveal and no camera trip. The gear menu's
+> **Welcome** rereads all three cards.
 
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
