@@ -225,6 +225,19 @@ not a blocker** — pick it up if/when a shared world wants it.
 >
 > See the design doc's "Second slice" section.
 
+> **Loading screen & welcome (2026-11):** the three things you see before the world appear as one
+> continuous screen: the KITHBOUND wordmark and a little fox (fox_0's sheet) on a deep warm-ink
+> background, at the same spots on the 640×360 canvas.
+> - **Web:** the download page is a custom HTML shell (`web/shell.html`, set in the Web export preset).
+>   The fox trots over a gold progress path.
+> - **Boot splash:** `assets/loading/boot_splash.png`, the engine's still image; the fox stands.
+> - **Connection gate:** `lobby.gd`; the fox trots (`TrottingFox`) while connecting.
+>
+> The shell and splash are baked by `pokepals/tools/gen_loading.py` from
+> `tools/loading/shell_template.html`; edit the template, then re-run. A brand-new player then gets a
+> **welcome** (`WelcomePanel`, a few pages whose words live in `data/welcome.json`) before choosing
+> their look. Anyone can reread it from the gear menu's **Welcome** item.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

@@ -1,0 +1,32 @@
+{
+  "_comment": "The welcome a brand-new player sees before choosing their look, and again any time from the gear menu (Welcome). One entry per page; 'body' is a list of short paragraphs; an optional 'tip' adds a line of small print. Edit freely: scripts/presentation/welcome_panel.gd only lays it out. 'finish_first_run' labels the last button on the first-run welcome (it leads into the wardrobe); 'finish_again' labels it when reopened from the gear menu.",
+  "finish_first_run": "Choose your look",
+  "finish_again": "Back to the world",
+  "pages": [
+    {
+      "eyebrow": "Welcome to Kithbound",
+      "heading": "A place to be, not a task.",
+      "body": [
+        "Kithbound is a gentle world to wander, linger in, and share with friends.",
+        "There's nothing to win and no way to lose. Just places to explore, and someone to explore them with."
+      ]
+    },
+    {
+      "eyebrow": "Your companion",
+      "heading": "Somewhere nearby, a companion is waiting.",
+      "body": [
+        "Everyone here is bound to one creature: a partner who follows you everywhere, shifts its shape now and then, and slowly grows to reflect who you are.",
+        "Yours is hiding among a little flock of wild ones. Walk up close and Examine them. You'll know yours when you find it."
+      ],
+      "tip": "Move with WASD, the arrow keys, or the on-screen stick. Space or Enter (or the Examine bubble) looks at what's near you."
+    },
+    {
+      "eyebrow": "Where to wander",
+      "heading": "Through the Gateway, other worlds.",
+      "body": [
+        "The Vale is where you'll start. Its great Gateway opens onto other worlds, and each one hides a secret.",
+        "What you find is written in your journal, and your home grows with it. Bring friends: it's all better together."
+      ]
+    }
+  ]
+}

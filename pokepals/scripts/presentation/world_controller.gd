@@ -485,7 +485,8 @@ func open_sheet(sheet: CozySheet) -> void:
 	_set_menu_open(true)
 	sheet.closed.connect(func() -> void:
 		_open_sheets -= 1
-		if _open_sheets <= 0 and _picker == null:
+		# (Not while the wardrobe is up: the first-run welcome hands straight over to it.)
+		if _open_sheets <= 0 and _picker == null and _customizer == null:
 			_set_menu_open(false))
 	$UI.add_child(sheet)
 
@@ -922,6 +923,7 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "friends", "label": "Friends" })
 		items.append({ "id": "journal", "label": "Journal" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
+		items.append({ "id": "welcome", "label": "Welcome" })
 		items.append({ "id": "leave", "label": "Leave game" })
 	items.append({ "id": "dbg", "label": "DBG" })
 	return items
@@ -953,15 +955,27 @@ func _on_gear_item(id: String) -> void:
 		"wardrobe": _open_wardrobe()
 		"friends": _social_dir.open_friends()
 		"journal": _social_dir.open_journal()
+		"welcome": _open_welcome(false)
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
 
 
-## First-run CREATION: a brand-new player picks their look before the world seeds their save. Opens the
-## customizer in "create" mode (the world lives on under it, but you can't walk off until you're done) so
-## they dress before wandering. On confirm, PresenceDirector.apply_local_look performs the first push_save.
+## First-run CREATION: a brand-new player is first WELCOMED (a few pages on what this place is and
+## what to do), then picks their look before the world seeds their save: the welcome's last button
+## opens the customizer in "create" mode (the world lives on under it, but you can't walk off until
+## you're done). On confirm, PresenceDirector.apply_local_look performs the first push_save.
 func _open_creation() -> void:
-	_open_customizer("create")
+	_open_welcome(true)
+
+
+## The welcome pages (data/welcome.json). First run: it can't be dismissed, and finishing it opens the
+## wardrobe in "create" mode. From the gear menu: just a sheet to reread, closed any time.
+func _open_welcome(first_run: bool) -> void:
+	var panel := WelcomePanel.new()
+	panel.first_run = first_run
+	if first_run:
+		panel.finished.connect(func() -> void: _open_customizer("create"))
+	open_sheet(panel)
 
 
 ## Reopen the wardrobe from the gear menu to restyle mid-play. Same overlay, "wardrobe" mode: Done applies

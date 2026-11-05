@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!--
+  Kithbound's web loading page: a Godot "custom HTML shell".
+
+  THIS IS A TEMPLATE. tools/gen_loading.py fills the double-underscore placeholders (colours, the inlined wordmark
+  and fox images, layout) and writes the real shell to web/shell.html, which the Web export preset
+  points at (html/custom_html_shell). Edit this file, then re-run the generator.
+
+  The $GODOT_* tokens are filled by Godot itself at export time. The engine-start script is Godot 4's
+  stock full-size shell; what changed is the look: a 640x360 "stage" scaled exactly like the game's
+  canvas (canvas_items + expand), holding the wordmark and a trotting fox at the same spots the boot
+  splash and the in-game connection gate use. So: download page, then splash, then gate, all one scene.
+-->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>$GODOT_PROJECT_NAME</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: #f4ecda;
+	background-color: #1b1510;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+/* One "game pixel": the same scale Godot gives the 640x360 canvas (fit, keep aspect). */
+:root {
+	--px: min(calc(100vw / 640), calc(100vh / 360));
+}
+
+#status {
+	position: absolute;
+	inset: 0;
+	background-color: #1b1510;
+	visibility: hidden;
+	transition: opacity 0.35s ease;
+}
+
+#status.leaving {
+	opacity: 0;
+}
+
+#stage {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: calc(640 * var(--px));
+	height: calc(360 * var(--px));
+	transform: translate(-50%, -50%);
+}
+
+#stage img, #fox {
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+}
+
+#wordmark {
+	position: absolute;
+	left: 50%;
+	top: calc(106 * var(--px));
+	width: calc(106 * var(--px));
+	height: calc(11 * var(--px));
+	transform: translateX(-50%);
+}
+
+#fox-shadow {
+	position: absolute;
+	left: 50%;
+	top: calc(184 * var(--px));
+	width: calc(34 * var(--px));
+	height: calc(5 * var(--px));
+	transform: translateX(-50%);
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.27);
+}
+
+#fox {
+	position: absolute;
+	left: 50%;
+	top: calc(132 * var(--px));
+	width: calc(64 * var(--px));
+	height: calc(64 * var(--px));
+	transform: translateX(-50%);
+	overflow: hidden;
+}
+
+#fox img {
+	display: block;
+	width: calc(8 * 100%);
+	height: 100%;
+	animation: trot 0.8s steps(8) infinite;
+}
+
+@keyframes trot {
+	from { transform: translateX(0); }
+	to { transform: translateX(-100%); }
+}
+
+#path {
+	position: absolute;
+	left: 50%;
+	top: calc(210 * var(--px));
+	width: calc(120 * var(--px));
+	height: calc(4 * var(--px));
+	transform: translateX(-50%);
+	border-radius: calc(2 * var(--px));
+	background: rgba(244, 236, 218, 0.14);
+	overflow: hidden;
+}
+
+#path-fill {
+	height: 100%;
+	width: 0%;
+	background: #dfa53e;
+	border-radius: inherit;
+	transition: width 0.25s ease-out;
+}
+
+/* Before the download reports a size, a little gold dash wanders the path. */
+#path.waiting #path-fill {
+	width: 30%;
+	animation: wander 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes wander {
+	from { transform: translateX(0); }
+	to { transform: translateX(233%); }
+}
+
+#status-text, #status-notice {
+	position: absolute;
+	left: 50%;
+	top: calc(222 * var(--px));
+	width: calc(320 * var(--px));
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	font-size: calc(10 * var(--px));
+	line-height: 1.35;
+}
+
+#status-text {
+	opacity: 0.72;
+}
+
+#status-notice {
+	display: none;
+	color: #f2c4b0;
+}
+		</style>
+		$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<div id="stage">
+				<img id="wordmark" src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAGoAAAALCAYAAACXiRhoAAAA5ElEQVR42u1XOw6DMAx1Ko8dOUDVgZHL0Wv0ch07VD0AE2JggylSVMkQxy8pSHkj5PmX5zhx0/BeiIiuTesogPQ99t8vNHZQ9ve4Wxx0Xax5XajiFGBpZ2/37pli0PO+n1dvsRPrR6NWDccCi10pRpYIwzg/UoIMeL3FjsIPhf7QnNKQYmRUJyEUmJtTCr6GyI5lVCdVyKcKdEblUEHqueznG5rz786CbFQOFdR5g6splzhfS8y1rdkqKRvNib0Jp+TlcjzsrGuO8OBFPpIRebGkkBi1aWaIZo3VN5Kr4eytteS1Ap2y/EfLTgSDAAAAAElFTkSuQmCC" alt="Kithbound">
+				<div id="fox-shadow"></div>
+				<div id="fox"><img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAQAAAAAgCAYAAAD9qabkAAADiElEQVR42u1coZLqMBS9dILBYDDVrMCsWssf8Ew1n4FHrEe/L1hd1T/ArsIgFl2DwWAQPBXo5qVpCkluaM+ZYQYoNPfk3HOTpgQiAAAAAAAAAAAA4FGkk/Rqeg1A/5iQQAC3beeL0a1N9TUSEPrHxj+BAG7brnuNBIT+MfJPIIBbbA8n7XMkIPSPkX8CAdxyn0/HlC9GlC9GNJ+OiYgo5Cjc5wIE/dvzH7juhO3hRJv9kIiIVrMLzadjyoozlcdyECr5dPAVg2z7/fPL+Lndeuk9Bg7+0P+19Rc+KuB8+vt4vhhRVqRXTgFyWnqLgXvRi5s/9H9d/QUE8Ie3j4x+vnPSLYp1pR+6pH86cRvfK+ifdN2AOpFN12NNx9tAFf/nO789QlwTPsKf24Bc/KsLllz6c/AXvhOwbQV0WSF1AlRi+6/aV6eyPkerv8s/RDSk2Phz6i/7PivC86/qzqU/F39RV4H6ZkB1IaUqhg1262XjNPhekYfa/uUuQFz6cxqwbgEtpP6c/EWdAfpkQFMSuML75xdRkRlnPpwFiEv/GAwov7dbL4Prz81/YAoiK85WjcvvmgKQt0F0I4yre8Y2HWArQFacyWZxq821mK35Q/Ln1j+dpFc5M1ANGEr/6sxExhBKf27+wpR8nBUwpAHVEcA28W0r8yPmD5mAnPqrnwltQB1C6s/NX9RNgfpiQDUOWSVDrpRz8+fWn9OA5bEcvH1kV/U9zjslIfkLXQXqmwFjATd/Dv1jMCDnPXlu/kJXffpkQFUAmQzlsRxkRXrN6bnrMt8/g/Ux+vTJgKaYQunPyV/UGaBPBjSNTlmRXlezCxHRbXNH3Qip+5xN25z8ufWPwYBNMfjUn5u/qBO9LwZ0NWo9M2Jy8+fWP0YDhtSfk7+wCYCo+gMFc+NyJ5jvraAhBIj90iUEf7mlVNW1Lg/U469swD7on7RtSL5XffgmutkPjVUtndyr5GY/vCWf633YWXGuraoyTmkUF2jDy6affGhjyoNn24+B/yO6mvIktvxPbESQVX17ONFqdvl1UrVxmQy+TBhb5Y19McuV+Zp0bcqTrmr+6rkgXkWE+7+bDGuq5H0ThcvEU89te93mIwl8njtW47XV1ZQnPvu+bZ747jfbPLEKVDfd0h23ff/REanNubqy756Td1tdm/IkRH907f8W+s4bAAAAAAAAAAAAAAAAAIAn8Q9awNuidDpyVAAAAABJRU5ErkJggg==" alt=""></div>
+				<div id="path" class="waiting"><div id="path-fill"></div></div>
+				<div id="status-text">Unpacking the world…</div>
+				<div id="status-notice"></div>
+			</div>
+		</div>
+
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const path = document.getElementById('path');
+	const pathFill = document.getElementById('path-fill');
+	const statusText = document.getElementById('status-text');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			// Fade rather than cut: the engine's boot splash (same look, fox standing) is under us.
+			initializing = false;
+			statusOverlay.classList.add('leaving');
+			setTimeout(() => statusOverlay.remove(), 400);
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		const notice = mode === 'notice';
+		path.style.display = notice ? 'none' : 'block';
+		statusText.style.display = notice ? 'none' : 'block';
+		statusNotice.style.display = notice ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('Something went wrong while loading.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Kithbound can\'t run in this browser.\nIt\'s missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					const pct = Math.min(100, Math.round((current / total) * 100));
+					path.classList.remove('waiting');
+					pathFill.style.width = pct + '%';
+					statusText.textContent = pct >= 100 ? 'Waking the world…' : 'Unpacking the world… ' + pct + '%';
+				} else {
+					path.classList.add('waiting');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>

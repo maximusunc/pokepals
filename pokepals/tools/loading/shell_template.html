@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<!--
+  Kithbound's web loading page: a Godot "custom HTML shell".
+
+  THIS IS A TEMPLATE. tools/gen_loading.py fills the double-underscore placeholders (colours, the inlined wordmark
+  and fox images, layout) and writes the real shell to web/shell.html, which the Web export preset
+  points at (html/custom_html_shell). Edit this file, then re-run the generator.
+
+  The $GODOT_* tokens are filled by Godot itself at export time. The engine-start script is Godot 4's
+  stock full-size shell; what changed is the look: a 640x360 "stage" scaled exactly like the game's
+  canvas (canvas_items + expand), holding the wordmark and a trotting fox at the same spots the boot
+  splash and the in-game connection gate use. So: download page, then splash, then gate, all one scene.
+-->
+<html lang="en">
+	<head>
+		<meta charset="utf-8">
+		<meta name="viewport" content="width=device-width, user-scalable=no, initial-scale=1.0">
+		<title>$GODOT_PROJECT_NAME</title>
+		<style>
+html, body, #canvas {
+	margin: 0;
+	padding: 0;
+	border: 0;
+}
+
+body {
+	color: __PAPER__;
+	background-color: __BG__;
+	overflow: hidden;
+	touch-action: none;
+}
+
+#canvas {
+	display: block;
+}
+
+#canvas:focus {
+	outline: none;
+}
+
+/* One "game pixel": the same scale Godot gives the 640x360 canvas (fit, keep aspect). */
+:root {
+	--px: min(calc(100vw / 640), calc(100vh / 360));
+}
+
+#status {
+	position: absolute;
+	inset: 0;
+	background-color: __BG__;
+	visibility: hidden;
+	transition: opacity 0.35s ease;
+}
+
+#status.leaving {
+	opacity: 0;
+}
+
+#stage {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: calc(640 * var(--px));
+	height: calc(360 * var(--px));
+	transform: translate(-50%, -50%);
+}
+
+#stage img, #fox {
+	image-rendering: pixelated;
+	image-rendering: crisp-edges;
+}
+
+#wordmark {
+	position: absolute;
+	left: 50%;
+	top: calc(__WORDMARK_TOP__ * var(--px));
+	width: calc(__WORDMARK_W__ * var(--px));
+	height: calc(__WORDMARK_H__ * var(--px));
+	transform: translateX(-50%);
+}
+
+#fox-shadow {
+	position: absolute;
+	left: 50%;
+	top: calc(__SHADOW_TOP__ * var(--px));
+	width: calc(__SHADOW_W__ * var(--px));
+	height: calc(5 * var(--px));
+	transform: translateX(-50%);
+	border-radius: 50%;
+	background: rgba(0, 0, 0, 0.27);
+}
+
+#fox {
+	position: absolute;
+	left: 50%;
+	top: calc(__FOX_TOP__ * var(--px));
+	width: calc(64 * var(--px));
+	height: calc(64 * var(--px));
+	transform: translateX(-50%);
+	overflow: hidden;
+}
+
+#fox img {
+	display: block;
+	width: calc(__FOX_FRAMES__ * 100%);
+	height: 100%;
+	animation: trot 0.8s steps(__FOX_FRAMES__) infinite;
+}
+
+@keyframes trot {
+	from { transform: translateX(0); }
+	to { transform: translateX(-100%); }
+}
+
+#path {
+	position: absolute;
+	left: 50%;
+	top: calc(210 * var(--px));
+	width: calc(120 * var(--px));
+	height: calc(4 * var(--px));
+	transform: translateX(-50%);
+	border-radius: calc(2 * var(--px));
+	background: rgba(244, 236, 218, 0.14);
+	overflow: hidden;
+}
+
+#path-fill {
+	height: 100%;
+	width: 0%;
+	background: __GOLD__;
+	border-radius: inherit;
+	transition: width 0.25s ease-out;
+}
+
+/* Before the download reports a size, a little gold dash wanders the path. */
+#path.waiting #path-fill {
+	width: 30%;
+	animation: wander 1.6s ease-in-out infinite alternate;
+}
+
+@keyframes wander {
+	from { transform: translateX(0); }
+	to { transform: translateX(233%); }
+}
+
+#status-text, #status-notice {
+	position: absolute;
+	left: 50%;
+	top: calc(222 * var(--px));
+	width: calc(320 * var(--px));
+	transform: translateX(-50%);
+	text-align: center;
+	font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+	font-size: calc(10 * var(--px));
+	line-height: 1.35;
+}
+
+#status-text {
+	opacity: 0.72;
+}
+
+#status-notice {
+	display: none;
+	color: #f2c4b0;
+}
+		</style>
+		$GODOT_HEAD_INCLUDE
+	</head>
+	<body>
+		<canvas id="canvas">
+			Your browser does not support the canvas tag.
+		</canvas>
+
+		<noscript>
+			Your browser does not support JavaScript.
+		</noscript>
+
+		<div id="status">
+			<div id="stage">
+				<img id="wordmark" src="__WORDMARK_SRC__" alt="Kithbound">
+				<div id="fox-shadow"></div>
+				<div id="fox"><img src="__FOX_SRC__" alt=""></div>
+				<div id="path" class="waiting"><div id="path-fill"></div></div>
+				<div id="status-text">Unpacking the world…</div>
+				<div id="status-notice"></div>
+			</div>
+		</div>
+
+		<script src="$GODOT_URL"></script>
+		<script>
+const GODOT_CONFIG = $GODOT_CONFIG;
+const GODOT_THREADS_ENABLED = $GODOT_THREADS_ENABLED;
+const engine = new Engine(GODOT_CONFIG);
+
+(function () {
+	const statusOverlay = document.getElementById('status');
+	const path = document.getElementById('path');
+	const pathFill = document.getElementById('path-fill');
+	const statusText = document.getElementById('status-text');
+	const statusNotice = document.getElementById('status-notice');
+
+	let initializing = true;
+	let statusMode = '';
+
+	function setStatusMode(mode) {
+		if (statusMode === mode || !initializing) {
+			return;
+		}
+		if (mode === 'hidden') {
+			// Fade rather than cut: the engine's boot splash (same look, fox standing) is under us.
+			initializing = false;
+			statusOverlay.classList.add('leaving');
+			setTimeout(() => statusOverlay.remove(), 400);
+			return;
+		}
+		statusOverlay.style.visibility = 'visible';
+		const notice = mode === 'notice';
+		path.style.display = notice ? 'none' : 'block';
+		statusText.style.display = notice ? 'none' : 'block';
+		statusNotice.style.display = notice ? 'block' : 'none';
+		statusMode = mode;
+	}
+
+	function setStatusNotice(text) {
+		while (statusNotice.lastChild) {
+			statusNotice.removeChild(statusNotice.lastChild);
+		}
+		const lines = text.split('\n');
+		lines.forEach((line) => {
+			statusNotice.appendChild(document.createTextNode(line));
+			statusNotice.appendChild(document.createElement('br'));
+		});
+	}
+
+	function displayFailureNotice(err) {
+		console.error(err);
+		if (err instanceof Error) {
+			setStatusNotice(err.message);
+		} else if (typeof err === 'string') {
+			setStatusNotice(err);
+		} else {
+			setStatusNotice('Something went wrong while loading.');
+		}
+		setStatusMode('notice');
+		initializing = false;
+	}
+
+	const missing = Engine.getMissingFeatures({
+		threads: GODOT_THREADS_ENABLED,
+	});
+
+	if (missing.length !== 0) {
+		if (GODOT_CONFIG['serviceWorker'] && GODOT_CONFIG['ensureCrossOriginIsolationHeaders'] && 'serviceWorker' in navigator) {
+			let serviceWorkerRegistrationPromise;
+			try {
+				serviceWorkerRegistrationPromise = navigator.serviceWorker.getRegistration();
+			} catch (err) {
+				serviceWorkerRegistrationPromise = Promise.reject(new Error('Service worker registration failed.'));
+			}
+			// There's a chance that installing the service worker would fix the issue
+			Promise.race([
+				serviceWorkerRegistrationPromise.then((registration) => {
+					if (registration != null) {
+						return Promise.reject(new Error('Service worker already exists.'));
+					}
+					return registration;
+				}).then(() => engine.installServiceWorker()),
+				// For some reason, `getRegistration()` can stall
+				new Promise((resolve) => {
+					setTimeout(() => resolve(), 2000);
+				}),
+			]).then(() => {
+				// Reload if there was no error.
+				window.location.reload();
+			}).catch((err) => {
+				console.error('Error while registering service worker:', err);
+			});
+		} else {
+			// Display the message as usual
+			const missingMsg = 'Kithbound can\'t run in this browser.\nIt\'s missing:\n';
+			displayFailureNotice(missingMsg + missing.join('\n'));
+		}
+	} else {
+		setStatusMode('progress');
+		engine.startGame({
+			'onProgress': function (current, total) {
+				if (current > 0 && total > 0) {
+					const pct = Math.min(100, Math.round((current / total) * 100));
+					path.classList.remove('waiting');
+					pathFill.style.width = pct + '%';
+					statusText.textContent = pct >= 100 ? 'Waking the world…' : 'Unpacking the world… ' + pct + '%';
+				} else {
+					path.classList.add('waiting');
+				}
+			},
+		}).then(() => {
+			setStatusMode('hidden');
+		}, displayFailureNotice);
+	}
+}());
+		</script>
+	</body>
+</html>
