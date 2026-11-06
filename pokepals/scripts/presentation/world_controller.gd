@@ -24,6 +24,13 @@ const PET_RANGE := 56.0
 const PORTAL_RANGE := 22.0
 # The hub's Gateway is a much bigger doorway, so you walk into it from further out.
 const GATEWAY_RANGE := 32.0
+# The Gateway reveal's pacing, in seconds (see _reveal_gateway). Steering only stands down once the
+# camera actually starts to move, so there's never a still screen where you can't walk.
+const REVEAL_SETTLE := 0.8      # after the bond, before the camera sets off (you can still move)
+const REVEAL_GLIDE_OUT := 2.0   # the camera's glide over to the Gateway
+const REVEAL_BEAT := 0.7        # the camera rests on the empty spot a moment before it appears
+const REVEAL_HOLD := 2.4        # watching it breathe into being
+const REVEAL_GLIDE_HOME := 1.8
 const PORTAL_ARM_BUFFER := 18.0
 ## How near a tap must land to another player to open their card rather than order the companion.
 const PLAYER_TAP_RADIUS := 26.0
@@ -1050,16 +1057,17 @@ func _reveal_gateway() -> void:
 		return
 	_gateway_revealing = true
 	var hint := String(WelcomePanel.load_data().get("gateway_reveal_hint", ""))
-	_set_menu_open(true)
 	var gate_pos: Vector2 = _gateway["pos"] + Vector2(0, -24)  # frame the arch, not its foot
 	var tw := create_tween()
-	tw.tween_interval(2.4)  # let the bonding settle: the hearts, and the companion falling in beside you
-	tw.tween_callback(func() -> void: _camera.glide_to(gate_pos, 2.6))
-	tw.tween_interval(3.0)
+	tw.tween_interval(REVEAL_SETTLE)  # a breath for the hearts, and the companion falling in beside you
+	tw.tween_callback(func() -> void:
+		_set_menu_open(true)  # steering stands down only now, as the camera moves off
+		_camera.glide_to(gate_pos, REVEAL_GLIDE_OUT))
+	tw.tween_interval(REVEAL_GLIDE_OUT + REVEAL_BEAT)
 	tw.tween_callback(_pop_gateway.bind(hint))
-	tw.tween_interval(2.6)
-	tw.tween_callback(func() -> void: _camera.glide_to(_player.global_position, 2.2))
-	tw.tween_interval(2.4)
+	tw.tween_interval(REVEAL_HOLD)
+	tw.tween_callback(func() -> void: _camera.glide_to(_player.global_position, REVEAL_GLIDE_HOME))
+	tw.tween_interval(REVEAL_GLIDE_HOME + 0.1)
 	tw.tween_callback(_end_gateway_reveal)
 
 
