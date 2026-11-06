@@ -27,7 +27,8 @@ const GATEWAY_RANGE := 32.0
 # The Gateway reveal's pacing, in seconds (see _reveal_gateway). Steering only stands down once the
 # camera actually starts to move, so there's never a still screen where you can't walk.
 const REVEAL_SETTLE := 0.8      # after the bond, before the camera sets off (you can still move)
-const REVEAL_GLIDE_OUT := 2.0   # the camera's glide over to the Gateway; it appears as it arrives
+const REVEAL_GLIDE_OUT := 2.0   # the camera's glide over to the Gateway
+const REVEAL_BEAT := 0.7        # the camera rests on the empty spot a moment before it appears
 const REVEAL_HOLD := 2.4        # watching it breathe into being
 const REVEAL_GLIDE_HOME := 1.8
 const PORTAL_ARM_BUFFER := 18.0
@@ -1062,7 +1063,7 @@ func _reveal_gateway() -> void:
 	tw.tween_callback(func() -> void:
 		_set_menu_open(true)  # steering stands down only now, as the camera moves off
 		_camera.glide_to(gate_pos, REVEAL_GLIDE_OUT))
-	tw.tween_interval(REVEAL_GLIDE_OUT)
+	tw.tween_interval(REVEAL_GLIDE_OUT + REVEAL_BEAT)
 	tw.tween_callback(_pop_gateway.bind(hint))
 	tw.tween_interval(REVEAL_HOLD)
 	tw.tween_callback(func() -> void: _camera.glide_to(_player.global_position, REVEAL_GLIDE_HOME))
