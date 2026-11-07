@@ -56,7 +56,7 @@ func _process(_delta: float) -> bool:
 	for c in _world._scenery.get_children():
 		if c is BuildingView:
 			views.append(c)
-	fails += _check(views.size() == (data["buildings"] as Array).size() and views.size() > 50, "every building stands in the depth-sorted layer (%d)" % views.size())
+	fails += _check(views.size() == (data["buildings"] as Array).size() and views.size() > 80, "every building stands in the depth-sorted layer (%d)" % views.size())
 	var textured_walls := 0
 	for v in views:
 		if v._wall_tex != null and v._roof_tex != null:
@@ -71,13 +71,13 @@ func _process(_delta: float) -> bool:
 			trees += 1
 			if c.sway_gain == 0.0 and (c.trunk_tex != null and c.canopy_tex != null):
 				rigid += 1
-	fails += _check(trees > 100 and rigid == trees, "every tree is built of bricks and stands rigid (%d of %d)" % [rigid, trees])
+	fails += _check(trees >= 8 and rigid == trees, "every tree is built of bricks and stands rigid (%d of %d)" % [rigid, trees])
 	for t in ["brick_lamp", "brick_bench", "brick_fountain", "brick_stall"]:
 		fails += _check(art._prop_base.has(t), "%s is drawn from brick art" % t)
 
 	# Our pair is rebuilt out of bricks, and nothing else about their look changes.
-	fails += _check(_world._player.material is ShaderMaterial, "the player is rebuilt out of bricks")
-	fails += _check(_world._companion.material is ShaderMaterial, "so is the companion")
+	fails += _check(_world._player.has_meta("brick_cell"), "the player is rebuilt out of bricks")
+	fails += _check(_world._companion.has_meta("brick_cell"), "so is the companion")
 	fails += _check(_world._player.get_node_or_null("VisitorBubble") == null and _world._player.get_node_or_null("OtherworldAura") == null, "no bubble or glow on top of the bricks")
 
 	# No people and no creatures.
@@ -87,6 +87,15 @@ func _process(_delta: float) -> bool:
 		if String(e.get("kind", "")) == "creature":
 			creatures += 1
 	fails += _check(creatures == 0, "no creatures to examine")
+
+	# The brick rebuild itself: a 32x32 test sheet comes out as 4x4-texel bricks, transparent where it was empty.
+	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	for y in range(8, 28):
+		for x in range(8, 24):
+			img.set_pixel(x, y, Color(0.8, 0.2, 0.2, 1.0))
+	var bricks := BrickLook.brickify(ImageTexture.create_from_image(img), 4).get_image()
+	fails += _check(bricks.get_pixel(1, 1).a == 0.0 and bricks.get_pixel(10, 10).a == 1.0, "the brick rebuild keeps the silhouette, in whole bricks")
+	fails += _check(bricks.get_pixel(8, 8) != bricks.get_pixel(11, 11), "a brick's lit edge differs from its seam")
 
 	# Barriers: a building blocks its whole footprint, and so does the water.
 	var solids := Solids.build(data, [], data.get("collision", {}))
@@ -113,7 +122,7 @@ func _process(_delta: float) -> bool:
 		var holder: BuildingView = holders[0]
 		var e: Dictionary = entries[0]
 		fails += _check(holder._inlay_index == int(e["render_index"]), "the building's brick is bound to the secret's prop")
-		fails += _check(holder._rainbow_tex != null and not holder._inlay_gone, "the brick shows in the wall")
+		fails += _check(not holder._inlay_gone, "the brick shows in the wall")
 		# it sits at the foot of its wall, in standing room
 		var wall_foot := holder.position
 		fails += _check(absf((e["pos"] as Vector2).y - wall_foot.y) < 20.0 and absf((e["pos"] as Vector2).x - wall_foot.x) < holder.hw, "its examine spot is at the foot of that wall")

@@ -23,6 +23,7 @@ const REACT_PX := 14.0   # how many px a full perk/hop squash becomes as a lift/
 ## params: facing, speed, time, squash, wag_rate, wag_amp, ear_offset, bounce_gain, body_scale
 ## cfg (art.json): frame:[w,h], fps, walk_frames, idle_frame, dirs, ear_row, tail_row, tail_sway_px
 static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictionary) -> void:
+	tex = BrickLook.for_actor(ci, tex)   # a brick world draws everyone rebuilt out of bricks
 	var facing: Vector2 = params.get("facing", Vector2.DOWN)
 	var speed: float = params.get("speed", 0.0)
 	var t: float = params.get("time", 0.0)

@@ -13,7 +13,7 @@ extends Node2D
 ##   door true      a door in the middle of the front, with its steps     windows true   rows of windows
 ##   tiers [{inset, h, wall}]  smaller boxes stacked on the roof (towers, stepped skyscrapers)
 ##   chimney true (with a puff of smoke) | flag [r,g,b] | clock true | antenna true
-##   inlay {prop, x, y}  a one-off brick set into the wall (the world's secret): drawn here, because a
+##   inlay {prop, row, col}  a one-off swirling brick set into the wall courses (the world's secret): drawn here, because a
 ##                       prop in WorldArt would be painted UNDER the building; hidden once it is taken.
 ## Pure presentation: the footprint's collision is built from the same spec by Solids.
 
@@ -152,7 +152,7 @@ func _draw() -> void:
 		_draw_antenna(Vector2(hw * 0.4, -total_h - depth * 0.25))
 	if bool(spec.get("clock", false)) and spec.get("tiers", []).is_empty():
 		_draw_clock(Vector2(0, -wall_h * 0.62), 11.0)
-	if spec.has("inlay") and _rainbow_tex != null and not _inlay_gone:
+	if spec.has("inlay") and not _inlay_gone:
 		_draw_inlay(spec["inlay"])
 
 
@@ -315,16 +315,31 @@ func _draw_antenna(p: Vector2) -> void:
 	draw_rect(Rect2(p.x - 2.0, p.y - 26.0, 4.0, 4.0), Color(1.0, 0.25, 0.2) if on else Color(0.5, 0.15, 0.12))
 
 
-## The secret brick, set into the wall: it fits the courses exactly, and glints now and then, so a
-## careful eye finds it.
+## The secret brick: one wall brick that is part of the building (it sits exactly in the courses, `row`
+## down from the top and `col` along, so it is flush with its neighbours and shares their seams and lit
+## edge) but is alive: bands of every colour swirl slowly through it, and a soft halo of the same colours
+## breathes round it, so a careful eye notices one brick that isn't like the others.
 func _draw_inlay(inlay: Dictionary) -> void:
-	var c := Vector2(float(inlay.get("x", 0.0)), float(inlay.get("y", -16.0)))
-	var sz := _rainbow_tex.get_size()
-	draw_texture(_rainbow_tex, c - sz * 0.5)
-	var ph := fposmod(_time * 0.45, 1.0)
-	if ph < 0.22:
-		var a := sin(ph / 0.22 * PI)
-		var g := c + Vector2(5.0, -2.0)
-		var col := Color(1, 1, 1, a)
-		draw_rect(Rect2(g.x - 1.0, g.y - 4.0, 2.0, 8.0), col)
-		draw_rect(Rect2(g.x - 4.0, g.y - 1.0, 8.0, 2.0), col)
+	var row := int(inlay.get("row", 6))
+	var col := int(inlay.get("col", 1))
+	var x0 := -hw + 16.0 * float(col) + (8.0 if row % 2 == 1 else 0.0)
+	var y0 := -wall_h + 6.0 * float(row)
+	var halo := 0.5 + 0.5 * sin(_time * 1.2)
+	var mid := Vector2(x0 + 8.0, y0 + 3.0)
+	SoftGlow.draw(self, mid, 22.0, Color.from_hsv(fposmod(_time * 0.08, 1.0), 0.5, 1.0, 0.16 + 0.10 * halo), 0.7)
+	# the face, in 2 px cells: a diagonal rainbow whose bands drift across the brick and round again
+	for cx in 8:
+		for cy in 3:
+			var hue := fposmod(float(cx) * 0.07 + float(cy) * 0.11 - _time * 0.16, 1.0)
+			var c := Color.from_hsv(hue, 0.82, 1.0)
+			draw_rect(Rect2(x0 + float(cx) * 2.0, y0 + float(cy) * 2.0, 2.0, 2.0), c)
+	# a brick's own edges: lit top and left, shaded bottom and right, like every other brick in the wall
+	draw_rect(Rect2(x0, y0, 16.0, 1.0), Color(1, 1, 1, 0.35))
+	draw_rect(Rect2(x0, y0, 1.0, 6.0), Color(1, 1, 1, 0.25))
+	draw_rect(Rect2(x0, y0 + 5.0, 16.0, 1.0), Color(0, 0, 0, 0.30))
+	draw_rect(Rect2(x0 + 15.0, y0, 1.0, 6.0), Color(0, 0, 0, 0.25))
+	# a glint that crosses it now and then
+	var ph := fposmod(_time * 0.4, 1.0)
+	if ph < 0.3:
+		var gx := x0 + 2.0 + ph / 0.3 * 12.0
+		draw_rect(Rect2(gx, y0 + 1.0, 2.0, 4.0), Color(1, 1, 1, 0.55))
