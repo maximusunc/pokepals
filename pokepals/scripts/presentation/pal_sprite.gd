@@ -29,6 +29,7 @@ const FOOT_Y := 8.0      # feet sit at origin+8, like SpriteActor/SpriteSlot
 static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictionary) -> void:
 	if tex == null:
 		return
+	tex = BrickLook.for_actor(ci, tex)   # a brick world draws everyone rebuilt out of bricks
 	var look: Vector2 = params.get("look", Vector2.DOWN)
 	var speed: float = params.get("speed", 0.0)
 	var t: float = params.get("time", 0.0)

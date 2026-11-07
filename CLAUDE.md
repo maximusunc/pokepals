@@ -190,9 +190,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   awnings, windows, doors, stepped tiers, chimney smoke, flags, a clock. It fades while your pair stands
 >   behind it. Footprints collide through `Solids.rect_solids` (a stack of segment solids, so the nav
 >   grid understands them with no change).
-> - **Everyone is bricks:** an `actor_look.brick` rebuilds every player and companion out of studded
->   bricks (`assets/brick_actor.gdshader`, applied by `OtherworldLook`), whatever they wear: each 4x4
->   texel cell becomes one brick in the nearest stock colour. No new per-animal art.
+> - **Everyone is bricks:** an `actor_look.brick` marks every player and companion (`OtherworldLook`) so
+>   their sheets are drawn rebuilt out of studded bricks (`BrickLook`, cached CPU work in the sheet
+>   drawers), whatever they wear: each 4x4 texel cell becomes one brick in the nearest stock colour. No
+>   new per-animal art.
 > - **Dense and tall:** a 2000x1520 packed city of narrow lanes, like the Bazaar. Each block is a TALL
 >   front row facing the lane to its south and a LOW back row behind it, because a building hides the
 >   lane just north of it (so buildings south of a lane stay low). One small square holds the fountain.

@@ -19,6 +19,7 @@ const MOVE_GATE := 8.0   # matches PlayerView's walk gate (player_controller.gd)
 ## cfg keys (from art.json's character entry):
 ##   frame:[w,h], fps:float, walk_frames:int, idle_frame:int, dirs:{down,side,up -> row}
 static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictionary) -> void:
+	tex = BrickLook.for_actor(ci, tex)   # a brick world draws everyone rebuilt out of bricks
 	var facing: Vector2 = params.get("facing", Vector2.DOWN)
 	var speed: float = params.get("speed", 0.0)
 	var t: float = params.get("time", 0.0)

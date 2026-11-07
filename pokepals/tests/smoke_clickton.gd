@@ -76,8 +76,8 @@ func _process(_delta: float) -> bool:
 		fails += _check(art._prop_base.has(t), "%s is drawn from brick art" % t)
 
 	# Our pair is rebuilt out of bricks, and nothing else about their look changes.
-	fails += _check(_world._player.material is ShaderMaterial, "the player is rebuilt out of bricks")
-	fails += _check(_world._companion.material is ShaderMaterial, "so is the companion")
+	fails += _check(_world._player.has_meta("brick_cell"), "the player is rebuilt out of bricks")
+	fails += _check(_world._companion.has_meta("brick_cell"), "so is the companion")
 	fails += _check(_world._player.get_node_or_null("VisitorBubble") == null and _world._player.get_node_or_null("OtherworldAura") == null, "no bubble or glow on top of the bricks")
 
 	# No people and no creatures.
@@ -87,6 +87,15 @@ func _process(_delta: float) -> bool:
 		if String(e.get("kind", "")) == "creature":
 			creatures += 1
 	fails += _check(creatures == 0, "no creatures to examine")
+
+	# The brick rebuild itself: a 32x32 test sheet comes out as 4x4-texel bricks, transparent where it was empty.
+	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
+	for y in range(8, 28):
+		for x in range(8, 24):
+			img.set_pixel(x, y, Color(0.8, 0.2, 0.2, 1.0))
+	var bricks := BrickLook.brickify(ImageTexture.create_from_image(img), 4).get_image()
+	fails += _check(bricks.get_pixel(1, 1).a == 0.0 and bricks.get_pixel(10, 10).a == 1.0, "the brick rebuild keeps the silhouette, in whole bricks")
+	fails += _check(bricks.get_pixel(8, 8) != bricks.get_pixel(11, 11), "a brick's lit edge differs from its seam")
 
 	# Barriers: a building blocks its whole footprint, and so does the water.
 	var solids := Solids.build(data, [], data.get("collision", {}))

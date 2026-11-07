@@ -3,7 +3,7 @@
 
 Everything in Clickton is a brick: the baseplate ground, the roads and pavements (flat plates), the
 buildings (courses of brick under studded roofs), the trees, the props, even the visitors, who are
-rebuilt out of bricks by the world's `actor_look` (assets/brick_actor.gdshader). There are no
+rebuilt out of bricks by the world's `actor_look`. There are no
 people here and no creatures: only the city, lit and tidy and waiting, and the one thing in it
 that is hidden.
 
@@ -470,8 +470,8 @@ ART = {
     "daycycle": {"enabled": True, "period_sec": 600, "loop": True, "stops": [
         {"t": 0.0, "tint": [1.0, 1.0, 1.0], "vignette": [0.30, 0.26, 0.40], "vstrength": 0.10},
         {"t": 1.0, "tint": [1.0, 0.99, 0.96], "vignette": [0.30, 0.26, 0.40], "vstrength": 0.12}]},
-    # you are a visitor made of bricks, too (assets/brick_actor.gdshader)
-    "actor_look": {"brick": {"cell": 4, "quantize": 0.6}},
+    # you are a visitor made of bricks, too
+    "actor_look": {"brick": {"cell": 4, "quantize": 0.45}},
 }
 ATMOSPHERE = {
     "day_tint": [1.0, 1.0, 1.0], "vignette": {"strength": 0.12, "color": [0.30, 0.26, 0.40]}, "wind": {"strength": 0.0, "speed": 0.0},
