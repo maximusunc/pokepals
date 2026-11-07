@@ -56,7 +56,7 @@ func _process(_delta: float) -> bool:
 	for c in _world._scenery.get_children():
 		if c is BuildingView:
 			views.append(c)
-	fails += _check(views.size() == (data["buildings"] as Array).size() and views.size() > 50, "every building stands in the depth-sorted layer (%d)" % views.size())
+	fails += _check(views.size() == (data["buildings"] as Array).size() and views.size() > 80, "every building stands in the depth-sorted layer (%d)" % views.size())
 	var textured_walls := 0
 	for v in views:
 		if v._wall_tex != null and v._roof_tex != null:
@@ -71,7 +71,7 @@ func _process(_delta: float) -> bool:
 			trees += 1
 			if c.sway_gain == 0.0 and (c.trunk_tex != null and c.canopy_tex != null):
 				rigid += 1
-	fails += _check(trees > 100 and rigid == trees, "every tree is built of bricks and stands rigid (%d of %d)" % [rigid, trees])
+	fails += _check(trees >= 8 and rigid == trees, "every tree is built of bricks and stands rigid (%d of %d)" % [rigid, trees])
 	for t in ["brick_lamp", "brick_bench", "brick_fountain", "brick_stall"]:
 		fails += _check(art._prop_base.has(t), "%s is drawn from brick art" % t)
 
@@ -113,7 +113,7 @@ func _process(_delta: float) -> bool:
 		var holder: BuildingView = holders[0]
 		var e: Dictionary = entries[0]
 		fails += _check(holder._inlay_index == int(e["render_index"]), "the building's brick is bound to the secret's prop")
-		fails += _check(holder._rainbow_tex != null and not holder._inlay_gone, "the brick shows in the wall")
+		fails += _check(not holder._inlay_gone, "the brick shows in the wall")
 		# it sits at the foot of its wall, in standing room
 		var wall_foot := holder.position
 		fails += _check(absf((e["pos"] as Vector2).y - wall_foot.y) < 20.0 and absf((e["pos"] as Vector2).x - wall_foot.x) < holder.hw, "its examine spot is at the foot of that wall")

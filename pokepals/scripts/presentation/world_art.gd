@@ -1245,6 +1245,8 @@ func _draw() -> void:
 			continue  # not here for now (the Gateway, until a newcomer has found their companion)
 		if bool(it.get("person", false)):
 			continue  # stands as a real person (a PlayerView, AmbientPalDirector), not drawn here
+		if _unseen.has(String(it["type"])):
+			continue  # painted by something else entirely (Clickton's wall brick): no shadow, glow or ring here either
 		if _baked_types.has(it["type"]):
 			continue  # already in the baked static layer, shadow and all
 		_draw_prop_light(it)

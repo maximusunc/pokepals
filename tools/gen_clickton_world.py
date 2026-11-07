@@ -8,15 +8,16 @@ people here and no creatures: only the city, lit and tidy and waiting, and the o
 that is hidden.
 
 The SECRET: one single rainbow brick, set into the front wall of a cottage at the quiet west end of the
-Quay Road row, low down where a hand would reach. It has a little glint now and then. `reveal: always`
+Quay Lane row, low down where a hand would reach. Slow bands of every colour swirl through it. `reveal: always`
 (it is simply there to be found), claimed by examining it; the brick itself is painted by the building
 (BuildingView `inlay`), because a prop in WorldArt would be drawn under the building.
 
-Layout: the Quay (where you arrive, a promenade over a studded bay with two piers) at the bottom; three
-streets (Quay Road, Main Street, North Road) crossed by three avenues; a row of buildings along the north
-side of every street; open lots behind them: Pleasant Park (west), the Town Square (middle, a clock tower
-and a fountain), the Station Yard (east, with a train of brick carriages), and the Brickworks and the
-Hilltop Orchard in the north. Art: pokepals/tools/gen_clickton.py over tools/brickart/bricks.py.
+Layout: a DENSE city of tall buildings and narrow lanes, like the Bazaar. The Quay (a promenade over a
+studded bay with two piers and a lighthouse) is where you arrive; four lanes run east-west and three
+north-south, and every block between them is packed with buildings: a TALL front row facing the lane to its
+south, and a LOW back row behind it (a building hides the lane just north of it, so the buildings that stand
+south of a lane are kept low). One small square in the middle holds the fountain, the clock tower and a
+playground; the skyline of tall towers and the Brickworks stand along the north. Art: pokepals/tools/gen_clickton.py over tools/brickart/bricks.py.
 
 Hand-authored: the street grid, the landmarks, every line of lore, the secret. Procedural (seeded): the
 facades of the building rows and the scatter of trees and props in the open lots. Writes the server seed
@@ -28,12 +29,12 @@ import random
 
 random.seed(0xB41C4)
 
-BOUNDS_MIN = (-1500, -1150)
-BOUNDS_MAX = (1500, 1150)
-PLAYER_SPAWN = [0, 628]
-COMPANION_SPAWN = [-34, 650]
+BOUNDS_MIN = (-1000, -760)
+BOUNDS_MAX = (1000, 760)
+PLAYER_SPAWN = [0, 592]
+COMPANION_SPAWN = [-34, 614]
 PORTALS = [
-    {"id": "clickton_way_home", "type": "portal", "position": [110, 640], "color": [1.0, 0.85, 0.3], "label": "the way back to the Vale",
+    {"id": "clickton_way_home", "type": "portal", "position": [110, 602], "color": [1.0, 0.85, 0.3], "label": "the way back to the Vale",
      "target_world": "11111111-1111-1111-1111-111111111111", "target_portal": "vale_gateway"},
 ]
 
@@ -64,16 +65,18 @@ WALLS = [RED, ORANGE, YELLOW, GREEN, BLUE, WHITE, TAN, LAVENDER, PINK, TEAL, SKY
 ROOFS = [DKGREY, RED, BLUE, c(60, 70, 90), BROWN, GREEN, c(120, 60, 50)]
 DOORS = [RED, BLUE, GREEN, YELLOW, c(105, 64, 40), TEAL]
 
-# ── the street grid ───────────────────────────────────────────────────────────────────────────────
-ROAD_W = 64
-WALK = 18
-H_ROADS = {"north_road": -640, "main_street": -60, "quay_road": 500}
-V_ROADS = [(-760, -1150, 500), (0, -1150, -640), (0, -60, 500), (760, -1150, 500)]   # (x, y0, y1)
-SEGMENTS = [(-1480, -810), (-710, -50), (50, 710), (810, 1480)]   # between the avenues' pavements
-ROW_D = 110                                                      # every building row's depth
-
-PLATES = []        # drawn in order
-NOGO = []          # rects (x0, y0, x1, y1) nothing is scattered into
+# ── the street grid: narrow lanes, packed blocks ──────────────────────────────────────────────────
+ROAD_W = 46
+WALK = 12
+HALF = ROAD_W // 2 + WALK          # 35: from a lane's centre line to the edge of its pavement
+H_LANES = {"quay_lane": 480, "high_lane": 140, "clock_lane": -200, "skyline_lane": -540}
+V_LANES = [(-500, -760, 560), (500, -760, 560), (0, -760, -200), (0, 140, 560)]    # (x, y0, y1)
+AVENUES = sorted({x for x, _, _ in V_LANES})
+COLS = [(-990, -535), (-465, -35), (35, 465), (535, 990)]       # between the north-south lanes' pavements
+F_D = 110                                                         # a front row's depth
+PLATES = []
+NOGO = []
+LANE_RECTS = []
 
 
 def rect_of(x0, y0, x1, y1):
@@ -93,84 +96,57 @@ def plate(x0, y0, x1, y1, kind, color, solid=False, shimmer=False, nogo=True):
 
 PAVE = c(206, 206, 210)
 ASPHALT = c(86, 88, 96)
-# pavements first (so every junction is road), then the roads, then the painted lines
-for name, y in H_ROADS.items():
-    plate(-1500, y - ROAD_W // 2 - WALK, 1500, y + ROAD_W // 2 + WALK, "stud", PAVE)
-for x, y0, y1 in V_ROADS:
-    plate(x - ROAD_W // 2 - WALK, y0, x + ROAD_W // 2 + WALK, y1, "stud", PAVE)
-for name, y in H_ROADS.items():
-    plate(-1500, y - ROAD_W // 2, 1500, y + ROAD_W // 2, "road", ASPHALT, nogo=False)
-for x, y0, y1 in V_ROADS:
-    plate(x - ROAD_W // 2, y0, x + ROAD_W // 2, y1, "road", ASPHALT, nogo=False)
-# dashed centre lines along every street, skipping the junctions; zebra crossings beside them
 LINE = c(236, 236, 230)
-AVENUES = sorted({x for x, _, _ in V_ROADS})
-for name, y in H_ROADS.items():
-    x = -1480
-    while x < 1480:
-        if all(abs((x + 12) - ax) > ROAD_W // 2 + 8 for ax in AVENUES):
-            plate(x, y - 2, x + 24, y + 2, "mark", LINE, nogo=False)
-        x += 48
+for name, y in H_LANES.items():
+    plate(-1000, y - HALF, 1000, y + HALF, "stud", PAVE)
+    LANE_RECTS.append((-1000, y - HALF, 1000, y + HALF))
+for x, y0, y1 in V_LANES:
+    plate(x - HALF, y0, x + HALF, y1, "stud", PAVE)
+    LANE_RECTS.append((x - HALF, y0, x + HALF, y1))
+for name, y in H_LANES.items():
+    plate(-1000, y - ROAD_W // 2, 1000, y + ROAD_W // 2, "road", ASPHALT, nogo=False)
+for x, y0, y1 in V_LANES:
+    plate(x - ROAD_W // 2, y0, x + ROAD_W // 2, y1, "road", ASPHALT, nogo=False)
+for name, y in H_LANES.items():
+    x = -980
+    while x < 980:
+        if all(abs((x + 10) - ax) > HALF + 6 for ax in AVENUES):
+            plate(x, y - 1, x + 20, y + 1, "mark", LINE, nogo=False)
+        x += 40
     for ax in AVENUES:
         for side in (-1, 1):
-            zx = ax + side * (ROAD_W // 2 + 10)
-            for k in range(5):
-                plate(zx - 3, y - ROAD_W // 2 + 6 + k * 11, zx + 3, y - ROAD_W // 2 + 12 + k * 11, "mark", LINE, nogo=False)
-for ax, y0, y1 in V_ROADS:
-    y = y0 + 24
-    while y < y1 - 24:
-        if all(abs((y + 12) - ry) > ROAD_W // 2 + 8 for ry in H_ROADS.values()):
-            plate(ax - 2, y, ax + 2, y + 24, "mark", LINE, nogo=False)
-        y += 48
+            zx = ax + side * (HALF + 5)
+            for k in range(4):
+                plate(zx - 2, y - ROAD_W // 2 + 4 + k * 10, zx + 2, y - ROAD_W // 2 + 9 + k * 10, "mark", LINE, nogo=False)
+for ax, y0, y1 in V_LANES:
+    y = y0 + 20
+    while y < y1 - 20:
+        if all(abs((y + 10) - ry) > HALF + 6 for ry in H_LANES.values()):
+            plate(ax - 1, y, ax + 1, y + 20, "mark", LINE, nogo=False)
+        y += 40
 
-# ── the Quay: a promenade, a studded bay, two piers ───────────────────────────────────────────────
+# the Quay: a promenade, a studded bay, two piers
 PROM = c(222, 200, 150)
-plate(-1500, 550, 1500, 700, "stud", PROM)
+plate(-1000, 515, 1000, 640, "stud", PROM, nogo=False)
 WATER = c(60, 140, 215)
-plate(-1500, 700, -460, 1150, "stud", WATER, solid=True, shimmer=True)
-plate(-380, 700, 380, 1150, "stud", WATER, solid=True, shimmer=True)
-plate(460, 700, 1500, 1150, "stud", WATER, solid=True, shimmer=True)
 PIER = c(168, 112, 66)
-plate(-460, 900, -380, 1150, "stud", WATER, solid=True, shimmer=True)
-plate(380, 900, 460, 1150, "stud", WATER, solid=True, shimmer=True)
-plate(-460, 690, -380, 900, "stud", PIER)
-plate(380, 690, 460, 900, "stud", PIER)
-
-# ── the town square, the park, the station yard ───────────────────────────────────────────────────
-SQUARE = (-330, -560, 330, -250)
-plate(*SQUARE, "stud", c(238, 222, 182))
-plate(-300, -530, 300, -280, "flat", c(226, 206, 160), nogo=False)     # a smooth inlay, tile-fashion
-PARK = (-1450, -590, -810, -250)
-plate(*PARK, "stud", c(120, 200, 90), nogo=False)
-POND = (-1280, -500, -1000, -370)
-plate(*POND, "stud", WATER, solid=True, shimmer=True)
-YARD = (810, -590, 1450, -250)
-plate(*YARD, "stud", c(190, 190, 196))
-plate(820, -440, 1440, -380, "flat", c(110, 100, 96))                    # the track bed
-for k in range(31):
-    plate(826 + k * 20, -440, 832 + k * 20, -380, "mark", c(160, 120, 80), nogo=False)   # sleepers
-plate(820, -421, 1440, -417, "mark", c(210, 210, 215), nogo=False)         # rails
-plate(820, -403, 1440, -399, "mark", c(210, 210, 215), nogo=False)
-PLATFORM = (840, -350, 1420, -300)
-plate(*PLATFORM, "stud", c(240, 232, 200))
-MARKET = (-600, 40, 600, 300)
-plate(*MARKET, "stud", c(244, 210, 150))                                # the Market Lot's tiled floor
-HILL = (-1450, -1100, -820, -830)
-plate(*HILL, "stud", c(160, 214, 110), nogo=False)
-YARD_N = (60, -1110, 1450, -830)
-plate(*YARD_N, "stud", c(176, 176, 184), nogo=False)
+for x0, x1 in [(-1000, -340), (-260, 260), (340, 1000)]:
+    plate(x0, 640, x1, 760, "stud", WATER, solid=True, shimmer=True)
+for px in (-340, 260):
+    plate(px, 640, px + 80, 760, "stud", WATER, solid=True, shimmer=True)     # under the pier's far end
+    plate(px, 630, px + 80, 724, "stud", PIER)
+# the little square: a tan plaza with a smooth inlay
+PLAZA = (-190, -165, 190, 105)
+plate(*PLAZA, "stud", c(238, 222, 182), nogo=False)
+plate(-160, -140, 160, 80, "flat", c(226, 206, 160), nogo=False)
 
 REGIONS = [
-    ("the_quay", (-1500, 520), (1500, 1150)),
-    ("main_street", (-1500, 300), (1500, 520)),
-    ("the_market_lot", (-1500, -60), (1500, 300)),
-    ("the_square", (-330, -580), (330, -240)),
-    ("pleasant_park", (-1500, -600), (-800, -240)),
-    ("station_yard", (800, -600), (1500, -240)),
-    ("north_road", (-1500, -830), (1500, -600)),
-    ("hilltop_orchard", (-1500, -1150), (-800, -830)),
-    ("the_brickworks", (50, -1150), (1500, -830)),
-    ("skyline_row", (-800, -1150), (50, -830)),
+    ("the_quay", (-1000, 515), (1000, 760)),
+    ("quay_row", (-1000, 175), (1000, 515)),
+    ("the_square", (-200, -175), (200, 115)),
+    ("high_street", (-1000, -165), (1000, 175)),
+    ("clock_row", (-1000, -505), (1000, -165)),
+    ("the_skyline", (-1000, -760), (1000, -505)),
 ]
 
 # ── buildings ─────────────────────────────────────────────────────────────────────────────────────
@@ -189,108 +165,89 @@ def snap(v, n=8):
     return int(round(v / n) * n)
 
 
-def fill_row(x0, x1, y1, kind, d=ROW_D, max_h=None, alley_every=3):
-    """Terrace of buildings between x0..x1 whose south walls stand at y1."""
-    x = snap(x0 + random.choice([0, 0, 8]))
-    placed = 0
-    out = []
-    while x < x1 - 70:
-        w = snap(random.choice([88, 96, 104, 112, 120, 128, 136]))
-        if x + w > x1:
-            w = snap(x1 - x)
-        if w < 72:
-            break
+def fill_row(x0, x1, y1, d, kind, h_choices):
+    """A packed terrace between x0..x1 whose south walls stand at y1, `d` deep."""
+    x = ((x0 + 7) // 8) * 8
+    while x < x1 - 60:
+        w = snap(random.choice([88, 96, 104, 112, 120, 128, 144]))
+        if x1 - (x + w) < 72:
+            w = int((x1 - x) // 8) * 8
         wall = random.choice(WALLS)
         roof = random.choice(ROOFS)
+        h = random.choice(h_choices)
         opts = {}
-        if kind == "shop":
-            h = random.choice([66, 72, 78, 84])
-            opts = {"door": True, "awning": random.choice([RED, BLUE, GREEN, YELLOW, ORANGE, TEAL]), "door_color": random.choice(DOORS)}
-            if random.random() < 0.3:
-                opts["flag"] = random.choice(WALLS)
-            if random.random() < 0.25:
-                opts["antenna"] = True
-        elif kind == "office":
-            h = random.choice([96, 108, 120, 132, 144])
-            opts = {"door": True, "door_color": random.choice(DOORS)}
-            if random.random() < 0.5:
+        if kind == "front":
+            opts = {"door": True, "door_color": random.choice(DOORS), "windows": True}
+            if random.random() < 0.65:
+                opts["awning"] = random.choice([RED, BLUE, GREEN, YELLOW, ORANGE, TEAL])
+            if h >= 120 and random.random() < 0.5:
                 opts["tiers"] = [{"inset": 14, "h": random.choice([24, 36, 48]), "wall": random.choice(WALLS)}]
-                if random.random() < 0.4:
-                    opts["tiers"].append({"inset": 14, "h": 24})
-            if random.random() < 0.4:
+                if random.random() < 0.35:
+                    opts["tiers"].append({"inset": 12, "h": 24})
+            if random.random() < 0.35:
                 opts["antenna"] = True
             if random.random() < 0.3:
                 opts["flag"] = random.choice(WALLS)
-        elif kind == "house":
-            h = random.choice([48, 54, 60])
-            wall = random.choice([WHITE, CREAM, YELLOW, PINK, SKY, LIME, TAN, c(240, 170, 150)])
-            roof = random.choice([RED, BLUE, c(120, 60, 50), GREEN, DKGREY, ORANGE])
-            opts = {"door": True, "door_color": random.choice(DOORS), "roof_style": "gable",
-                    "shutters": random.choice([GREEN, BLUE, RED, TEAL, WHITE])}
-            if random.random() < 0.55:
+        elif kind == "back":
+            wall = random.choice([GREY, TAN, ORANGE, WHITE, SKY, LIME, c(200, 120, 90)])
+            roof = random.choice([DKGREY, BROWN, c(60, 70, 90)])
+            opts = {"windows": False}
+            if random.random() < 0.4:
                 opts["chimney"] = True
-        elif kind == "factory":
-            h = random.choice([72, 84, 96])
-            roof = random.choice([DKGREY, c(70, 76, 90), RED])
-            opts = {"windows": True, "chimney": random.random() < 0.8,
-                    "tiers": [{"inset": 20, "h": random.choice([24, 36]), "wall": random.choice([GREY, DKGREY, TAN])}]}
+        elif kind == "works":
             wall = random.choice([RED, GREY, ORANGE, TAN, BLUE])
-        else:
-            h = 84
-        if max_h:
-            h = min(h, max_h)
-        out.append(building([x, y1 - d, w, d], h, wall, roof, **opts))
-        placed += 1
-        x += w + (random.choice([40, 48]) if placed % alley_every == 0 else random.choice([4, 6]))
+            roof = random.choice([DKGREY, c(70, 76, 90), RED])
+            opts = {"windows": True, "chimney": random.random() < 0.85,
+                    "tiers": [{"inset": 22, "h": random.choice([24, 36]), "wall": random.choice([GREY, DKGREY, TAN])}]}
+        elif kind == "tower":
+            opts = {"door": random.random() < 0.5, "door_color": random.choice(DOORS), "windows": True,
+                    "tiers": [{"inset": 16, "h": random.choice([24, 36, 48]), "wall": random.choice([WHITE, CREAM, SKY])}]}
+            if random.random() < 0.5:
+                opts["antenna"] = True
+            if random.random() < 0.3:
+                opts["flag"] = random.choice(WALLS)
+        building([x, y1 - d, w, d], h, wall, roof, **opts)
+        x += w + random.choice([0, 0, 4])
         x = snap(x, 2)
-    return out
 
 
-# The secret's cottage: the westmost house on the Quay Road, a different colour from the rest so it is easy to
-# find once you know what you're looking for. Its front wall is the one with the brick in it.
-cottage_rect = [-1480, 360, 104, 90]
-COTTAGE_X = cottage_rect[0] + cottage_rect[2] // 2
-COTTAGE = building(cottage_rect, 54, c(255, 236, 140), RED, door=True, door_color=c(40, 127, 70), roof_style="gable",
-                   shutters=c(40, 127, 70), chimney=True, id="crooked_cottage",
-                   inlay={"prop": "secret_rainbow_brick", "x": -26, "y": -15})
+FRONT_H = [96, 108, 120, 132, 144, 156, 168, 180]
+BACK_H = [24, 30, 36]
+# the three packed blocks: a tall front row facing the lane to the south, a low back row behind it
+BLOCKS = [(480, 175), (140, -165), (-200, -505)]    # (the lane they front, the lane pavement they back onto)
+COTTAGE_RECT = [-990, 335, 104, 110]
+COTTAGE_CX = COTTAGE_RECT[0] + COTTAGE_RECT[2] // 2
+for lane_y, back_edge in BLOCKS:
+    fy = lane_y - HALF                           # the front row's south face
+    for ci, (cx0, cx1) in enumerate(COLS):
+        plaza_block = lane_y == 140
+        if plaza_block and ci in (1, 2):
+            # the square: only the outer ends of these columns hold buildings
+            lo, hi = (cx0, PLAZA[0]) if ci == 1 else (PLAZA[2], cx1)
+            fill_row(lo, hi, fy, F_D, "front", FRONT_H)
+            fill_row(lo, hi, fy - F_D, fy - F_D - back_edge, "back", BACK_H)
+            continue
+        if lane_y == 480 and ci == 0:
+            fill_row(COTTAGE_RECT[0] + COTTAGE_RECT[2] + 4, cx1, fy, F_D, "front", FRONT_H)
+        else:
+            fill_row(cx0, cx1, fy, F_D, "front", FRONT_H)
+        fill_row(cx0, cx1, fy - F_D, fy - F_D - back_edge, "back", BACK_H)
+# the skyline row along the north: a tall backdrop, the Brickworks' chimneys in the east
+for ci, (cx0, cx1) in enumerate(COLS):
+    fill_row(cx0, cx1, -575, 170, "works" if ci >= 2 else "tower", [168, 180, 192, 204, 216, 240] if ci < 2 else [96, 108, 120, 132])
 
-# houses along the Quay Road at both ends, shops along its middle, offices along Main Street and North Road
-fill_row(-1340, -810, 450, "house", d=90, alley_every=4)
-fill_row(810, 1480, 450, "house", d=90, alley_every=4)
-fill_row(-710, -50, 450, "shop")
-fill_row(50, 710, 450, "shop")
-fill_row(-1480, -810, -110, "house", d=90)
-fill_row(810, 1480, -110, "house", d=90)
-fill_row(-710, -50, -110, "office")
-fill_row(50, 710, -110, "office")
-fill_row(-1480, -810, -690, "shop")
-fill_row(-710, -50, -690, "office")
-fill_row(50, 710, -690, "office")
-fill_row(810, 1480, -690, "shop")
+# The secret's cottage: the westmost house on the Quay Lane, a different colour from the rest. Its front
+# wall holds the brick: course ROW down from the wall's top, COL bricks along.
+INLAY = {"prop": "secret_rainbow_brick", "row": 6, "col": 1}
+COTTAGE = building(COTTAGE_RECT, 54, c(255, 236, 140), RED, door=True, door_color=c(40, 127, 70), roof_style="gable",
+                   shutters=c(40, 127, 70), chimney=True, id="crooked_cottage", inlay=INLAY)
+BRICK_X = COTTAGE_CX - COTTAGE_RECT[2] // 2 + 16 * INLAY["col"] + 8     # the brick's centre, in the world
 
-# ── landmarks: the clock tower, the lighthouse, the station, the train, the Brickworks ─────────────
-building([-48, -576, 96, 72], 120, RED, DKGREY, id="clock_tower", door=True, door_color=c(105, 64, 40), windows=True, clock=True,
+# landmarks: the clock tower in the square, the lighthouse on the pier
+building([-182, -165, 96, 72], 132, RED, DKGREY, id="clock_tower", door=True, door_color=c(105, 64, 40), windows=True, clock=True,
          tiers=[{"inset": 16, "h": 42, "wall": CREAM, "roof": RED}, {"inset": 14, "h": 24, "wall": YELLOW, "roof": RED}], flag=YELLOW)
-building([-440, 828, 40, 36], 108, WHITE, RED, id="lighthouse", windows=True, door=False,
-         tiers=[{"inset": 8, "h": 30, "wall": RED, "roof": DKGREY}, {"inset": 6, "h": 18, "wall": YELLOW, "roof": RED}], antenna=False)
-building([880, -590, 300, 96], 78, TAN, BLUE, id="station", door=True, door_color=BLUE, awning=BLUE, flag=RED, windows=True,
-         tiers=[{"inset": 110, "h": 30, "wall": CREAM, "roof": BLUE}], clock=False)
-TRAIN_Y = -388
-CARS = [("engine", 1000, RED, True), ("coach_a", 1100, BLUE, False), ("coach_b", 1190, YELLOW, False), ("coach_c", 1280, GREEN, False)]
-for cid, cx, col, eng in CARS:
-    building([cx, TRAIN_Y - 20, 84 if not eng else 72, 24], 36, col, DKGREY, id=cid, windows=not eng, chimney=eng,
-             tiers=[{"inset": 8, "h": 18, "wall": c(60, 60, 70)}] if eng else [])
-# the Brickworks
-building([140, -940, 220, 130], 96, ORANGE, DKGREY, id="kiln_hall", chimney=True, windows=True,
-         tiers=[{"inset": 30, "h": 36, "wall": GREY}], door=True, door_color=DKGREY)
-building([440, -940, 180, 130], 84, GREY, c(70, 76, 90), id="mould_shed", windows=True, chimney=True, antenna=True)
-building([700, -950, 260, 140], 108, RED, DKGREY, id="the_brickworks", door=True, door_color=BLUE, windows=True, chimney=True, flag=WHITE,
-         tiers=[{"inset": 40, "h": 42, "wall": ORANGE}])
-building([1040, -930, 200, 120], 78, BLUE, DKGREY, id="packing_shed", windows=True, door=True, door_color=YELLOW)
-# the skyline: a few tall ones along the back of the north road
-for i, (x, w, h) in enumerate([(-700, 120, 168), (-540, 104, 144), (-380, 128, 192), (-200, 104, 156), (-60, 96, 132)]):
-    building([x, -960, w, 100], h, random.choice([BLUE, TEAL, GREY, SKY, LAVENDER]), random.choice([DKGREY, BLUE]), windows=True, door=(i % 2 == 0),
-             tiers=[{"inset": 18, "h": 36, "wall": WHITE}], antenna=(i % 2 == 1), id="sky_%d" % i)
+building([-320, 676, 40, 36], 108, WHITE, RED, id="lighthouse", windows=True, door=False,
+         tiers=[{"inset": 8, "h": 30, "wall": RED, "roof": DKGREY}, {"inset": 6, "h": 18, "wall": YELLOW, "roof": RED}])
 
 # ── props ─────────────────────────────────────────────────────────────────────────────────────────
 PROPS = []
@@ -317,9 +274,9 @@ def prop(pid, typ, pos, color, label, lore=None, solid=None, r=None, tags=None):
 
 
 def blocked(x, y, rad):
-    if not (BOUNDS_MIN[0] + 40 < x < BOUNDS_MAX[0] - 40 and BOUNDS_MIN[1] + 40 < y < BOUNDS_MAX[1] - 40):
+    if not (BOUNDS_MIN[0] + 30 < x < BOUNDS_MAX[0] - 30 and BOUNDS_MIN[1] + 30 < y < BOUNDS_MAX[1] - 30):
         return True
-    if math.hypot(x - PLAYER_SPAWN[0], y - PLAYER_SPAWN[1]) < 140:
+    if math.hypot(x - PLAYER_SPAWN[0], y - PLAYER_SPAWN[1]) < 110:
         return True
     return any(x0 - rad < x < x1 + rad and y0 - rad < y < y1 + rad for x0, y0, x1, y1 in NOGO)
 
@@ -327,7 +284,7 @@ def blocked(x, y, rad):
 PLACED = []
 
 
-def scatter(rect, n, rad, fn, tries=3000, keep=0):
+def scatter(rect, n, rad, fn, tries=3000):
     x0, y0, x1, y1 = rect
     got = 0
     for _ in range(tries):
@@ -341,172 +298,107 @@ def scatter(rect, n, rad, fn, tries=3000, keep=0):
         got += 1
 
 
-# Lamps and hydrants stand along the pavements; benches and planters by the shops.
-for name, y in H_ROADS.items():
-    x = -1400
-    while x < 1400:
-        if all(abs(x - ax) > 70 for ax in AVENUES):
-            prop("lamp_%s_%d" % (name, x), "brick_lamp", (x, y - ROAD_W // 2 - 6), SKY, "a street lamp", solid=True, r=5)
-        x += 220
-# spots the pavement furniture must not use
-FURN = []
+def in_building(x, y, rad=6):
+    return any(b["rect"][0] - rad < x < b["rect"][0] + b["rect"][2] + rad and b["rect"][1] - rad < y < b["rect"][1] + b["rect"][3] + rad for b in BUILDINGS)
 
-SIGN_COL = [RED, BLUE, GREEN, YELLOW, TEAL, ORANGE]
 
-# The Quay: the welcome, the boats, the bollards.
-prop("welcome_sign", "brick_sign", (-110, 618), YELLOW, "a signpost of studs",
-     "WELCOME TO CLICKTON, says the sign, in raised white studs. Underneath, in smaller ones: \"Population: you. Please touch the bricks. They like it.\"", solid=True, r=6)
-prop("quay_bench_w", "brick_bench", (-240, 612), BLUE, "a bench on the quay",
-     "A bench built for two, or one person and a very large dog. The bay laps against the baseplate just beyond it, studs and all.", solid=True, r=11)
-prop("quay_bench_e", "brick_bench", (250, 612), RED, "a bench on the quay",
-     "Somebody has left one single brick on the seat, as if saving it. It's yellow. You put it back exactly where it was.", solid=True, r=11)
-prop("quay_duck", "brick_duck", (-560, 620), YELLOW, "a very large brick duck",
-     "A duck of yellow bricks on a grey plinth, mid-quack. It is the only duck in Clickton, which is why it's allowed to be this big.", solid=True, r=18)
-for i, x in enumerate([-860, -300, 300, 860, 1240]):
-    prop("quay_bollard_%d" % i, "brick_bollard", (x, 690), YELLOW, "a bollard", solid=True, r=4)
-for i, (x, y, col) in enumerate([(-900, 880, RED), (-640, 1010, BLUE), (-160, 900, YELLOW), (150, 1040, GREEN), (640, 960, ORANGE), (1050, 880, TEAL), (-1180, 1030, PINK)]):
-    prop("boat_%d" % i, "brick_boat", (x, y), col, "a little boat",
-         ("A boat made of eleven bricks and a very good mast. It bobs a stud's width up and down, which is the most a brick can manage." if i == 0 else None), solid=False)
-prop("moored_boat", "brick_boat", (-340, 880), ORANGE, "a boat tied to the pier",
-     "It's tied to the pier with a brick on a string. The boat has never gone anywhere. It's the thought of leaving that matters.", solid=False)
-prop("pier_crates", "brick_crates", (-420, 780), BROWN, "a stack of crates on the pier",
-     "Crates of loose bricks, labelled with colours: RED (MOSTLY). BLUE (SOME). YELLOW (ONE, PROBABLY A MISTAKE).", solid=True, r=12)
-prop("pier_barrel", "brick_barrel", (420, 790), YELLOW, "a barrel",
-     "It rattles. Whatever's inside has a great many corners.", solid=True, r=8)
-prop("lighthouse_sign", "brick_sign", (-420, 730), RED, "a small sign by the lighthouse",
-     "THE LIGHTHOUSE. Its lamp is one clear yellow brick, and every night it shines exactly as far as the end of the pier, which is exactly as far as it needs to.", solid=True, r=6)
-
-# The Market Lot: stalls, crates, a planter or two.
-for i, (x, y, col) in enumerate([(-420, 120, RED), (-210, 200, BLUE), (0, 120, GREEN), (210, 200, YELLOW), (420, 120, TEAL)]):
-    prop("stall_%d" % i, "brick_stall", (x, y), col, "a market stall",
-         ["The stall sells bricks by the colour, by the stud, and, on request, by the feeling. A little card says: \"ASK FOR THE ONE THAT'S BEEN WAITING.\"",
-          "A stall of lovely small things, every one a different brick. There's nobody to pay, so you pay with admiration, which is accepted.",
-          "Hanging from the awning: a string of little round plates, like coins. They clink in a way that sounds exactly like a market.",
-          "This stall sells only corner pieces. It has a very loyal customer, who isn't here right now.",
-          "A stall of plates, all flat, all lovely. A sign says: \"SMOOTH. NO STUDS. ASK ABOUT OUR SMOOTH.\""][i], solid=True, r=18)
-prop("market_sign", "brick_sign", (-560, 60), ORANGE, "the market sign",
-     "THE MARKET LOT. Open all hours, because nobody has ever closed it. The floor here is tiled in tan plates, the colour of toast.", solid=True, r=6)
-for i, (x, y) in enumerate([(-500, 260), (-300, 40), (300, 40), (500, 260)]):
-    prop("market_planter_%d" % i, "brick_planter", (x, y), [BROWN, RED, BLUE, GREEN][i], "a planter",
-         "A box of bricks with flowers made of smaller bricks, which need no water and are never any trouble." if i == 0 else None, solid=True, r=14)
-
-# The Town Square.
-prop("fountain", "brick_fountain", (0, -400), SKY, "the fountain",
-     "A fountain of grey bricks around a blue plate, with a spout of pale plates that never moves and never runs dry. Wishes go in the bowl. They're all the same wish: more bricks.", solid=True, r=30)
-prop("square_plaque", "brick_sign", (-110, -300), TAN, "a plaque in the square",
-     "THE FIRST BRICK. \"When Clickton was begun there was one brick, and it was every colour at once. The builder was so fond of it that, rather than waste it on a corner, they set it into a wall, low down where a hand could find it, and told nobody which wall. They say it winks, now and then, if you're patient. They say it's near a quiet end of town.\"", solid=True, r=6)
-prop("square_duck", "brick_duck", (180, -300), PINK, "a smaller brick duck",
-     "The big duck on the quay has a cousin. This one is pink, and the size of a cat, and it is very, very pleased to be here.", solid=True, r=14)
-for i, x in enumerate([-240, 240]):
-    prop("square_flag_%d" % i, "brick_flagpole", (x, -540), [RED, BLUE][i], "a flagpole",
-         "The flag is one flat plate on a pole, and it's flying perfectly, in a breeze that has never needed to blow." if i == 0 else None, solid=True, r=5)
-for i, (x, y) in enumerate([(-200, -440), (200, -440), (-120, -330), (120, -330)]):
-    prop("square_bench_%d" % i, "brick_bench", (x, y), [YELLOW, GREEN, RED, BLUE][i], "a bench in the square", solid=True, r=11)
-for i, (x, y) in enumerate([(-290, -520), (290, -520), (-290, -290), (290, -290)]):
-    prop("square_planter_%d" % i, "brick_planter", (x, y), [BROWN, BROWN, BROWN, BROWN][i], "a planter",
-         "The flowers in this one are in rainbow order. Somebody took care." if i == 2 else None, solid=True, r=14)
-prop("clock_sign", "brick_sign", (-100, -480), RED, "a small sign by the clock tower",
-     "THE CLOCK TOWER. The clock is always exactly right, because it's the only one in Clickton, and so it's the one deciding.", solid=True, r=6)
-
-# Pleasant Park.
-prop("park_sign", "brick_sign", (-1130, -300), GREEN, "the park sign",
-     "PLEASANT PARK. Please keep off the studs. (Nobody has ever managed this. The sign is mostly decorative.)", solid=True, r=6)
-prop("park_slide", "brick_slide", (-1330, -330), RED, "a slide",
-     "A slide of blue plates, stepping down. Going down it makes a sound in your head, a soft ker-lik-lik-lik-lik, one for every stud.", solid=True, r=22)
-prop("park_seesaw", "brick_seesaw", (-1230, -310), BLUE, "a seesaw",
-     "It's balanced exactly level. It has been exactly level for as long as anyone can remember, which is a form of quiet joy.", solid=True, r=18)
-for i, (x, y) in enumerate([(-1190, -560), (-1330, -440), (-940, -440), (-1180, -330)]):
-    prop("park_bench_%d" % i, "brick_bench", (x, y), [GREEN, YELLOW, RED, BLUE][i], "a park bench", solid=True, r=11)
-prop("picnic", "brick_picnic", (-1000, -330), RED, "a picnic table",
-     "A table with a red-and-white cloth made of red and white plates. Somebody has laid out a picnic of tiny bricks. It looks delicious, if you are a brick.", solid=True, r=22)
-prop("pond_sign", "brick_sign", (-1140, -350), SKY, "the pond sign",
-     "THE POND. Studs, in blue, all the way down. Please do not feed the ducks. (There is one duck. It does not eat. It's on the quay.)", solid=True, r=6)
-
-# The Station Yard.
-prop("station_sign", "brick_sign", (1000, -290), BLUE, "the station sign",
-     "CLICKTON CENTRAL. The 12:00 to Somewhere leaves at noon, forever. The train is always here, always about to go, which is the best a train can be.", solid=True, r=6)
-for i, x in enumerate([920, 1060, 1200, 1340]):
-    prop("platform_bench_%d" % i, "brick_bench", (x, -326), [RED, YELLOW, GREEN, BLUE][i], "a platform bench", solid=True, r=11)
-prop("train_note", "brick_sign", (1380, -290), ORANGE, "a note by the tracks",
-     "Pinned to the post: \"THE ENGINE IS A SHADE OF RED THE CARRIAGES ENVY. PLEASE DO NOT TELL THE CARRIAGES.\"", solid=True, r=6)
-
-# The Brickworks and the north.
-prop("works_sign", "brick_sign", (780, -820), ORANGE, "the Brickworks sign",
-     "THE BRICKWORKS. Every brick in Clickton was made here, once, in the same kiln. They all came out a different colour. Nobody has ever worked out why, and everyone is rather glad.", solid=True, r=6)
-for i, (x, y) in enumerate([(300, -810), (360, -790), (560, -800), (900, -800), (1100, -810)]):
-    prop("works_crates_%d" % i, "brick_crates", (x, y), [BROWN, RED, BROWN, BLUE, BROWN][i], "stacked crates", solid=True, r=12)
-for i, (x, y) in enumerate([(240, -790), (480, -800), (1000, -790), (1240, -800)]):
-    prop("works_pile_%d" % i, "brick_pile", (x, y), WHITE, "a pile of loose bricks",
-         "Bricks of every colour, in a heap. The heap has an air of having been there a while, waiting for someone to have an idea." if i == 0 else None, solid=False)
-prop("orchard_sign", "brick_sign", (-1100, -860), LIME, "the orchard sign",
-     "THE HILLTOP ORCHARD. The apples are red 1x1s, one to a tree. They have never ripened and will never fall, and you may not pick them, but you're welcome to look.", solid=True, r=6)
-prop("skyline_sign", "brick_sign", (-300, -826), TEAL, "a sign under the tall buildings",
-     "THE SKYLINE. Thirty-two floors of someone's idea of 'high up'. The lifts are very polite, and in no hurry.", solid=True, r=6)
-
-# Street furniture: hydrants, mailboxes, bins and cones along the pavements.
+# Lamps stand on the south pavement of every lane, hydrants and the like beside them.
+for name, y in H_LANES.items():
+    for x in range(-940, 960, 120):
+        if all(abs(x - ax) > 60 for ax in AVENUES):
+            prop("lamp_%s_%d" % (name, x), "brick_lamp", (x, y + HALF - 6), SKY, "a street lamp", solid=True, r=4)
 FURNITURE = [("brick_hydrant", RED, "a fire hydrant", "It has never once been used. It is very proud of this, and stands a little straighter than the other hydrants."),
              ("brick_mailbox", BLUE, "a mailbox", "A mailbox. Inside, one letter, addressed to \"Whoever Lives Here\". It says: \"Welcome. It's lovely. Don't mind the corners.\""),
-             ("brick_trashcan", DKGREY, "a bin", None), ("brick_cone", ORANGE, "a traffic cone", "Somebody put a cone here, years ago, for a reason that has since built itself into the road.")]
-ROW_SIDEWALKS = [(y - ROAD_W // 2 - 6) for y in H_ROADS.values()]
+             ("brick_trashcan", DKGREY, "a bin", None),
+             ("brick_cone", ORANGE, "a traffic cone", "Somebody put a cone here, years ago, for a reason that has since built itself into the road.")]
 k = 0
-for y in ROW_SIDEWALKS:
-    for x in range(-1300, 1300, 190):
-        x += random.randrange(-30, 30)
-        if any(abs(x - ax) < 80 for ax in AVENUES) or random.random() < 0.45:
+for name, y in H_LANES.items():
+    for x in range(-900, 920, 200):
+        x += random.randrange(-24, 24)
+        if any(abs(x - ax) < 70 for ax in AVENUES):
             continue
         typ, col, label, lore = FURNITURE[k % len(FURNITURE)]
         k += 1
-        prop("furn_%d" % k, typ, (x + 70, y), col, label, lore if k % 3 == 0 else None, solid=True, r=6)
+        prop("furn_%d" % k, typ, (x + 60, y + HALF - 6), col, label, lore if k % 3 == 0 else None, solid=True, r=5)
 
-# trees: street trees along the avenues' pavements, orchards and groves in the lots
+# The Quay.
+prop("welcome_sign", "brick_sign", (-110, 570), YELLOW, "a signpost of studs",
+     "WELCOME TO CLICKTON, says the sign, in raised white studs. Underneath, in smaller ones: \"Population: you. Please touch the bricks. They like it.\"", solid=True, r=6)
+prop("quay_bench_w", "brick_bench", (-230, 566), BLUE, "a bench on the quay",
+     "A bench built for two, or one person and a very large dog. The bay laps against the baseplate just beyond it, studs and all.", solid=True, r=11)
+prop("quay_bench_e", "brick_bench", (240, 566), RED, "a bench on the quay",
+     "Somebody has left one single brick on the seat, as if saving it. It's yellow. You put it back exactly where it was.", solid=True, r=11)
+prop("quay_duck", "brick_duck", (-560, 580), YELLOW, "a very large brick duck",
+     "A duck of yellow bricks on a grey plinth, mid-quack. It is the only duck in Clickton, which is why it's allowed to be this big.", solid=True, r=18)
+for i, x in enumerate([-800, -420, 420, 800]):
+    prop("quay_bollard_%d" % i, "brick_bollard", (x, 632), YELLOW, "a bollard", solid=True, r=4)
+for i, (x, y, col) in enumerate([(-780, 700, RED), (-150, 700, YELLOW), (80, 730, GREEN), (640, 704, ORANGE), (860, 730, TEAL), (-600, 730, PINK)]):
+    prop("boat_%d" % i, "brick_boat", (x, y), col, "a little boat",
+         "A boat made of eleven bricks and a very good mast. It bobs a stud's width up and down, which is the most a brick can manage." if i == 0 else None, solid=False)
+prop("moored_boat", "brick_boat", (-230, 700), BLUE, "a boat tied to the pier",
+     "It's tied to the pier with a brick on a string. The boat has never gone anywhere. It's the thought of leaving that matters.", solid=False)
+prop("pier_crates", "brick_crates", (-300, 660), BROWN, "a stack of crates on the pier",
+     "Crates of loose bricks, labelled with colours: RED (MOSTLY). BLUE (SOME). YELLOW (ONE, PROBABLY A MISTAKE).", solid=True, r=12)
+prop("pier_barrel", "brick_barrel", (300, 670), YELLOW, "a barrel",
+     "It rattles. Whatever's inside has a great many corners.", solid=True, r=8)
+prop("lighthouse_sign", "brick_sign", (-292, 652), RED, "a small sign by the lighthouse",
+     "THE LIGHTHOUSE. Its lamp is one clear yellow brick, and every night it shines exactly as far as the end of the pier, which is exactly as far as it needs to.", solid=True, r=6)
+
+# The little square.
+prop("fountain", "brick_fountain", (0, -30), SKY, "the fountain",
+     "A fountain of grey bricks around a blue plate, with a spout of pale plates that never moves and never runs dry. Wishes go in the bowl. They're all the same wish: more bricks.", solid=True, r=30)
+prop("square_plaque", "brick_sign", (-90, 70), TAN, "a plaque in the square",
+     "THE FIRST BRICK. \"When Clickton was begun there was one brick, and it was every colour at once. The builder was so fond of it that, rather than waste it on a corner, they set it into a wall, low down where a hand could find it, and told nobody which wall. It never stopped swirling. They say it's near a quiet end of town, by the water.\"", solid=True, r=6)
+prop("square_duck", "brick_duck", (120, 60), PINK, "a smaller brick duck",
+     "The big duck on the quay has a cousin. This one is pink, and the size of a cat, and it is very, very pleased to be here.", solid=True, r=14)
+prop("clock_sign", "brick_sign", (-60, -110), RED, "a small sign by the clock tower",
+     "THE CLOCK TOWER. The clock is always exactly right, because it's the only one in Clickton, and so it's the one deciding.", solid=True, r=6)
+prop("square_slide", "brick_slide", (140, -90), RED, "a slide",
+     "A slide of blue plates, stepping down. Going down it makes a sound in your head, a soft ker-lik-lik-lik-lik, one for every stud.", solid=True, r=22)
+prop("square_seesaw", "brick_seesaw", (120, -20), BLUE, "a seesaw",
+     "It's balanced exactly level. It has been exactly level for as long as anyone can remember, which is a form of quiet joy.", solid=True, r=18)
+prop("square_picnic", "brick_picnic", (-130, 20), RED, "a picnic table",
+     "A table with a red-and-white cloth made of red and white plates. Somebody has laid out a picnic of tiny bricks. It looks delicious, if you are a brick.", solid=True, r=22)
+for i, (x, y) in enumerate([(-100, -120), (60, -120), (-60, 90), (50, 90)]):
+    prop("square_bench_%d" % i, "brick_bench", (x, y), [YELLOW, GREEN, RED, BLUE][i], "a bench in the square", solid=True, r=11)
+for i, (x, y) in enumerate([(-170, -130), (170, -130), (-170, 90), (170, 90)]):
+    prop("square_planter_%d" % i, "brick_planter", (x, y), BROWN, "a planter",
+         "The flowers in this one are in rainbow order. Somebody took care." if i == 2 else None, solid=True, r=14)
+
+# Signs at the lane corners, and the Brickworks.
+prop("quay_row_sign", "brick_sign", (-440, 515 - 8), ORANGE, "a sign at the lane's end",
+     "QUAY LANE. The shops here sell bricks by the colour, by the stud, and, on request, by the feeling. A little card says: \"ASK FOR THE ONE THAT'S BEEN WAITING.\"", solid=True, r=6)
+prop("high_lane_sign", "brick_sign", (440, 140 + HALF - 6), GREEN, "a sign at a corner",
+     "HIGH LANE. The buildings get taller toward the north, and the lane gets no wider, which is how it ended up so pleasantly shady.", solid=True, r=6)
+prop("works_sign", "brick_sign", (640, -540 + HALF - 6), ORANGE, "the Brickworks sign",
+     "THE BRICKWORKS. Every brick in Clickton was made here, once, in the same kiln. They all came out a different colour. Nobody has ever worked out why, and everyone is rather glad.", solid=True, r=6)
+prop("skyline_sign", "brick_sign", (-640, -540 + HALF - 6), TEAL, "a sign under the tall buildings",
+     "THE SKYLINE. Thirty-two floors of someone's idea of 'high up'. The lifts are very polite, and in no hurry.", solid=True, r=6)
+
+for i, (x, y) in enumerate([(-560, 508), (560, 508), (-560, 168), (560, 168)]):
+    prop("lane_planter_%d" % i, "brick_planter", (x, y), BROWN, "a planter",
+         "A box of bricks with flowers made of smaller bricks, which need no water and are never any trouble." if i == 0 else None, solid=True, r=14)
+
+PROPS = [p for p in PROPS if not in_building(p["position"][0], p["position"][1], 4)]
+for p in PROPS:
+    PLACED.append((p["position"][0], p["position"][1], 18))
+
+
 def tree(x, y, _i):
     TREES.append([x, y])
 
 
-def great(x, y, _i):
-    LANDMARKS.append({"type": "great_tree", "position": [x, y]})
-
-
-for ax, y0, y1 in V_ROADS:
-    for y in range(y0 + 60, y1 - 40, 170):
-        if all(abs(y - ry) > 90 for ry in H_ROADS.values()):
-            for side in (-1, 1):
-                TREES.append([ax + side * (ROAD_W // 2 + WALK + 12), y])
-# hold the trees to places that aren't a building
-def _bld_hit(x, y, rad=10):
-    return any(b["rect"][0] - rad < x < b["rect"][0] + b["rect"][2] + rad and b["rect"][1] - rad < y < b["rect"][1] + b["rect"][3] + rad for b in BUILDINGS)
-TREES = [t for t in TREES if not _bld_hit(t[0], t[1], 14) and abs(t[0]) < 1450 and abs(t[1]) < 1120]
-
-# remove generated furniture/lamps that ended up inside a building
-PROPS = [p for p in PROPS if not _bld_hit(p["position"][0], p["position"][1], 6)]
-
-for p in PROPS:
-    PLACED.append((p["position"][0], p["position"][1], 20))
-for t in TREES:
-    PLACED.append((t[0], t[1], 20))
-scatter((-1450, -590, -810, -250), 3, 60, great)
-scatter(PARK, 38, 24, tree)
-scatter(HILL, 70, 24, tree)
-scatter(YARD_N, 16, 24, tree)
-scatter((-780, -590, -350, -250), 10, 24, tree)
-scatter((350, -590, 800, -250), 10, 24, tree)
-scatter((-1450, 60, -800, 330), 12, 24, tree)
-scatter((800, 60, 1450, 330), 12, 24, tree)
-for rect, n in [(PARK, 8), ((-780, -590, -350, -250), 4), ((350, -590, 800, -250), 4), (HILL, 10), ((-1450, 60, -800, 330), 5), ((800, 60, 1450, 330), 5)]:
-    scatter(rect, n, 14, lambda x, y, i: PROPS.append({"id": "bush_%d_%d" % (x, y), "type": "brick_bush", "position": [x, y], "color": GREEN, "label": "a bush", "solid": True, "collision_radius": 9}))
-scatter(PARK, 5, 16, lambda x, y, i: PROPS.append({"id": "flowerbed_%d_%d" % (x, y), "type": "brick_flowerbed", "position": [x, y], "color": GREEN, "label": "a flowerbed"}))
-scatter((800, 60, 1450, 330), 3, 16, lambda x, y, i: PROPS.append({"id": "bed_%d_%d" % (x, y), "type": "brick_flowerbed", "position": [x, y], "color": GREEN, "label": "a flowerbed"}))
-for rect, n in [((-1450, 60, -800, 330), 4), ((800, 60, 1450, 330), 4), (YARD_N, 5), (HILL, 3)]:
-    scatter(rect, n, 14, lambda x, y, i: PROPS.append({"id": "rocks_%d_%d" % (x, y), "type": "brick_rock", "position": [x, y], "color": GREY, "label": "a heap of grey bricks", "solid": True, "collision_radius": 10}))
+scatter((-190, -165, 190, 105), 7, 24, tree)
+scatter((-990, 520, 990, 630), 7, 24, tree)
 
 # ── the secret ────────────────────────────────────────────────────────────────────────────────────
-SECRET_POS = [COTTAGE_X - 26, 460]
+SECRET_POS = [BRICK_X, COTTAGE_RECT[1] + COTTAGE_RECT[3] + 10]
 SECRET = {
     "id": "rainbow_brick",
     "position": [float(SECRET_POS[0]), float(SECRET_POS[1])],
     "radius": 120.0,
     "prop": {"type": "rainbow_brick", "color": [1.0, 1.0, 1.0], "label": "a brick of every colour", "tags": ["colour", "small", "odd", "old"]},
-    "lore": "One brick, set into the wall among all the others, low down where a hand would find it, and striped in every colour there is. It fits so well you'd never have seen it if it hadn't winked. It's very slightly warm.",
+    "lore": "One brick, set into the wall among all the others, low down where a hand would find it. It fits as if it had always been part of the building, but every colour there is turns slowly through it, round and round, and it's very slightly warm.",
     "reveal": {"type": "always"},
     "found_line": "The first brick of Clickton, every colour at once. It comes out of the wall with a small, happy click.",
     "home_line": "Something has changed at home.",
@@ -592,7 +484,7 @@ HEADER = ("CLICKTON - the little city made entirely of small colourful bricks. T
           "pavements are flat plates, the buildings are brick courses under studded roofs, the trees and props are built piece by "
           "piece, and every visitor (you, your companion, everyone else) is rebuilt out of bricks by the world's actor_look. No people "
           "and no creatures: just the city, tidy and lit and waiting. Its SECRET: one single rainbow brick set into the front wall of "
-          "the Crooked Cottage at the quiet west end of the Quay Road. Generated by tools/gen_clickton_world.py "
+          "the Crooked Cottage at the quiet west end of the Quay Lane. Generated by tools/gen_clickton_world.py "
           "(art: pokepals/tools/gen_clickton.py over tools/brickart) - edit that and re-run, don't hand-tune positions.")
 SECRET_COMMENT = ("This world's one SECRET (docs/home-world-and-secrets-design.md): 'reveal' is 'always' (it is simply there to be found). "
                   "The brick is painted by the cottage's BuildingView 'inlay' (not by WorldArt, which would draw it under the building); "
@@ -655,16 +547,17 @@ for i in range(len(bl)):
 # every building clear of the roads
 for b in bl:
     x, y, w, h = b["rect"]
-    for name, ry in H_ROADS.items():
-        if b["id"] in ("lighthouse", "station") or b["id"].startswith("coach") or b["id"] == "engine":
-            continue
-        assert not (y < ry + ROAD_W // 2 + WALK and y + h > ry - ROAD_W // 2 - WALK and (x < 1500 and x + w > -1500)), "%s sits on %s" % (b["id"], name)
+    if b["id"] in ("lighthouse", "clock_tower"):
+        continue
+    for lx0, ly0, lx1, ly1 in LANE_RECTS:
+        assert not (x < lx1 and x + w > lx0 and y < ly1 and y + h > ly0), "%s %s on lane %s" % (b["id"], b["rect"], (lx0, ly0, lx1, ly1))
 cott = next(b for b in bl if b["id"] == "crooked_cottage")
 assert cott["inlay"]["prop"] == "secret_" + d["secret"]["id"]
 walk_y = cott["rect"][1] + cott["rect"][3]
 assert abs(d["secret"]["position"][1] - walk_y) < 20, "the secret must be standing room from its wall"
+assert abs(d["secret"]["position"][0] - BRICK_X) < 1
 print("buildings:", len(bl), "| plates:", len(d["plates"]), "| props:", len(d["props"]), "| interactive:", sum(1 for p in d["props"] if p.get("interactive")),
-      "| trees:", len(d["trees"]), "| great:", len(d["landmarks"]))
+      "| trees:", len(d["trees"]))
 for path in ["server/priv/world_seeds/clickton.json", "pokepals/tests/world_fixtures/clickton.json"]:
     open(path, "w").write(text)
 print("wrote both files")
