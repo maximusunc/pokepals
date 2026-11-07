@@ -26,6 +26,7 @@ SaveStore="*res://scripts/world/save_store.gd"
 WorldRouter="*res://scripts/world/world_router.gd"
 PlayerIdentity="*res://scripts/world/player_identity.gd"
 Net="*res://scripts/net/net.gd"
+AssetPacks="*res://scripts/net/asset_packs.gd"
 
 [display]
 

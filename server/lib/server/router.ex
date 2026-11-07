@@ -5,6 +5,9 @@ defmodule Server.Router do
     * `GET /health`        — liveness.
     * `GET /worlds`        — the public world catalog (paginated; `?limit=&offset=&display_type=`).
     * `GET /worlds/:id`    — one world's spec by `world_id` (UUID) or `slug`.
+    * `GET /worlds/:id/packs` — the downloadable art packs that world needs beyond the base web client
+      (`Server.Packs`). The client asks this BEFORE joining the world, fetches what it is missing, and
+      only then joins, so a world is never built (or its first messages handled) half-dressed.
 
   The world endpoints are read-only and CDN-friendly (cache by the spec's `version`) — DEFERRED SEAM:
   front them with a CDN / move spec bodies to object storage when the catalog grows. The Godot client
@@ -55,11 +58,34 @@ defmodule Server.Router do
     end
   end
 
+  get "/worlds/:id/packs" do
+    case find_world(id) do
+      nil ->
+        json(conn, 404, %{error: "not_found"})
+
+      world ->
+        json(conn, 200, %{
+          world_id: world.world_id,
+          name: world.name,
+          packs: Server.Packs.for_world(world.slug)
+        })
+    end
+  end
+
   match _ do
     send_resp(conn, 404, "not found")
   end
 
   # --- helpers ---
+
+  # A world by UUID or by slug. (Only a well-formed UUID may go to `Repo.get`, which raises on anything
+  # else; a slug like "nocthollow" is looked up by slug instead.)
+  defp find_world(id) do
+    case Ecto.UUID.cast(id) do
+      {:ok, uuid} -> Server.Worlds.get(uuid) || Server.Worlds.get_by_slug(id)
+      :error -> Server.Worlds.get_by_slug(id)
+    end
+  end
 
   defp catalog_opts(params) do
     []

@@ -86,6 +86,10 @@ godot --headless --path pokepals --script res://tests/smoke_world.gd
 godot --headless --path pokepals --script res://tests/smoke_ui.gd
 godot --headless --path pokepals --script res://tests/smoke_gateway.gd
 godot --headless --path pokepals --script res://tests/smoke_bobbledown.gd
+godot --headless --path pokepals --script res://tests/smoke_packs.gd
+
+# The web build's world-pack planner (Python):
+python3 -m unittest discover -s pokepals/tools/packs
 ```
 
 Opening the project in the Godot editor once does the same import as the first

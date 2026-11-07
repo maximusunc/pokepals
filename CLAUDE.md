@@ -249,6 +249,17 @@ not a blocker** — pick it up if/when a shared world wants it.
 > Companion** (a debugging aid) replays the whole path from step 1 on the same account, keeping your
 > name, friends, journal and coins. The gear menu's **Welcome** rereads all three cards.
 
+> **World packs (2026-11):** the web build no longer ships every world's art in one download. The base
+> `.pck` holds the Vale, homes, wardrobe, companion animals, UI, fonts, shaders and portals; every other
+> world's own art is a separate pack, fetched the first time a player goes there (`AssetPacks`, behind a
+> short `PackLoading` moment, *before* joining the world's channel). `pokepals/tools/packs/build_packs.py`
+> (run by `server/build-web.sh`) builds each world headless to **measure** which art it loads, plans the
+> split (a world's exclusive art -> its pack, a few worlds' shared art -> a kit pack, anything unmeasured
+> stays in the base), writes content-hashed packs plus `packs/manifest.json`, then re-runs every world from
+> the exported base with the real client code to prove nothing went missing. The server reads the manifest
+> (`Server.Packs`) and answers `GET /worlds/:id/packs`. A new world needs no wiring: add the seed, build.
+> Editor runs and native exports still bundle everything. See `docs/web-export.md` ("World packs").
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as

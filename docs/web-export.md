@@ -101,6 +101,72 @@ checkout starts fine but `GET /` returns the 503 until you export and rebuild.
 
 ---
 
+## World packs: every world's own art is its own download
+
+The browser build is split so the first download stays small however many worlds there are.
+
+```
+  index.pck               the BASE — the Vale, every player's home, the wardrobe, the companion's
+                          animals, the UI, fonts, shaders, portals. Everyone downloads this up front.
+  packs/nocthollow.<hash>.pck       Nocthollow's own art, fetched the first time a player goes there
+  packs/bobbledown.<hash>.pck       Bobbledown's
+  packs/manifest.json               which packs exist and which world needs which (the server reads it)
+```
+
+**Building it.** `server/build-web.sh` does everything (it now needs `python3` as well as Godot). The work
+is in [`pokepals/tools/packs/build_packs.py`](../pokepals/tools/packs/build_packs.py), on a scratch copy of
+the project (so your checkout gets no `.import` churn):
+
+1. **Audit.** Every world is built headless with `godot --verbose` and the `res://assets/` files it
+   loads are read off the log. Measured, not guessed. (The home is audited with *every* quality switched
+   on, since a real home only shows some of them.)
+2. **Plan.** The Vale's and the homes' art, plus the shared things pinned in
+   [`tools/packs/packs.json`](../pokepals/tools/packs/packs.json) (fonts, loading screen, wardrobe, the
+   player and companion, portals, and every animal the companion can shift into), is the base. What only
+   one other world loads is **that world's pack**. What 2–3 other worlds share is one **kit** pack they
+   all depend on. Art loaded by more worlds than that is general-purpose, so it joins the base. Anything
+   the audit never saw also stays in the base, so a gap makes the download bigger, **never a sprite
+   missing**.
+3. **Export.** The base is the normal Web preset with the packed files excluded. Each pack is written by
+   `make_pack.gd` (Godot's `PCKPacker`) holding only its assets, named by a hash of its contents.
+4. **Verify.** Every world is built again from the exported base, getting its packs through the game's
+   own client code against a local stand-in server, and must load exactly the art it did from the source.
+   If it doesn't, the build fails and says which file went missing.
+
+`./build-web.sh --monolithic` skips all of it (one big pck, no packs); `--skip-verify` skips step 4.
+Unit tests for the planner: `python3 -m unittest discover -s pokepals/tools/packs`.
+
+**Today's numbers.** The base pck is 1.6 MB (3.5 MB before the split); Bobbledown's pack is 1.8 MB and
+Nocthollow's 0.12 MB. Riverbank, the Ruin, the Maze and the Bazaar use nothing the Vale doesn't, so they
+have no pack (and nothing to download). The real saving is the future one: each new world with art of its
+own adds a pack that only its visitors ever download, and nothing to the base.
+
+**At runtime.** Before the client *joins* a world it calls `AssetPacks.prepare(world_id)`
+([`scripts/net/asset_packs.gd`](../pokepals/scripts/net/asset_packs.gd)):
+
+1. `GET /worlds/<id>/packs` asks the server which packs the world needs (`Server.Packs` reads
+   `packs/manifest.json`; one tiny request per world per session).
+2. Any pack whose probe file isn't already loadable is fetched, size- and SHA-256-checked, kept in
+   `user://packs/` (the browser's own storage on web), and mounted with `ProjectSettings.load_resource_pack`.
+   After that `load("res://assets/…")` just works, so none of the drawing code knows packs exist.
+3. While that takes more than a moment, `PackLoading` shows the loading screen's wordmark and fox with a
+   progress line ("Gathering Nocthollow…"). A pack that arrives quickly shows nothing. If the fetch fails
+   the player goes in anyway, with the plainer fallback look the renderers already have.
+
+Pack file names include their hash, so the server sends them with `immutable` caching and a returning
+player downloads nothing. The client joins the world only *after* its art is here, because the server
+starts talking the moment you join and the world's directors must exist to hear it.
+
+**Only the web build is split.** The editor and the iOS/Android exports bundle all of `res://`, so every
+pack's probe file already exists and `AssetPacks.enabled` (true only on web) keeps it from fetching.
+
+**Adding a world.** Nothing to do: add its seed, run `build-web.sh`. If the world has art of its own it
+gets a pack automatically; the server finds it by the world's `slug`. If its art overlaps another
+world's, they share a kit.
+
+**If a world looks plain after a deploy**, a pack didn't load: check the browser console for
+`AssetPacks:` warnings and that `curl https://your-host/worlds/<id>/packs` lists it.
+
 ## Reaching it over TLS (Tailscale Funnel)
 
 Browsers block a plaintext `ws://` socket from an `https://` page, so the server needs public
@@ -163,8 +229,9 @@ handheld orientation settings, not this snippet. Edit the snippet in the `Web` p
 
 ## Notes / gotchas
 
-- **First-load size.** The `.wasm` + `.pck` are the whole game up front — tens of MB. Fine
-  functionally; just the thing to watch on a phone. `build-web.sh` now gzips (`-9`) the `.wasm`,
+- **First-load size.** Up front a player gets the `.wasm` engine (37.7 MB, 9.4 MB gzipped, and by far the
+  biggest part) plus the base `.pck` (see "World packs"). Fine
+  functionally; just the thing to watch on a phone. `build-web.sh` gzips (`-9`) the `.wasm`,
   `.pck`, `.js` and `.html` after exporting, and `Plug.Static` (`gzip: true`) serves the `.gz`
   sibling to any browser that accepts it (original MIME type kept, so `.wasm` still stream-compiles).
   The originals stay beside them as the fallback. Plug.Static only knows gzip, not brotli; if you

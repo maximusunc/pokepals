@@ -168,12 +168,14 @@ func _ready() -> void:
 	# reply builds from cache (_on_world_spec_unchanged), a changed one from the fresh spec
 	# (_on_world_spec_arrived). Either way it's a clean first paint, never a reload.
 	var data := Net.cached_spec_core(world_id)
-	if Net.is_active() and not data.is_empty():
+	# (Only when its art is already here too: a world with a pack we haven't fetched takes the slower way
+	# below, which fetches the pack BEFORE joining. See _enter_world_when_ready.)
+	if Net.is_active() and not data.is_empty() and AssetPacks.is_world_ready(world_id):
 		_built_etag = Net.cached_etag(world_id)
 		_build_world(data)
 		return
 	_show_loading()
-	Net.enter_world(world_id)  # _build_world runs from _on_world_spec_arrived / _on_world_spec_unchanged
+	_enter_world_when_ready(world_id)  # _build_world runs from _on_world_spec_arrived / _on_world_spec_unchanged
 
 
 ## Build the whole world from its (server-provided) spec CORE: lay out contents, place the player and
@@ -1773,6 +1775,46 @@ func _setup_net() -> void:
 	_presence_dir.apply_session_save_if_any()
 
 
+## Join `world_id`'s channel, but only once its art is here. A world whose own art lives in a downloadable
+## pack (AssetPacks) is fetched FIRST, behind a short loading moment, and joined after: the server starts
+## talking the moment we join (roster, state, ...), and the directors that listen are only created when
+## the world is built, so the join has to wait until the world can be built whole. For every world whose
+## art is already here (the Vale, any editor run, the native builds) this is a plain, immediate join.
+func _enter_world_when_ready(world_id: String) -> void:
+	if not AssetPacks.is_world_ready(world_id):
+		await _gather_art(world_id)
+		# The player may have moved on (or the scene reloaded) while we waited.
+		if not is_inside_tree() or world_id != WorldRouter.current_world:
+			return
+	Net.enter_world(world_id)
+
+
+## Show the loading moment while AssetPacks fetches `world_id`'s packs; go in regardless of how it ends
+## (a failed fetch just means the plainer fallback look).
+func _gather_art(world_id: String) -> void:
+	var c := _fade.color
+	c.a = 1.0
+	_fade.color = c  # cover the empty, not-yet-built scene (and the connect gate, if it's still up)
+	var loading := PackLoading.new()
+	$Fade.add_child(loading)
+	loading.begin("")
+	var on_start := func(world_name: String, _total: int) -> void:
+		loading.begin(world_name)
+	var on_progress := func(done: int, total: int) -> void:
+		loading.set_progress(done, total)
+	AssetPacks.download_started.connect(on_start)
+	AssetPacks.download_progress.connect(on_progress)
+	var ok: bool = await AssetPacks.prepare(world_id)
+	AssetPacks.download_started.disconnect(on_start)
+	AssetPacks.download_progress.disconnect(on_progress)
+	if not is_instance_valid(loading):
+		return
+	if not ok:
+		loading.show_failure()
+		await get_tree().create_timer(1.4).timeout
+	await loading.finish()
+
+
 ## Cover the not-yet-built scene with the black fade and a gentle word while we wait for the server's
 ## spec on a cold first visit — but ONLY when the lobby connect-gate isn't up. The Fade is a very high
 ## CanvasLayer (above the lobby), so blacking it out on a fresh, disconnected boot would hide the gate
@@ -1822,7 +1864,7 @@ func _on_relocate_requested(world_id: String) -> void:
 	if world_id == "" or _built_etag != "":
 		return
 	WorldRouter.current_world = world_id
-	Net.enter_world(world_id)
+	_enter_world_when_ready(world_id)
 
 
 ## The server confirmed our cached spec is still current (we sent a matching known_etag on join, so it

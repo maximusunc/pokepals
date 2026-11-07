@@ -25,5 +25,13 @@ defmodule Server.Endpoint do
     gzip: true,
     only_matching: ~w(index favicon manifest)
 
+  # The world packs (see Server.Packs). Each file's name carries a hash of its content
+  # (`nocthollow.a72d188cf58d.pck`), so a given URL never changes and browsers may keep it forever.
+  plug Plug.Static,
+    at: "/packs",
+    from: {:server, "priv/static/packs"},
+    gzip: true,
+    headers: %{"cache-control" => "public, max-age=31536000, immutable"}
+
   plug Server.Router
 end
