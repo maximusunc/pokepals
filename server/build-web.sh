@@ -47,6 +47,19 @@ mkdir -p "$EXPORT_DIR"
 cd "$PROJECT_DIR"
 "$GODOT" --headless --export-release "$PRESET" "$EXPORT_PATH"
 
+# Pre-compress the big files. `Plug.Static` (gzip: true) serves `<file>.gz` instead of `<file>` to
+# browsers that send `Accept-Encoding: gzip` (all of them), with `Content-Encoding: gzip` and the
+# ORIGINAL file's MIME type, so `.wasm` still streams-compiles. The uncompressed originals stay
+# alongside as the fallback. -9 is slow but this runs once per build; -n drops the timestamp so
+# unchanged files gzip to identical bytes (stable caching/ETags).
+echo ">> Pre-compressing (gzip -9) the export for Plug.Static"
+rm -f "$EXPORT_DIR"/*.gz
+for f in "$EXPORT_DIR"/*.wasm "$EXPORT_DIR"/*.pck "$EXPORT_DIR"/*.js "$EXPORT_DIR"/*.html; do
+  [ -f "$f" ] || continue
+  gzip -9 -n -k -f "$f"
+  printf '   %-24s %10s -> %10s bytes\n' "$(basename "$f")" "$(wc -c <"$f" | tr -d ' ')" "$(wc -c <"$f.gz" | tr -d ' ')"
+done
+
 echo
 echo ">> Web export written to $EXPORT_DIR/"
 echo ">> Next: docker compose up -d --build   (bakes the new export into the image)"

@@ -164,9 +164,12 @@ handheld orientation settings, not this snippet. Edit the snippet in the `Web` p
 ## Notes / gotchas
 
 - **First-load size.** The `.wasm` + `.pck` are the whole game up front — tens of MB. Fine
-  functionally; just the thing to watch on a phone. `Plug.Static` already serves a pre-gzipped
-  `*.gz` sibling if one exists (`gzip: true`), so you can shrink first load by gzipping the export
-  outputs later.
+  functionally; just the thing to watch on a phone. `build-web.sh` now gzips (`-9`) the `.wasm`,
+  `.pck`, `.js` and `.html` after exporting, and `Plug.Static` (`gzip: true`) serves the `.gz`
+  sibling to any browser that accepts it (original MIME type kept, so `.wasm` still stream-compiles).
+  The originals stay beside them as the fallback. Plug.Static only knows gzip, not brotli; if you
+  later put a CDN or reverse proxy in front, brotli there would shave a bit more. Verify with
+  `curl -sI -H 'Accept-Encoding: gzip' https://your-host/index.wasm` (expect `content-encoding: gzip`).
 - **`check_origin`.** Currently `false` (the native client sends no Origin; browsers do, and are
   accepted). Once the public origin is stable, consider tightening it in
   [`config/config.exs`](../server/config/config.exs), e.g.
