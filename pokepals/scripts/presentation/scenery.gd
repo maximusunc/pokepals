@@ -16,6 +16,7 @@ const CULL_MARGIN := 200.0
 
 var _time := 0.0
 var _trees: Array[TreeView] = []  # cached so the per-frame cull doesn't re-walk get_children()
+var _buildings: Array[BuildingView] = []  # Clickton's brick buildings (see add_buildings)
 
 
 ## One shared clock for the whole grove: advance time once, find the on-screen rect once,
@@ -26,11 +27,12 @@ var _trees: Array[TreeView] = []  # cached so the per-frame cull doesn't re-walk
 ## no logic, so nothing breaks while they're off-screen, and the shared `_time` means they
 ## resume mid-sway (no pop) when they scroll back in.
 func _process(delta: float) -> void:
-	if _trees.is_empty():
+	if _trees.is_empty() and _buildings.is_empty():
 		return
 	_time += delta
 	var vis := ViewCull.visible_world_rect(self, CULL_MARGIN)
 	var cull := vis.has_area()  # false in headless / before the camera exists → tick them all
+	_tick_buildings(delta, vis, cull)
 	for tree in _trees:
 		if cull and not vis.has_point(tree.position):
 			if tree.visible:
@@ -41,15 +43,52 @@ func _process(delta: float) -> void:
 		tree.set_time(_time)
 
 
+## Brick buildings: each one off screen is hidden; each on screen fades while our player or companion
+## stands behind it (so a roof never swallows them) and animates its smoke, flags and clocks.
+func _tick_buildings(delta: float, vis: Rect2, cull: bool) -> void:
+	var actors: Array = []
+	for n in ["Player", "Companion"]:
+		var a := get_node_or_null(n) as Node2D
+		if a != null:
+			actors.append(a.position)
+	for b in _buildings:
+		if cull and not vis.intersects(b.cull_rect()):
+			if b.visible:
+				b.visible = false
+			continue
+		if not b.visible:
+			b.visible = true
+		var behind := false
+		for p in actors:
+			if b.occludes(p):
+				behind = true
+				break
+		b.tick(delta, _time, behind)
+
+
+## Stand the world's brick buildings in the depth-sorted layer (the spec's `buildings` list). Returns
+## the views, so the controller can bind the secret brick to the building that holds it.
+func add_buildings(list: Array, style: ArtStyle) -> Array:
+	var out: Array = []
+	for spec in list:
+		var bv := BuildingView.new()
+		bv.setup(spec, style)
+		add_child(bv)
+		_buildings.append(bv)
+		out.append(bv)
+	return out
+
+
 ## Spawn the world's trees as individually sortable nodes. `border_pts` is the same
 ## treeline the collision build uses — the server-generated ring from the spec's
 ## "border_trees" — so the drawn ring keeps matching its colliders.
 func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	# Clear any trees from a previous populate (actors are kept — they're scene-defined).
 	for child in get_children():
-		if child is TreeView or child is PortalView or child.has_meta("understory"):
+		if child is TreeView or child is PortalView or child is BuildingView or child.has_meta("understory"):
 			child.queue_free()
 	_trees.clear()
+	_buildings.clear()
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})

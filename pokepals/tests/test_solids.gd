@@ -11,6 +11,26 @@ static func run_all() -> int:
 	fails += _test_slides_along_obstacle()
 	fails += _test_leaves_a_clear_point_untouched()
 	fails += _test_build_includes_the_right_categories()
+	fails += _test_buildings_block_their_whole_footprint()
+	return fails
+
+
+static func _test_buildings_block_their_whole_footprint() -> int:
+	var world := { "buildings": [{ "rect": [100, 100, 120, 90] }], "plates": [{ "rect": [0, 0, 60, 60], "solid": true }, { "rect": [500, 500, 60, 60] }] }
+	var solids := Solids.build(world, [], {})
+	var fails := 0
+	# a body dropped just inside the building's edges and corners, ends up outside it
+	for inside in [Vector2(160, 104), Vector2(104, 150), Vector2(104, 104), Vector2(216, 186)]:
+		var p := Solids.resolve(inside, 6.0, solids, _big_bounds(), 2.0)
+		var out := not Rect2(100, 100, 120, 90).has_point(p)
+		fails += _check("a body at %s is pushed out of the building (ended at %s)" % [inside, p], out)
+	# a clear spot beside it is left alone, and the plain (non-solid) plate adds nothing
+	var free := Solids.resolve(Vector2(300, 145), 6.0, solids, _big_bounds(), 2.0)
+	fails += _check("open ground beside a building is untouched", free.is_equal_approx(Vector2(300, 145)))
+	var on_plate := Solids.resolve(Vector2(530, 530), 6.0, solids, _big_bounds(), 2.0)
+	fails += _check("a non-solid plate does not block", on_plate.is_equal_approx(Vector2(530, 530)))
+	var water := Solids.resolve(Vector2(30, 30), 6.0, solids, _big_bounds(), 2.0)
+	fails += _check("a solid plate (water) blocks", not Rect2(0, 0, 60, 60).has_point(water))
 	return fails
 
 

@@ -179,6 +179,26 @@ not a blocker** — pick it up if/when a shared world wants it.
 >
 > Layout and lore: `tools/gen_bobbledown_world.py`. Art: `pokepals/tools/gen_bobbledown.py`.
 
+> **Clickton (2026-11):** the second world that doesn't reuse the shared art, and the first to use the
+> world packs for it: a small **city made entirely of small colourful bricks** (not called by the
+> obvious name). Everything is a brick, you and your companion included. No people, no creatures.
+> - **Ground:** a studded baseplate, through the existing pixel ground (`ck_terrain.png` via the art
+>   block's `ground.terrain`, loose bricks as its litter). **Plates** (`WorldArt._parse_plates`, the
+>   spec's `plates`) are flat rectangles laid on it: roads, pavements, plazas, the studded water.
+> - **Buildings:** the spec's `buildings`, each a `BuildingView` (`scripts/presentation`), a y-sorted node
+>   in `Scenery` (so you walk behind one) built from tinted brick-course, stud and roof tiles plus rects:
+>   awnings, windows, doors, stepped tiers, chimney smoke, flags, a clock. It fades while your pair stands
+>   behind it. Footprints collide through `Solids.rect_solids` (a stack of segment solids, so the nav
+>   grid understands them with no change).
+> - **Everyone is bricks:** an `actor_look.brick` rebuilds every player and companion out of studded
+>   bricks (`assets/brick_actor.gdshader`, applied by `OtherworldLook`), whatever they wear: each 4x4
+>   texel cell becomes one brick in the nearest stock colour. No new per-animal art.
+> - **Secret:** one rainbow brick in a cottage wall at the quiet west end of the Quay Road (`reveal:
+>   always`). The wall draws it (BuildingView `inlay`; WorldArt would paint it under the building, so its
+>   type is `unseen`); taking it clears it. Its keepsake draws at home as a little striped brick.
+> - Art: `pokepals/tools/gen_clickton.py` over `tools/brickart/bricks.py` (an oblique voxel renderer; Pillow
+>   only). Layout and lore: `tools/gen_clickton_world.py`. Pack builds pick the world up with no wiring.
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

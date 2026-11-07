@@ -32,7 +32,10 @@ defmodule Server.Seeds do
       tags: ["night", "glow", "explore", "creatures", "otherworld"], accent: [0.45, 0.85, 1.0], featured: true},
     %{world_id: "77777777-7777-7777-7777-777777777777", slug: "bobbledown", name: "Bobbledown", file: "bobbledown.json",
       blurb: "A soft, round world breathed by a sleeping giant. Gumdrop hills, fizzing water, and creatures that bounce.",
-      tags: ["round", "soft", "bubbles", "explore", "creatures", "otherworld"], accent: [1.0, 0.72, 0.88], featured: true}
+      tags: ["round", "soft", "bubbles", "explore", "creatures", "otherworld"], accent: [1.0, 0.72, 0.88], featured: true},
+    %{world_id: "88888888-8888-8888-8888-888888888888", slug: "clickton", name: "Clickton", file: "clickton.json",
+      blurb: "A little city built entirely of small colourful bricks, you and your companion included. Look low down.",
+      tags: ["city", "bricks", "toys", "explore", "cozy", "secret"], accent: [0.96, 0.78, 0.18], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

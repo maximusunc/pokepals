@@ -247,6 +247,8 @@ func _build_world(cached: Dictionary) -> void:
 	# Scenery layer, using the same border points as the colliders so drawing matches.
 	_scenery.populate(data, border_pts, _style)
 	_scenery.add_understory(_world_art.understory_spots(), _style)
+	# Clickton's brick buildings, depth-sorted like trees; the one holding the secret gets its brick bound.
+	_bind_inlays(_scenery.add_buildings(data.get("buildings", []), _style))
 	# Every doorway (each world's portal home, the Vale's Gateway) stands in the same depth-sorted
 	# layer as a PortalView, so you walk in front of it or behind it; WorldArt draws only its light.
 	for p in _portals:
@@ -575,6 +577,23 @@ func is_daycycle_enabled() -> bool:
 ## both bodies, so the doorway is walkable for everyone present. Rebuilt from a deep copy so the (shared,
 ## cached) spec stays untouched — which is what lets the Ruin reset closed on a later revisit. Part of the
 ## host seam: the RuinController calls this when the server confirms a ward open.
+## A building whose wall holds the world's secret brick draws it itself (a prop in WorldArt would be
+## painted under the building): bind it to that secret's prop, or retire it if the secret is already found.
+func _bind_inlays(views: Array) -> void:
+	for bv: BuildingView in views:
+		var inlay: Dictionary = bv.spec.get("inlay", {})
+		if inlay.is_empty():
+			continue
+		var bound := false
+		for e in _interactables:
+			if String(e.get("id", "")) == String(inlay.get("prop", "")):
+				bv.bind_inlay(_world_art, int(e["render_index"]))
+				bound = true
+				break
+		if not bound:
+			bv.hide_inlay()
+
+
 func rebuild_solids_dropping(slab_id: String) -> void:
 	var data_copy: Dictionary = _world_data.duplicate(true)
 	for it in data_copy.get("props", []):
