@@ -38,6 +38,7 @@ func _init() -> void:
 	failures += TestArtStyle.run_all()
 	failures += TestPathShape.run_all()
 	failures += TestWorldPortals.run_all()
+	failures += TestPackLogic.run_all()
 
 	print("")
 	if failures == 0:

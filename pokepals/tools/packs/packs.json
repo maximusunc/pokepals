@@ -1,0 +1,17 @@
+{
+	"_comment": "How the web build splits its art into downloads (see build_packs.py and docs/web-export.md). The BASE pck is what every player downloads up front; every other world's own art goes in a pack fetched when they first go there. A file is packed only if a world other than the base worlds actually loads it (measured by building each world headless), so an unmeasured file always stays in the base: the failure mode is a larger download, never a missing sprite.",
+	"base_worlds": ["vale", "home"],
+	"_base_worlds_comment": "Worlds whose art is always in the base. The Vale is where everyone starts; 'home' is every player's own place, built from a template whose qualities can reach any shared prop, so it is audited with all of them switched on.",
+	"pin_base": [
+		"res://assets/fonts/*",
+		"res://assets/loading/*",
+		"res://assets/cosmetics/*",
+		"res://assets/sprites/player.png",
+		"res://assets/sprites/companion.png",
+		"res://assets/sprites/portal_*",
+		"res://assets/sprites/gateway_*"
+	],
+	"_pin_base_comment": "Shared by design, whatever the audit sees: fonts, the loading screen, the wardrobe, the player and companion bodies, and the portals. Also pinned, from data/pals.json: every species the companion can shift into (they re-roll at random, so a world's audit can't tell which it will meet).",
+	"kit_max_worlds": 3,
+	"_kit_comment": "Art loaded by 2..kit_max_worlds non-base worlds goes in one shared 'kit' pack they all depend on, instead of being duplicated in each. Art used by more worlds than that is general-purpose, so it joins the base."
+}
