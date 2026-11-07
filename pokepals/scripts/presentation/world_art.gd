@@ -16,6 +16,8 @@ var _paths: Array = []     # [ { from: Vector2, to: Vector2, color: Color } ]
 var _hedges: Array = []    # [ { a: Vector2, b: Vector2, t: float } ] — the maze's tall hedge walls
 var _walls: Array = []     # [ { a, b, t } ] — a souk's sandstone walls (the Bazaar's lane)
 var _roofs: Array = []     # [ Rect2 ] — the rooftops of the buildings around a souk's lane
+var _plates: Array = []    # [ { rect, kind, color, tex, raised, shimmer } ] — Clickton's flat studded/smooth plates (roads, pavements, water)
+var _unseen := {}          # prop types WorldArt never draws: something else paints them (Clickton's wall-set secret brick)
 var _flowers: Array = []   # [ { pos: Vector2, color: Color, phase: float } ]
 var _grass: Array = []     # [ { pos: Vector2, len: float, color: Color, phase: float } ]
 var _interactables: Array = []  # [ { pos, color, type, pulse, examined: bool, content: String } ]
@@ -139,6 +141,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	_hedge_world_tile = float(hedge_cfg.get("world_tile", 44.0))
 	if _pond_tex != null or _river_tex != null or _pool_tex != null or _hedge_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+	_parse_plates(data)
 
 	_load_prop_sprites()
 
@@ -302,6 +305,9 @@ func _load_prop_sprites() -> void:
 	_prop_gloss.clear()
 	_prop_scale.clear()
 	var props_cfg: Dictionary = _style.entity("props")
+	_unseen.clear()
+	for t in props_cfg.get("unseen", []):
+		_unseen[String(t)] = true
 	if String(props_cfg.get("render", "")) == "sprite":
 		var prefix := String(props_cfg.get("prefix", "res://assets/sprites/prop_"))
 		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
@@ -321,6 +327,51 @@ func _load_prop_sprites() -> void:
 				var gloss_path := prefix + ty + "_gloss" + suffix
 				if ResourceLoader.exists(gloss_path):
 					_prop_gloss[ty] = ResourceLoader.load(gloss_path)
+
+
+## Clickton's PLATES: flat rectangles of brick laid over the baseplate, the city's roads, pavements,
+## plazas and water. Each is { rect [x,y,w,h], kind, color, solid?, shimmer? }: kind "stud" is a studded
+## plate, "flat" a smooth tiled one, "road" the road's grey plate, "mark" a painted line (a plain colour).
+## The art direction's "plate" entity names the three tiles; a plate tints its tile with its colour.
+func _parse_plates(data: Dictionary) -> void:
+	_plates.clear()
+	var cfg: Dictionary = _style.entity("plate")
+	var tiles := {
+		"stud": SpriteSlot.resolve(cfg, "stud"),
+		"flat": SpriteSlot.resolve(cfg, "flat"),
+		"road": SpriteSlot.resolve(cfg, "road"),
+	}
+	for pl in data.get("plates", []):
+		var r: Array = pl["rect"]
+		var kind := String(pl.get("kind", "stud"))
+		var tex: Texture2D = tiles.get(kind)
+		if tex != null:
+			texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
+		_plates.append({
+			"rect": Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])),
+			"kind": kind, "color": WorldData.to_color(pl.get("color", [0.7, 0.7, 0.7])), "tex": tex,
+			"raised": kind != "mark", "shimmer": bool(pl.get("shimmer", false)),
+		})
+
+
+func _draw_plates(vis: Rect2, cull: bool) -> void:
+	for pl in _plates:
+		var r: Rect2 = pl["rect"]
+		if cull and not vis.intersects(r.grow(4.0)):
+			continue
+		var col: Color = pl["color"]
+		if bool(pl["shimmer"]):
+			var k := 1.0 + 0.05 * sin(_time * 1.3 + r.position.x * 0.013 + r.position.y * 0.007)
+			col = Color(col.r * k, col.g * k, col.b * k, col.a)
+		var tex: Texture2D = pl["tex"]
+		if tex == null:
+			draw_rect(r, col)
+		else:
+			draw_texture_rect(tex, r, true, col)
+		if bool(pl["raised"]):
+			# the plate's thickness: a dark edge below it and a lit rim along its top
+			draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 2.0), col.darkened(0.45))
+			draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.0), col.lightened(0.25))
 
 
 ## A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.
@@ -954,6 +1005,13 @@ func take_interactable(index: int) -> void:
 		queue_redraw()
 
 
+## Whether this interactable is gone from the world (a secret that has been taken) or hidden for now.
+func is_interactable_gone(index: int) -> bool:
+	if index < 0 or index >= _interactables.size():
+		return true
+	return bool(_interactables[index].get("taken", false)) or bool(_interactables[index].get("hidden", false))
+
+
 ## Hide or show an interactable for now (unlike take_interactable, this can be undone): the Gateway's
 ## glow stays off the ground until a newcomer has found their companion.
 func set_interactable_hidden(index: int, hidden: bool) -> void:
@@ -1035,6 +1093,8 @@ func _draw() -> void:
 		draw_rect(rt["rect"], c)
 
 	# (the pixel ground's litter — tufts, clover, pebbles, leaves, flowers — is drawn by _litter_under)
+
+	_draw_plates(vis, cull)
 
 	# a soft world's sugared dapples: one quad each from the same pre-drawn disc, so they batch into a
 	# handful of draw calls (an anti-aliased circle apiece cost ~200 calls and ~20k triangles a frame)
@@ -1208,6 +1268,8 @@ func _draw() -> void:
 ## One prop's own figure (no shadow, light or highlight): a baked sprite when it has one, else its
 ## procedural drawing. Shared by the live pass and the static bake (see StaticBake).
 func _draw_prop_body(it: Dictionary) -> void:
+	if _unseen.has(String(it["type"])):
+		return
 	if _try_blit_prop(it):
 		return
 	match String(it["type"]):
@@ -2113,6 +2175,17 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# bobbing just above the shore of the Fizzwell
 			_draw_forever_bubble(p + Vector2(0, -14 + sin(_time * 1.4) * 2.5), 11.0, color)
 			draw_circle(p + Vector2(0, 6), 8.0, Color(0.42, 0.3, 0.48, 0.14), true, -1.0, true)
+		"rainbow_brick":
+			# Clickton's secret (the one brick of every colour) and its keepsake at home: a small 2x1 brick
+			# striped in the whole box of colours, two studs on top, with a soft shine
+			var stripes := [Color(0.77, 0.16, 0.11), Color(0.85, 0.52, 0.25), Color(0.96, 0.80, 0.19), Color(0.16, 0.59, 0.27), Color(0.05, 0.41, 0.67), Color(0.48, 0.27, 0.75)]
+			draw_rect(Rect2(p.x - 9.0, p.y + 3.0, 20.0, 5.0), Color(0, 0, 0, 0.14))
+			for i in 6:
+				var sc: Color = stripes[i]
+				draw_rect(Rect2(p.x - 9.0 + float(i) * 3.0, p.y - 3.0, 3.0, 7.0), sc)
+				draw_rect(Rect2(p.x - 9.0 + float(i) * 3.0, p.y - 7.0, 3.0, 4.0), sc.lightened(0.22))
+			for sx in [-6.0, 3.0]:
+				draw_rect(Rect2(p.x + sx, p.y - 10.0, 4.0, 3.0), Color(1, 1, 1, 0.75 + 0.2 * sin(_time * 2.0)))
 		"kept_bubble":
 			# its keepsake: the same bubble, resting in a little cream cup on a stem
 			draw_circle(p + Vector2(0, 6), 9.0, Color(0.42, 0.3, 0.48, 0.16), true, -1.0, true)

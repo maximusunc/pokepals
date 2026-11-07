@@ -9,6 +9,8 @@ extends Node2D
 ##     up its outline;
 ##   * a glow — this node, added as a child drawn BEHIND the actor: a soft breathing aura, a pool of
 ##     light on the ground beneath it, and a few motes of light orbiting it;
+##   * OR, if the look carries a `brick` (Clickton), the actor is rebuilt out of studded bricks instead
+##     (BRICK_SHADER) and nothing else changes;
 ##   * OR, if the look carries a `bubble` (Bobbledown), a soap bubble round each of them instead of
 ##     the glow (VisitorBubble): you're just a visitor in a bubble world.
 ##
@@ -16,6 +18,7 @@ extends Node2D
 ## actor_look never calls this, so the meadow worlds look exactly as before.
 
 const SHADER := preload("res://assets/otherworld_actor.gdshader")
+const BRICK_SHADER := preload("res://assets/brick_actor.gdshader")
 const COLOR_KEYS := ["shadow_mult", "light_mult", "cast", "line_glow"]
 const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation", "line_amount", "line_cut", "pulse_speed"]
 
@@ -29,6 +32,15 @@ var _time := 0.0
 ## is smaller than its person). A no-op for an empty look.
 static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	if look.is_empty() or actor == null:
+		return
+	# Clickton: a `brick` look rebuilds the actor out of bricks (assets/brick_actor.gdshader) and nothing else.
+	if look.has("brick"):
+		var bmat := ShaderMaterial.new()
+		bmat.shader = BRICK_SHADER
+		var bcfg: Dictionary = look["brick"]
+		bmat.set_shader_parameter("cell", float(bcfg.get("cell", 4.0)))
+		bmat.set_shader_parameter("quantize", float(bcfg.get("quantize", 0.6)))
+		actor.material = bmat
 		return
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER

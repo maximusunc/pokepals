@@ -59,7 +59,35 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 			"b": WorldData.to_vec2(h["to"]),
 			"radius": float(h.get("thickness", 28.0)) * 0.5,
 		})
+	# Brick BUILDINGS and solid plates (Clickton): a footprint rect becomes a stack of segment solids
+	# (see rect_solids), so everything that already understands segments (the resolver, the nav grid)
+	# understands a building.
+	for b in world_data.get("buildings", []):
+		solids.append_array(rect_solids(b["rect"]))
+	for pl in world_data.get("plates", []):
+		if bool(pl.get("solid", false)):
+			solids.append_array(rect_solids(pl["rect"]))
 	return solids
+
+
+## A footprint [x, y, w, h] as segment solids: horizontal capsules of radius RECT_R stacked down the
+## rect, at most RECT_STEP apart, so they cover it edge to edge (its corners round off by RECT_R).
+const RECT_R := 10.0
+const RECT_STEP := 20.0
+
+static func rect_solids(rect: Array) -> Array:
+	var x := float(rect[0])
+	var y := float(rect[1])
+	var w := float(rect[2])
+	var h := float(rect[3])
+	var out: Array = []
+	var r := minf(RECT_R, minf(w, h) * 0.5)
+	var rows := maxi(1, ceili((h - 2.0 * r) / RECT_STEP) + 1)
+	var span := h - 2.0 * r
+	for i in rows:
+		var cy := y + r + (span * float(i) / float(rows - 1) if rows > 1 else span * 0.5)
+		out.append({ "a": Vector2(x + r, cy), "b": Vector2(x + w - r, cy), "radius": r })
+	return out
 
 
 static func _pond_solid(pond: Dictionary) -> Dictionary:
