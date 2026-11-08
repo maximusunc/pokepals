@@ -583,6 +583,7 @@ func is_daycycle_enabled() -> bool:
 ## A building whose wall holds the world's secret brick draws it itself (a prop in WorldArt would be
 ## painted under the building): bind it to that secret's prop, or retire it if the secret is already found.
 func _bind_inlays(views: Array) -> void:
+	_secret_dir.bind_buildings(views)   # a cliff in the echo canyon holds the secret's cave
 	for bv: BuildingView in views:
 		var inlay: Dictionary = bv.spec.get("inlay", {})
 		if inlay.is_empty():
@@ -932,6 +933,8 @@ func _process(delta: float) -> void:
 		{ "id": "pet", "label": "Pet", "enabled": true },
 		{ "id": "call", "label": "Call", "enabled": true },
 		{ "id": "seek", "label": "Go look", "enabled": _ruin.has_unopened_ward() },
+		# Hollowsong: ask for a howl (offered in every shape so it is discoverable; only a wolf can)
+		{ "id": "howl", "label": "Howl", "enabled": _secret_dir.howl_available() },
 	]
 	for sp in _companion.available_form_species():
 		radial_actions.append({ "id": "form:" + String(sp), "label": String(sp).capitalize(), "enabled": true })
@@ -1009,6 +1012,7 @@ func _on_radial_action(id: String) -> void:
 		"pet": _try_pet()
 		"call": _try_call()
 		"seek": _ruin.try_seek()
+		"howl": _secret_dir.try_howl()
 
 
 ## Map a gear-menu tap to the SAME handler its old button used.

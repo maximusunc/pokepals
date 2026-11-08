@@ -754,6 +754,96 @@ playtest).
   (`process_priority`), so the clear patch is placed in the same space as the player sprite. Checked in a
   windowed run: the patch's centre equals the player's position on every sampled frame while walking.
 
+## Hollowsong — built 2026-11, every choice below OPEN for the owner's review
+
+Hollowsong follows the Drifthallow template: **an echo canyon** (banded red cliffs, wind-carved arches, a dry riverbed
+at sunset, every sound coming back as a visible ripple), hiding **a cave that answers wrong**. The pitch was agreed
+(wolf-form howl on command; the canyon howls back with ripples computed from the wall geometry; one echo returns from
+somewhere it shouldn't, readable by timing/colour/shape plus a first-time hint; move and howl again to triangulate; two
+players find it faster, so howls are relayed; other forms cannot howl and get a cue; bond decided in data; walk up and a
+crack opens; a new reveal type). **Everything finer was decided by the builder and is listed here for review.** Nothing
+below changes the pitch; if any of it is wrong, say so and it is data or a small edit. Catalog id `dddddddd-...`, slug
+`hollowsong`, listed and featured, with the standard small portal home beside the arrival spot.
+
+**What it is.** `server/priv/world_seeds/hollowsong.json` (and the test fixture) from `tools/gen_hollowsong_world.py`; art
+from `pokepals/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`.
+
+**The secret: reveal type `echo`.** Spec shape (`secret.reveal`): `walls` (the echoing wall segments, `[x1,y1,x2,y2]`),
+`cave {origin, mouth}`, every number of the howl and of the cave, and `lines` (the hints). Code: pure `EchoField` (geometry)
+and `EchoGuide` (cooldown, hint events, notice, reveal) in `scripts/world` (21 tests, `test_echo.gd`); presentation
+`HowlDirector` (`mechanics/`), `EchoRipples` and `CliffView`; server `Server.Howl` + two lines in `world_channel.ex`.
+
+**Judgment calls (all open):**
+1. **How the howl is asked for.** A **Howl** entry on the companion radial's inner arc, offered in every form of any world
+   with an echo secret (not hidden unless wolf), because a hidden entry is undiscoverable. In wolf form it howls; in any
+   other form the companion looks at the nearest wall and a hint says a wolf's voice would carry here (the cue). The arrival
+   line and two notice boards (the landing's, the Choir's) also say "wolf, then Howl". Getting the wolf is F-1's existing
+   Wolf radial entry; the companion's drift can also land on it. The wolf is held only for its bond-scaled hold, so a player
+   re-picks it; it is never forced.
+2. **What a howl does.** The companion stands still and lifts its head (the guide `hold` plus `listen_toward` skyward) for
+   1.5 s, small gold arcs rise off it, a thin call ring leaves it. The ears are the player's own position, the voice the
+   companion's. Cooldown 4.0 s fresh down to 2.4 s bonded; hearing a friend's howl never costs you your own cooldown.
+3. **How the walls answer.** Mirror-image method: reflect the voice across each wall's line, a straight line from the image
+   to your ears must cross the wall's extent, and neither leg may pass through another wall. The returning wavefront is a
+   circle centred on the image, cut to the wall's ends (gold, thin, a soft body and two trailing rings), starting as the
+   wall's own outline and spreading back to you, arriving at path/speed. Speed 600 px/s; strength falls with path length.
+   The 28 nearest walls are considered per howl (bounds the cost).
+4. **The walls are the cliffs' footprints.** Every colliding cliff (and arch leg) contributes its four edges, so the sound
+   and the collision share one geometry (164 segments). One-sided in effect: you only hear a wall you could actually see.
+5. **How the wrong answer reads** (all three of the pitch's cues, plus more): it is **late** (out-and-back to the cave plus a
+   0.35 s "hollow" beat), **violet** where walls are gold, **thick, dark-edged and double** (a solid ring and a dashed one
+   behind it) where walls are thin, it blooms softly where it is born, and on arriving it leaves a **dotted bearing line
+   with a chevron** toward where it seemed to come from, lingering 16 s so a second howl can cross it. The "wrong" hint is
+   said when it arrives, once. Silence (a howl nothing answers) has its own once-only line.
+6. **Triangulation.** The apparent origin is the cave seen with a bearing error (seeded per howl, so it differs every time),
+   at most 0.36 rad (about 21 degrees) at full range for a fresh companion, 0.09 bonded, shrinking toward 20% of that up
+   close. One howl is a rough bearing; two from two places cross near the cave (a unit test does exactly that).
+7. **Bond** (all data): walls' reach 1500 -> 2300 px of path; the cave hears from 1250 -> 1900 px; the wrong answer is
+   0.72 -> 1.0 as clear; its bearing error 0.36 -> 0.09 rad; cooldown 4.0 -> 2.4 s; the companion notices the cave from
+   300 -> 640 px and points more often (16 -> 6 s between points).
+8. **Better together.** The client sends only the event; the server stamps where from its own last-known position of the
+   player (no spoofing), relays `howled` to everyone else, only in a world whose secret is `echo`, at most once per 1.2 s per
+   player. A friend's howl draws the same ripples fainter, including the wrong one and its bearing line, using a neutral
+   bond (0.5) since bond is not relayed. Nothing is kept server-side.
+9. **Generous triggers (playtest lessons).** The reveal needs only **you**, in any form, within 210 px of the cave mouth. The
+   companion **notices** the cave as you come near (in any shape) and points at it for 2.5 s (the Riverbank/Drifthallow
+   pattern, `EchoGuide.update`). Nothing a player naturally does (pet, call, change form, wander) resets anything: the reveal
+   is monotonic and the howl has no state to break. The cave's fissure is a faint hairline from the start so it can be
+   found by eye too.
+10. **The cave and the stone.** The cave is a crack in the back wall of a slot in the north-east rim ("the Hush", a
+    200 px wide, 320 px deep corridor between two deep cliffs). Walking within 210 px opens it (it widens over 2 s, glows
+    violet, motes drift out) and the **answering stone** (a smooth red bowl with a violet light) is there on its threshold
+    (placed 22 px below the cliff's foot so the cliff does not paint over it). Examining it is the ordinary claim. The
+    server check stays minimal and honest ("this world, standing at the stone"); it cannot tell a found cave from a
+    walked-in one. Once found, the cave stays open and howling stays a quiet toy.
+11. **Cliffs.** `CliffView` extends `BuildingView`: rock-grain tile tinted in seeded strata bands, a lit/shaded edge, scree
+    at the foot, fissures, a sandy top, stepped `tiers`; each fades while you stand behind it. The north rim is tall (nothing
+    walkable lies behind it), the south rim low so it never hides the floor. Arches are a cliff with an `arch` opening and
+    `solid_rects` for its legs (a one-line change in `Solids.build`), so you can walk under them.
+12. **Layout.** 3600x2600, eight regions (Sundown Landing, Red Stair, Dry Run, Whisper Walls, the Choir, Hoodoo Flats, the
+    Hush, Cottonwood Bend), 38 cliffs, 3 arches, 7 seeps, 3 great cottonwoods, ~290 trees, ~170 props. The dry riverbed is
+    the existing `vein` band (a flat, sunken, cracked strip). The generator flood-fills the walkable ground from the spawn and
+    asserts the stone, the slot, every region and every arch's far side is reachable. The slot, the approach and the stone are
+    kept clear of trees and props.
+13. **Look.** Gold sunset held (`daycycle.hold`), sun-baked ground in five moods with its own terrain/litter atlas
+    (`hs_terrain`, `hs_details`), junipers, sage, cottonwoods and dry willows, slow gold leaves and dust motes, a few drifting
+    cloud shadows. Visitors are NOT re-lit. No native creatures (optional, skipped).
+14. **Keepsake and qualities.** `kept_echo_stone` (the bowl on a slab of sandstone), drawn by `WorldArt` like the other
+    secrets. Qualities `old`, `glowing`, `wild`; temperament curious, middling energy, a touch clingy.
+15. **Lore and lines** (the boards, props, the eight hints and the found line) are the builder's wording.
+16. **Performance.** Ripples are drawn only where the circle can cross the screen and only the segments in view (draw calls
+    follow the view, not the number of howls or friends); the occlusion test is bounded to the 28 nearest walls and runs once
+    per howl; static cliffs are drawn once (only the cave's cliff animates, and only after it opens). Nothing allocates per
+    frame. *Phone frame rate not measured.*
+
+**Verified:** Godot unit suite (new `TestEcho`) and `smoke_hollowsong`; a scratch run through the REAL loop (scene un-paused
+each frame, companion met with a bond, the wolf chosen through `_on_radial_action("form:wolf")`, the howl through
+`_on_radial_action("howl")`, the player walked into the slot with `Input.action_press("ui_up")`): gold arcs, the violet answer
+and its bearing line were seen in Xvfb screenshots, the cave opened as the player reached it and the stone rose; a second run
+confirmed a found secret reopens with the cave open, the stone gone and howling still on offer. Elixir: the standalone
+`secret_reveal_test.exs` and `howl_test.exs` pass; `mix test` could not run (hex.pm blocked), so the new channel tests are
+unrun. *Not checked:* the world-pack build, phone frame rate, a real two-player session, and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

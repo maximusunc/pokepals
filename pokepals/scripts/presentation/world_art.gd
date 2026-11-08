@@ -1887,6 +1887,22 @@ func _draw_bronze_bell(base: Vector2, tint: Color, k: float, post: bool) -> void
 	SoftGlow.draw(self, ring_c, 14.0 * k, Color(1.0, 0.86, 0.5, 0.10 + 0.05 * sin(_time * 1.7)), 0.8)
 
 
+## The answering stone: a smooth bowl of red stone (a lit rim, a dark hollow with a violet light in it) and two
+## thin rings opening from the lip, slowly, as if it were saying the last thing it heard back. `k` scales it.
+func _draw_echo_stone(base: Vector2, tint: Color, k: float) -> void:
+	var breathe := 0.7 + 0.3 * sin(_time * 1.5 + _phase_for(base))
+	draw_circle(base + Vector2(0.0, 5.0 * k), 11.0 * k, Color(0.22, 0.08, 0.08, 0.20), true, -1.0, true)
+	draw_circle(base + Vector2(0.0, 2.0 * k), 9.0 * k, Color(0.52, 0.24, 0.17), true, -1.0, true)
+	draw_circle(base + Vector2(-1.0, 0.0) * k, 8.0 * k, Color(0.70, 0.36, 0.24), true, -1.0, true)
+	draw_arc(base + Vector2(-1.0, 0.0) * k, 8.0 * k, PI * 1.05, PI * 1.85, 14, Color(0.92, 0.62, 0.44), 1.5 * k, true)
+	draw_circle(base + Vector2(0.0, 0.0), 5.4 * k, Color(0.20, 0.12, 0.26), true, -1.0, true)
+	draw_circle(base + Vector2(0.0, 0.5 * k), 3.4 * k, Color(tint.r, tint.g, tint.b, 0.55 + 0.3 * breathe), true, -1.0, true)
+	SoftGlow.draw(self, base + Vector2(0.0, -2.0 * k), 18.0 * k, Color(tint.r, tint.g, tint.b, 0.20 * breathe), 0.8)
+	for j in 2:
+		var t := fposmod(_time * 0.4 + float(j) * 0.5, 1.0)
+		draw_arc(base + Vector2(0.0, -1.0 * k), (7.0 + 17.0 * t) * k, 0.0, TAU, 28, Color(tint.r, tint.g, tint.b, 0.30 * (1.0 - t)), 1.0, true)
+
+
 ## A bubble that never pops: a faint fill, an iridescent rim whose colours slide round it, a window
 ## glint, and a gentle wobble (it breathes, a little wider, a little taller).
 func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
@@ -2295,6 +2311,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 4), 7.0, Color(0.52, 0.38, 0.26), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.34, 0.24, 0.16), 1.0, true)
 			_draw_bronze_bell(p + Vector2(-9, 6), color, 0.9, false)
+		"echo_stone":
+			# Hollowsong's secret: a smooth bowl of red stone on the cave's threshold, a violet light breathing
+			# in it, and thin rings opening from its lip as if it were repeating the last thing said to it.
+			_draw_echo_stone(p, color, 1.0)
+		"kept_echo_stone":
+			# its keepsake at home: the same bowl, on a flat slab of sandstone
+			draw_circle(p + Vector2(0, 6), 11.0, Color(0.30, 0.14, 0.10, 0.18), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 9.0, Color(0.78, 0.60, 0.42), true, -1.0, true)
+			draw_arc(p + Vector2(0, 5), 9.0, 0.1, PI - 0.1, 12, Color(0.56, 0.38, 0.26), 1.0, true)
+			_draw_echo_stone(p + Vector2(0, 1), color, 0.8)
 		"stallholder":
 			# a stallholder minding their stall (the Bazaar's packed market): the shopkeeper figure in their
 			# own colours, with a little idle bob, offset so each seems to breathe on their own

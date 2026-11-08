@@ -44,7 +44,10 @@ defmodule Server.Seeds do
       tags: ["forest", "sleepy", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.74, 1.0], featured: true},
     %{world_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", slug: "steamhollow", name: "Steamhollow", file: "steamhollow.json",
       blurb: "A bathhouse village lost in fog. Boardwalks, hot springs and paper lanterns, and a bell too faint for you to hear.",
-      tags: ["fog", "hot-springs", "lanterns", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.80, 0.52], featured: true}
+      tags: ["fog", "hot-springs", "lanterns", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.80, 0.52], featured: true},
+    %{world_id: "dddddddd-dddd-dddd-dddd-dddddddddddd", slug: "hollowsong", name: "Hollowsong", file: "hollowsong.json",
+      blurb: "An echo canyon at sunset. Banded red cliffs, wind-carved arches and a dry riverbed, where every voice comes back as a ripple. One answer comes from the wrong place.",
+      tags: ["canyon", "echo", "sunset", "wolf", "explore", "cozy", "secret"], accent: [1.0, 0.70, 0.44], featured: true}
   ]
 
   # The currency the bazaar shop charges in.
