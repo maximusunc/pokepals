@@ -76,6 +76,9 @@ signal ambient_state_received(pals: Array)
 ## Someone ELSE in our world touched a glow-plant (a prop the spec marks "flare": true) and it blazed up:
 ## relayed by the server to everyone else there, so the whole world sees the same flowers light.
 signal prop_flared(prop_id: String)
+## Someone ELSE in our world howled (Hollowsong's echo canyon): where they stood, stamped by the server. The
+## world layer draws the canyon's answer to it too, so friends see each other's ripples.
+signal howl_heard(x: float, y: float)
 ## A world's spec arrived (and was cached, in memory + on disk): the display-agnostic core +
 ## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
 ## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
@@ -405,6 +408,15 @@ func send_flare(prop_id: String) -> void:
 	if not _can_send():
 		return
 	_push_event("flare", { "prop": prop_id })
+
+
+## Tell everyone else in our world that our companion just howled (Hollowsong). We send only the event: the
+## server stamps WHERE from its own last-known position of us and relays it (howl_heard, on their side), only
+## in a world with an echo secret, and at most once per second or so. A no-op until joined.
+func send_howl() -> void:
+	if not _can_send():
+		return
+	_push_event("howl", {})
 
 
 ## Ask the server for a page of the world directory (the Vale's Gateway): listed worlds matching
@@ -817,6 +829,11 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var prop: Variant = payload.get("prop", "")
 			if prop is String and prop != "":
 				prop_flared.emit(prop)
+		"howled":
+			var hx: Variant = payload.get("x", null)
+			var hy: Variant = payload.get("y", null)
+			if (hx is float or hx is int) and (hy is float or hy is int):
+				howl_heard.emit(float(hx), float(hy))
 		"discoveries":
 			var ids: Variant = payload.get("ids", [])
 			_discoveries = (ids as Array).duplicate() if ids is Array else []

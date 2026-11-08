@@ -321,6 +321,66 @@ defmodule Server.WorldChannelTest do
     end
   end
 
+  # A world whose spec has an echo secret (Hollowsong), and one that doesn't.
+  defp seed_echo_world(type) do
+    world_id = Ecto.UUID.generate()
+
+    {:ok, _} =
+      Worlds.upsert(%{
+        world_id: world_id,
+        slug: "echo-#{System.unique_integer([:positive])}",
+        name: "Echo",
+        display_types: ["2d"],
+        version: 1,
+        spec: %{
+          "core" => %{"secret" => %{"id" => "stone", "position" => [0, 0], "reveal" => %{"type" => type}}},
+          "profiles" => %{"2d" => %{}}
+        }
+      })
+
+    world_id
+  end
+
+  describe "howl relay" do
+    test "a howl reaches everyone else, stamped with the howler's own last position" do
+      w = seed_echo_world("echo")
+      s1 = join_world("hw-1", w)
+      assert_push "welcome", %{id: _}
+      _s2 = join_world("hw-2", w)
+      assert_push "welcome", %{id: _}
+
+      push(s1, "state", %{"p" => [120, -40]})
+      push(s1, "howl", %{"x" => 9999, "y" => 9999})
+      assert_push "howled", %{x: 120.0, y: -40.0}
+    end
+
+    test "a howl is limited to one per gap" do
+      w = seed_echo_world("echo")
+      s1 = join_world("hw-3", w)
+      assert_push "welcome", %{id: _}
+      _s2 = join_world("hw-4", w)
+      assert_push "welcome", %{id: _}
+
+      push(s1, "state", %{"p" => [1, 2]})
+      push(s1, "howl", %{})
+      assert_push "howled", %{x: 1.0, y: 2.0}
+      push(s1, "howl", %{})
+      refute_push "howled", %{}
+    end
+
+    test "a world without an echo secret does not relay howls" do
+      w = seed_echo_world("listen")
+      s1 = join_world("hw-5", w)
+      assert_push "welcome", %{id: _}
+      _s2 = join_world("hw-6", w)
+      assert_push "welcome", %{id: _}
+
+      push(s1, "state", %{"p" => [1, 2]})
+      push(s1, "howl", %{})
+      refute_push "howled", %{}
+    end
+  end
+
   describe "state relay is per world" do
     test "a state frame reaches a peer in the same world, id-stamped" do
       w = seed_world()
