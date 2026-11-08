@@ -294,6 +294,26 @@ defmodule Server.HomeAndSecretChannelTest do
     assert_push "secret_found", %{id: "first_bubble", new: true}
   end
 
+  test "a frost-flower at the end of the hare's trail is claimed standing at the den, not from afar" do
+    t = "tracks-#{System.unique_integer([:positive])}"
+    uid = user_id(t)
+
+    w =
+      seed_world_with(%{
+        "secret" => %{"id" => "frost_flower", "position" => [100.0, 100.0], "radius" => 120.0,
+                      "reveal" => %{"type" => "tracks", "start" => [0.0, 0.0], "trail" => [[50.0, 50.0], [100.0, 100.0]]}}
+      })
+
+    {:ok, _, socket} = subscribe_and_join(connect_as(t), "world:" <> w, %{})
+    stand_at(socket, w, uid, [-900.0, 0.0])
+    push(socket, "claim_secret", %{"id" => "frost_flower"})
+    assert_push "secret_refused", %{id: "frost_flower"}
+
+    stand_at(socket, w, uid, [95.0, 105.0])
+    push(socket, "claim_secret", %{"id" => "frost_flower"})
+    assert_push "secret_found", %{id: "frost_flower", new: true}
+  end
+
   test "a lantern behind a shut door can't be claimed" do
     t = "lantern-#{System.unique_integer([:positive])}"
     uid = user_id(t)

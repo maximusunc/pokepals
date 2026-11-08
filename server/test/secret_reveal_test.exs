@@ -11,6 +11,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(%{"reveal" => %{"type" => "stillness", "seconds" => 20}}, %{})
   end
 
+  test "tracks are followed on the player's screen too, so the server doesn't gate them" do
+    secret = %{"reveal" => %{"type" => "tracks", "start" => [0, 0], "trail" => [[10, 0], [20, 0]]}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})
