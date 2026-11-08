@@ -22,7 +22,7 @@ signal place_found
 
 ## How long (seconds) to hold off the companion's autonomous shape-shifting each frame it's dozing.
 const DRIFT_HOLD := 30.0
-## Ignore pokes for this long after it falls asleep (the pet that got it there may still be finishing).
+## Ignore a call for this long after it falls asleep.
 const POKE_GRACE := 1.3
 
 var _host: Node
@@ -98,7 +98,12 @@ func update(delta: float) -> void:
 	var poked := false
 	if _gate.is_asleep():
 		_since_asleep += delta
-		poked = _since_asleep > POKE_GRACE and (behavior == "pet" or behavior == "come")
+		# Only a CALL wakes it. Petting a sleeping companion is the natural thing to do (playtest: players
+		# kept petting while waiting, and every pet woke it before the dream could begin), so a pet just
+		# gets a sleepy sigh and it sleeps on.
+		poked = _since_asleep > POKE_GRACE and behavior == "come"
+		if behavior == "pet" and _prev_behavior != "pet" and _since_asleep > POKE_GRACE:
+			_say("pet_asleep")
 	elif behavior == "come" and _prev_behavior != "come":
 		_gate.note_call()
 	_prev_behavior = behavior

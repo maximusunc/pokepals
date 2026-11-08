@@ -1456,7 +1456,8 @@
 				"yawn": "It yawns, wide and slow. You feel it catch.",
 				"asleep": "Its breathing slows. It is asleep.",
 				"dream": "Soft bubbles rise from it. In the biggest, a place: a crooked arch of old roots, and a little brightness beneath it.",
-				"wake_poked": "It stirs and blinks up at you. The dream drifts off, but not all the way.",
+				"wake_poked": "It stirs at your call and blinks up at you. The dream drifts off, but not all the way.",
+				"pet_asleep": "It sighs in its sleep and tucks in closer under your hand. It sleeps on.",
 				"wake_left": "It wakes as you go, and gets up to follow, still half in the dream.",
 				"yawn_ambient": "Your companion yawns, huge and slow. You find you're yawning too."
 			},
