@@ -1,0 +1,13 @@
+{
+	"mosstuft_a": [0, 0, 6, 5],
+	"mosstuft_b": [7, 0, 7, 5],
+	"fernlet": [15, 0, 6, 6],
+	"fernlet_b": [22, 0, 6, 6],
+	"fallenleaf": [29, 0, 4, 3],
+	"leafpair": [34, 0, 5, 4],
+	"mosspebble": [40, 0, 7, 5],
+	"toadlet": [48, 0, 4, 3],
+	"sleepbud": [53, 0, 3, 4],
+	"drowsetwig": [57, 0, 7, 4],
+	"reedlet": [65, 0, 4, 10]
+}

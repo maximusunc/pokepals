@@ -1817,6 +1817,27 @@ func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0, wobb
 		draw_texture(tint, origin, color)
 
 
+## The dream-lantern: a small egg of pale paper whose light breathes in and out, very slowly, like
+## something asleep. `k` scales it (the keepsake is a touch smaller).
+func _draw_dream_lantern(c: Vector2, tint: Color, k: float) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 0.7)
+	SoftGlow.draw(self, c + Vector2(0, -6.0 * k), 26.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.20 + 0.16 * breathe), 1.0)
+	var body := PackedVector2Array()
+	for i in 20:
+		var a := float(i) / 20.0 * TAU
+		body.append(c + Vector2(cos(a) * 6.6 * k, -7.0 * k + sin(a) * 8.4 * k))
+	draw_colored_polygon(body, Color(1.0, 0.95, 0.80))
+	draw_circle(c + Vector2(0, -6.0 * k), 4.6 * k, Color(tint.r, tint.g, tint.b, 0.30 + 0.45 * breathe), true, -1.0, true)
+	draw_circle(c + Vector2(-0.6, -6.6) * k, 1.8 * k, Color(1, 1, 1, 0.55 + 0.35 * breathe))
+	draw_arc(c + Vector2(0, -7.0 * k), 5.0 * k, PI * 0.5, PI * 1.5, 10, Color(0.80, 0.68, 0.50, 0.6), 1.0, true)
+	draw_arc(c + Vector2(0, -7.0 * k), 5.0 * k, -PI * 0.5, PI * 0.5, 10, Color(0.80, 0.68, 0.50, 0.6), 1.0, true)
+	body.append(body[0])
+	draw_polyline(body, Color(0.62, 0.50, 0.38), 1.0, true)
+	draw_rect(Rect2(c + Vector2(-2.4, -17.6) * k, Vector2(4.8, 2.4) * k), Color(0.46, 0.36, 0.30))
+	draw_line(c + Vector2(0, -17.6) * k, c + Vector2(0, -21.0) * k, Color(0.46, 0.36, 0.30), 1.0)
+	draw_rect(Rect2(c + Vector2(-2.6, 0.2) * k, Vector2(5.2, 1.8) * k), Color(0.46, 0.36, 0.30))
+
+
 ## The frost-flower: a six-petalled flower of clear ice around a small blue-lit heart, with a slow glint
 ## that travels round the petals. `k` scales it (the keepsake is a touch smaller).
 func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
@@ -1834,6 +1855,36 @@ func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
 			draw_circle(tip, 1.4 * k, Color(1, 1, 1, 0.95))
 	draw_circle(c, 2.6 * k, tint)
 	draw_circle(c + Vector2(-0.6, -0.8) * k, 1.0 * k, Color(1, 1, 1, 0.95))
+
+
+## The faint bell: a bronze bell hung by a cord from the arm of a leaning post (`post`), swaying a hair, with
+## the barest rings spreading from it, as if it were sounding just under what you can hear. `k` scales it.
+func _draw_bronze_bell(base: Vector2, tint: Color, k: float, post: bool) -> void:
+	var wood := Color(0.36, 0.27, 0.20)
+	var hook := base + Vector2(-9.0, -4.0) * k
+	if post:
+		hook = base + Vector2(10.0, -22.0) * k
+		draw_line(base + Vector2(0.0, 7.0) * k, base + Vector2(-2.0, -22.0) * k, wood.darkened(0.25), 3.4 * k)
+		draw_line(base + Vector2(-2.0, -22.0) * k, hook + Vector2(1.0, 0.0), wood, 2.4 * k)
+		draw_line(base + Vector2(-1.5, -21.0) * k, base + Vector2(4.0, -17.0) * k, wood, 1.6 * k)   # a brace
+	var swing := sin(_time * 1.1 + _phase_for(base)) * 0.07
+	draw_set_transform(hook, swing, Vector2.ONE)
+	draw_line(Vector2.ZERO, Vector2(0.0, 3.5) * k, Color(0.55, 0.45, 0.34), 1.0)
+	var body := PackedVector2Array([Vector2(-2.6, 3.0), Vector2(2.6, 3.0), Vector2(4.2, 8.5), Vector2(6.3, 12.0), Vector2(-6.3, 12.0), Vector2(-4.2, 8.5)])
+	for i in body.size():
+		body[i] *= k
+	draw_colored_polygon(body, tint)
+	draw_polyline(PackedVector2Array([body[0], body[1], body[2], body[3], body[4], body[5], body[0]]), tint.darkened(0.45), 1.0)
+	draw_line(Vector2(-2.0, 4.5) * k, Vector2(-3.6, 10.0) * k, tint.lightened(0.55), 1.2 * k)
+	draw_line(Vector2(-6.3, 12.0) * k, Vector2(6.3, 12.0) * k, tint.darkened(0.3), 1.6 * k)
+	draw_circle(Vector2(0.0, 13.4) * k, 1.3 * k, tint.darkened(0.4))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	# the faintest ringing: two thin rings opening from the lip, almost not there
+	var ring_c := hook + Vector2(0.0, 9.0) * k
+	for j in 2:
+		var t := fposmod(_time * 0.45 + float(j) * 0.5, 1.0)
+		draw_arc(ring_c, (8.0 + 16.0 * t) * k, 0.0, TAU, 28, Color(tint.r, tint.g, tint.b, 0.20 * (1.0 - t)), 1.0, true)
+	SoftGlow.draw(self, ring_c, 14.0 * k, Color(1.0, 0.86, 0.5, 0.10 + 0.05 * sin(_time * 1.7)), 0.8)
 
 
 ## A bubble that never pops: a faint fill, an iridescent rim whose colours slide round it, a window
@@ -2214,6 +2265,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 6), 6.0, Color(1.0, 0.92, 0.86), true, -1.0, true)
 			draw_arc(p + Vector2(0, -6), 7.0, 0.15, PI - 0.15, 14, Color(1.0, 0.9, 0.84), 3.0, true)
 			_draw_forever_bubble(p + Vector2(0, -15 + sin(_time * 1.2) * 1.2), 8.0, color)
+		"dream_lantern":
+			# Dozewood's secret: a paper lantern under the crooked arch, lit by nothing but a dream. Its glow
+			# comes and goes, slow as a sleeper's breath.
+			_draw_dream_lantern(p + Vector2(0, 2), color, 1.0)
+		"kept_dream_lantern":
+			# its keepsake at home: the same lantern, resting on a little cushion of moss
+			draw_circle(p + Vector2(0, 5), 10.0, Color(0.10, 0.16, 0.12, 0.20), true, -1.0, true)
+			draw_circle(p + Vector2(0, 4), 8.0, Color(0.34, 0.52, 0.36), true, -1.0, true)
+			draw_arc(p + Vector2(0, 3), 6.0, 0.2, PI - 0.2, 10, Color(0.52, 0.70, 0.48), 1.5, true)
+			_draw_dream_lantern(p + Vector2(0, 2), color, 0.8)
 		"frost_flower":
 			# Drifthallow's secret: a flower of frost in the snow-hare's den. Six clear petals the cold has
 			# made, and a heart that holds a little blue light. It has never melted and it glints, slowly.
@@ -2224,6 +2285,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 4), 7.0, Color(0.86, 0.92, 0.98), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.62, 0.72, 0.86), 1.0, true)
 			_draw_frost_flower(p + Vector2(0, -4), color, 0.8)
+		"bronze_bell":
+			# Steamhollow's secret: a small bronze bell hung from a leaning post, ringing too faintly to hear.
+			# It sways a hair and sends out the barest rings; the fog hides it until you are close.
+			_draw_bronze_bell(p, color, 1.0, true)
+		"kept_bronze_bell":
+			# its keepsake at home: the same bell, sitting on a little round of wood
+			draw_circle(p + Vector2(0, 5), 9.0, Color(0.20, 0.14, 0.10, 0.18), true, -1.0, true)
+			draw_circle(p + Vector2(0, 4), 7.0, Color(0.52, 0.38, 0.26), true, -1.0, true)
+			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.34, 0.24, 0.16), 1.0, true)
+			_draw_bronze_bell(p + Vector2(-9, 6), color, 0.9, false)
 		"stallholder":
 			# a stallholder minding their stall (the Bazaar's packed market): the shopkeeper figure in their
 			# own colours, with a little idle bob, offset so each seems to breathe on their own

@@ -321,6 +321,9 @@ func _build_world(cached: Dictionary) -> void:
 		_world_art.add_child(trail)
 		trail.setup(fp, _walkers)
 
+	# STEAMHOLLOW: steam rising off the hot springs, and the drifting mist that limits how far you can see.
+	_setup_mist(data)
+
 	# Glow-plants someone ELSE touched blaze up here too (the server relays each flare to the world).
 	Net.prop_flared.connect(_on_prop_flared)
 
@@ -799,6 +802,29 @@ func _setup_fade() -> void:
 	else:
 		c.a = 0.0
 		_fade.color = c
+
+
+## Steamhollow's air: the steam off its springs (SteamPuffs, above the scenery) and the fog (MistVeil, a
+## screen layer under the vignette and the HUD), each only when the world's atmosphere asks for it
+## (`steam` / `fog` blocks). Purely presentation; a world without the blocks is untouched.
+func _setup_mist(data: Dictionary) -> void:
+	var atmo: Dictionary = data.get("atmosphere", {})
+	for old in ["SteamPuffs", "MistVeil"]:
+		var n := get_node_or_null(old)
+		if n != null:
+			n.queue_free()
+	if atmo.has("steam"):
+		var steam := SteamPuffs.new()
+		steam.name = "SteamPuffs"
+		add_child(steam)
+		move_child(steam, _ambient_life.get_index() + 1)
+		steam.setup(atmo["steam"], data)
+	if atmo.has("fog"):
+		var veil := MistVeil.new()
+		veil.name = "MistVeil"
+		add_child(veil)
+		move_child(veil, get_node("Vignette").get_index())
+		veil.setup(atmo["fog"], data, _player, _walkers, Callable(_secret_dir, "mist_pockets"))
 
 
 ## Show a hint at full opacity, cancelling the opening fade if it's still running, so

@@ -141,6 +141,15 @@
 		"point_freeze": 0.85,
 		"point_ear_forward": 5.0
 	},
+	"_listen_comment": "The companion LISTENING (Steamhollow's faint bell) — PRESENTATION ONLY, driven by ListenDirector over the pure ListenGuide. Unlike the detector's point it never stops the body: it only turns the gaze toward what it hears and eases the body language in with the 'tell' strength (0..1) the director feeds it each frame (CompanionView.listen_toward). ear_forward: how far the ears prick (px) at a full tell. freeze: how much idle bounce / tail wag it stills at a full tell (0..1). perk: how far it stretches up at a full tell (the same squash a perk gives, held). tilt: radians of head-tilt the animal forms rock through while listening (a flat sheet has no ears to prick, so the whole sprite cocks a little); tilt_rate: cycles per second of that rock. ease_rate: per-second ease of the pose toward the tell.",
+	"listen": {
+		"ear_forward": 5.0,
+		"freeze": 0.6,
+		"perk": 0.5,
+		"tilt": 0.07,
+		"tilt_rate": 0.45,
+		"ease_rate": 3.0
+	},
 	"_mood_comment": "The fast affective layer — a 2D feeling that overlays the slower traits and gives each day its own weather. valence (withdrawn..warm) rides on clinginess; arousal (calm..energized) rides on energy; curiosity has no mood axis. overlay_scale: how strongly mood bends the effective trait (every action reads traits through CompanionTraits, so this biases the whole decision, not just the look). relax_rate: per-second ease back toward the resting point, so event spikes fade over a few seconds. rest_valence/rest_arousal: the resting point is derived from a trait via lerp(lo,hi,trait) — an energetic companion rests at higher arousal, a warm one at higher valence — so different companions feel different even at rest. discovery_*: a novel examine spikes valence+arousal, multiplied by the prop's novelty (a habituated prop barely moves it). separation_valence_rate: valence eases down per second while the player is far, times bond (a fresh companion likes its independence; a bonded one misses you). contagion_*: a moving player pulls arousal up (gain * player_speed/ref_speed, lightly bond-scaled). boredom_*: after boredom_onset seconds with nothing novel, arousal drifts down so the next novel thing pops. shared_attention_valence: a warming valence lift on a shared-attention moment (you and it focused on the same thing), novelty-weighted. noticed_valence_gain: a gentle continuous valence lift while the player seems to be noticing the companion (noticed_strength * this * delta). walk_amp: amplitude of the per-frame random walk — the PRIMARY source of day-to-day variety. neg_floor: cozy asymmetry — mood can't drop below this mild floor (real lows arrive with danger later). axis_map: which trait each mood axis overlays.",
 	"mood": {
 		"overlay_scale": 0.25,

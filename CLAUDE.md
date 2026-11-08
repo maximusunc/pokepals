@@ -219,6 +219,32 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_drifthallow_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Drifthallow (pilot)").
 
+> **Dozewood (2026-11):** a drowsy forest at a long lilac dusk (3200×2400): mossy hollows, hammocks, slow
+> hanging lamps, everything at half speed; reached through the Gateway (featured). **Secret:** a place your
+> companion dreams of. It only dozes in one of four nap spots when it feels *safe* (a pet it welcomed, you
+> still beside it, calm; bond makes it quicker), then dreams of the Crooked Arch in a thought bubble; walk
+> there together and a dream-lantern is waiting. New reveal type `dream` (server checks "this world, standing
+> at it"). Pure `DreamGate` (`scripts/world`, tested), `DozeDirector` + `DreamBubble` (presentation), and
+> `CompanionView.set_resting`. Art: `pokepals/tools/gen_dozewood.py`; layout, lore and the secret:
+> `tools/gen_dozewood_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Dozewood").
+
+> **Steamhollow (2026-11):** a **bathhouse village lost in fog** (3200x2400): timber boardwalks, hot springs
+> breathing steam, paper lanterns and timber bathhouses, half-hidden in a drifting mist that leaves about two
+> steps of clear view. Reached through the Gateway (featured). The fog is `MistVeil` (a screen-space shader,
+> `assets/mist.gdshader`, tuned by the spec's `atmosphere.fog`); lanterns, lit doors, your companion and friends
+> each thin it into a small pocket, so it stays cozy and navigable. Steam is `SteamPuffs` (`atmosphere.steam`).
+> Bathhouses are `BathhouseView` (a `BuildingView` in timber and tile, spec `"view": "bathhouse"`); boardwalks
+> are `plates`. **Secret:** a little bronze bell, ringing too faintly for you to hear, in the north-west. Only
+> your companion hears it, and only when it is calm and settled beside you (you still or slow, it close and
+> standing easy); its gaze turns toward the sound and its ears prick, and that body language is the only
+> compass (no arrow, no marker). Bond shapes the hearing range, how fast it settles and how true its aim is; the
+> bell shows through the mist only up close. New reveal type `listen` (server checks "this world, standing at
+> it"). Pure `ListenGuide` (`scripts/world`, tested) over `ListenDirector` (`mechanics/`), and
+> `CompanionView.listen_toward` (a pose that never stops the body). Art: `pokepals/tools/gen_steamhollow.py`
+> over `tools/pixelart/steamhollow.py`; layout, lore and the secret: `tools/gen_steamhollow_world.py`. Every
+> finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Steamhollow").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel
