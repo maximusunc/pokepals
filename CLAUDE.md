@@ -231,7 +231,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 
 > **Steamhollow (2026-11):** a **bathhouse village lost in fog** (3200x2400): timber boardwalks, hot springs
 > breathing steam, paper lanterns and timber bathhouses, half-hidden in a drifting mist that leaves about two
-> steps of clear view. Reached through the Gateway (featured). The fog is `MistVeil` (a screen-space shader,
+> steps of clear view. Reached through the Gateway (featured). The fog is `MistVeil` (a world-space shader on a camera-following layer,
 > `assets/mist.gdshader`, tuned by the spec's `atmosphere.fog`); lanterns, lit doors, your companion and friends
 > each thin it into a small pocket, so it stays cozy and navigable. Steam is `SteamPuffs` (`atmosphere.steam`).
 > Bathhouses are `BathhouseView` (a `BuildingView` in timber and tile, spec `"view": "bathhouse"`); boardwalks
