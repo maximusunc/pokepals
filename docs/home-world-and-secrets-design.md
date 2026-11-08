@@ -570,6 +570,72 @@ session, and the feel (that is the playtest).
 `Server.Seeds`; the fixture name in `TestWorldPortals.FIXTURES`; a smoke test; a world-specific
 `WorldArt` arm only if the secret or keepsake has no sprite; a short note in CLAUDE.md.
 
+## Dozewood — built 2026-11, every choice below OPEN for the owner's review
+
+Dozewood is a drowsy forest held at a long lilac dusk (3200x2400): mossy hollows, hammocks, hanging lamps of
+slow pale light, round trees and willows trailing vines; everything moves at half speed (slow wind, motes,
+day cycle). The pitch was agreed (a sleepy forest; a secret that is a place your companion dreams of: it
+only dozes where it feels safe, dreams of a landmark, and you walk there together). **Everything finer was
+decided by the builder and is listed here for review.** Catalog id `bbbbbbbb-...`, slug `dozewood`, listed
+and featured, with the standard small portal home beside the arrival spot. Layout and lore:
+`tools/gen_dozewood_world.py`; art: `pokepals/tools/gen_dozewood.py` over `tools/pixelart/dozewood.py`.
+
+**The secret: reveal type `dream`.** Code: pure `DreamGate` (`scripts/world`, 16 tests), presentation
+`DozeDirector` (`scripts/presentation/mechanics`) + `DreamBubble`, plus small hooks on `CompanionView`
+(`set_resting`, `mood_snapshot`, a `reacted` signal). Spec shape (`secret.reveal`): `spots` (nap spots),
+`landmark_position`, `picture`, every number, `lines`.
+
+**Judgment calls (all open):**
+1. **What "safe" means (all must hold, all data in `reveal`).** The companion is inside a nap spot (120 px)
+   with you within 150 px of it and within 100 px of the companion; you have petted it and it *welcomed* the
+   pet within the last 40 s (its own "love" reaction while petting, so a shy, rebuffed pet does not count);
+   you are still (under 12 px/s); its mood is calm (arousal at most 0.40, valence at least -0.05).
+2. **Bond shapes speed.** A drowse meter fills in 16 s for a fresh companion down to 5 s for a fully bonded
+   one. Bond also already decides whether a pet is welcomed (25% to 100%), so a fresh companion needs a few
+   tries: a gamble, as petting a stranger already is.
+3. **Never a failure.** Missing conditions drain the meter slowly (0.12/s); a drowsy companion that is
+   let alone gets back up. At 0.30 it stops and lies down, at 0.55 it yawns, at 1.0 it sleeps; 2.5 s later the
+   dream begins.
+4. **The pose.** Lying down is `CompanionView.set_resting`: the body is held still (the brain keeps thinking,
+   it just isn't obeyed), squashed low, slowly breathing, a touch dimmed. No new sprite. (HomeDirector's
+   nap is only a visibility swap, so there was no sleeping pose to reuse.) Personal and display-only: friends
+   see it lie still, but not the pose or bubble.
+5. **Waking.** Walking more than 170 px away, a pet, or a Call wakes it (detected from the brain's behaviour
+   "pet"/"come", 1.3 s grace after it falls asleep). It then needs a fresh welcomed pet and a 6 s rest before
+   it can doze again. A Call while only drowsy lets the drowse go.
+6. **The dreamed landmark is fixed and authored: the Crooked Arch**, not varied per visit. Reason: the
+   server checks "this world, standing at the secret's position", so the position has to be fixed anyway,
+   and a fixed picture is something to learn and recognise. Four other distinctive landmarks (a pond with
+   three stones, a lantern log, a ring of toadstools, a sleeping boulder) and three great trees make the
+   picture something to *recognise*, not just a direction. Pictures for all five are baked
+   (`dz_dream_*.png`), so a later variation is data only.
+7. **Finding it.** The prop does not show until the companion has dreamed (this visit), then you and it,
+   awake, are within 150 px / 190 px of the arch. Then a paper **dream-lantern** rises; examining it claims
+   through the usual flow. The dream is remembered for the visit even if you wake it.
+8. **The dream picture** is a baked 56x56 round vignette (the landmark's own sprite on a moss hill under a
+   lavender sky, hazed and soft-edged), shown in a thought bubble above the companion with drifting z's.
+9. **Server check stays minimal and honest** (like `stillness`, `tracks`): "this world, standing at the
+   lantern". It cannot tell a dreamed arrival from a walked-in one (the nap and dream are on your screen).
+10. **Afterglow.** Once found, naps and dreams still work as a quiet toy; only the prop is gone.
+11. **Four nap spots**, 120 px of moss each: one near the landing (a first hollow to learn on), one in each of
+    three other regions, each with its own lore line, and a hint (once) when you stand in one with your
+    companion and have not petted it, or it is too wound up.
+12. **Ambient yawn** (optional): stand still anywhere for 45 s and your companion yawns (hint plus a z),
+    then not again for 150 s. Data in `reveal`.
+13. **Look.** Dusky moss palette, own terrain + litter atlas (`dz_terrain`, `dz_details`), round/oak/willow
+    trees, a still dark pond, breathing lamp lights (`prop_lights`), always-on slow motes, a slow day cycle,
+    no butterflies. Visitors are not re-lit. No native creatures (optional).
+14. **Keepsake and qualities.** `kept_dream_lantern` (the lantern on a cushion of moss), drawn by `WorldArt`
+    like the other secrets. Qualities `quiet`, `warm`, `glowing`.
+15. **Numbers and lines** (radii, times, every hint and lore line) are the builder's wording.
+
+**Verified:** Godot unit suite (new `TestDreamGate`) and `smoke_dozewood`; a scratch run through the REAL
+loop (paused scene un-paused each frame, the companion moving by itself): at a nap spot, a real Pet then
+sitting still got it to settle, sleep and dream; a Pet woke it; walking away woke it; teleporting the player to
+the arch had the companion follow by itself and the lantern rose. Screenshots under Xvfb checked by eye.
+Elixir: the standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked), so the
+new channel test is unrun. *Not checked:* the world-pack build, phone frame rate, two players, and the feel.
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

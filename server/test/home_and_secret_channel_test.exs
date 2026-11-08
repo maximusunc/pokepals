@@ -314,6 +314,26 @@ defmodule Server.HomeAndSecretChannelTest do
     assert_push "secret_found", %{id: "frost_flower", new: true}
   end
 
+  test "a dream-lantern under the crooked arch is claimed standing there, not from afar" do
+    t = "dream-#{System.unique_integer([:positive])}"
+    uid = user_id(t)
+
+    w =
+      seed_world_with(%{
+        "secret" => %{"id" => "dream_lantern", "position" => [100.0, 100.0], "radius" => 120.0,
+                      "reveal" => %{"type" => "dream", "landmark_position" => [100.0, 100.0], "spots" => [[0.0, 0.0]]}}
+      })
+
+    {:ok, _, socket} = subscribe_and_join(connect_as(t), "world:" <> w, %{})
+    stand_at(socket, w, uid, [-900.0, 0.0])
+    push(socket, "claim_secret", %{"id" => "dream_lantern"})
+    assert_push "secret_refused", %{id: "dream_lantern"}
+
+    stand_at(socket, w, uid, [95.0, 105.0])
+    push(socket, "claim_secret", %{"id" => "dream_lantern"})
+    assert_push "secret_found", %{id: "dream_lantern", new: true}
+  end
+
   test "a lantern behind a shut door can't be claimed" do
     t = "lantern-#{System.unique_integer([:positive])}"
     uid = user_id(t)

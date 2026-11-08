@@ -12,6 +12,9 @@ extends Node2D
 ## Emitted when the LOCAL companion shifts daemon form (a new animal), so the world can
 ## re-broadcast our identity and friends re-render the change. Never fired by a remote puppet.
 signal form_changed
+## One-shot reaction cues from the brain ("love", "perk", ...), for mechanics that care WHEN the companion
+## welcomed something (Dozewood's nap listens for a pet it welcomed).
+signal reacted(kind: String)
 
 @export var config_path := "res://data/companion.json"
 
@@ -41,6 +44,8 @@ var _hint_look_pos := Vector2.ZERO  # a world point to briefly glance at (subtle
 var _hint_look_t := 0.0             # seconds of glance left; overrides the brain's look while > 0
 var _point_pos := Vector2.ZERO      # world point of the detector "tell" — a hidden salamander nearby
 var _point_t := 0.0                 # point target, set by the controller: 1 while holding a point, else 0
+var _rest_on := false    # held at rest in place (a nap, Dozewood): the body stops and lies down
+var _rest_vis := 0.0     # eased 0..1 of the lying-down pose
 var _point_vis := 0.0               # eased 0..1 visual intensity of the point (smooths the pose/"!"; motion-hold uses _point_t)
 var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
@@ -272,6 +277,23 @@ func bond_value() -> float:
 	if _brain == null:
 		return 0.0
 	return _brain.get_self().bond
+
+
+## Lie down and stay put (true), or get up (false): Dozewood's nap. The body stops where it is, sinks into
+## a low, slowly breathing pose and dims a little; the brain keeps thinking, it just isn't obeyed. A
+## whistle, a pet or a step away is the director's cue to let go. Local only; presentation, no saved state.
+func set_resting(on: bool) -> void:
+	if _is_local:
+		_rest_on = on
+
+
+func is_resting() -> bool:
+	return _rest_on
+
+
+## The eased feeling, Vector2(valence, arousal) in -1..1, for mechanics that read how settled it is.
+func mood_snapshot() -> Vector2:
+	return Vector2(_mood_v, _mood_a)
 
 
 ## The companion's current high-level behavior (idle/follow/wander/seek/come/...), straight from
@@ -556,7 +578,7 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 		# is player-anchored like this (come/checkin target the player's own position).
 		if behavior == "follow" and _player != null:
 			target = _nav_grid.clamp_to_visible(_player.position, target)
-		if speed > 0.0 and _point_t <= 0.0:
+		if speed > 0.0 and _point_t <= 0.0 and not _rest_on:
 			# Wandering also declines long-way-around routes (see steer_target) — an idle
 			# amble to a spot across a hedge shouldn't become a trek around the maze.
 			var detour := _nav_wander_detour if behavior == "wander" else 0.0
@@ -571,7 +593,7 @@ func _apply_movement(intent: Dictionary, delta: float) -> void:
 	# velocity (not the velocity itself) so the body decelerates to a stop through the same accel ease
 	# — settling onto point rather than snapping — and re-accelerates from ~0 on release, no lurch.
 	# Keyed off the crisp binary _point_t (the controller's stop/go), not the eased _point_vis.
-	if _point_t > 0.0:
+	if _point_t > 0.0 or _rest_on:
 		desired_velocity = Vector2.ZERO
 	velocity = velocity.lerp(desired_velocity, 1.0 - exp(-float(_cfg["accel"]) * delta))
 	var before := position
@@ -600,6 +622,7 @@ func _apply_attention(intent: Dictionary, delta: float) -> void:
 
 func _apply_reactions(reactions: Array) -> void:
 	for r in reactions:
+		reacted.emit(String(r))
 		match r:
 			"hop":
 				_hop_squash = 1.0
@@ -688,6 +711,7 @@ func _decay_animation(delta: float) -> void:
 	_hop_squash = maxf(0.0, _hop_squash - delta * 2.5)
 	_perk = maxf(0.0, _perk - delta * 2.0)
 	_hint_look_t = maxf(0.0, _hint_look_t - delta)
+	_rest_vis += ((1.0 if _rest_on else 0.0) - _rest_vis) * (1.0 - exp(-2.2 * delta))
 	# Ease the point's VISUAL intensity toward its on/off target so the lean/freeze/"!" glide,
 	# while the motion-hold below keys off the crisp binary _point_t for an exact stop/go.
 	_point_vis += (_point_t - _point_vis) * (1.0 - exp(-POINT_VIS_RATE * delta))
@@ -731,13 +755,13 @@ func _draw() -> void:
 		var moving := spd > 6.0
 		# The sheet's gait carries the stride bob now (tools/pixelart/gait.py), so only a resting sway here.
 		var bounce := 0.0 if moving else sin(_time * 2.4) * 0.6
-		self_modulate = _coat_modulate()
+		self_modulate = _coat_modulate() * _rest_dim()
 		PalSprite.draw(self, _form_tex, {
 			"look": facing,
 			"speed": spd,
 			"time": _time,
 			"bounce": bounce,
-			"squash": 0.16 * _perk - 0.12 * _hop_squash,
+			"squash": 0.16 * _perk - 0.12 * _hop_squash + _rest_squash(),
 		}, _form_sheet)
 		_draw_emotes()
 		_draw_point_alert()
@@ -779,12 +803,12 @@ func _draw() -> void:
 		# Emergent coat warmth on the pixel rig: there's no per-pixel recolor path, so warm the
 		# whole sprite via the node's self_modulate — a gentle warm/bright tint that only appears
 		# at a high bond. White (no tint) until then; the warm delta brightens-and-warms toward it.
-		self_modulate = _coat_modulate()
+		self_modulate = _coat_modulate() * _rest_dim()
 		CompanionSprite.draw(self, _sprite_tex, {
 			"facing": facing,
 			"speed": velocity.length(),
 			"time": _time,
-			"squash": 0.16 * _perk - 0.12 * _hop_squash,
+			"squash": 0.16 * _perk - 0.12 * _hop_squash + _rest_squash(),
 			"wag_rate": wag_rate,
 			"wag_amp": wag_amp,
 			"ear_offset": ear_offset,
@@ -798,7 +822,7 @@ func _draw() -> void:
 		"facing": facing,
 		"speed": velocity.length(),
 		"time": _time,
-		"squash": 0.16 * _perk - 0.12 * _hop_squash,
+		"squash": 0.16 * _perk - 0.12 * _hop_squash + _rest_squash(),
 		"body_color": _warm_coat(WorldData.to_color(cfg.get("body", [0.56, 0.62, 0.86]))),
 		"accent_color": WorldData.to_color(cfg.get("accent", [0.34, 0.37, 0.54])),
 		"radius": 9.0 * _look_scale,
@@ -815,6 +839,19 @@ func _draw() -> void:
 	})
 	_draw_emotes()
 	_draw_point_alert()
+
+
+## The lying-down pose's squash: a low, curled-up body that rises and falls with a slow breath.
+func _rest_squash() -> float:
+	if _rest_vis < 0.001:
+		return 0.0
+	return _rest_vis * (-0.30 + 0.025 * sin(_time * 1.3))
+
+
+## A gentle dimming while it dozes (the node's self_modulate; white when awake).
+func _rest_dim() -> Color:
+	var k := 1.0 - 0.16 * _rest_vis
+	return Color(k, k, 1.0 - 0.10 * _rest_vis, 1.0)
 
 
 ## The detector "!" — floats over the companion's head while it's stopped and pointing at a hidden

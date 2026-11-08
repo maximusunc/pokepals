@@ -219,6 +219,16 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_drifthallow_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Drifthallow (pilot)").
 
+> **Dozewood (2026-11):** a drowsy forest at a long lilac dusk (3200×2400): mossy hollows, hammocks, slow
+> hanging lamps, everything at half speed; reached through the Gateway (featured). **Secret:** a place your
+> companion dreams of. It only dozes in one of four nap spots when it feels *safe* (a pet it welcomed, you
+> still beside it, calm; bond makes it quicker), then dreams of the Crooked Arch in a thought bubble; walk
+> there together and a dream-lantern is waiting. New reveal type `dream` (server checks "this world, standing
+> at it"). Pure `DreamGate` (`scripts/world`, tested), `DozeDirector` + `DreamBubble` (presentation), and
+> `CompanionView.set_resting`. Art: `pokepals/tools/gen_dozewood.py`; layout, lore and the secret:
+> `tools/gen_dozewood_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Dozewood").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

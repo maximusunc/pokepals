@@ -1817,6 +1817,27 @@ func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0, wobb
 		draw_texture(tint, origin, color)
 
 
+## The dream-lantern: a small egg of pale paper whose light breathes in and out, very slowly, like
+## something asleep. `k` scales it (the keepsake is a touch smaller).
+func _draw_dream_lantern(c: Vector2, tint: Color, k: float) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 0.7)
+	SoftGlow.draw(self, c + Vector2(0, -6.0 * k), 26.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.20 + 0.16 * breathe), 1.0)
+	var body := PackedVector2Array()
+	for i in 20:
+		var a := float(i) / 20.0 * TAU
+		body.append(c + Vector2(cos(a) * 6.6 * k, -7.0 * k + sin(a) * 8.4 * k))
+	draw_colored_polygon(body, Color(1.0, 0.95, 0.80))
+	draw_circle(c + Vector2(0, -6.0 * k), 4.6 * k, Color(tint.r, tint.g, tint.b, 0.30 + 0.45 * breathe), true, -1.0, true)
+	draw_circle(c + Vector2(-0.6, -6.6) * k, 1.8 * k, Color(1, 1, 1, 0.55 + 0.35 * breathe))
+	draw_arc(c + Vector2(0, -7.0 * k), 5.0 * k, PI * 0.5, PI * 1.5, 10, Color(0.80, 0.68, 0.50, 0.6), 1.0, true)
+	draw_arc(c + Vector2(0, -7.0 * k), 5.0 * k, -PI * 0.5, PI * 0.5, 10, Color(0.80, 0.68, 0.50, 0.6), 1.0, true)
+	body.append(body[0])
+	draw_polyline(body, Color(0.62, 0.50, 0.38), 1.0, true)
+	draw_rect(Rect2(c + Vector2(-2.4, -17.6) * k, Vector2(4.8, 2.4) * k), Color(0.46, 0.36, 0.30))
+	draw_line(c + Vector2(0, -17.6) * k, c + Vector2(0, -21.0) * k, Color(0.46, 0.36, 0.30), 1.0)
+	draw_rect(Rect2(c + Vector2(-2.6, 0.2) * k, Vector2(5.2, 1.8) * k), Color(0.46, 0.36, 0.30))
+
+
 ## The frost-flower: a six-petalled flower of clear ice around a small blue-lit heart, with a slow glint
 ## that travels round the petals. `k` scales it (the keepsake is a touch smaller).
 func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
@@ -2214,6 +2235,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 6), 6.0, Color(1.0, 0.92, 0.86), true, -1.0, true)
 			draw_arc(p + Vector2(0, -6), 7.0, 0.15, PI - 0.15, 14, Color(1.0, 0.9, 0.84), 3.0, true)
 			_draw_forever_bubble(p + Vector2(0, -15 + sin(_time * 1.2) * 1.2), 8.0, color)
+		"dream_lantern":
+			# Dozewood's secret: a paper lantern under the crooked arch, lit by nothing but a dream. Its glow
+			# comes and goes, slow as a sleeper's breath.
+			_draw_dream_lantern(p + Vector2(0, 2), color, 1.0)
+		"kept_dream_lantern":
+			# its keepsake at home: the same lantern, resting on a little cushion of moss
+			draw_circle(p + Vector2(0, 5), 10.0, Color(0.10, 0.16, 0.12, 0.20), true, -1.0, true)
+			draw_circle(p + Vector2(0, 4), 8.0, Color(0.34, 0.52, 0.36), true, -1.0, true)
+			draw_arc(p + Vector2(0, 3), 6.0, 0.2, PI - 0.2, 10, Color(0.52, 0.70, 0.48), 1.5, true)
+			_draw_dream_lantern(p + Vector2(0, 2), color, 0.8)
 		"frost_flower":
 			# Drifthallow's secret: a flower of frost in the snow-hare's den. Six clear petals the cold has
 			# made, and a heart that holds a little blue light. It has never melted and it glints, slowly.

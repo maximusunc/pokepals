@@ -28,6 +28,10 @@ extends Node
 ##   * `tracks`: nothing shows until your companion, wearing the right animal (a fox), has led you along
 ##     an authored trail to its end (TracksDirector over the pure TrailGuide); then the prop appears
 ##     there (Drifthallow's frost-flower, in a snow-hare's den).
+##   * `dream`: nothing shows until your companion has dozed off in one of the world's nap spots, dreamed
+##     of a place (a picture in a thought bubble), and you and it have walked to that place together
+##     (DozeDirector over the pure DreamGate); then the prop is there (Dozewood's dream-lantern, under
+##     the crooked arch). Once found, the naps and dreams stay as a quiet toy; only the prop is gone.
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -47,6 +51,7 @@ var _interactables: Array      # the controller's examine list (staged reveals a
 var _gate: StillnessGate
 var _lights: MereLights
 var _tracks: TracksDirector
+var _doze: DozeDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -76,10 +81,16 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_tracks):
 		_tracks.queue_free()
 	_tracks = null
+	if is_instance_valid(_doze):
+		_doze.queue_free()
+	_doze = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
 		_found_props = (secret["reveal"] as Dictionary).get("props", [])
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "dream" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_doze(secret)   # found already: the dozing stays, the prop doesn't come back
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -106,8 +117,20 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_tracks.setup(_host, _companion, _world_art, _player)
 			_tracks.configure(secret)
 			_tracks.trail_done.connect(_on_trail_done)
+		"dream":
+			# Nothing to see yet: it has to doze off in a hollow, dream, and be walked to the dreamed place.
+			_start_doze(secret)
 		_:
 			combined.append(_secret_prop())
+
+
+func _start_doze(secret: Dictionary) -> void:
+	_doze = DozeDirector.new()
+	_doze.name = "DozeDirector"
+	add_child(_doze)
+	_doze.setup(_host, _companion, _world_art, _player)
+	_doze.configure(secret)
+	_doze.place_found.connect(_on_place_found)
 
 
 ## The secret's prop, as the world spec authors any prop (kind "secret" in the examine list).
@@ -130,6 +153,8 @@ func _reveal_type() -> String:
 func update(delta: float) -> void:
 	if _tracks != null:
 		_tracks.update(delta)
+	if _doze != null:
+		_doze.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -152,6 +177,12 @@ func on_hunt_won(_found: int) -> void:
 ## The fox led us to the hare's den: the frost-flower shows.
 func _on_trail_done() -> void:
 	if _reveal_type() == "tracks" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## We walked to the place the companion dreamed of, together: the dream-lantern shows.
+func _on_place_found() -> void:
+	if _reveal_type() == "dream" and _entry.is_empty() and not _secret.is_empty():
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
 
 
@@ -281,6 +312,8 @@ func _on_secret_refused(_secret_id: String) -> void:
 ## A join's discovery list arrived after we laid the world out (a cold build, or a find made on
 ## another device): if it says we already have this one, quietly take it away.
 func _on_discoveries(ids: Array) -> void:
+	if not _secret.is_empty() and _reveal_type() == "dream" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the nap and the dream stay, the prop doesn't come
 	if not _entry.is_empty() and not is_taken(_entry) and ids.has(String(_entry["secret"]["id"])):
 		_take()
 	# found on another device (or the list arrived after the build): its chimes show as rung too

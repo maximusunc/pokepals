@@ -38,7 +38,10 @@ defmodule Server.Seeds do
       tags: ["city", "bricks", "toys", "explore", "cozy", "secret"], accent: [0.96, 0.78, 0.18], featured: true},
     %{world_id: "99999999-9999-9999-9999-999999999999", slug: "drifthallow", name: "Drifthallow", file: "drifthallow.json",
       blurb: "A snowfield at blue hour. Deep, untouched snow, frozen birches, and footprints that fill back in. Something small has left tracks only a fox could follow.",
-      tags: ["snow", "winter", "quiet", "explore", "cozy", "secret"], accent: [0.66, 0.78, 1.0], featured: true}
+      tags: ["snow", "winter", "quiet", "explore", "cozy", "secret"], accent: [0.66, 0.78, 1.0], featured: true},
+    %{world_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", slug: "dozewood", name: "Dozewood", file: "dozewood.json",
+      blurb: "A drowsy forest at a long lilac dusk. Mossy hollows, hammocks, slow lamps. Everything moves at half speed, and yawns are catching. Somewhere your companion dreams of.",
+      tags: ["forest", "sleepy", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.74, 1.0], featured: true}
   ]
 
   # The currency the bazaar shop charges in.
