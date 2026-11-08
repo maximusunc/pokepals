@@ -1,0 +1,16 @@
+{
+	"mosstuft_a": [0, 0, 6, 5],
+	"mosstuft_b": [7, 0, 7, 5],
+	"glowpatch": [15, 0, 7, 5],
+	"glowspeck": [23, 0, 3, 3],
+	"rootlet": [27, 0, 6, 4],
+	"rootlet_b": [34, 0, 6, 4],
+	"pebbles": [41, 0, 6, 5],
+	"stone": [48, 0, 9, 6],
+	"cap": [58, 0, 5, 4],
+	"capcluster": [64, 0, 9, 5],
+	"puddle": [74, 0, 9, 4],
+	"bone": [84, 0, 7, 3],
+	"seedpod": [92, 0, 4, 3],
+	"clayflake": [97, 0, 4, 3]
+}
