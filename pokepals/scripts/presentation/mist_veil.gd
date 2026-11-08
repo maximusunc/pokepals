@@ -1,9 +1,11 @@
 class_name MistVeil
 extends CanvasLayer
 ## STEAMHOLLOW's fog: a drifting mist over the whole view that limits how far you can see, so the
-## bathhouse village is somewhere you get pleasantly lost in. It is one ColorRect with
-## assets/mist.gdshader on a CanvasLayer (above the world, below the vignette and the HUD), so it costs a
-## single cheap fragment pass and nothing per object. Pure presentation: no collision, no network.
+## bathhouse village is somewhere you get pleasantly lost in. assets/mist.gdshader runs on a ColorRect
+## inside a SMALL off-screen SubViewport (about one texel per `texel` world px), and a TextureRect stretches
+## that render over the view with smooth filtering: mist is soft, so it needs no more detail, and the
+## shader runs per fog texel rather than per screen pixel. On a CanvasLayer above the world, below the
+## vignette and the HUD. Pure presentation: no collision, no network.
 ##
 ## The layer FOLLOWS THE VIEWPORT (Godot's `follow_viewport_enabled`: the layer is drawn with the camera's
 ## transform, like the world itself), and the rect is laid over the view in world px each frame, with a
@@ -13,6 +15,7 @@ extends CanvasLayer
 ##
 ## Tuned by the world's `atmosphere.fog` block (all optional, these are the defaults):
 ##   enabled        true            false turns it off
+##   texel          4               world px per texel of the small fog render (bigger: cheaper, softer)
 ##   clear_radius   60              world px of clear view round you (about two steps)...
 ##   fade_radius    210             ...and where the mist reaches full density
 ##   color          [r,g,b]         the mist's colour; warm: the colour of mist lit by a lamp
@@ -22,19 +25,30 @@ extends CanvasLayer
 ##   drift          [7, 3]          the mist's slow slide, px per second
 ##   fade_in        2.5             seconds to thicken on arrival (a gentle start, not a slammed door)
 ##   light_clear    0.9             how much a lit pocket thins the mist at its heart
-##   max_lights     12              pockets at once (the shader's loop); the nearest win
+##   max_lights     8               MOVING pockets at once (the shader's loop): companion, friends, extras
 ##   companion_radius 56  friend_radius 46   the pockets round your companion and everyone else present
 ##   lit            { "prop_types": { type: { radius, warm, y } }, "buildings": { radius, warm, y } }
-##                  what shines through the mist: lantern props, and each building's door
+##                  what shines through the mist: lantern props, and each building's door. These never
+##                  move, so they're baked ONCE into a low-res light mask over the whole world (one
+##                  lookup per pixel, however many there are; none pop in as you approach), not looped.
 ## A caller can add moving pockets (the bell's glint) through the `extra` Callable given to setup(),
 ## returning [{ pos: Vector2, radius: float, warm: float }].
 
 const SHADER := preload("res://assets/mist.gdshader")
-const HARD_MAX_LIGHTS := 12
+const HARD_MAX_LIGHTS := 8
+## Default world px per fog texel. The mist is soft, so it is rendered small into an off-screen
+## SubViewport and stretched over the view with smooth filtering: the shader runs once per texel, not
+## once per screen pixel (tens of times fewer on a phone). The atmosphere's `texel` overrides it.
+const FOG_TEXEL := 4.0
+## World px per texel of the static-light mask (the pockets are soft, so a coarse mask is plenty).
+const MASK_TEXEL := 4.0
 ## World px of extra mist laid round the view, so a camera a frame behind never shows an uncovered edge.
 const MARGIN := 96.0
 
-var _rect: ColorRect
+var _rect: TextureRect         # shows the small fog render, stretched over the view in world px
+var _sub: SubViewport          # where the fog is rendered, small
+var _fog: ColorRect            # the shader's quad, inside _sub
+var _texel := FOG_TEXEL
 var _mat: ShaderMaterial
 var _player: Node2D
 var _walkers: Callable
@@ -66,13 +80,35 @@ func setup(cfg: Dictionary, data: Dictionary, player: Node2D, walkers: Callable,
 	if not _enabled:
 		visible = false
 		return
-	_rect = ColorRect.new()
-	_rect.name = "Rect"
-	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_rect.color = Color.WHITE
+	_texel = maxf(1.0, float(cfg.get("texel", FOG_TEXEL)))
+	# The fog renders into a small off-screen SubViewport (a render target of its own)...
+	_sub = SubViewport.new()
+	_sub.name = "FogRender"
+	_sub.transparent_bg = true
+	_sub.disable_3d = true
+	_sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
+	_sub.size = Vector2i(8, 8)
+	add_child(_sub)
+	_fog = ColorRect.new()
+	_fog.name = "Fog"
+	_fog.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_fog.color = Color.WHITE
 	_mat = ShaderMaterial.new()
 	_mat.shader = SHADER
-	_rect.material = _mat
+	_fog.material = _mat
+	_sub.add_child(_fog)
+	# ...and this rect shows it, stretched over the view with smooth filtering. The shader writes
+	# premultiplied alpha (so the soft edges don't darken), so it is composited that way too.
+	_rect = TextureRect.new()
+	_rect.name = "Rect"
+	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_rect.texture = _sub.get_texture()
+	_rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	_rect.stretch_mode = TextureRect.STRETCH_SCALE
+	_rect.texture_filter = CanvasItem.TEXTURE_FILTER_LINEAR
+	var blend := CanvasItemMaterial.new()
+	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
+	_rect.material = blend
 	add_child(_rect)
 	_mat.set_shader_parameter("clear_r", float(cfg.get("clear_radius", 60.0)))
 	_mat.set_shader_parameter("fade_r", float(cfg.get("fade_radius", 210.0)))
@@ -88,6 +124,7 @@ func setup(cfg: Dictionary, data: Dictionary, player: Node2D, walkers: Callable,
 	_companion_radius = float(cfg.get("companion_radius", 56.0))
 	_friend_radius = float(cfg.get("friend_radius", 46.0))
 	_collect_static(cfg.get("lit", {}), data)
+	_bake_mask(data)
 	_mat.set_shader_parameter("strength", 0.0 if _fade_in > 0.0 else 1.0)
 	_time = 0.0
 
@@ -111,6 +148,40 @@ func _collect_static(lit: Dictionary, data: Dictionary) -> void:
 				"radius": float(bc.get("radius", 130.0)), "warm": float(bc.get("warm", 0.8)) })
 
 
+## Paint every static light's pocket into a low-res mask over the world (r: how much it thins the mist,
+## g: its warmth), once. Overlaps keep the stronger. A world with none still gets a blank mask, so the
+## sampler never falls back to white (which would clear the whole veil).
+func _bake_mask(data: Dictionary) -> void:
+	var bounds: Dictionary = data.get("bounds", {})
+	var lo := WorldData.to_vec2(bounds.get("min", [0, 0])) - Vector2(256.0, 256.0)
+	var hi := WorldData.to_vec2(bounds.get("max", [0, 0])) + Vector2(256.0, 256.0)
+	var w := 1
+	var h := 1
+	if not _static.is_empty() and hi.x > lo.x and hi.y > lo.y:
+		w = int(ceil((hi.x - lo.x) / MASK_TEXEL))
+		h = int(ceil((hi.y - lo.y) / MASK_TEXEL))
+	var img := Image.create_empty(w, h, false, Image.FORMAT_RG8)
+	for l in _static:
+		var pos: Vector2 = l["pos"]
+		var r := float(l["radius"])
+		var warm := float(l["warm"])
+		var cx := (pos.x - lo.x) / MASK_TEXEL
+		var cy := (pos.y - lo.y) / MASK_TEXEL
+		var rt := r / MASK_TEXEL
+		for ty in range(maxi(0, floori(cy - rt)), mini(h, ceili(cy + rt) + 1)):
+			for tx in range(maxi(0, floori(cx - rt)), mini(w, ceili(cx + rt) + 1)):
+				var d := Vector2(tx + 0.5 - cx, ty + 0.5 - cy).length() * MASK_TEXEL
+				var k := 1.0 - smoothstep(0.0, r, d)
+				k = k * k
+				if k <= 0.0:
+					continue
+				var old := img.get_pixel(tx, ty)
+				img.set_pixel(tx, ty, Color(maxf(old.r, k), maxf(old.g, k * warm), 0.0))
+	_mat.set_shader_parameter("light_mask", ImageTexture.create_from_image(img))
+	_mat.set_shader_parameter("mask_origin", lo)
+	_mat.set_shader_parameter("mask_size", Vector2(w, h) * MASK_TEXEL)
+
+
 func static_light_count() -> int:
 	return _static.size()
 
@@ -128,16 +199,25 @@ func _process(delta: float) -> void:
 	# Cover the view (in world px) plus a margin; the layer draws it with the camera's transform.
 	var inv := ct.affine_inverse()
 	var view := Rect2(inv * Vector2.ZERO, Vector2.ZERO).expand(inv * size).grow(MARGIN)
-	_rect.position = view.position
-	_rect.size = view.size
-	_mat.set_shader_parameter("rect_origin", view.position)
-	_mat.set_shader_parameter("rect_size", view.size)
+	# The small render's grid is pinned to the world (its origin snapped to whole texels), so the soft fog
+	# texels stay put as you walk instead of shimmering; and the render only ever GROWS (with a little
+	# headroom), so it is not reallocated every frame as the view's size wobbles by a fraction of a texel.
+	var origin := (view.position / _texel).floor() * _texel
+	var need := Vector2i(ceili((view.end.x - origin.x) / _texel) + 1, ceili((view.end.y - origin.y) / _texel) + 1)
+	if need.x > _sub.size.x or need.y > _sub.size.y:
+		_sub.size = Vector2i(maxi(_sub.size.x, need.x + 16), maxi(_sub.size.y, need.y + 16))
+		_fog.size = Vector2(_sub.size)
+	var cover := Vector2(_sub.size) * _texel
+	_rect.position = origin
+	_rect.size = cover
+	_mat.set_shader_parameter("rect_origin", origin)
+	_mat.set_shader_parameter("rect_size", cover)
 	_mat.set_shader_parameter("center", _player.global_position)
 	_mat.set_shader_parameter("drift", _drift)
 	_mat.set_shader_parameter("time", _time)
 	if _fade_in > 0.0:
 		_mat.set_shader_parameter("strength", smoothstep(0.0, 1.0, clampf(_time / _fade_in, 0.0, 1.0)))
-	var pockets := _gather(ct, size)
+	var pockets := _gather()
 	var packed := PackedVector4Array()
 	packed.resize(HARD_MAX_LIGHTS)
 	for i in pockets.size():
@@ -146,9 +226,9 @@ func _process(delta: float) -> void:
 	_mat.set_shader_parameter("light_count", pockets.size())
 
 
-## The pockets for this frame as world-space vec4s (x, y, radius, warmth, all world px): the moving ones
-## first (your companion, everyone else, the caller's extras), then the nearest lit things on screen.
-func _gather(ct: Transform2D, size: Vector2) -> Array:
+## The MOVING pockets for this frame as world-space vec4s (x, y, radius, warmth, all world px): your
+## companion, everyone else, and the caller's extras. The static lights are baked into the mask.
+func _gather() -> Array:
 	var out: Array = []
 	for w in _walkers.call():
 		if w == _player or not (w is Node2D):
@@ -162,22 +242,7 @@ func _gather(ct: Transform2D, size: Vector2) -> Array:
 			out.append(_pocket(e["pos"], float(e["radius"]), float(e.get("warm", 1.0))))
 			if out.size() >= _max_lights:
 				return out
-	var inv := ct.affine_inverse()
-	var view := Rect2(inv * Vector2.ZERO, Vector2.ZERO)
-	view = view.expand(inv * size)
-	var near: Array = []   # [distance to the player, index into _static] for the lit things on screen
-	var pp := _player.global_position
-	for i in _static.size():
-		var l: Dictionary = _static[i]
-		if view.grow(float(l["radius"])).has_point(l["pos"]):
-			near.append([pp.distance_squared_to(l["pos"]), i])
-	near.sort_custom(func(a: Array, b: Array) -> bool: return a[0] < b[0])
-	for pair in near:
-		if out.size() >= _max_lights:
-			break
-		var l: Dictionary = _static[pair[1]]
-		out.append(_pocket(l["pos"], l["radius"], l["warm"]))
-	return out
+	return out   # the static lights are in the baked mask
 
 
 static func _pocket(world: Vector2, radius: float, warm: float) -> Vector4:
