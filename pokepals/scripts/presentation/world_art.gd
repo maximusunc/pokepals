@@ -82,6 +82,7 @@ var _pool_world_tile := 64.0
 # Absent → the flat-green procedural hedges below.
 var _hedge_tex: Texture2D = null
 var _hedge_world_tile := 44.0
+var _hedge_hi := Color(0.41, 0.61, 0.34)   # the thin bright edge along a hedge's top (a world's hedge entity may set "highlight")
 
 # Optional pixel-art prop sprites (tools/gen_props.py), keyed by prop type. Each has a BASE
 # layer (fixed materials) and, when its colour is data, a grayscale TINT layer drawn with the
@@ -139,6 +140,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	var hedge_cfg: Dictionary = _style.entity("hedge")
 	_hedge_tex = SpriteSlot.resolve(hedge_cfg, "tile")
 	_hedge_world_tile = float(hedge_cfg.get("world_tile", 44.0))
+	_hedge_hi = WorldData.to_color(hedge_cfg.get("highlight", [0.41, 0.61, 0.34, 1.0]))
 	if _pond_tex != null or _river_tex != null or _pool_tex != null or _hedge_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_parse_plates(data)
@@ -1624,7 +1626,7 @@ func _draw_hedges() -> void:
 	var shadow := Color(0.04, 0.06, 0.04, 0.20)
 	var front := Color(0.16, 0.30, 0.17)
 	var top := Color(0.27, 0.47, 0.25)
-	var hi := Color(0.41, 0.61, 0.34)
+	var hi := _hedge_hi
 	for h in _hedges:
 		draw_line(h["a"] + Vector2(5, 8), h["b"] + Vector2(5, 8), shadow, float(h["t"]) + 2.0)
 	if _hedge_tex != null:

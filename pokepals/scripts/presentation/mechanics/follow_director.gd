@@ -40,6 +40,7 @@ var _glimmer := 0.0             # how much of the heart's own glow shows through
 var _revealed := false          # the heart is in the world (arrival), so it shines for itself
 var _active := true
 var _time := 0.0
+var _pet_pause := 0.0           # seconds to leave the companion alone after a pet, so it can enjoy it
 
 
 func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: PlayerView) -> void:
@@ -127,8 +128,21 @@ func update(delta: float) -> void:
 	_time += delta
 	var bond := _companion.bond_value()
 
+	# What a player naturally does while waiting must not be swallowed by our own orders (the brain's command
+	# slot holds ONE order, and we would otherwise overwrite theirs every frame). A CALL ends the lead
+	# gracefully (the companion comes to you; ask again when you like). A PET is enjoyed: we leave the
+	# companion alone for a few seconds, then the lead carries on where it was.
+	var pc := _companion.pending_command()
+	if _guide.is_leading() and pc == "come":
+		_guide.stop()
+		_light_target = 0.0
+		_host.show_hint(String(_lines.get("called", "")))
+	elif pc == "pet":
+		_pet_pause = float(_reveal.get("pet_pause", 3.0))
+	_pet_pause = maxf(0.0, _pet_pause - delta)
+
 	var r := _guide.update(delta, _companion.position, _player.position, bond)
-	if String(r["command"]) == "guide":
+	if String(r["command"]) == "guide" and _pet_pause <= 0.0 and pc != "come" and pc != "pet":
 		_companion.issue_command("guide", r["target"], { "hold": bool(r["hold"]), "speed": float(r["speed"]) })
 	if _guide.is_leading():
 		# A leading companion shouldn't change shape halfway; keep its drift off while it works.

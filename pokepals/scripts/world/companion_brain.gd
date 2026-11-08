@@ -102,6 +102,12 @@ func issue_command(command: String, point = null, meta: Dictionary = {}) -> void
 	_pending_command_meta = meta
 
 
+## The command offered but not yet taken up ("" when none): lets a director that re-issues its own order
+## every frame (a lead, a hold) see a whistle or a pet the player has just made, rather than overwrite it.
+func pending_command() -> String:
+	return _pending_command
+
+
 ## A snapshot of the last frame's decision for diagnostics: the winning behavior,
 ## the spatial facts that drove it, and every drive's score this frame. Read-only;
 ## the brain never reads this back, so it can't affect behavior.

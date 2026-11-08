@@ -39,8 +39,8 @@ extends RefCounted
 enum Phase { IDLE, LEAD, WAIT, HOLD, DONE }
 
 const DEFAULTS := {
-	"reach_low": 2600.0,           # px of route one ask can lead, at zero bond...
-	"reach_high": 99999.0,         # ...and at full bond (effectively unlimited)
+	"reach_low": 1000.0,           # px of route one ask can lead, at zero bond...
+	"reach_high": 7000.0,          # ...and at full bond (a whole route)
 	"pace_low": 74.0,
 	"pace_high": 100.0,
 	"wait_low": 150.0,             # you're this far behind: it waits (zero bond)...

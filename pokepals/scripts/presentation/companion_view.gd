@@ -286,6 +286,11 @@ func listen_toward(world_pos: Vector2, strength: float) -> void:
 		_perk = maxf(_perk, float(_cfg.get("listen", {}).get("perk", 0.5)) * _listen_t)
 
 
+## The order the player has just given that the brain has not taken up yet ("come", "pet", ... or "").
+func pending_command() -> String:
+	return _brain.pending_command() if _brain != null else ""
+
+
 ## The route from where this body stands to `goal`, as waypoints through the world's walls (the same
 ## NavGrid it steers by), for a director that wants to LEAD with it (Underroot's root-heart). Each leg is a
 ## clear straight line. Empty when there is no walkability grid (nav off), the body cannot be placed on it,
