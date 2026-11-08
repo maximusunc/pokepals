@@ -466,7 +466,7 @@ ATMOSPHERE = {
         "light_clear": 0.9, "max_lights": 12, "companion_radius": 56, "friend_radius": 46,
         "lit": {
             "prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "y": -22}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -14}},
-            "buildings": {"radius": 150, "warm": 0.85, "y": -20},
+            "buildings": {"radius": 40, "warm": 0.85, "y": -20},
         },
     },
     # steam breathing off every spring, and off the vents
