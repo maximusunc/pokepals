@@ -688,8 +688,8 @@ is the ordinary claim. Code: pure `ListenGuide` (`scripts/world`, tested), prese
    It cannot tell a heard bell from a stumbled-on one.
 7. **Personal and display-only.** The listening is local; a friend beside you sees your companion turn but
    nothing is networked, and their companion does not trigger yours.
-8. **The fog.** `MistVeil`: one full-screen shader pass under the vignette: 64 px of clear view (about two
-   steps), full density by 215 px, 93% at its thickest (far silhouettes still hint), mottled by two octaves of
+8. **The fog.** `MistVeil`: one shader pass over the view, under the vignette: 40 px of clear view
+   (brought in from 64 after the first playtest), full density by 150 px (was 215), 93% at its thickest (far silhouettes still hint), mottled by two octaves of
    noise anchored to the world and drifting at 7,3 px/s, the edge billowing; it fades in over 2.5 s on arrival.
    Lanterns, lit doorways, your companion, friends present and the bell (when near) each thin it into a pocket (at
    most 12 at once, the nearest win), tinted warm round lamps. Cost: one cheap fragment pass, a 12-iteration
@@ -730,6 +730,19 @@ bell in about six stop-and-listen cycles (one cycle was knocked off course by co
 glint. Elixir: the standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked).
 *Not checked:* phone frame rate, the world-pack build, a real two-player session, and the feel (that is the
 playtest).
+
+**Playtest fixes (2026-11-08), from the owner's first play:**
+- *The fog should come in closer.* Clear view 64 → 40 px, full density 215 → 150 px (`atmosphere.fog`).
+  Lanterns and lit doors still thin it into their own pockets.
+- *Lanterns lit too much.* They should only hint that something is there, so you go and look: the
+  lantern fog pockets shrank from 120 px to 36 (paper) and 90 to 28 (stone), a small warm glint each.
+  Lit bathhouse doors went the same way: 150 px to 40.
+- *The fog jittered and lagged behind the player.* The veil was screen-space: each frame it converted the
+  player's position through the camera's transform, which could be a frame stale while the camera eased,
+  so the clear patch trailed and jittered. Now the veil's layer follows the viewport (drawn with the
+  camera's transform, like the world) and every position is in world px, updated late in the frame
+  (`process_priority`), so the clear patch is placed in the same space as the player sprite. Checked in a
+  windowed run: the patch's centre equals the player's position on every sampled frame while walking.
 
 ## How we work through it
 

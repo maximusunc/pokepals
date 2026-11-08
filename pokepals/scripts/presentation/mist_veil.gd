@@ -1,9 +1,15 @@
 class_name MistVeil
 extends CanvasLayer
 ## STEAMHOLLOW's fog: a drifting mist over the whole view that limits how far you can see, so the
-## bathhouse village is somewhere you get pleasantly lost in. It is one full-screen ColorRect with
+## bathhouse village is somewhere you get pleasantly lost in. It is one ColorRect with
 ## assets/mist.gdshader on a CanvasLayer (above the world, below the vignette and the HUD), so it costs a
 ## single cheap fragment pass and nothing per object. Pure presentation: no collision, no network.
+##
+## The layer FOLLOWS THE VIEWPORT (Godot's `follow_viewport_enabled`: the layer is drawn with the camera's
+## transform, like the world itself), and the rect is laid over the view in world px each frame, with a
+## margin. So the clear patch round the player is positioned in the same space the player is drawn in,
+## and can't lag or jitter behind them when the camera eases. It also updates late in the frame
+## (`process_priority`), after the player and the camera have moved.
 ##
 ## Tuned by the world's `atmosphere.fog` block (all optional, these are the defaults):
 ##   enabled        true            false turns it off
@@ -25,6 +31,8 @@ extends CanvasLayer
 
 const SHADER := preload("res://assets/mist.gdshader")
 const HARD_MAX_LIGHTS := 12
+## World px of extra mist laid round the view, so a camera a frame behind never shows an uncovered edge.
+const MARGIN := 96.0
 
 var _rect: ColorRect
 var _mat: ShaderMaterial
@@ -44,6 +52,8 @@ var _enabled := true
 
 func _init() -> void:
 	layer = 1
+	follow_viewport_enabled = true
+	process_priority = 1000   # after the player and the camera have moved this frame
 
 
 ## cfg: the atmosphere's fog block. data: the world spec (for the lit props and buildings). player: the
@@ -58,7 +68,6 @@ func setup(cfg: Dictionary, data: Dictionary, player: Node2D, walkers: Callable,
 		return
 	_rect = ColorRect.new()
 	_rect.name = "Rect"
-	_rect.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_rect.color = Color.WHITE
 	_mat = ShaderMaterial.new()
@@ -116,11 +125,14 @@ func _process(delta: float) -> void:
 	var size := vp.get_visible_rect().size
 	if size.x <= 0.0 or size.y <= 0.0:
 		return
-	var s := ct.get_scale().x
-	_mat.set_shader_parameter("view_size", size)
-	_mat.set_shader_parameter("px_per_world", s)
-	_mat.set_shader_parameter("world_origin", ct.affine_inverse() * Vector2.ZERO)
-	_mat.set_shader_parameter("center", ct * _player.global_position)
+	# Cover the view (in world px) plus a margin; the layer draws it with the camera's transform.
+	var inv := ct.affine_inverse()
+	var view := Rect2(inv * Vector2.ZERO, Vector2.ZERO).expand(inv * size).grow(MARGIN)
+	_rect.position = view.position
+	_rect.size = view.size
+	_mat.set_shader_parameter("rect_origin", view.position)
+	_mat.set_shader_parameter("rect_size", view.size)
+	_mat.set_shader_parameter("center", _player.global_position)
 	_mat.set_shader_parameter("drift", _drift)
 	_mat.set_shader_parameter("time", _time)
 	if _fade_in > 0.0:
@@ -134,7 +146,7 @@ func _process(delta: float) -> void:
 	_mat.set_shader_parameter("light_count", pockets.size())
 
 
-## The pockets for this frame as screen-space vec4s (x, y, radius in world px, warmth): the moving ones
+## The pockets for this frame as world-space vec4s (x, y, radius, warmth, all world px): the moving ones
 ## first (your companion, everyone else, the caller's extras), then the nearest lit things on screen.
 func _gather(ct: Transform2D, size: Vector2) -> Array:
 	var out: Array = []
@@ -142,12 +154,12 @@ func _gather(ct: Transform2D, size: Vector2) -> Array:
 		if w == _player or not (w is Node2D):
 			continue
 		var r := _companion_radius if w is CompanionView else _friend_radius
-		out.append(_to_screen(ct, (w as Node2D).global_position + Vector2(0.0, -6.0), r, 0.0))
+		out.append(_pocket((w as Node2D).global_position + Vector2(0.0, -6.0), r, 0.0))
 		if out.size() >= _max_lights:
 			return out
 	if _extra.is_valid():
 		for e in _extra.call():
-			out.append(_to_screen(ct, e["pos"], float(e["radius"]), float(e.get("warm", 1.0))))
+			out.append(_pocket(e["pos"], float(e["radius"]), float(e.get("warm", 1.0))))
 			if out.size() >= _max_lights:
 				return out
 	var inv := ct.affine_inverse()
@@ -164,10 +176,9 @@ func _gather(ct: Transform2D, size: Vector2) -> Array:
 		if out.size() >= _max_lights:
 			break
 		var l: Dictionary = _static[pair[1]]
-		out.append(_to_screen(ct, l["pos"], l["radius"], l["warm"]))
+		out.append(_pocket(l["pos"], l["radius"], l["warm"]))
 	return out
 
 
-static func _to_screen(ct: Transform2D, world: Vector2, radius: float, warm: float) -> Vector4:
-	var sp := ct * world
-	return Vector4(sp.x, sp.y, radius, warm)
+static func _pocket(world: Vector2, radius: float, warm: float) -> Vector4:
+	return Vector4(world.x, world.y, radius, warm)

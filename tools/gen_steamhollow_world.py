@@ -461,12 +461,12 @@ ATMOSPHERE = {
     "grass": {"max": 0},
     # the defining feature: a drifting mist that leaves you about two steps of clear view (MistVeil)
     "fog": {
-        "clear_radius": 64, "fade_radius": 215, "color": [0.80, 0.82, 0.90], "warm": [1.0, 0.80, 0.52],
+        "clear_radius": 40, "fade_radius": 150, "color": [0.80, 0.82, 0.90], "warm": [1.0, 0.80, 0.52],
         "density": 0.93, "swirl": 0.35, "noise_scale": 0.011, "drift": [7, 3], "fade_in": 2.5,
         "light_clear": 0.9, "max_lights": 12, "companion_radius": 56, "friend_radius": 46,
         "lit": {
-            "prop_types": {"sh_lantern": {"radius": 120, "warm": 1.0, "y": -22}, "sh_stone_lantern": {"radius": 90, "warm": 0.9, "y": -14}},
-            "buildings": {"radius": 150, "warm": 0.85, "y": -20},
+            "prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "y": -22}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -14}},
+            "buildings": {"radius": 40, "warm": 0.85, "y": -20},
         },
     },
     # steam breathing off every spring, and off the vents
