@@ -20,6 +20,7 @@ func _init() -> void:
 	failures += TestTrailGuide.run_all()
 	failures += TestDreamGate.run_all()
 	failures += TestListenGuide.run_all()
+	failures += TestFollowGuide.run_all()
 	failures += TestCompanionSelf.run_all()
 	failures += TestCompanionAttention.run_all()
 	failures += TestWorldAreas.run_all()
