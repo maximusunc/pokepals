@@ -622,7 +622,7 @@
 	"atmosphere": {"day_tint": [1.0, 0.88, 0.72], "vignette": {"strength": 0.3, "color": [0.3, 0.12, 0.12]}, "wind": {"strength": 0.6, "speed": 0.6}, "pollen": {"amount": 18, "color": [1.0, 0.84, 0.56]}, "region_tint_alpha": 0.06, "grass": {"max": 0}},
 	"player_spawn": [-1500, 420],
 	"companion_spawn": [-1530, 450],
-	"vein": {"rect": [-1700, 20, 3400, 110], "color": [0.88, 0.72, 0.54], "rim": [0.97, 0.88, 0.72]},
+	"vein": {"rect": [-1700, 20, 3400, 110], "color": [0.92, 0.78, 0.6], "rim": [0.98, 0.9, 0.74]},
 	"ponds": [
 		{"center": [-1000, 340], "radius": 46, "color": [0.34, 0.46, 0.54]},
 		{"center": [200, 330], "radius": 40, "color": [0.34, 0.46, 0.54]},
@@ -2159,7 +2159,7 @@
 					-1070
 				]
 			},
-			"speed": 700.0,
+			"speed": 600.0,
 			"path_low": 1500.0,
 			"path_high": 2300.0,
 			"min_strength": 0.1,

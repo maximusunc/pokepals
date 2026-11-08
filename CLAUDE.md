@@ -245,6 +245,24 @@ not a blocker** — pick it up if/when a shared world wants it.
 > over `tools/pixelart/steamhollow.py`; layout, lore and the secret: `tools/gen_steamhollow_world.py`. Every
 > finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Steamhollow").
 
+> **Hollowsong (2026-11):** an **echo canyon** at sunset (3600x2600): banded red cliffs, wind-carved arches
+> you can walk through and a dry riverbed; every sound comes back as soft, visible ripples. Reached through the
+> Gateway (featured). **Secret:** a hidden cave, the only place that answers *wrong*. In **wolf form** your
+> companion howls on command (the radial's **Howl**, offered in every shape; any other shape says a wolf's
+> voice would carry here). The canyon howls back: pure `EchoField` (`scripts/world`, tested) bounces the howl
+> off the authored cliff walls (mirror-image method, occlusion, bond-scaled reach) and `EchoRipples` draws the
+> returning gold wavefronts. One answer comes late, violet, dashed and thick from where there is no wall; it
+> leaves a lingering dotted bearing line toward the cave, with an error that shrinks the nearer you stand and
+> the deeper the bond, so a second howl from somewhere else crosses it. Friends' howls are relayed
+> (`howl` -> `howled`, a stateless server-stamped relay, `Server.Howl`) so two players find it much faster.
+> Walking up to the cave opens a crack in the cliff (reveal type `echo`, server: "this world, standing at it")
+> and the answering stone is claimed through the usual flow. The companion notices the cave and points at it as
+> you come near (by bond). Cliffs are `CliffView` (a `BuildingView`, spec `"view": "cliff"`, an `arch` opening
+> with `solid_rects` for its legs); the cliffs' edges ARE the echo walls. `EchoGuide` + `HowlDirector`
+> (`mechanics/`). Art: `pokepals/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`; layout, lore and
+> the secret: `tools/gen_hollowsong_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Hollowsong").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

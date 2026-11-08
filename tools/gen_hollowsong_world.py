@@ -66,7 +66,7 @@ LANDMARKS = [
     {"type": "great_tree", "position": [720, -300]},
 ]
 
-VEIN = {"rect": [-1700, 20, 3400, 110], "color": [0.88, 0.72, 0.54], "rim": [0.97, 0.88, 0.72]}
+VEIN = {"rect": [-1700, 20, 3400, 110], "color": [0.92, 0.78, 0.60], "rim": [0.98, 0.90, 0.74]}
 
 # ── the cliffs. Every cliff is a footprint rect [x, y, w, depth] whose SOUTH edge is its foot (the drawn
 # face). The edges of the footprints that collide are the canyon's echoing WALLS (see walls_of). ───────────
@@ -472,7 +472,7 @@ REVEAL = {
     # the howl (EchoField / EchoGuide). speed: px/s the sound travels. Reach is the longest there-and-back path
     # still heard; a bonded companion's voice carries further, answers the cave from further off, shows its
     # wrong answer more clearly and points it out with less error, and howls again sooner.
-    "speed": 700.0, "path_low": 1500.0, "path_high": 2300.0, "min_strength": 0.10, "falloff": 1.1,
+    "speed": 600.0, "path_low": 1500.0, "path_high": 2300.0, "min_strength": 0.10, "falloff": 1.1,
     "max_candidates": 28, "min_gap": 8.0, "hollow": 0.35,
     "wrong_range_low": 1250.0, "wrong_range_high": 1900.0,
     "wrong_noise_low": 0.36, "wrong_noise_high": 0.09, "wrong_noise_floor": 0.2,

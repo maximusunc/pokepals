@@ -17,8 +17,10 @@ extends Node2D
 ## the view, not the number of howls.
 
 const GOLD := Color(1.0, 0.84, 0.50)
-const VIOLET := Color(0.68, 0.56, 1.0)
+const VIOLET := Color(0.62, 0.44, 1.0)
+const INK := Color(0.14, 0.05, 0.30)       # the dark edge that keeps the violet readable on warm stone
 const CALL_RANGE := 260.0
+const FADE := 0.55   # seconds a wavefront lingers after it has reached you
 
 var speed := 700.0
 var streak_life := 16.0
@@ -88,19 +90,19 @@ func _draw_howl(h: Dictionary, vis: Rect2, cull: bool) -> void:
 	# the call: a thin ring leaving the voice, and arcs rising off the howler
 	var cr := speed * t
 	if cr < CALL_RANGE:
-		var a := 0.34 * (1.0 - cr / CALL_RANGE) * k
-		_arc_ring(vis, cull, src, cr, 0.0, TAU, Color(GOLD.r, GOLD.g, GOLD.b, a), 1.0)
+		var a := 0.6 * (1.0 - cr / CALL_RANGE) * k
+		_arc_ring(vis, cull, src, cr, 0.0, TAU, Color(GOLD.r, GOLD.g, GOLD.b, a), 2.0)
 	if t < 0.9:
 		for i in 3:
 			var f := clampf((t - float(i) * 0.12) / 0.7, 0.0, 1.0)
 			if f > 0.0 and f < 1.0:
 				_arc_ring(vis, cull, src + Vector2(0.0, -20.0 - 10.0 * f), 7.0 + float(i) * 6.0, -PI * 0.85, -PI * 0.15,
-					Color(GOLD.r, GOLD.g, GOLD.b, 0.8 * (1.0 - f) * k), 1.5)
+					Color(GOLD.r, GOLD.g, GOLD.b, 1.0 * (1.0 - f) * k), 2.5)
 	# each wall's answer
 	for e in h["echoes"]:
 		var t_hit := float(e["t_hit"])
 		var arrive := float(e["arrive"])
-		if t < t_hit or t > arrive + 0.9:
+		if t < t_hit or t > arrive + FADE:
 			continue
 		var r := speed * t
 		var image: Vector2 = e["image"]
@@ -108,10 +110,12 @@ func _draw_howl(h: Dictionary, vis: Rect2, cull: bool) -> void:
 		var a1 := ((e["b"] as Vector2) - image).angle()
 		var span := angle_difference(a0, a1)
 		var fade_in := clampf((t - t_hit) / 0.18, 0.0, 1.0)
-		var fade_out := 1.0 - smoothstep(arrive, arrive + 0.9, t)
+		var fade_out := 1.0 - smoothstep(arrive, arrive + FADE, t)
 		var al := float(e["strength"]) * fade_in * fade_out * k
-		_arc_ring(vis, cull, image, r, a0, a0 + span, Color(GOLD.r, GOLD.g, GOLD.b, 0.85 * al), 1.6)
-		_arc_ring(vis, cull, image, r - 11.0, a0, a0 + span, Color(GOLD.r, GOLD.g, GOLD.b, 0.40 * al), 1.0)
+		_arc_ring(vis, cull, image, r, a0, a0 + span, Color(GOLD.r, GOLD.g, GOLD.b, 0.22 * al), 9.0)    # a soft body
+		_arc_ring(vis, cull, image, r, a0, a0 + span, Color(GOLD.r, GOLD.g, GOLD.b, 0.95 * al), 2.6)
+		_arc_ring(vis, cull, image, r - 12.0, a0, a0 + span, Color(GOLD.r, GOLD.g, GOLD.b, 0.55 * al), 1.6)
+		_arc_ring(vis, cull, image, r - 24.0, a0, a0 + span, Color(GOLD.r, GOLD.g, GOLD.b, 0.25 * al), 1.2)
 	# the wrong answer
 	var wrong: Dictionary = h["wrong"]
 	if not wrong.is_empty():
@@ -126,16 +130,19 @@ func _draw_wrong(h: Dictionary, w: Dictionary, t: float, vis: Rect2, cull: bool,
 	var s := float(w["strength"]) * k
 	var age := t - t_birth
 	if age >= 0.0 and age < 1.0 and (not cull or vis.has_point(origin)):
-		SoftGlow.draw(self, origin, 46.0, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.34 * s * (1.0 - age)), 0.8)
-	if age >= 0.0 and t < arrive + 0.8:
+		SoftGlow.draw(self, origin, 60.0, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.5 * s * (1.0 - age)), 0.8)
+	if age >= 0.0 and t < arrive + FADE:
 		var r := speed * age
 		var face := (listener - origin).angle()
 		var half := 0.62
 		var fade_in := clampf(age / 0.25, 0.0, 1.0)
-		var fade_out := 1.0 - smoothstep(arrive, arrive + 0.8, t)
+		var fade_out := 1.0 - smoothstep(arrive, arrive + FADE, t)
 		var al := s * fade_in * fade_out
-		_arc_ring(vis, cull, origin, r, face - half, face + half, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.85 * al), 3.0)
-		_arc_ring(vis, cull, origin, r - 30.0, face - half, face + half, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.55 * al), 1.6, true)
+		# thick, with a dark edge, and a dashed second ring behind it: nothing like a wall's thin gold arc
+		_arc_ring(vis, cull, origin, r, face - half, face + half, Color(INK.r, INK.g, INK.b, 0.55 * al), 9.0)
+		_arc_ring(vis, cull, origin, r, face - half, face + half, Color(VIOLET.r, VIOLET.g, VIOLET.b, 1.0 * al), 5.0)
+		_arc_ring(vis, cull, origin, r - 34.0, face - half, face + half, Color(INK.r, INK.g, INK.b, 0.45 * al), 6.0, true)
+		_arc_ring(vis, cull, origin, r - 34.0, face - half, face + half, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.85 * al), 3.0, true)
 	if t >= arrive and t < arrive + streak_life:
 		_draw_bearing(listener, origin, (t - arrive) / streak_life, s, vis, cull)
 
@@ -145,7 +152,7 @@ func _draw_wrong(h: Dictionary, w: Dictionary, t: float, vis: Rect2, cull: bool,
 func _draw_bearing(from: Vector2, toward: Vector2, f: float, s: float, vis: Rect2, cull: bool) -> void:
 	var dir := (toward - from).normalized()
 	var length := minf(from.distance_to(toward), streak_length)
-	var a := s * (1.0 - f) * (1.0 - f)
+	var a := minf(1.0, s * 1.25) * (1.0 - f * f)
 	var step := 26.0
 	var n := int(length / step)
 	for i in range(1, n + 1):
@@ -153,13 +160,15 @@ func _draw_bearing(from: Vector2, toward: Vector2, f: float, s: float, vis: Rect
 		if cull and not vis.has_point(p):
 			continue
 		var fall := 1.0 - 0.55 * float(i) / float(maxi(n, 1))
-		draw_circle(p, 2.0, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.75 * a * fall))
+		draw_circle(p, 4.5, Color(INK.r, INK.g, INK.b, 0.5 * a * fall))
+		draw_circle(p, 3.0, Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.95 * a * fall))
 	if cull and not vis.has_point(from + dir * 40.0):
 		return
 	var c := from + dir * 40.0
 	var side := dir.orthogonal()
-	draw_polyline(PackedVector2Array([c - dir * 9.0 + side * 8.0, c, c - dir * 9.0 - side * 8.0]),
-		Color(VIOLET.r, VIOLET.g, VIOLET.b, 0.9 * a), 2.0, true)
+	var chev := PackedVector2Array([c - dir * 12.0 + side * 11.0, c, c - dir * 12.0 - side * 11.0])
+	draw_polyline(chev, Color(INK.r, INK.g, INK.b, 0.6 * a), 6.0, true)
+	draw_polyline(chev, Color(VIOLET.r, VIOLET.g, VIOLET.b, 1.0 * a), 3.5, true)
 
 
 ## An arc of a circle (centre, radius, from angle to angle), only when the circle can cross the view, and

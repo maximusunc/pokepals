@@ -35,6 +35,7 @@ var _cliff: CliffView = null
 var _said := {}
 var _howl_t := 0.0                 # seconds left on the howl pose
 var _react: Array = []             # [{ left: float, pos: Vector2 }]: the companion glancing at a wrong answer as it arrives
+var _later: Array = []             # [{ left: float, key: String }]: hint lines held until the thing they describe arrives
 var _pointing := false
 var _found := false
 var _last_cd_hint := -100.0
@@ -60,6 +61,7 @@ func configure(secret: Dictionary, found: bool = false) -> void:
 	_said = {}
 	_howl_t = 0.0
 	_react = []
+	_later = []
 	_found = found
 	_clock = 0.0
 	if is_instance_valid(_ripples):
@@ -117,9 +119,13 @@ func try_howl() -> void:
 	_howl_t = HOWL_POSE
 	_ripples.add_howl(_companion.position, _player.position, r, false)
 	Net.send_howl()
-	for e in r["events"]:
-		_on_event(String(e))
 	var wrong: Dictionary = r["wrong"]
+	for e in r["events"]:
+		# the first wrong answer is told when it ARRIVES, not when the howl leaves
+		if String(e) == "wrong" and not wrong.is_empty():
+			_later.append({ "left": float(wrong["arrive"]), "key": "wrong" })
+		else:
+			_on_event(String(e))
 	if not wrong.is_empty():
 		# the companion turns its head to the wrong answer as it arrives
 		_react.append({ "left": float(wrong["arrive"]) - 0.2, "pos": wrong["origin"] })
@@ -133,7 +139,10 @@ func _on_howl_heard(x: float, y: float) -> void:
 	var r := _guide.hear(at, 0.5)
 	_ripples.add_howl(at, at, r, true)
 	for e in r["events"]:
-		_on_event(String(e))
+		if String(e) == "wrong" and not (r["wrong"] as Dictionary).is_empty():
+			_later.append({ "left": float(r["wrong"]["arrive"]), "key": "wrong" })
+		else:
+			_on_event(String(e))
 
 
 func _nearest_wall_point() -> Vector2:
@@ -166,6 +175,14 @@ func update(delta: float) -> void:
 		_howl_t -= delta
 		_companion.issue_command("guide", _companion.position, { "hold": true })
 		_companion.listen_toward(_companion.position + Vector2(0.0, -180.0), 1.0)
+	var due: Array = []
+	for l in _later:
+		l["left"] = float(l["left"]) - delta
+		if float(l["left"]) <= 0.0:
+			_on_event(String(l["key"]))
+		else:
+			due.append(l)
+	_later = due
 	var keep: Array = []
 	for rc in _react:
 		rc["left"] = float(rc["left"]) - delta
