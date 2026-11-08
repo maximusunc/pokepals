@@ -323,15 +323,17 @@ def _p_hare_hollow(c):
 
 
 def _p_hare_den(c):
-    """The den: a drift with a round dark doorway at its foot."""
+    """The den: a rounded drift with a low arched doorway at its foot (a dark half-oval, flat on the
+    ground, so it reads as a burrow mouth and not an eye)."""
     gy = c.h - 2
-    c.ellipse(15, gy - 4, 14, 8.5, lambda x, y, dx, dy: _snow(c, x, y, dx * 0.8, dy * 1.2, 12), top_only=True)
-    c.ellipse(15, gy - 3, 14, 4.5, lambda x, y, dx, dy: _snow(c, x, y, dx, dy * 1.2, 11))
-    c.ellipse(15, gy - 3, 4.4, 3.6, lambda x, y, dx, dy: c.put(x, y, EARTH[1] if dy < 0.5 else EARTH[0]))
-    c.ellipse(15, gy - 4, 2.6, 2.0, lambda x, y, dx, dy: c.put(x, y, EARTH[0]))
-    # a little frozen lip round the doorway
-    for x, y in [(10, gy - 5), (11, gy - 6), (14, gy - 7), (16, gy - 7), (19, gy - 6), (20, gy - 5)]:
+    c.ellipse(15, gy - 1, 14, 13, lambda x, y, dx, dy: _snow(c, x, y, dx * 0.8, dy * 0.9, 12), top_only=True)
+    c.ellipse(15, gy, 14, 2.6, lambda x, y, dx, dy: _snow(c, x, y, dx, dy, 11))
+    c.ellipse(15, gy, 4.6, 6.4, lambda x, y, dx, dy: c.put(x, y, EARTH[1] if dy < -3 else EARTH[0]), top_only=True)
+    # a frozen lip round the doorway, and a few bright crystals on the dome
+    for x, y in [(10, gy - 4), (10, gy - 7), (12, gy - 9), (15, gy - 10), (18, gy - 9), (20, gy - 7), (20, gy - 4)]:
         c.put(x, y, SNOW[2])
+    for x, y in [(8, gy - 9), (22, gy - 10), (13, gy - 12)]:
+        c.put(x, y, ICEC[2])
 
 
 PROP_BUILDERS = {
@@ -341,7 +343,7 @@ PROP_BUILDERS = {
     "ice_spikes": ((20, 20), _p_ice_spikes),
     "snow_cairn": ((16, 24), _p_snow_cairn),
     "hare_hollow": ((22, 12), _p_hare_hollow),
-    "hare_den": ((30, 18), _p_hare_den),
+    "hare_den": ((30, 22), _p_hare_den),
 }
 
 
