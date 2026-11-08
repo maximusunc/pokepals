@@ -204,6 +204,19 @@ not a blocker** — pick it up if/when a shared world wants it.
 > - Art: `pokepals/tools/gen_clickton.py` over `tools/brickart/bricks.py` (an oblique voxel renderer; Pillow
 >   only). Layout and lore: `tools/gen_clickton_world.py`. Pack builds pick the world up with no wiring.
 
+> **Drifthallow (2026-11):** the pilot of the template for the next worlds: a **snowfield at blue hour**
+> (3200×2400): deep untouched snow, snow-laden pines, frozen birches, a frozen lake, and footprints
+> (yours, your companion's, friends') that are soft dents filling back in (`GlowTrail`'s `snow` style).
+> Reached through the Gateway (featured); its own snow terrain/litter atlas and trees through the `art`
+> block. **Secret:** a snow-hare's den holding a frost-flower that never melts. The hare's tracks are
+> invisible; only the companion wearing a **fox** can read them. Near the scent spot it sniffs, then
+> **leads** you along the trail (`GuideAction` on the command band, driven by the pure `TrailGuide` through
+> `TracksDirector`), laying bright paw-prints, waiting if you fall behind; in any other shape it just
+> plays in the snow. New reveal type `tracks` (server checks "this world, standing at it", like
+> `stillness`). Art: `pokepals/tools/gen_drifthallow.py`; layout, lore and the secret:
+> `tools/gen_drifthallow_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Drifthallow (pilot)").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

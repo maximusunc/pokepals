@@ -1817,6 +1817,25 @@ func _blit_prop_sprite(type: String, p: Vector2, color: Color, lift := 0.0, wobb
 		draw_texture(tint, origin, color)
 
 
+## The frost-flower: a six-petalled flower of clear ice around a small blue-lit heart, with a slow glint
+## that travels round the petals. `k` scales it (the keepsake is a touch smaller).
+func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
+	var breathe := 0.8 + 0.2 * sin(_time * 1.3)
+	SoftGlow.draw(self, c, 17.0 * k, Color(tint.r, tint.g, tint.b, 0.30 * breathe), 0.7)
+	var glint := fposmod(_time * 0.5, 1.0) * TAU
+	for i in 6:
+		var a := float(i) / 6.0 * TAU - PI * 0.5
+		var tip := c + Vector2(cos(a), sin(a) * 0.8) * 8.0 * k
+		var l := c + Vector2(cos(a - 0.4), sin(a - 0.4) * 0.8) * 4.0 * k
+		var r := c + Vector2(cos(a + 0.4), sin(a + 0.4) * 0.8) * 4.0 * k
+		draw_colored_polygon(PackedVector2Array([c, l, tip, r]), Color(0.80, 0.93, 1.0, 0.82))
+		draw_line(c, tip, Color(1, 1, 1, 0.8), 1.0)
+		if absf(angle_difference(a, glint)) < 0.45:
+			draw_circle(tip, 1.4 * k, Color(1, 1, 1, 0.95))
+	draw_circle(c, 2.6 * k, tint)
+	draw_circle(c + Vector2(-0.6, -0.8) * k, 1.0 * k, Color(1, 1, 1, 0.95))
+
+
 ## A bubble that never pops: a faint fill, an iridescent rim whose colours slide round it, a window
 ## glint, and a gentle wobble (it breathes, a little wider, a little taller).
 func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
@@ -2195,6 +2214,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 6), 6.0, Color(1.0, 0.92, 0.86), true, -1.0, true)
 			draw_arc(p + Vector2(0, -6), 7.0, 0.15, PI - 0.15, 14, Color(1.0, 0.9, 0.84), 3.0, true)
 			_draw_forever_bubble(p + Vector2(0, -15 + sin(_time * 1.2) * 1.2), 8.0, color)
+		"frost_flower":
+			# Drifthallow's secret: a flower of frost in the snow-hare's den. Six clear petals the cold has
+			# made, and a heart that holds a little blue light. It has never melted and it glints, slowly.
+			_draw_frost_flower(p + Vector2(0, -2), color, 1.0)
+		"kept_frost_flower":
+			# its keepsake at home: the same flower, in a little dish of packed snow
+			draw_circle(p + Vector2(0, 5), 9.0, Color(0.30, 0.38, 0.52, 0.18), true, -1.0, true)
+			draw_circle(p + Vector2(0, 4), 7.0, Color(0.86, 0.92, 0.98), true, -1.0, true)
+			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.62, 0.72, 0.86), 1.0, true)
+			_draw_frost_flower(p + Vector2(0, -4), color, 0.8)
 		"stallholder":
 			# a stallholder minding their stall (the Bazaar's packed market): the shopkeeper figure in their
 			# own colours, with a little idle bob, offset so each seems to breathe on their own

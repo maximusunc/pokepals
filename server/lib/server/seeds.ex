@@ -35,7 +35,10 @@ defmodule Server.Seeds do
       tags: ["round", "soft", "bubbles", "explore", "creatures", "otherworld"], accent: [1.0, 0.72, 0.88], featured: true},
     %{world_id: "88888888-8888-8888-8888-888888888888", slug: "clickton", name: "Clickton", file: "clickton.json",
       blurb: "A little city built entirely of small colourful bricks, you and your companion included. Look low down.",
-      tags: ["city", "bricks", "toys", "explore", "cozy", "secret"], accent: [0.96, 0.78, 0.18], featured: true}
+      tags: ["city", "bricks", "toys", "explore", "cozy", "secret"], accent: [0.96, 0.78, 0.18], featured: true},
+    %{world_id: "99999999-9999-9999-9999-999999999999", slug: "drifthallow", name: "Drifthallow", file: "drifthallow.json",
+      blurb: "A snowfield at blue hour. Deep, untouched snow, frozen birches, and footprints that fill back in. Something small has left tracks only a fox could follow.",
+      tags: ["snow", "winter", "quiet", "explore", "cozy", "secret"], accent: [0.66, 0.78, 1.0], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

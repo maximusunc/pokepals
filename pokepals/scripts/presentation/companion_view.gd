@@ -165,6 +165,13 @@ func instruct_form(species: String, variant: int = -1) -> void:
 		form_changed.emit()
 
 
+## Keep the shape it's wearing for at least `seconds` more (see CompanionForm.postpone_drift). Local
+## only; a no-op for a remote puppet or when no form is worn.
+func postpone_form_drift(seconds: float) -> void:
+	if _is_local and _form != null:
+		_form.postpone_drift(seconds)
+
+
 ## The animal the companion is WEARING right now — its current daemon form (F-1), whether instructed
 ## or drifted-into. Drives F-2 affordance resolution: what a tap does depends on this form. "" when no
 ## form is worn (procedural fallback), in which case a tapped object resolves no verb (a plain visit).

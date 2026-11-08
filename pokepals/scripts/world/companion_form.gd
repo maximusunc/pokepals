@@ -120,6 +120,13 @@ func instruct(species: String, bond: float, variant: int = -1) -> bool:
 	return true
 
 
+## Put the next autonomous drift off until at least `seconds` from now (never brings it nearer). For a
+## world beat that needs the companion to KEEP the shape it's in a while (Drifthallow's fox, leading you
+## along the hare's trail). A directed hold, if one is running, is untouched and still lapses on its own.
+func postpone_drift(seconds: float) -> void:
+	_timer = maxf(_timer, seconds)
+
+
 ## Advance the form. Returns true on the frame the WORN species/coat changes (the view swaps sprite +
 ## plays a little "poof"). A directed hold takes precedence over the drift: while held it just counts
 ## down (the worn form persists); when the hold lapses it releases back to the drift and re-arms.

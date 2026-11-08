@@ -478,6 +478,86 @@ Built: W-1, W-2, W-3 and W-5.
     the lane over 90,000 sampled positions. Screenshots were checked by eye. *Not checked:* phone
     frame rate.
 
+## Drifthallow (pilot) — built 2026-11, every choice below OPEN for the owner's review
+
+Drifthallow is the **pilot of the template for the next nine worlds**: a snowfield at blue hour, built
+end to end (art, layout generator, secret, server, tests) so later worlds can copy the shape. The pitch
+was agreed (snow, blue hour, prints that fill back in, a hare's den with a frost-flower, found by a fox
+following invisible tracks). **Everything finer was decided by the builder and is listed here for
+review.** Nothing below changes the pitch; if any of it is wrong, say so and it is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/drifthallow.json` (and the test fixture) from
+`tools/gen_drifthallow_world.py`; art from `pokepals/tools/gen_drifthallow.py` over
+`tools/pixelart/drifthallow.py`; catalog id `99999999-…`, slug `drifthallow`, listed and featured, with
+the standard small portal home beside the arrival spot.
+
+**The secret: reveal type `tracks`.** Spec shape (`secret.reveal`): `species` (fox), `start` (the scent
+spot, a `hare_hollow` prop you can examine), `trail` (waypoints, the last is the den), then every number
+(radii, waits, print spacing). Flow: the companion wearing the right animal near `start`, with you near
+too, puts its nose down (`sniff`), then **leads** (a new command-band `GuideAction`), glancing back, along
+the trail, laying bright paw-prints; if you fall further than `wait_distance` behind it **waits**, facing
+you, until you are back within `resume_distance` (never a fail state). At the den the frost-flower rises
+(`SecretDirector` → the usual claim). In any other shape it just plays in the snow nearby (a cue, no
+trail, no prints), and the hollow's lore line points at "a fox's nose".
+Code: pure `TrailGuide` (`scripts/world`, tested), presentation `TracksDirector`
+(`scripts/presentation/mechanics`), `GuideAction` in `companion_actions.gd`, `guide` block in
+`data/companion.json`.
+
+**Judgment calls (all open):**
+1. **How the player gets a fox.** F-1 already offers it: the companion radial lists a "Fox" entry. No new
+   mechanism. Drift can also land on a fox by itself.
+2. **Reused "Lead" how.** `LeadAction` is autonomous and single-target (to one liked prop), so it could
+   not follow a trail. Instead a controller-driven `GuideAction` (like the Ruin's `settle`) takes a point
+   plus `hold`, re-issued by the referee each frame, with Lead's glance-back. It lapses by itself 0.8 s
+   after the referee stops refreshing it, and a whistle or pet cancels it, so it can never strand the
+   companion. Routing round trees is the existing `NavAgent`.
+3. **Keeping the fox a fox.** While guiding, the form's autonomous drift is postponed
+   (`CompanionForm.postpone_drift`, 30 s each frame). If the shape is lost anyway (an instructed change),
+   the lead lapses and **progress is kept**; a fox near where it stopped resumes from there.
+4. **Server check stays minimal and honest** (like `stillness`): "this world, standing at the den". It
+   cannot tell a walked trail from a walked-to den. Making it stronger (server-held trail progress)
+   would need the client to report waypoints; left out as not cheap.
+5. **Personal and display-only.** The tracks, prints and lead are local; a friend sees your fox walk but
+   not the bright prints, and their own companion does not trigger yours. (Everyone's ordinary snow
+   footprints do show, since those follow each puppet.)
+6. **Footprints.** `GlowTrail` got a `snow` style (a soft dent with a pale lip that shallows and fades
+   over `life` 28 s) and `max_prints`; the same node holds the fox's `scent` prints (90 s life, far
+   longer, so you can follow the line). Config is `atmosphere.footprints`.
+7. **Numbers** (all in the spec's `reveal`): scent radius 150, player radius 260, sniff 1.4 s, wait at
+   190 px behind, resume at 110, let go at 720, print every 20 px, skip a waypoint it cannot make headway
+   toward for 14 s; guide pace 82 px/s (the player is 118). The trail is 14 waypoints, about 1900 px,
+   about 25 s of walking.
+8. **Layout.** 3200×2400, eight regions (Hush Landing, South Drifts, Pine Hollow, Glasswater, Whitebole
+   Wood, Rimestone Rise, North Fields, Hare's Reach), ~440 trees, ~220 props. The scent spot is at the
+   edge of Whitebole Wood (about 1000 px from the arrival); the den is in Hare's Reach. No paths: the
+   world is untouched, so yours are the only trails. The generator keeps a 60 px corridor round the whole
+   trail clear of trees and props, and asserts it never crosses a pond.
+9. **Look.** Blue-hour palette, own snow terrain + litter atlas (`dh_terrain`, `dh_details`), snow pines,
+   frosted birches and oaks, ice ponds, snow shaken from branches (`ambient_life.leaves`), icy sparkles.
+   Visitors are NOT re-lit (no `actor_look`): they stay as they are. No native creatures (optional; the
+   hare is never seen).
+10. **Keepsake and qualities.** `kept_frost_flower`: the flower in a little dish of snow, drawn by
+    `WorldArt` (procedural, like the other secrets, since homes use the shared art). Qualities
+    `quiet`, `old`, `watery`; temperament curious, middling energy.
+11. **Lore and lines** (hollow, den, cairns, the hints at sniff, set-off, wait, lost, play, reveal and
+    found) are the builder's wording.
+12. **The scent spot does not use F-2 affordances** (`fox → verb`), so C-3's colour highlight does not
+    mark it. An affordance spends the object on first use, which would drop the highlight; a possible
+    follow-up if the spot should glow for a fox.
+
+**Verified:** Godot suite (new `TestTrailGuide`, `TestCompanionGuide`) and every smoke except
+`smoke_clickton` pass; `smoke_clickton`'s one failure ("a body at a building's wall is pushed out of it")
+exists on the untouched baseline. A scratch run drove the REAL companion body: a fox led the whole
+trail, waited when the player stood still and resumed, in about 29 to 38 s. Elixir: the standalone
+`secret_reveal_test.exs` passes; `mix test` could not run (hex.pm is blocked in the build sandbox), so the
+new channel test is unrun. *Not checked:* the world-pack build, phone frame rate, a real two-player
+session, and the feel (that is the playtest).
+
+**Template checklist for the next world** (what this pilot touched): generator + art tool; seed JSON in
+`server/priv/world_seeds` and the same file in `pokepals/tests/world_fixtures`; one entry in
+`Server.Seeds`; the fixture name in `TestWorldPortals.FIXTURES`; a smoke test; a world-specific
+`WorldArt` arm only if the secret or keepsake has no sprite; a short note in CLAUDE.md.
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

@@ -25,6 +25,9 @@ extends Node
 ##     in one visit; each one you ring stays lit for you and reads the next of the reveal's `lines`, so
 ##     the progress is told, never counted; the last brings the prop up (Bobbledown's seven
 ##     chime-bubbles and the Burbler's first breath).
+##   * `tracks`: nothing shows until your companion, wearing the right animal (a fox), has led you along
+##     an authored trail to its end (TracksDirector over the pure TrailGuide); then the prop appears
+##     there (Drifthallow's frost-flower, in a snow-hare's den).
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -43,6 +46,7 @@ var _secret: Dictionary = {}   # this world's secret block, while it's still to 
 var _interactables: Array      # the controller's examine list (staged reveals add to it)
 var _gate: StillnessGate
 var _lights: MereLights
+var _tracks: TracksDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -69,6 +73,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_lights):
 		_lights.queue_free()  # a rebuilt world lays its secret out afresh
 	_lights = null
+	if is_instance_valid(_tracks):
+		_tracks.queue_free()
+	_tracks = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
@@ -91,6 +98,14 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			pass  # appears only after a perfect hunt (on_hunt_won)
 		"touch_all":
 			pass  # appears once every one of its props has been touched (on_touched)
+		"tracks":
+			# Nothing to see yet: a fox has to lead you to the den along the hare's trail.
+			_tracks = TracksDirector.new()
+			_tracks.name = "TracksDirector"
+			add_child(_tracks)
+			_tracks.setup(_host, _companion, _world_art, _player)
+			_tracks.configure(secret)
+			_tracks.trail_done.connect(_on_trail_done)
 		_:
 			combined.append(_secret_prop())
 
@@ -113,6 +128,8 @@ func _reveal_type() -> String:
 ## Per frame: drive a stillness secret (fill while you're still by the place with your companion
 ## beside you; the lights gather as it fills). A no-op for every other kind.
 func update(delta: float) -> void:
+	if _tracks != null:
+		_tracks.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -129,6 +146,12 @@ func update(delta: float) -> void:
 ## The hunt found every salamander in one go: the Riverbank's elder shows itself.
 func on_hunt_won(_found: int) -> void:
 	if _reveal_type() == "hunt_perfect" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## The fox led us to the hare's den: the frost-flower shows.
+func _on_trail_done() -> void:
+	if _reveal_type() == "tracks" and _entry.is_empty() and not _secret.is_empty():
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
 
 
