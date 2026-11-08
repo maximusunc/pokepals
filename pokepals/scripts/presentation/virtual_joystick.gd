@@ -7,9 +7,8 @@ extends Control
 ## a normalized `direction` the player controller adds to its input, and is always visible so the
 ## control is discoverable.
 ##
-## Input source: on a touchscreen it tracks touches; on a plain desktop (no touchscreen) it tracks the
-## mouse instead — chosen once so the two never mix (which would double-grab under Godot's
-## emulate_mouse_from_touch). Desktop keyboard (WASD/arrows) still walks regardless.
+## Touch only: on a plain desktop (no touchscreen) it hides itself and does nothing; the keyboard
+## (WASD/arrows) walks there.
 
 @export var max_radius := 70.0
 @export var margin := 30.0        # gap from the bottom-left corner to the base's edge
@@ -24,7 +23,7 @@ var enabled := true:
 		if not enabled and _active:
 			_release()
 
-var _use_mouse := false           # desktop (no touchscreen) drives the stick with the mouse
+var _use_mouse := false           # desktop (no touchscreen): the stick is hidden and inert
 var _active := false
 var _touch_index := -1
 var _center := Vector2.ZERO       # base center in screen coords (from _layout)
@@ -33,6 +32,10 @@ var _knob := Vector2.ZERO
 
 func _ready() -> void:
 	_use_mouse = not DisplayServer.is_touchscreen_available()
+	# Desktop walks with the keyboard: no stick drawn, and none grabbing clicks in the corner.
+	if _use_mouse:
+		visible = false
+		enabled = false
 	_layout.call_deferred()
 
 
@@ -66,12 +69,9 @@ func contains_point(point: Vector2) -> bool:
 
 
 func _input(event: InputEvent) -> void:
-	if not enabled:
+	if not enabled or _use_mouse:
 		return
-	if _use_mouse:
-		_handle_mouse(event)
-	else:
-		_handle_touch(event)
+	_handle_touch(event)
 
 
 func _handle_touch(event: InputEvent) -> void:
@@ -92,18 +92,6 @@ func _handle_touch(event: InputEvent) -> void:
 		elif not event.pressed and event.index == _touch_index:
 			_release()
 	elif event is InputEventScreenDrag and _active and event.index == _touch_index:
-		_move(event.position)
-
-
-func _handle_mouse(event: InputEvent) -> void:
-	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
-		if event.pressed and not _active:
-			if not contains_point(event.position):
-				return
-			_grab(event.position)
-		elif not event.pressed and _active:
-			_release()
-	elif event is InputEventMouseMotion and _active:
 		_move(event.position)
 
 
