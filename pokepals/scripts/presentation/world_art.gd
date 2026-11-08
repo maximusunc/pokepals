@@ -1773,7 +1773,7 @@ func _draw_prop_light(it: Dictionary) -> void:
 	var rung := bool(it.get("opened", false))
 	if rung:
 		c = RUNG_GOLD
-		_draw_rising_notes(p + Vector2(0, float(cfg.get("y", -8.0))), c, phase)
+		_draw_rising_notes(p + Vector2(float(cfg.get("x", 0.0)), float(cfg.get("y", -8.0))), c, phase)
 	if bool(cfg.get("ripple", false)) and not rung:
 		var rt := fposmod(_time * 0.42 + phase, 1.0)
 		draw_set_transform(p + Vector2(0, 6), 0.0, Vector2(1.0, 0.45))
@@ -1787,7 +1787,7 @@ func _draw_prop_light(it: Dictionary) -> void:
 		a += 0.22
 		r *= 1.25
 	SoftGlow.draw(self, p + Vector2(0, 4), r * 1.2, Color(c.r, c.g, c.b, a * 0.6), 0.42)
-	SoftGlow.draw(self, p + Vector2(0, float(cfg.get("y", -8.0))), r, Color(c.r, c.g, c.b, a))
+	SoftGlow.draw(self, p + Vector2(float(cfg.get("x", 0.0)), float(cfg.get("y", -8.0))), r, Color(c.r, c.g, c.b, a))
 	var motes := int(cfg.get("motes", 0)) + (6 if flare > 0.05 else 0)
 	var lc := c.lightened(0.5)
 	for k in motes:

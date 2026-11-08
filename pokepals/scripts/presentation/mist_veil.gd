@@ -27,8 +27,9 @@ extends CanvasLayer
 ##   light_clear    0.9             how much a lit pocket thins the mist at its heart
 ##   max_lights     8               MOVING pockets at once (the shader's loop): companion, friends, extras
 ##   companion_radius 56  friend_radius 46   the pockets round your companion and everyone else present
-##   lit            { "prop_types": { type: { radius, warm, y } }, "buildings": { radius, warm, y } }
-##                  what shines through the mist: lantern props, and each building's door. These never
+##   lit            { "prop_types": { type: { radius, warm, x, y } }, "buildings": { radius, warm, x, y } }
+##                  what shines through the mist: lantern props (x, y: where the flame sits from the prop's
+##                  position), and the lantern by each building's door (from the middle of its front). These never
 ##                  move, so they're baked ONCE into a low-res light mask over the whole world (one
 ##                  lookup per pixel, however many there are; none pop in as you approach), not looped.
 ## A caller can add moving pockets (the bell's glint) through the `extra` Callable given to setup(),
@@ -138,13 +139,15 @@ func _collect_static(lit: Dictionary, data: Dictionary) -> void:
 			var t := String(p.get("type", ""))
 			if types.has(t):
 				var c: Dictionary = types[t]
-				_static.append({ "pos": WorldData.to_vec2(p["position"]) + Vector2(0.0, float(c.get("y", -16.0))),
+				_static.append({ "pos": WorldData.to_vec2(p["position"]) + Vector2(float(c.get("x", 0.0)), float(c.get("y", -16.0))),
 					"radius": float(c.get("radius", 110.0)), "warm": float(c.get("warm", 1.0)) })
 	var bc: Dictionary = lit.get("buildings", {})
 	if not bc.is_empty():
 		for b in data.get("buildings", []):
+			if not bool(b.get("door", true)):
+				continue   # no door, no lantern beside it
 			var r: Array = b["rect"]
-			_static.append({ "pos": Vector2(float(r[0]) + float(r[2]) * 0.5, float(r[1]) + float(r[3])) + Vector2(0.0, float(bc.get("y", -18.0))),
+			_static.append({ "pos": Vector2(float(r[0]) + float(r[2]) * 0.5, float(r[1]) + float(r[3])) + Vector2(float(bc.get("x", 0.0)), float(bc.get("y", -18.0))),
 				"radius": float(bc.get("radius", 130.0)), "warm": float(bc.get("warm", 0.8)) })
 
 
