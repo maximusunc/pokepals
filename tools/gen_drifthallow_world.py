@@ -349,7 +349,10 @@ SECRET = {
         "wait_distance": 190.0, "resume_distance": 110.0, "give_up_distance": 720.0,
         "print_spacing": 20.0, "waypoint_patience": 14.0, "drift_hold": 30.0,
         "play_radius": 70.0, "play_interval": 16.0,
+        "notice_range_low": 260.0, "notice_range_high": 640.0,
+        "notice_cooldown_low": 16.0, "notice_cooldown_high": 6.0, "notice_hold": 2.5,
         "lines": {
+            "notice": "Your companion stops short and stares off across the snow, nose working. Something small passed this way.",
             "play": "Your companion tumbles about in the snow, nose busy, as if it can almost catch something. A sharper nose might.",
             "sniff": "Your fox's nose goes down. There's something here, and it has decided to follow it.",
             "set_off": "It sets off across the snow, looking back now and then to check you're coming.",

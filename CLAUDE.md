@@ -209,7 +209,9 @@ not a blocker** — pick it up if/when a shared world wants it.
 > (yours, your companion's, friends') that are soft dents filling back in (`GlowTrail`'s `snow` style).
 > Reached through the Gateway (featured); its own snow terrain/litter atlas and trees through the `art`
 > block. **Secret:** a snow-hare's den holding a frost-flower that never melts. The hare's tracks are
-> invisible; only the companion wearing a **fox** can read them. Near the scent spot it sniffs, then
+> invisible; only the companion wearing a **fox** can read them. As you come near the scent spot your
+> companion, in any shape, stops and points toward it (range and frequency by bond, like the Riverbank);
+> a fox then trots to the spot by itself, sniffs, then
 > **leads** you along the trail (`GuideAction` on the command band, driven by the pure `TrailGuide` through
 > `TracksDirector`), laying bright paw-prints, waiting if you fall behind; in any other shape it just
 > plays in the snow. New reveal type `tracks` (server checks "this world, standing at it", like

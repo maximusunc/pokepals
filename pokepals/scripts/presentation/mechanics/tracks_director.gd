@@ -8,6 +8,10 @@ extends Node
 ##     line it is following, which fades after a long while;
 ##   * the few words of hint that go with the moments (nose down, waiting, the scent slipping away);
 ##   * `trail_done` when it reaches the den, which the SecretDirector turns into the frost-flower rising.
+## As you come near the scent spot (in any shape) the companion NOTICES it: it stops and points toward
+## the spot for a moment, further off and more often the deeper the bond (TrailGuide.notice, the same
+## shape as the Riverbank's salamander points). With a fox, once you're close it trots over to the spot
+## by itself and puts its nose down; you only have to be near, it doesn't have to be standing on it.
 ## In any OTHER shape the companion near the scent spot just plays in the snow (a small cue, no trail,
 ## and a hint that a different nose might know). Everything is personal and display-only: a friend
 ## standing beside you sees your fox lead you, but not the tracks, and nothing here is networked.
@@ -35,6 +39,7 @@ var _printer: GlowTrail
 var _rng := RandomNumberGenerator.new()
 var _play_cooldown := 0.0
 var _said := {}                 # which one-time hints have been given this visit
+var _pointing := false          # holding a notice-point this frame
 
 
 func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: PlayerView) -> void:
@@ -81,8 +86,23 @@ func update(delta: float) -> void:
 	for e in r["events"]:
 		_on_event(String(e), was)
 
+	_update_notice(delta)
 	if _guide.phase == TrailGuide.Phase.IDLE:
 		_update_play(delta, form)
+
+
+## The companion noticing the scent spot as you come near: a held point toward it (the body's
+## point_at pose), released when the notice ends or the trail begins.
+func _update_notice(delta: float) -> void:
+	var n := _guide.notice(delta, _player.position, _companion.bond_value())
+	if n["point"]:
+		_companion.point_at(n["target"], 1.0)
+		_pointing = true
+		if n["started"]:
+			_say_once("notice")
+	elif _pointing:
+		_companion.point_at(Vector2.ZERO, 0.0)
+		_pointing = false
 
 
 func _on_event(event: String, was_phase: int) -> void:
