@@ -16,6 +16,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "a dream is napped, dreamed and walked to on the player's screen, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "dream", "landmark" => "crooked_arch", "spots" => [[0, 0]], "landmark_position" => [100, 100]}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})
