@@ -844,6 +844,102 @@ confirmed a found secret reopens with the cave open, the stone gone and howling 
 `secret_reveal_test.exs` and `howl_test.exs` pass; `mix test` could not run (hex.pm blocked), so the new channel tests are
 unrun. *Not checked:* the world-pack build, phone frame rate, a real two-player session, and the feel (that is the playtest).
 
+## Underroot — built 2026-11, every choice below OPEN for the owner's review
+
+Underroot follows the Drifthallow template: **caves beneath the great tree**, root tunnels, glow-moss and slow
+dripping water, so dark you see only a small circle round yourself, hiding **the root-heart, a seed glowing deep
+in the tangle**, found by **delegating** to your companion ("Go look") and **following** it. The pitch was agreed
+(hushed, safe-dark; the companion's glowing eyes and own light; Go look enabled here; if you push ahead it gently
+stops leading and you are turned around; bond shapes it; a new reveal type; reuse GuideAction + NavAgent; the
+darkness built like the final MistVeil). **Everything finer was decided by the builder and is listed here for
+review.** Nothing below changes the pitch; if any of it is wrong, say so and it is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/underroot.json` (and the test fixture) from `tools/gen_underroot_world.py`;
+art from `pokepals/tools/gen_underroot.py` over `tools/pixelart/underroot.py`; catalog id `cccccccc-...`, slug
+`underroot`, listed and featured, with the standard small portal home beside the arrival spot.
+
+**The secret: reveal type `follow`.** Spec shape (`secret.reveal`): every number (below) and `lines`. The heart is
+hidden until you and your companion have both arrived (`arrive_player` 130 px, `arrive_companion` 170 px), then it
+rises (`SecretDirector` -> the usual claim). Code: pure `FollowGuide` (`scripts/world`, 19 tests), presentation
+`FollowDirector` (`scripts/presentation/mechanics`), `CompanionView.plan_route` / `pending_command`,
+`CompanionBrain.pending_command`, an optional `speed` in the `guide` command meta, `SecretDirector` (the `follow`
+arm, `can_go_look`, `go_look`), and the radial's "Go look" entry in `world_controller.gd`.
+
+**Judgment calls (all open):**
+1. **How the lead works.** No new movement. On the ask, the companion body plans a route from where it stands to the
+   heart through the world's own NavGrid (`plan_route`, one A* search, up to 40,000 expansions, smoothed into
+   straight legs), and `FollowGuide` walks those waypoints by re-issuing the Drifthallow `guide` order each frame
+   (the NavAgent still does the local steering). Asking again plans afresh from wherever it now stands, so a
+   wrong turn is never a dead end.
+2. **The "pushing ahead" rule (concrete, kind, data-tuned).** You are pushing ahead when you stand ON its route (within
+   `ahead_lateral` 75 px of the legs still ahead of it) and further along it than `ahead_margin` (70 px at zero
+   bond, 110 at full). Then it HOLDS: it stands, facing you, with its light down. Fall in behind it and it carries on.
+   Keep pushing on for `ahead_patience` (7 s at zero bond, 14 at full) and it lets the lead go: it comes to walk
+   beside you as an ordinary companion, and a hint says to ask again and let it go first. Being alongside it across a
+   wall, or behind it, is never "ahead". It never punishes: no fail state, nothing is lost, asking again restarts it
+   (if you are still ahead of the new route it holds straight away until you fall in behind).
+3. **Waiting.** If you fall more than `wait` behind (150 px at zero bond, 190 at full) it stops, facing you, until you are
+   within 90 px. Beyond 900 px it lets the lead go. Both numbers are kept inside the reach of its light so you can
+   see it while you follow.
+4. **Bond.** All are low..high pairs blended by bond: **reach** (route px one ask can lead: 1000 at zero bond, 7000,
+   a whole route, at full; when it runs out it loses the scent, stops, and waits for you to ask again), **pace**
+   (74 to 100 px/s; you walk at 118, so a bonded companion is easier to keep up with but you can still overtake
+   it), **wait**, **ahead margin and patience** (above), and **notice** range (300 to 620 px) and cooldown (18 s to
+   8 s). Bond rises quickly while you walk together (about 0.01 a second in a scratch run), so reach mostly bites in
+   the first minute; a newcomer may need to ask once or twice more, an old friend never.
+5. **Noticing (lesson from Drifthallow).** As you come near the heart, in any state, the companion stops and points
+   toward it for 2.5 s (`point_at`, like the Riverbank), then cools down. It senses as the crow flies, through walls,
+   so pointing is a feeling and not a map: it can be a true direction with a wall in the way. This is also how a
+   player who is not asking can notice something is there.
+6. **Generous arrival.** The condition is the player-facing one: you and your companion both within range of the
+   heart. You need not have been led there; if you find your own way, the companion tagging along completes it.
+   The server check stays minimal and honest, like `stillness` and `tracks`: "this world, standing at the heart". It cannot
+   tell a led arrival from a walked-in one.
+7. **Natural actions (lesson from Dozewood).** The brain's command slot holds one order, so our per-frame guide order
+   would overwrite the player's. Now: a **Call** ends the lead gracefully (it comes to you, a hint says to ask again);
+   a **Pet** is enjoyed: we leave the companion alone for `pet_pause` (3 s) and then the lead carries on where it
+   was (checked in a scratch run through the real loop). Walking around, tapping props and examining do nothing to
+   it. The form's own drift is held off while it leads (as Drifthallow's fox).
+8. **Readable states (lesson 3).** The companion's light is the signal. It swells to a 132 px pocket while it leads
+   (the `extra` pockets given to MistVeil), holds a softer steady pocket while it waits for you, and is down to its
+   ordinary pocket (76 px) while it holds back. Each state also has a hint the first time (ask, wait, balk), and the
+   cues that need an action (it lost the scent, it let go, it was called) say so every time.
+9. **The darkness is MistVeil, configured, with no new shader and no change to it.** `atmosphere.fog`: near-black
+   `color`, `density` 0.97, a barely moving swirl, `clear_radius` 52 and `fade_radius` 175 (a small soft circle round
+   you), `light_clear` 0.93, the companion's pocket 76 px and friends' 60. Static glow-moss, glowcaps and seedlings are in
+   `lit.prop_types` and baked once into the low-res light mask, so none pop in as you approach (positions measured from
+   the sprites: moss glows at y +3, caps at y -3, seedling tip at y -4). The veil's render-small, world-space,
+   late-in-frame design is exactly Steamhollow's. A new optional hedge `highlight` colour keeps the shared hedge
+   tile's green top-edge off the root walls.
+10. **The companion's "glowing eyes".** Read as its own light (the pocket), not as two drawn eyes: the animals' forms
+    differ and the pocket reads on all of them. If you want drawn eye-glints, it is a small overlay that needs per-form
+    eye positions.
+11. **Layout.** 2800x2100, a 21 x 15 grid of 120 px cells (tunnels 90 px clear, walls 30 px thick), nine chambers (the
+    Rootfall where you arrive, the Tangle in the middle, the Drip Hall, the Hush Pools, the Glowcap Garden, the Lantern
+    Room, the Old Stair, Cairn Row, and the Heartwood in the far north-west), and ~130 wall runs. The maze seed is
+    searched until the way from the Rootfall to the Heartwood is 50 to 62 cells (this one: 57 cells, about 5400 px of
+    route, about a minute and a quarter at full pace) and there are at least 28 dead ends. The generator asserts the
+    spec places nothing solid in a tunnel's middle.
+12. **How the player learns it.** Diegetically: the intro line, and a scratched stone by the arrival that says to let your
+    companion go first and follow its light and to tap it and ask it to Go look.
+13. **Look.** Dark earth, root-tangle walls, hanging-root pillars (the willow shape in root colours), mossy mounds and pale
+    fungus in the chambers, a still black pool, glow-moss and glowcaps as the light sources, glow-worms (`ambient_life`
+    fireflies, always on). Visitors are not re-lit. No native creatures (optional; glow-worms are the only life).
+14. **Keepsake and qualities.** `kept_root_heart` (the seed wrapped in small roots on a clay saucer), drawn by `WorldArt`
+    like the other secrets. Qualities `quiet`, `glowing`, `old`; temperament curious-ish, low energy, clingy.
+15. **Lore and lines** (the stone, fixtures, the nine hints and the found line) are the builder's wording.
+
+**Verified:** Godot unit suite (new `TestFollowGuide`) and every smoke except `smoke_clickton` (its one known
+baseline failure); the new `smoke_underroot` checks the re-skin, the dark, the hidden heart, a planned route through
+the tunnels, the lead and the arrival. Scratch runs through the REAL loop (the paused scene un-paused each frame, the
+companion met, Go look triggered through the radial handler, the player driven with `ui_*` actions following the
+companion's breadcrumbs): a bonded companion led the whole route in about 64 s and the heart rose; a fresh one lost
+the scent partway, was asked again, replanned from where it stood and arrived in about 76 s; a player who ran ahead
+made it hold, then let go after its patience (it never moved a step ahead); a Call ended the lead and a Pet was
+enjoyed and the lead resumed. Screenshots under Xvfb (opengl3) checked by eye. Elixir: the standalone
+`secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked), so the new channel test is unrun. *Not
+checked:* phone frame rate, the world-pack build, a real two-player session, and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

@@ -31,6 +31,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "the root-heart is followed to on the player's screen, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "follow", "reach_low" => 2600.0, "arrive_player" => 130.0}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})

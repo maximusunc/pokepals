@@ -36,6 +36,12 @@ defmodule Server.SecretReveal do
       own screen (`EchoField` / `EchoGuide` on the client), so the server only checks "this world, standing
       at it", like `stillness`. Honest about what that means: it can't tell a found cave from a walked-in one.
 
+    * `follow`: it appears once the player and their companion have both arrived at the place, led there
+      through the dark by the companion (Underroot's root-heart, deep in the tangle of tunnels). The asking
+      ("Go look"), the lead, the waiting and the arrival all happen on the player's own screen
+      (`FollowGuide` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `tracks`. Honest about what that means: it can't tell a led arrival from a walked-in one.
+
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
   of flare props this player has touched this visit).
@@ -50,6 +56,7 @@ defmodule Server.SecretReveal do
       %{"type" => "touch_all", "props" => props} -> touched_all?(Map.get(ctx, :touched, MapSet.new()), props)
       %{"type" => type} when type in ["always", "stillness", "tracks", "listen", "echo"] -> true
       %{"type" => "dream"} -> true
+      %{"type" => "follow"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end

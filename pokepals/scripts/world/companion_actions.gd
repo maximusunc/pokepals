@@ -1058,7 +1058,7 @@ class SeekAction extends CompanionAction:
 ## tracks), one waypoint at a time. Like the Ruin's "settle", it is a controller-driven command: the
 ## world's referee (TracksDirector, over the pure TrailGuide) decides WHERE the next stop is and WHETHER
 ## the player has fallen behind, and re-issues "guide" with that point every fraction of a second; the
-## brain stays world-blind. command_meta carries { hold: bool }: false = walk to the point (glancing back
+## brain stays world-blind. command_meta carries { hold: bool, speed: float (optional pace) }: false = walk to the point (glancing back
 ## now and then, as Lead does), true = stand and wait, facing you. It is a leash on nothing: the order
 ## LAPSES on its own when the referee stops refreshing it (guide.ttl), and a whistle ("come") or a pet
 ## cancels it at once, so calling your companion back always works. Rides the command band so it
@@ -1067,6 +1067,7 @@ class GuideAction extends CompanionAction:
 	var _active := false
 	var _target := Vector2.ZERO
 	var _hold := false
+	var _speed := 0.0          # a pace the referee asked for in command_meta.speed (0: the config's)
 	var _ttl := 0.0
 	var _just_triggered := false
 	var _glance_timer := 0.0
@@ -1102,6 +1103,7 @@ class GuideAction extends CompanionAction:
 				_target = pt
 				var meta: Variant = perception.get("command_meta", {})
 				_hold = bool((meta as Dictionary).get("hold", false)) if meta is Dictionary else false
+				_speed = float((meta as Dictionary).get("speed", 0.0)) if meta is Dictionary else 0.0
 				_ttl = float(cfg.get("guide", {}).get("ttl", 0.8))
 		elif _active and (command == "come" or command == "pet"):
 			_active = false   # called back (or petted): yield the command band, don't resume the lead
@@ -1129,7 +1131,7 @@ class GuideAction extends CompanionAction:
 				_glance_timer = 0.0
 		elif companion_pos.distance_to(_target) > float(guide.get("arrive_distance", 6.0)):
 			move_target = _target
-			speed = float(guide.get("speed", cfg.get("walk_speed", 64.0)))
+			speed = _speed if _speed > 0.0 else float(guide.get("speed", cfg.get("walk_speed", 64.0)))
 			_glance_timer += delta
 			if _glance_timer >= float(guide.get("glance_interval", 2.5)):
 				_glancing = true

@@ -39,6 +39,9 @@ extends Node
 ##     pure EchoField / EchoGuide): in wolf form your companion howls, the canyon answers in ripples, and one
 ##     answer comes from where there is no wall. Walking up opens the crack, and the answering stone is
 ##     there (Hollowsong). Once found, howling stays a quiet toy; only the stone is gone.
+##   * `follow`: nothing shows until you and your companion have both arrived at the place; the dark makes
+##     it hard to steer there yourself, so you ask your companion to "Go look" and FOLLOW its light
+##     (FollowDirector over the pure FollowGuide); the prop (Underroot's root-heart) rises on arrival.
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -62,6 +65,7 @@ var _doze: DozeDirector
 var _listen: ListenDirector
 var _howl: HowlDirector
 var _cliffs: Array = []        # the world's building views (a cliff holds the cave)
+var _follow: FollowDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -102,6 +106,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_howl.ripples().queue_free()
 		_howl.queue_free()
 	_howl = null
+	if is_instance_valid(_follow):
+		_follow.queue_free()
+	_follow = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
@@ -152,6 +159,14 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		"echo":
 			# Nothing to see yet: a wolf has to howl, and you have to find where the canyon answers wrong.
 			_start_howl(secret, false)
+		"follow":
+			# Nothing to see yet: the root-heart glimmers in the dark until you are both led there.
+			_follow = FollowDirector.new()
+			_follow.name = "FollowDirector"
+			add_child(_follow)
+			_follow.setup(_host, _companion, _world_art, _player)
+			_follow.configure(secret)
+			_follow.heart_reached.connect(_on_heart_reached)
 		_:
 			combined.append(_secret_prop())
 
@@ -228,6 +243,8 @@ func update(delta: float) -> void:
 		_listen.update(delta)
 	if _howl != null:
 		_howl.update(delta)
+	if _follow != null:
+		_follow.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -259,10 +276,33 @@ func _on_place_found() -> void:
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
 
 
-## The pockets where the mist thins round something only just in view (the faint bell, once you are close);
-## the MistVeil asks every frame. Empty in every world without a listening secret.
+## We (both of us) reached the root-heart: it rises out of the roots.
+func _on_heart_reached() -> void:
+	if _reveal_type() == "follow" and _entry.is_empty() and not _secret.is_empty():
+		_follow.mark_revealed()
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## "Go look" is on offer in a world whose secret is led to (Underroot): the radial's entry lights up while
+## the heart is still to be found, and is greyed once you've reached it.
+func can_go_look() -> bool:
+	return _follow != null and _follow.can_ask()
+
+
+## The player chose "Go look": the companion leads (FollowDirector), and you follow.
+func go_look() -> void:
+	if _follow != null:
+		_follow.ask()
+
+
+## The pockets where the dark thins round something only just in view (the faint bell, once you are close;
+## the companion's lead-light and the root-heart's glimmer); the MistVeil asks every frame. Empty in every
+## world without such a secret.
 func mist_pockets() -> Array:
-	return _listen.mist_pockets() if _listen != null else []
+	var out: Array = _listen.mist_pockets() if _listen != null else []
+	if _follow != null:
+		out.append_array(_follow.mist_pockets())
+	return out
 
 
 ## We touched a prop (touch_all): if it's one of the reveal's props we haven't rung yet this visit, keep
@@ -405,6 +445,8 @@ func _on_discoveries(ids: Array) -> void:
 func _take() -> void:
 	if _listen != null:
 		_listen.finish()
+	if _follow != null:
+		_follow.finish()
 	# Every entry for this secret, not just the one we adopted: should the world ever hold more than one
 	# (it did, from a layout bug), none may be left behind to be found again.
 	var id := String(_entry["secret"]["id"])
