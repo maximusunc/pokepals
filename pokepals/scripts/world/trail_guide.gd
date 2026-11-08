@@ -7,9 +7,13 @@ extends RefCounted
 ## worn form, and turns the answer into a "guide" command, paw-prints and a hint.
 ##
 ## The cycle:
-##   IDLE     nothing happening. If the companion wears the trail's `species`, it stands within
-##            `scent_radius` of where the trail resumes, and you are within `player_radius` of it, the
-##            nose goes down: SNIFF.
+##   IDLE     nothing happening. If the companion wears the trail's `species` and you are within
+##            `player_radius` of where the trail resumes, it goes for the scent: straight to SNIFF if it
+##            is already within `scent_radius` of the spot, otherwise APPROACH.
+##   APPROACH it trots over to the scent spot on its own (you only have to be near; it doesn't have to
+##            happen to be standing on it), and puts its nose down on arrival (`sniff_reach`, or as near
+##            as it can get inside `scent_radius` if something's in the way): SNIFF. Dropped quietly if
+##            the shape or the company is lost on the way.
 ##   SNIFF    a beat of reading the snow (`sniff_seconds`), then it sets off. Cancelled if the shape or
 ##            the company is lost.
 ##   LEAD     walks the waypoints in order, leaving a print every `print_spacing` px it travels. Reaching
@@ -24,10 +28,15 @@ extends RefCounted
 ## goes back to following you rather than standing out in the snow forever). A waypoint it can't make
 ## headway toward for `waypoint_patience` seconds (a wall it can't route round) is simply skipped.
 ##
+## NOTICING (`notice`, separate from the cycle): while the trail is IDLE and you come within range of
+## where it resumes, the companion, in ANY shape, stops and points toward the spot for a moment, then
+## cools down. Range and frequency scale with bond, like the Riverbank's salamander points: a fresh
+## companion only notices close by and rarely; a bonded one from much further off and often.
+##
 ## All numbers come from the secret's `reveal` block in the world spec (Drifthallow's data), with the
 ## defaults below as a safety net only.
 
-enum Phase { IDLE, SNIFF, LEAD, WAIT, DONE }
+enum Phase { IDLE, SNIFF, LEAD, WAIT, DONE, APPROACH }
 
 const DEFAULTS := {
 	"species": "fox",
@@ -41,6 +50,12 @@ const DEFAULTS := {
 	"print_spacing": 20.0,      # a paw-print every this many px it travels
 	"waypoint_patience": 14.0,  # seconds without headway toward a waypoint before skipping it
 	"progress_eps": 3.0,
+	"sniff_reach": 48.0,           # how close an approaching fox walks to the spot before sniffing
+	"notice_range_low": 260.0,     # how near you must be for it to notice the spot, at zero bond...
+	"notice_range_high": 640.0,    # ...and at full bond
+	"notice_cooldown_low": 16.0,   # seconds between notices at zero bond (rare)...
+	"notice_cooldown_high": 6.0,   # ...and at full bond (often)
+	"notice_hold": 2.5,            # how long each point lasts
 }
 
 var phase := Phase.IDLE
@@ -55,6 +70,8 @@ var _last_print := Vector2.ZERO
 var _has_print := false
 var _best := INF                # closest we've come to the current waypoint
 var _stalled := 0.0             # seconds without improving on it
+var _notice_cd := 0.0           # cooldown before the next notice (0: ready the moment you're in range)
+var _notice_left := 0.0         # seconds left on the point in progress
 
 
 ## start: the scent spot. trail: the waypoints from there to the den (Vector2s, or [x, y] pairs). cfg:
@@ -112,12 +129,33 @@ func update(delta: float, companion_pos: Vector2, player_pos: Vector2, form_spec
 	match phase:
 		Phase.IDLE:
 			var anchor := resume_point()
-			if right_shape \
-					and companion_pos.distance_to(anchor) <= float(_cfg["scent_radius"]) \
-					and player_pos.distance_to(anchor) <= float(_cfg["player_radius"]):
-				phase = Phase.SNIFF
-				_sniff_left = float(_cfg["sniff_seconds"])
-				out["events"].append("sniff")
+			if right_shape and player_pos.distance_to(anchor) <= float(_cfg["player_radius"]):
+				_notice_left = 0.0
+				if companion_pos.distance_to(anchor) <= float(_cfg["scent_radius"]):
+					_begin_sniff(out)
+				else:
+					phase = Phase.APPROACH
+					_reset_headway()
+					out["events"].append("approach")
+					out["command"] = "guide"
+					out["target"] = anchor
+		Phase.APPROACH:
+			var anchor := resume_point()
+			if not right_shape or player_pos.distance_to(anchor) > float(_cfg["player_radius"]) * 1.5:
+				phase = Phase.IDLE
+			else:
+				var d := companion_pos.distance_to(anchor)
+				var stuck := _stalled >= 1.5 and d <= float(_cfg["scent_radius"])
+				if d <= float(_cfg["sniff_reach"]) or stuck:
+					_begin_sniff(out)
+				else:
+					out["command"] = "guide"
+					out["target"] = anchor
+					if d < _best - float(_cfg["progress_eps"]):
+						_best = d
+						_stalled = 0.0
+					else:
+						_stalled += delta
 		Phase.SNIFF:
 			if not right_shape or player_pos.distance_to(resume_point()) > float(_cfg["player_radius"]) * 1.5:
 				phase = Phase.IDLE
@@ -157,6 +195,41 @@ func update(delta: float, companion_pos: Vector2, player_pos: Vector2, form_spec
 				_advance(out)
 			else:
 				_watch_headway(delta, companion_pos.distance_to(target), out)
+	return out
+
+
+func _begin_sniff(out: Dictionary) -> void:
+	phase = Phase.SNIFF
+	_sniff_left = float(_cfg["sniff_seconds"])
+	out["events"].append("sniff")
+	out["command"] = "guide"
+	out["hold"] = true
+
+
+## The companion NOTICING the scent spot (see the class doc). Call every frame with the bond (0..1).
+## Returns { "point": bool (hold a point this frame), "target": the spot, "started": true on the frame
+## a new point begins }. Only while the trail is IDLE; any other phase cancels a point in progress.
+func notice(delta: float, player_pos: Vector2, bond: float) -> Dictionary:
+	var out := { "point": false, "target": resume_point(), "started": false }
+	if phase != Phase.IDLE or _trail.is_empty():
+		_notice_left = 0.0
+		return out
+	var b := clampf(bond, 0.0, 1.0)
+	if _notice_left > 0.0:
+		_notice_left -= delta
+		if _notice_left > 0.0:
+			out["point"] = true
+		else:
+			_notice_cd = lerpf(float(_cfg["notice_cooldown_low"]), float(_cfg["notice_cooldown_high"]), b)
+		return out
+	if _notice_cd > 0.0:
+		_notice_cd = maxf(0.0, _notice_cd - delta)
+		return out
+	var reach := lerpf(float(_cfg["notice_range_low"]), float(_cfg["notice_range_high"]), b)
+	if player_pos.distance_to(resume_point()) <= reach:
+		_notice_left = float(_cfg["notice_hold"])
+		out["point"] = true
+		out["started"] = true
 	return out
 
 

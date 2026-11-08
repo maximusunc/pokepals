@@ -553,6 +553,18 @@ trail, waited when the player stood still and resumed, in about 29 to 38 s. Elix
 new channel test is unrun. *Not checked:* the world-pack build, phone frame rate, a real two-player
 session, and the feel (that is the playtest).
 
+**Playtest fixes (2026-11-08), from the owner's first play:**
+- *The scent spot was hard to find.* Now the companion **notices** it, in any shape, as you come near:
+  it stops and points toward the spot for 2.5 s, then cools down, with range and frequency scaling with
+  bond like the Riverbank's salamander points (260 px / every 16 s fresh, 640 px / every 6 s bonded; all
+  `notice_*` in `reveal`), plus a one-time `notice` hint line. Pure: `TrailGuide.notice`.
+- *Switching to the fox at the spot did nothing; it just followed.* The trail only began if the companion
+  itself happened to be within `scent_radius` (150 px) of the spot, which a following companion often
+  isn't. A real-loop harness reproduced it. Now only YOU have to be near (`player_radius`): a fox that
+  isn't on the spot goes into a new **APPROACH** phase, trots over by itself (to `sniff_reach`, 48 px, or
+  as near as it can get inside `scent_radius`), then sniffs and sets off. The old smoke test missed this
+  because it stood the companion on the spot by hand.
+
 **Template checklist for the next world** (what this pilot touched): generator + art tool; seed JSON in
 `server/priv/world_seeds` and the same file in `pokepals/tests/world_fixtures`; one entry in
 `Server.Seeds`; the fixture name in `TestWorldPortals.FIXTURES`; a smoke test; a world-specific

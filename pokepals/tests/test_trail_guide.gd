@@ -26,6 +26,11 @@ static func run_all() -> int:
 	fails += _test_skips_a_waypoint_it_cannot_reach()
 	fails += _test_done_is_final()
 	fails += _test_data_overrides_defaults()
+	fails += _test_a_fox_goes_to_the_scent_by_itself()
+	fails += _test_the_approach_drops_without_the_shape()
+	fails += _test_notice_range_grows_with_bond()
+	fails += _test_notice_holds_then_cools_down_by_bond()
+	fails += _test_no_notice_once_the_trail_is_running()
 	return fails
 
 
@@ -199,3 +204,59 @@ static func _test_data_overrides_defaults() -> int:
 	var from_pairs := TrailGuide.new(Vector2.ZERO, [[10, 0], [20, 0]], {})
 	fails += _ok(from_pairs.den() == Vector2(20, 0), "a trail may be authored as [x, y] pairs")
 	return fails
+
+
+## You only have to be near the scent spot: a fox that isn't standing on it trots over by itself, then
+## puts its nose down and sets off.
+static func _test_a_fox_goes_to_the_scent_by_itself() -> int:
+	var g := _guide()
+	var log := _log()
+	_drive(g, Vector2(0, 180), Vector2(0, 150), "fox", 0.2, log)
+	var fails := _ok(g.phase == TrailGuide.Phase.APPROACH and "approach" in log["events"], "a fox away from the spot, with you near it, heads for it")
+	_drive(g, Vector2(0, 180), Vector2(0, 150), "fox", 6.0, log)
+	fails += _ok("sniff" in log["events"] and "set_off" in log["events"], "…reaches it, sniffs and sets off")
+	return fails
+
+
+static func _test_the_approach_drops_without_the_shape() -> int:
+	var g := _guide()
+	var log := _log()
+	_drive(g, Vector2(0, 180), Vector2(0, 150), "fox", 0.2, log)
+	_drive(g, Vector2(0, 170), Vector2(0, 150), "cat", 0.2, log)
+	return _ok(g.phase == TrailGuide.Phase.IDLE and not ("lost" in log["events"]), "a fox that stops being a fox on the way just stops (no 'lost' line)")
+
+
+## Noticing reaches further with bond (defaults: 260 px fresh, 640 px bonded).
+static func _test_notice_range_grows_with_bond() -> int:
+	var fresh := _guide()
+	var bonded := _guide()
+	var fails := _ok(not fresh.notice(0.1, Vector2(400, 0), 0.0)["point"], "a fresh companion doesn't notice the spot from 400 px")
+	var n := bonded.notice(0.1, Vector2(400, 0), 1.0)
+	fails += _ok(n["point"] and n["started"] and (n["target"] as Vector2) == START, "a bonded one does, and points at the scent spot")
+	fails += _ok(fresh.notice(0.1, Vector2(200, 0), 0.0)["started"], "even a fresh one notices close by")
+	return fails
+
+
+## A point holds for notice_hold (2.5 s), then cools down: 6 s bonded, 16 s fresh.
+static func _test_notice_holds_then_cools_down_by_bond() -> int:
+	var fails := 0
+	for pair in [[1.0, 6.0], [0.0, 16.0]]:
+		var g := _guide()
+		var bond: float = pair[0]
+		var cd: float = pair[1]
+		g.notice(0.1, Vector2(100, 0), bond)
+		var held := 0.0
+		while g.notice(0.1, Vector2(100, 0), bond)["point"]:
+			held += 0.1
+		fails += _ok(absf(held - 2.4) < 0.15, "bond %.0f: the point holds about 2.5 s (%.1f)" % [bond, held + 0.1])
+		var quiet := 0.0
+		while not g.notice(0.1, Vector2(100, 0), bond)["started"] and quiet < 60.0:
+			quiet += 0.1
+		fails += _ok(absf(quiet - cd) < 0.25, "bond %.0f: then it waits about %.0f s before noticing again (%.1f)" % [bond, cd, quiet])
+	return fails
+
+
+static func _test_no_notice_once_the_trail_is_running() -> int:
+	var g := _guide()
+	_drive(g, Vector2(20, 0), Vector2(0, 30), "fox", 0.2, _log())
+	return _ok(g.phase == TrailGuide.Phase.SNIFF and not g.notice(0.1, Vector2(0, 30), 1.0)["point"], "no noticing once the fox is on the trail")
