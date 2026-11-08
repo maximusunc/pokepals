@@ -49,6 +49,7 @@ static func make_all(cfg: Dictionary, rng: RandomNumberGenerator) -> Array:
 		PetAction.new(b_command),
 		SeekAction.new(b_command),
 		VisitAction.new(b_command),
+		GuideAction.new(b_command),
 		InvestigateAction.new(b_interrupt),
 		CheckInAction.new(cfg, rng, b_social),
 		LeadAction.new(cfg, b_social),
@@ -1051,6 +1052,95 @@ class SeekAction extends CompanionAction:
 		var angle := rng.randf_range(0.0, TAU)
 		var dist := rng.randf_range(near, maxf(near + 1.0, far))
 		return player_pos + Vector2(cos(angle), sin(angle)) * dist
+
+
+## GUIDE — the companion LEADS the way along a trail the world authored (Drifthallow's snow-hare
+## tracks), one waypoint at a time. Like the Ruin's "settle", it is a controller-driven command: the
+## world's referee (TracksDirector, over the pure TrailGuide) decides WHERE the next stop is and WHETHER
+## the player has fallen behind, and re-issues "guide" with that point every fraction of a second; the
+## brain stays world-blind. command_meta carries { hold: bool }: false = walk to the point (glancing back
+## now and then, as Lead does), true = stand and wait, facing you. It is a leash on nothing: the order
+## LAPSES on its own when the referee stops refreshing it (guide.ttl), and a whistle ("come") or a pet
+## cancels it at once, so calling your companion back always works. Rides the command band so it
+## preempts autonomous life while active and yields the instant it releases. Deterministic (no rng).
+class GuideAction extends CompanionAction:
+	var _active := false
+	var _target := Vector2.ZERO
+	var _hold := false
+	var _ttl := 0.0
+	var _just_triggered := false
+	var _glance_timer := 0.0
+	var _glancing := false
+	var _glance_left := 0.0
+
+	func _init(band_value: int) -> void:
+		id = "guide"
+		band = band_value
+		behavior = "guide"
+
+	func commitment(cfg: Dictionary) -> float:
+		if _active:
+			return super.commitment(cfg) + float(cfg.get("arbiter", {}).get("committed_inertia", 0.0))
+		return super.commitment(cfg)
+
+	func tick(delta: float) -> void:
+		if _active:
+			_ttl -= delta
+			if _ttl <= 0.0:
+				_active = false   # the referee stopped refreshing us: let go of the lead
+
+	func score(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator) -> float:
+		var command := String(perception.get("command", ""))
+		if command == "guide":
+			var pt: Variant = perception.get("command_point")
+			if pt is Vector2:
+				if not _active:
+					_just_triggered = true
+					_glance_timer = 0.0
+					_glancing = false
+				_active = true
+				_target = pt
+				var meta: Variant = perception.get("command_meta", {})
+				_hold = bool((meta as Dictionary).get("hold", false)) if meta is Dictionary else false
+				_ttl = float(cfg.get("guide", {}).get("ttl", 0.8))
+		elif _active and (command == "come" or command == "pet"):
+			_active = false   # called back (or petted): yield the command band, don't resume the lead
+		return 1.0 if _active else 0.0
+
+	func act(perception: Dictionary, _s: CompanionSelf, cfg: Dictionary, _rng: RandomNumberGenerator, delta: float) -> Dictionary:
+		var guide: Dictionary = cfg.get("guide", {})
+		var companion_pos: Vector2 = perception["companion_pos"]
+		var player_pos: Vector2 = perception["player_pos"]
+		var move_target := companion_pos
+		var speed := 0.0
+		var look_at := _target
+		var reactions: Array = []
+		if _just_triggered:
+			reactions.append("perk")
+			_just_triggered = false
+		if _hold:
+			# Waiting for you: stand, face you, and let the trail go cold for a moment.
+			look_at = player_pos
+		elif _glancing:
+			look_at = player_pos
+			_glance_left -= delta
+			if _glance_left <= 0.0:
+				_glancing = false
+				_glance_timer = 0.0
+		elif companion_pos.distance_to(_target) > float(guide.get("arrive_distance", 6.0)):
+			move_target = _target
+			speed = float(guide.get("speed", cfg.get("walk_speed", 64.0)))
+			_glance_timer += delta
+			if _glance_timer >= float(guide.get("glance_interval", 2.5)):
+				_glancing = true
+				_glance_left = float(guide.get("glance_pause", 0.5))
+		return {
+			"behavior": behavior,
+			"move_target": move_target,
+			"desired_speed": speed,
+			"look_at": look_at,
+			"reactions": reactions,
+		}
 
 
 ## VISIT — a DIRECTED order (I-1), now the single generalized GO-AND-PERFORM action (F-2). The player

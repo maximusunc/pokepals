@@ -253,6 +253,14 @@
 		"arrive_distance": 34.0,
 		"dwell_seconds": 1.4
 	},
+	"_guide_comment": "GUIDE (Drifthallow's snow-hare tracks): the companion LEADS along a trail the world authored, one waypoint at a time. A controller-driven command, like the Ruin's settle: TracksDirector (over the pure TrailGuide) picks the next stop and whether you've fallen behind, and re-issues 'guide' with it; the brain stays world-blind. command_meta { hold: true } = stand and wait, facing you. speed: pace along the trail (px/s; slower than the player's 118, so you keep up without a sprint). ttl: the order lapses by itself this many seconds after the referee last refreshed it, so a guide can never strand the companion. arrive_distance: close enough to a stop. glance_interval/glance_pause: how often, and for how long, it stops to look back at you. A whistle ('come') or a pet cancels it at once.",
+	"guide": {
+		"speed": 82.0,
+		"ttl": 0.8,
+		"arrive_distance": 6.0,
+		"glance_interval": 2.5,
+		"glance_pause": 0.5
+	},
 	"_lead_comment": "Companion-LED discovery — the deepest partnership beat, where the companion stops being a reactor and takes YOU somewhere. On its own initiative it picks an appealing, still-novel prop and leads you to it, glancing back to check you're following, then presents it with a delight and a shared-discovery bond/mood bump. Reserved for a FULLY bonded companion (min_bond, set to bond.max): leading you to share a find is something only a partner that completely trusts you does. On the social band with a CheckIn-like spacing. interval: seconds between attempts (deterministic, NOT rng — a lead is a considered, no-dice beat; also the initial delay so it doesn't fire on spawn). min_appeal: only leads to a prop it actually likes (appraised appeal). min_novelty: and only one still fresh — never drags you to something you've already examined together (novelty is keyed by the same prop id as Examine, so the two paths never double-pay). beckon_time: the 'come on!' beat before setting off. glance_interval/glance_pause: how often, and for how long, it stops to look back and check you're coming. follow_check_distance/patience: if you lag beyond follow_check_distance for patience seconds it gives up gracefully and goes back to its life. stop_distance: how close to the prop it leads before presenting. present_linger: how long it admires the find with you before the beat ends.",
 	"lead": {
 		"min_bond": 1.0,
