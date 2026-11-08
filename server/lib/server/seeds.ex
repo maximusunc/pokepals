@@ -41,7 +41,10 @@ defmodule Server.Seeds do
       tags: ["snow", "winter", "quiet", "explore", "cozy", "secret"], accent: [0.66, 0.78, 1.0], featured: true},
     %{world_id: "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb", slug: "dozewood", name: "Dozewood", file: "dozewood.json",
       blurb: "A drowsy forest at a long lilac dusk. Mossy hollows, hammocks, slow lamps. Everything moves at half speed, and yawns are catching. Somewhere your companion dreams of.",
-      tags: ["forest", "sleepy", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.74, 1.0], featured: true}
+      tags: ["forest", "sleepy", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.74, 1.0], featured: true},
+    %{world_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", slug: "steamhollow", name: "Steamhollow", file: "steamhollow.json",
+      blurb: "A bathhouse village lost in fog. Boardwalks, hot springs and paper lanterns, and a bell too faint for you to hear.",
+      tags: ["fog", "hot-springs", "lanterns", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.80, 0.52], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

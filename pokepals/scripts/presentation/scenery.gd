@@ -71,7 +71,8 @@ func _tick_buildings(delta: float, vis: Rect2, cull: bool) -> void:
 func add_buildings(list: Array, style: ArtStyle) -> Array:
 	var out: Array = []
 	for spec in list:
-		var bv := BuildingView.new()
+		# a spec's "view" picks a dressed-up kind of building (Steamhollow's timber bathhouses)
+		var bv: BuildingView = BathhouseView.new() if String(spec.get("view", "")) == "bathhouse" else BuildingView.new()
 		bv.setup(spec, style)
 		add_child(bv)
 		_buildings.append(bv)

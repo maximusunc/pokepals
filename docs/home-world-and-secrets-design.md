@@ -636,6 +636,94 @@ the arch had the companion follow by itself and the lantern rose. Screenshots un
 Elixir: the standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked), so the
 new channel test is unrun. *Not checked:* the world-pack build, phone frame rate, two players, and the feel.
 
+## Steamhollow — built 2026-11, every choice below OPEN for the owner's review
+
+Steamhollow follows the Drifthallow template: **a bathhouse village lost in fog** (boardwalks, hot springs,
+paper lanterns, thick drifting mist), hiding **a little bronze bell, ringing too faintly for you to hear**,
+which only your companion can hear. The pitch was agreed (the fog as the defining feature, the bell, the
+companion's body language as the only compass, "calm and settled" as the condition, a new reveal type).
+**Everything finer was decided by the builder and is listed here for review.** Nothing below changes the
+pitch; if any of it is wrong, say so and it is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/steamhollow.json` (and the test fixture) from
+`tools/gen_steamhollow_world.py`; art from `pokepals/tools/gen_steamhollow.py` over
+`tools/pixelart/steamhollow.py`; catalog id `aaaaaaaa-…`, slug `steamhollow`, listed and featured, with the
+standard small portal home beside the arrival spot.
+
+**The secret: reveal type `listen`.** Spec shape (`secret.reveal`): every number of the hearing (see below), a
+`pocket_radius`, and four hint `lines` (hear, lost, near, close). The bell is in the world from the start (a
+prop of type `bronze_bell`, drawn procedurally by `WorldArt`, with a `kept_bronze_bell` keepsake); examining it
+is the ordinary claim. Code: pure `ListenGuide` (`scripts/world`, tested), presentation `ListenDirector`
+(`scripts/presentation/mechanics`), `CompanionView.listen_toward`, `listen` block in `data/companion.json`.
+
+**Judgment calls (all open):**
+1. **"Settled", concretely.** The player's speed is at most 30 px/s (still or slow), the companion is within
+   95 px of you and itself under 26 px/s, and the bell is within hearing. Hold it for a moment and hearing builds
+   from nothing to a clear tell; stop being settled and the sound drains over 2.2 s. It is never a fail state:
+   stand still and it comes back.
+2. **Bond.** Hearing range 420 px (fresh) to 900 px (bonded); seconds to settle 2.4 down to 1.0; the tell is
+   capped at 0.7 fresh, 1.0 bonded; the aim starts off by up to 0.62 rad (35 deg) fresh, 0.22 bonded, wobbling
+   slowly side to side, and narrows to the truth as the sound clears (a small residual never goes while far
+   from the bell, less with bond).
+3. **Near the bell.** Inside 240 px the tell is stronger, the aim true and settling takes 45% of the time. Inside
+   130 px the bell shows in the mist (fully inside 62 px) as a small warm pocket where the fog thins.
+4. **The companion is asked to stand easy.** In the real loop, a companion left to itself wanders after about
+   four seconds, so it never stayed settled (a scratch harness driving the real companion showed it). So when
+   you stop and it is beside you in range, the director issues the existing command-band `guide` order with
+   `hold` (as the Drifthallow trail's sniff does): it stands where it is, lapses 0.8 s after we stop asking, and
+   a whistle or pet cancels it. It never moves the companion, and never when you are walking. Without this the
+   secret would be nearly unfindable; it reads as the companion calming down because you did.
+5. **Body language, per rig.** The gaze (a facing for the animal forms, whose flat sheets have no ears) turns to
+   the aim point; the body perks up and holds it; the animal forms also rock a few hundredths of a radian (a
+   head-cock, `tilt` on `PalSprite`); the ear-having rigs (procedural, sprite) prick their ears forward and still
+   their bounce and tail. No "!" glyph, no sound arcs, nothing pointing: by design only the body shows it.
+6. **Server check stays minimal and honest** (like `stillness`, `tracks`): "this world, standing at the bell".
+   It cannot tell a heard bell from a stumbled-on one.
+7. **Personal and display-only.** The listening is local; a friend beside you sees your companion turn but
+   nothing is networked, and their companion does not trigger yours.
+8. **The fog.** `MistVeil`: one full-screen shader pass under the vignette: 64 px of clear view (about two
+   steps), full density by 215 px, 93% at its thickest (far silhouettes still hint), mottled by two octaves of
+   noise anchored to the world and drifting at 7,3 px/s, the edge billowing; it fades in over 2.5 s on arrival.
+   Lanterns, lit doorways, your companion, friends present and the bell (when near) each thin it into a pocket (at
+   most 12 at once, the nearest win), tinted warm round lamps. Cost: one cheap fragment pass, a 12-iteration
+   loop and ~55 lamps scanned per frame; *phone frame rate not measured*. All of it is `atmosphere.fog`;
+   `enabled: false` turns it off.
+9. **Steam.** `SteamPuffs`: soft puffs rising off every spring (one column per 22 px of radius, at least two)
+   and every `sh_steam_vent`, drawn above the scenery and under the mist, culled to the screen.
+10. **Layout.** 3200x2400, eight regions (Lantern Landing, Kettle Row, Soak Terraces, Cedar Walk, Drying Green,
+    Old Springs, Maple Bank, Stillwater Nook), ~470 trees, ~200 props, 11 boardwalk plates, 6 bathhouses, 18
+    springs. The bell is in the Stillwater Nook, about 2100 px from the arrival, by a small cold spring, about
+    540 px off the end of the Cedar Walk boardwalk (so a fresh companion has to be brought into the thicket, a
+    bonded one hears from the boardwalk's end). The generator flood-fills the walkable ground from the spawn and
+    asserts the bell, every region and every lore prop is reachable.
+11. **How the player learns to listen.** Diegetically, with no marker: the arrival hint says a bell is ringing
+    too softly for you; two notice boards (Kettle Row's "bellkeeper's board", and one at the Cedar Walk's end)
+    say to stand still together and let the companion listen, and that it hears nothing if you hurry.
+12. **Look.** Lamplit dusk held (`daycycle.hold`), damp green-grey ground, warm paper lanterns, maples red and
+    gold, cedars teal; milky turquoise water. Visitors are NOT re-lit. A few always-on warm fireflies, falling
+    maple leaves, no butterflies and no cloud shadows (the mist is the weather). Its own terrain/detail atlas and
+    `sh_` props, trees, tiles; no shared art edited.
+13. **Bathhouses.** `BathhouseView` extends `BuildingView` (so it is y-sorted, walk-behind and fades when you
+    are hidden), swapping the brick windows, door and chimney for glowing paper screens, a noren curtain, a
+    swaying paper lantern and a steaming stack; chosen by a spec's `"view": "bathhouse"` (a 2-line hook in
+    `Scenery.add_buildings`). Footprints collide through the existing `Solids.rect_solids`.
+14. **Keepsake and qualities.** `kept_bronze_bell`: the bell on a small round of wood. Qualities `quiet`, `old`,
+    `crafted`; temperament curious-ish, low energy, a touch clingy.
+15. **Native creatures:** skipped (optional). **Soaking:** the springs are walls like any pond; benches, stools,
+    buckets and towel racks by the water carry the "soak" feel, and no new mechanic was added.
+16. **Lore and lines** (the notices, the props, the four hints, the found line) are the builder's wording.
+
+**Verified:** Godot suite (new `TestListenGuide`) and every smoke except `smoke_clickton` pass (its one known
+baseline failure); the new `smoke_steamhollow` checks the re-skin, the bathhouses, the mist and steam, the bell
+and the companion's gaze. A scratch run drove the REAL loop: the player stood 300 px from the bell and the
+companion, left to itself, settled in about 1 s and held its gaze within a few degrees of the bell; a second
+scripted walk-the-way-it-faces run (teleporting 150 px along the gaze after each listen) closed from 400 px to the
+bell in about six stop-and-listen cycles (one cycle was knocked off course by collision). Screenshots under Xvfb
+(opengl3) were checked by eye: the mist reads cozy, lanterns glow through it, the bell shows as a small bronze
+glint. Elixir: the standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked).
+*Not checked:* phone frame rate, the world-pack build, a real two-player session, and the feel (that is the
+playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

@@ -47,6 +47,9 @@ var _point_t := 0.0                 # point target, set by the controller: 1 whi
 var _rest_on := false    # held at rest in place (a nap, Dozewood): the body stops and lies down
 var _rest_vis := 0.0     # eased 0..1 of the lying-down pose
 var _point_vis := 0.0               # eased 0..1 visual intensity of the point (smooths the pose/"!"; motion-hold uses _point_t)
+var _listen_pos := Vector2.ZERO     # world point it is listening toward (Steamhollow's faint bell)
+var _listen_t := 0.0                # listen target 0..1, refreshed each frame by the director; decays if it stops
+var _listen_vis := 0.0              # eased 0..1 visual intensity of the listening pose
 var _bob := 0.0
 var _hop_squash := 0.0   # 0..1, decays; squashes the body on a "hop"
 var _perk := 0.0         # 0..1, decays; pops the body on "perk"
@@ -269,6 +272,18 @@ func point_at(world_pos: Vector2, strength: float) -> void:
 	if _point_t > 0.0:
 		_point_pos = world_pos
 		_perk = maxf(_perk, 0.3 + 0.5 * _point_t)  # a graded alertness, stronger the surer it is
+
+
+## LISTENING: the gaze turns toward a sound only the companion can hear, ears pricked and body stilled,
+## held for as long as the director keeps refreshing it (call every frame; strength 0..1 is how clearly it
+## hears). Unlike point_at it never stops the body, so it can't strand the companion: it only turns the
+## eyes and eases the body language in, and relaxes by itself ~0.25 s after the refresh stops.
+## PRESENTATION ONLY, like the detector tell: the brain is never told where the sound is.
+func listen_toward(world_pos: Vector2, strength: float) -> void:
+	_listen_t = clampf(strength, 0.0, 1.0)
+	if _listen_t > 0.0:
+		_listen_pos = world_pos
+		_perk = maxf(_perk, float(_cfg.get("listen", {}).get("perk", 0.5)) * _listen_t)
 
 
 ## The companion's bond (0..max), read-only, for presentation that scales with the relationship
@@ -614,6 +629,8 @@ func _apply_attention(intent: Dictionary, delta: float) -> void:
 		look_target = _point_pos
 	elif _hint_look_t > 0.0:
 		look_target = _hint_look_pos
+	elif _listen_t > 0.0:
+		look_target = _listen_pos
 	var to_look := look_target - position
 	if to_look.length() > 1.0:
 		_look_dir = _look_dir.lerp(to_look.normalized(), 1.0 - exp(-6.0 * delta))
@@ -715,6 +732,9 @@ func _decay_animation(delta: float) -> void:
 	# Ease the point's VISUAL intensity toward its on/off target so the lean/freeze/"!" glide,
 	# while the motion-hold below keys off the crisp binary _point_t for an exact stop/go.
 	_point_vis += (_point_t - _point_vis) * (1.0 - exp(-POINT_VIS_RATE * delta))
+	# The listening pose eases the same way; its target decays by itself unless the director keeps it up.
+	_listen_vis += (_listen_t - _listen_vis) * (1.0 - exp(-float(_cfg.get("listen", {}).get("ease_rate", 3.0)) * delta))
+	_listen_t = maxf(0.0, _listen_t - delta * 4.0)
 	# Age out floating emotes; keep only those still alive.
 	if not _emotes.is_empty():
 		var alive: Array = []
@@ -760,8 +780,9 @@ func _draw() -> void:
 			"look": facing,
 			"speed": spd,
 			"time": _time,
-			"bounce": bounce,
+			"bounce": bounce * (1.0 - float(_cfg.get("listen", {}).get("freeze", 0.6)) * _listen_vis),
 			"squash": 0.16 * _perk - 0.12 * _hop_squash + _rest_squash(),
+			"tilt": _listen_tilt(),
 		}, _form_sheet)
 		_draw_emotes()
 		_draw_point_alert()
@@ -792,6 +813,12 @@ func _draw() -> void:
 	wag_amp *= freeze
 	bounce_gain *= freeze
 	ear_offset -= float(det.get("point_ear_forward", 5.0)) * _point_vis
+	# Listening: ears prick forward and the idle body language stills, gently (it never stops the body).
+	var lis: Dictionary = _cfg.get("listen", {})
+	ear_offset -= float(lis.get("ear_forward", 5.0)) * _listen_vis
+	var lfreeze := 1.0 - float(lis.get("freeze", 0.6)) * _listen_vis
+	wag_amp *= lfreeze
+	bounce_gain *= lfreeze
 	# Direction toward the rock it senses, in the actor's local space (the node isn't rotated, so the
 	# world-delta is the local-delta). VectorActor leans the upper body this way while pointing.
 	var point_dir := Vector2.ZERO
@@ -852,6 +879,15 @@ func _rest_squash() -> float:
 func _rest_dim() -> Color:
 	var k := 1.0 - 0.16 * _rest_vis
 	return Color(k, k, 1.0 - 0.10 * _rest_vis, 1.0)
+
+
+## A slow head-cock while listening, for the animal forms (their flat sheets have no ears to prick): the
+## whole sprite rocks a few hundredths of a radian, in proportion to how clearly it hears.
+func _listen_tilt() -> float:
+	if _listen_vis <= 0.01:
+		return 0.0
+	var lis: Dictionary = _cfg.get("listen", {})
+	return sin(_time * TAU * float(lis.get("tilt_rate", 0.45))) * float(lis.get("tilt", 0.07)) * _listen_vis
 
 
 ## The detector "!" — floats over the companion's head while it's stopped and pointing at a hidden

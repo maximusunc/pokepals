@@ -26,6 +26,11 @@ defmodule Server.SecretReveal do
       The nap, the dream and the walk all happen on the player's own screen (`DreamGate` on the client),
       so the server only checks "this world, standing at it", like `stillness` and `tracks`. Honest about
       what that means: it can't tell a dreamed arrival from a walked-in one.
+    * `listen`: it is simply there to be found, but only the player's companion can hear where
+      (Steamhollow's faint bell, in the fog). The listening (calm, settled beside you, the gaze turning
+      toward the sound) happens entirely on the player's own screen (`ListenGuide` on the client), so
+      the server only checks "this world, standing at it", like `stillness` and `tracks`. Honest about
+      what that means: it can't tell a heard bell from a stumbled-on one.
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
@@ -39,7 +44,7 @@ defmodule Server.SecretReveal do
       %{"type" => "ward_open", "ward" => ward} -> ward_open?(Map.get(ctx, :wards, []), ward)
       %{"type" => "hunt_perfect"} -> hunt_perfect?(Map.get(ctx, :hunt_found, 0), Map.get(ctx, :hunt_goal, %{}))
       %{"type" => "touch_all", "props" => props} -> touched_all?(Map.get(ctx, :touched, MapSet.new()), props)
-      %{"type" => type} when type in ["always", "stillness", "tracks"] -> true
+      %{"type" => type} when type in ["always", "stillness", "tracks", "listen"] -> true
       %{"type" => "dream"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
