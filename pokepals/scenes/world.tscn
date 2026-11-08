@@ -181,6 +181,7 @@ mouse_filter = 2
 color = Color(0, 0, 0, 0)
 
 [node name="DebugOverlay" type="CanvasLayer" parent="."]
+visible = false
 script = ExtResource("7")
 
 [node name="Readout" type="Label" parent="DebugOverlay"]
