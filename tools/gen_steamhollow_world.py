@@ -442,8 +442,8 @@ ART = {
         "props": {"extra_types": ["sh_lantern", "sh_stone_lantern", "sh_bucket", "sh_stool", "sh_mossrock", "sh_bench",
                                   "sh_towel_rack", "sh_steam_vent", "sh_jizo", "sh_board"]},
         "prop_lights": {
-            "sh_lantern": {"radius": 40, "y": -22, "alpha": 0.46},
-            "sh_stone_lantern": {"radius": 30, "y": -14, "alpha": 0.38},
+            "sh_lantern": {"radius": 40, "x": 3.5, "y": -13.5, "alpha": 0.46},
+            "sh_stone_lantern": {"radius": 30, "y": -9, "alpha": 0.38},
         },
     },
     # held at lamplit dusk: the lanterns are always lit
@@ -463,10 +463,10 @@ ATMOSPHERE = {
     "fog": {
         "clear_radius": 40, "fade_radius": 150, "color": [0.80, 0.82, 0.90], "warm": [1.0, 0.80, 0.52],
         "density": 0.93, "swirl": 0.35, "noise_scale": 0.011, "drift": [7, 3], "fade_in": 2.5,
-        "light_clear": 0.9, "max_lights": 12, "companion_radius": 56, "friend_radius": 46,
+        "light_clear": 0.9, "max_lights": 8, "companion_radius": 56, "friend_radius": 46,
         "lit": {
-            "prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "y": -22}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -14}},
-            "buildings": {"radius": 40, "warm": 0.85, "y": -20},
+            "prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "x": 3.5, "y": -13.5}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -9}},
+            "buildings": {"radius": 40, "warm": 0.85, "x": 23, "y": -25},
         },
     },
     # steam breathing off every spring, and off the vents

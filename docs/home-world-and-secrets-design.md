@@ -737,6 +737,16 @@ playtest).
 - *Lanterns lit too much.* They should only hint that something is there, so you go and look: the
   lantern fog pockets shrank from 120 px to 36 (paper) and 90 to 28 (stone), a small warm glint each.
   Lit bathhouse doors went the same way: 150 px to 40.
+- *Still jittery (frame rate), and lanterns and doors "popped" in as you approached.* A headless check at a
+  fixed 60 fps showed the camera and companion move as smoothly here as in other worlds, and Steamhollow
+  issues fewer draw calls than most; what it alone adds is the fog's full-screen shader, which weighs most
+  on phones and the web. So the fog now renders SMALL (one texel per 4 world px, `atmosphere.fog.texel`)
+  into a SubViewport and is stretched over the view with smooth filtering, its grid pinned to the world
+  (no shimmer) and its size only ever growing (no per-frame reallocation). The popping was the shader's
+  12-pocket cap: up to 20 lanterns and doors can be in view, plus your companion and friends, so the
+  furthest lit only once they made the nearest 12. Static lights are now baked ONCE into a low-res light
+  mask over the world (one lookup, any number, always there); only moving pockets (companion, friends, the
+  bell) run in the loop, now 8.
 - *The fog jittered and lagged behind the player.* The veil was screen-space: each frame it converted the
   player's position through the camera's transform, which could be a frame stale while the camera eased,
   so the clear patch trailed and jittered. Now the veil's layer follows the viewport (drawn with the
