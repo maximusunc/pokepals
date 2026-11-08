@@ -29,6 +29,7 @@ static func run_all() -> int:
 	fails += _test_near_the_bell_is_sharper_and_quicker()
 	fails += _test_the_bell_shows_only_when_close()
 	fails += _test_events_fire_once()
+	fails += _test_calm_is_you_still_with_it_close()
 	fails += _test_data_overrides_defaults()
 	return fails
 
@@ -215,6 +216,21 @@ static func _test_events_fire_once() -> int:
 	var log2: Array = []
 	_walk(g2, Vector2(-100, 0), 5.0, 0.5, log2)   # walks right up past the bell
 	fails += _ok(log2.count("near") == 1 and log2.count("close") == 1, "'near' and 'close' fire once as you approach")
+	return fails
+
+
+static func _test_calm_is_you_still_with_it_close() -> int:
+	var fails := 0
+	var g := _guide()
+	var at := Vector2(200, 0)
+	var r := g.update(0.1, at, 0.0, at + Vector2(-40, 0), 80.0, 0.5)   # it is close but trotting about
+	fails += _ok(bool(r["calm"]) and not bool(r["listening"]), "you still, it close but moving: calm, not yet listening")
+	r = g.update(0.1, at, 90.0, at + Vector2(-40, 0), 0.0, 0.5)
+	fails += _ok(not bool(r["calm"]), "walking is never calm")
+	r = g.update(0.1, at, 0.0, at + Vector2(-300, 0), 0.0, 0.5)
+	fails += _ok(not bool(r["calm"]), "a companion far off is not calm beside you")
+	r = g.update(0.1, Vector2(-800, 0), 0.0, Vector2(-840, 0), 0.0, 0.5)
+	fails += _ok(not bool(r["calm"]), "out of range is not calm")
 	return fails
 
 

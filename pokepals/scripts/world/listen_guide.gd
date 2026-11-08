@@ -111,6 +111,8 @@ func reset() -> void:
 ##   tell:       0..1, how strongly the companion's body shows it hears something (0: nothing)
 ##   target:     the world point it should look toward (only meaningful while tell > 0)
 ##   listening:  true while you are settled and in range (hearing is building or held)
+##   calm:       true while you are still and it is beside you in range, whether or not it is itself standing
+##               yet: the director invites it to stand easy (a guide "hold") so that it can settle
 ##   hearing:    0..1, how built-up its hearing is (before the bond's cap), for pacing
 ##   visible:    0..1, how much the bell shows through the fog
 ##   near:       0..1, how close to the bell you are (0 beyond near_radius)
@@ -125,6 +127,8 @@ func update(delta: float, player_pos: Vector2, player_speed: float, companion_po
 	var settled := is_settled(player_speed, companion_pos, player_pos, companion_speed)
 	var need := maxf(0.05, settle_needed(b, dist))
 	var listening := settled and in_range
+	var calm := in_range and player_speed <= float(_cfg["still_speed"]) \
+		and companion_pos.distance_to(player_pos) <= float(_cfg["companion_radius"])
 	if listening:
 		_settle = minf(need, _settle + delta)
 	else:
@@ -163,6 +167,7 @@ func update(delta: float, player_pos: Vector2, player_speed: float, companion_po
 		"tell": tell,
 		"target": companion_pos + aimed * float(_cfg["aim_distance"]),
 		"listening": listening,
+		"calm": calm,
 		"hearing": hearing,
 		"visible": vis,
 		"near": near,

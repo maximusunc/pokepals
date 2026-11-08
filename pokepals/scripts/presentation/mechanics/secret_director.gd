@@ -28,6 +28,9 @@ extends Node
 ##   * `tracks`: nothing shows until your companion, wearing the right animal (a fox), has led you along
 ##     an authored trail to its end (TracksDirector over the pure TrailGuide); then the prop appears
 ##     there (Drifthallow's frost-flower, in a snow-hare's den).
+##   * `listen`: the prop (a little bronze bell, Steamhollow) is simply there in the fog, but only your
+##     companion can hear where; ListenDirector over the pure ListenGuide turns its gaze toward the sound
+##     when you are both settled, and the bell shows through the mist only up close. Examining it claims.
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -47,6 +50,7 @@ var _interactables: Array      # the controller's examine list (staged reveals a
 var _gate: StillnessGate
 var _lights: MereLights
 var _tracks: TracksDirector
+var _listen: ListenDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -76,6 +80,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_tracks):
 		_tracks.queue_free()
 	_tracks = null
+	if is_instance_valid(_listen):
+		_listen.queue_free()
+	_listen = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
@@ -106,6 +113,14 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_tracks.setup(_host, _companion, _world_art, _player)
 			_tracks.configure(secret)
 			_tracks.trail_done.connect(_on_trail_done)
+		"listen":
+			# The bell hangs in the fog from the start; the companion is the only one who hears it.
+			combined.append(_secret_prop())
+			_listen = ListenDirector.new()
+			_listen.name = "ListenDirector"
+			add_child(_listen)
+			_listen.setup(_host, _companion, _world_art, _player)
+			_listen.configure(secret)
 		_:
 			combined.append(_secret_prop())
 
@@ -130,6 +145,8 @@ func _reveal_type() -> String:
 func update(delta: float) -> void:
 	if _tracks != null:
 		_tracks.update(delta)
+	if _listen != null:
+		_listen.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -153,6 +170,12 @@ func on_hunt_won(_found: int) -> void:
 func _on_trail_done() -> void:
 	if _reveal_type() == "tracks" and _entry.is_empty() and not _secret.is_empty():
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## The pockets where the mist thins round something only just in view (the faint bell, once you are close);
+## the MistVeil asks every frame. Empty in every world without a listening secret.
+func mist_pockets() -> Array:
+	return _listen.mist_pockets() if _listen != null else []
 
 
 ## We touched a prop (touch_all): if it's one of the reveal's props we haven't rung yet this visit, keep
@@ -289,6 +312,8 @@ func _on_discoveries(ids: Array) -> void:
 
 
 func _take() -> void:
+	if _listen != null:
+		_listen.finish()
 	# Every entry for this secret, not just the one we adopted: should the world ever hold more than one
 	# (it did, from a layout bug), none may be left behind to be found again.
 	var id := String(_entry["secret"]["id"])
