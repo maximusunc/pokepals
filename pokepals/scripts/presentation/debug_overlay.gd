@@ -6,7 +6,7 @@ extends CanvasLayer
 ## by how much). Pure presentation: it only READS state the logic exposes via
 ## debug_state() and renders it — it never decides or mutates anything.
 ##
-## On by default (this is a dev build). Toggle by tapping the on-screen DBG button
+## Off by default (set in world.tscn). Toggle by tapping the on-screen DBG button
 ## (wired by the world controller) or pressing F3 on desktop.
 
 @onready var _label: Label = $Readout
