@@ -22,7 +22,8 @@ const FOOT_Y := 8.0      # feet sit at origin+8, like SpriteActor/SpriteSlot
 
 
 ## params: look (Vector2 facing/attention), speed (px/s), time (s), bounce (px, +down), squash
-##         (+pop up / -dip down), offset (Vector2 px nudge, e.g. a shy creature shrinking back). cfg:
+##         (+pop up / -dip down), offset (Vector2 px nudge, e.g. a shy creature shrinking back), tilt (radians,
+##         a slow head-cock while the companion listens; default 0). cfg:
 ##         frame:[w,h], fps, cols, rows:{down,down_right,right,up_right,up}, fly_row (-1 if none),
 ##         animate_idle (keep cycling while still — floaters), idle_cols (resting-loop frames after
 ##         the motion columns, 0 = none: rest on col 0), idle_fps.
@@ -36,6 +37,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var bounce: float = params.get("bounce", 0.0)
 	var squash: float = params.get("squash", 0.0)
 	var offset: Vector2 = params.get("offset", Vector2.ZERO)
+	var tilt: float = params.get("tilt", 0.0)   # radians, about the feet-line origin (a head-cock while listening)
 
 	var frame: Array = cfg.get("frame", [32, 32])
 	var fw := int(frame[0])
@@ -73,7 +75,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	# no flip this is the identity — so an ambient pal renders pixel-for-pixel as it did untransformed.
 	var sy := 1.0 + squash
 	var sx := -1.0 if flip else 1.0
-	ci.draw_set_transform(offset + Vector2(0.0, FOOT_Y * (1.0 - sy) + bounce), 0.0, Vector2(sx, sy))
+	ci.draw_set_transform(offset + Vector2(0.0, FOOT_Y * (1.0 - sy) + bounce), tilt, Vector2(sx, sy))
 	ci.draw_texture_rect_region(tex, dest, region)
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
