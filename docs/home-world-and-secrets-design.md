@@ -600,7 +600,7 @@ and featured, with the standard small portal home beside the arrival spot. Layou
    it just isn't obeyed), squashed low, slowly breathing, a touch dimmed. No new sprite. (HomeDirector's
    nap is only a visibility swap, so there was no sleeping pose to reuse.) Personal and display-only: friends
    see it lie still, but not the pose or bubble.
-5. **Waking.** Walking more than 170 px away, a pet, or a Call wakes it (detected from the brain's behaviour
+5. **Waking.** Walking more than 170 px away or a Call wakes it (a pet no longer does: see the playtest fix below) (detected from the brain's behaviour
    "pet"/"come", 1.3 s grace after it falls asleep). It then needs a fresh welcomed pet and a 6 s rest before
    it can doze again. A Call while only drowsy lets the drowse go.
 6. **The dreamed landmark is fixed and authored: the Crooked Arch**, not varied per visit. Reason: the
@@ -635,6 +635,13 @@ sitting still got it to settle, sleep and dream; a Pet woke it; walking away wok
 the arch had the companion follow by itself and the lantern rose. Screenshots under Xvfb checked by eye.
 Elixir: the standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked), so the
 new channel test is unrun. *Not checked:* the world-pack build, phone frame rate, two players, and the feel.
+
+**Playtest fix (2026-11-08), from the owner's first play:** a fully bonded companion was petted by a
+hollow, enjoyed it, "just stood there", and never showed a dream. A real-loop harness found why: it
+did fall asleep about 5 s after the pet, but the dream waits a further `dream_delay` (2.5 s), and a
+player who keeps petting while waiting woke it each time (a pet counted as a poke), which also reset the
+"recent pet" and started the 6 s wake cooldown. Now **only a Call (or walking away) wakes it**; a pet
+while it sleeps gets a sleepy line (`pet_asleep`) and it sleeps on.
 
 ## Steamhollow — built 2026-11, every choice below OPEN for the owner's review
 

@@ -21,7 +21,7 @@ extends RefCounted
 ##           enough it gets up again ("stir").
 ##   ASLEEP  drowse full ("asleep"). After `dream_delay` more seconds the dream begins ("dream") and the
 ##           place it dreams of is remembered for the visit (`dreamt`). It wakes ("wake") if you walk
-##           more than `wake_distance` away, or poke it (a pet or a call: `poked`).
+##           more than `wake_distance` away, or poke it (`poked`: the director passes a call).
 ##   Then, awake, if you and it stand at the dreamed landmark together ("arrive", once), the secret is there.
 ##
 ## Waking leaves a short `wake_cooldown` before it can drift off again, so a call or a step away never
