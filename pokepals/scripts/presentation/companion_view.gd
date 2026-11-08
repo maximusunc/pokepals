@@ -286,6 +286,17 @@ func listen_toward(world_pos: Vector2, strength: float) -> void:
 		_perk = maxf(_perk, float(_cfg.get("listen", {}).get("perk", 0.5)) * _listen_t)
 
 
+## The route from where this body stands to `goal`, as waypoints through the world's walls (the same
+## NavGrid it steers by), for a director that wants to LEAD with it (Underroot's root-heart). Each leg is a
+## clear straight line. Empty when there is no walkability grid (nav off), the body cannot be placed on it,
+## or it cannot get any nearer to the goal. Planned once per ask, so it may search far more than the
+## per-frame steering is allowed to (`max_expansions`).
+func plan_route(goal: Vector2, max_expansions: int = 40000) -> Array:
+	if _nav_grid == null:
+		return []
+	return _nav_grid.find_path(position, goal, max_expansions)
+
+
 ## The companion's bond (0..max), read-only, for presentation that scales with the relationship
 ## (the detector tell sharpens as you bond). 0 before the brain exists.
 func bond_value() -> float:

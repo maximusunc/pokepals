@@ -2122,6 +2122,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 2), 12.0, color)
 			draw_circle(p + Vector2(0, 0), 8.0, Color(0.40, 0.56, 0.64))
 			draw_arc(p + Vector2(0, 0), 8.0, 0.0, TAU, 20, Color(0.85, 0.92, 0.95, 0.6), 1.0)
+		"root_heart":
+			# Underroot's secret: a seed the great tree keeps at its deepest root, wrapped in roots and glowing
+			# from inside, slowly, like something with a pulse.
+			_draw_root_heart(p + Vector2(0, 1), color, 1.0, true)
+		"kept_root_heart":
+			# its keepsake at home: the same seed, wrapped in a few small roots on a clay saucer
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.07, 0.05, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.52, 0.34, 0.24), true, -1.0, true)
+			draw_arc(p + Vector2(0, 4), 8.0, 0.1, PI - 0.1, 12, Color(0.34, 0.22, 0.16), 1.0, true)
+			_draw_root_heart(p + Vector2(0, 3), color, 0.7, false)
 		"hedge_seed":
 			# a curled seed nestled in a small cushion of moss, with the faint green warmth of
 			# something alive inside: the hedge maze's secret, resting at its heart
@@ -2947,3 +2957,34 @@ func _draw_crate(p: Vector2, color: Color) -> void:
 	# a smaller crate stacked on top
 	draw_rect(Rect2(p + Vector2(-6, -20), Vector2(13, 11)), color.lightened(0.05))
 	draw_rect(Rect2(p + Vector2(-6, -20), Vector2(13, 3)), color.lightened(0.16))
+
+
+## The root-heart: a seed the colour of lit honey, cradled in a tangle of roots that curl up round it, and
+## breathing a warm light (`breathe`) that a handful of motes drift up out of. `k` scales it; `motes` is off
+## for the keepsake.
+func _draw_root_heart(c: Vector2, tint: Color, k: float, motes: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.5 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -8.0 * k), 34.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.26 + 0.12 * breathe), 1.0)
+	var bark := Color(0.30, 0.20, 0.14)
+	var bark_hi := Color(0.46, 0.32, 0.22)
+	# the roots behind: two arcs curling up and over the seed's far side
+	for side in [-1.0, 1.0]:
+		draw_polyline(PackedVector2Array([c + Vector2(side * 12.0, 3.0) * k, c + Vector2(side * 11.0, -6.0) * k,
+			c + Vector2(side * 7.0, -15.0) * k, c + Vector2(side * 2.5, -17.0) * k]), bark, 2.6 * k, true)
+	# the seed: a plump teardrop, lit from within
+	draw_circle(c + Vector2(0, -8.0 * k), 7.4 * k, tint.darkened(0.25), true, -1.0, true)
+	draw_circle(c + Vector2(0, -8.0 * k), 6.2 * k, tint, true, -1.0, true)
+	draw_circle(c + Vector2(0, -8.0 * k), 3.6 * k, Color(1.0, 0.96, 0.74, 0.55 + 0.35 * breathe), true, -1.0, true)
+	draw_circle(c + Vector2(-2.0, -10.4) * k, 1.5 * k, Color(1, 1, 0.92, 0.9))
+	draw_arc(c + Vector2(0, -8.0 * k), 6.2 * k, PI * 0.15, PI * 0.85, 8, tint.darkened(0.4), 1.0, true)
+	# the roots in front: a cradle of three, ending in curled tips
+	draw_polyline(PackedVector2Array([c + Vector2(-13.0, 4.0) * k, c + Vector2(-8.0, 0.5) * k, c + Vector2(-5.0, -5.0) * k, c + Vector2(-5.5, -9.0) * k]), bark_hi, 2.2 * k, true)
+	draw_polyline(PackedVector2Array([c + Vector2(13.0, 4.0) * k, c + Vector2(8.0, 0.5) * k, c + Vector2(5.0, -5.0) * k, c + Vector2(5.5, -9.0) * k]), bark_hi, 2.2 * k, true)
+	draw_polyline(PackedVector2Array([c + Vector2(-4.0, 5.0) * k, c + Vector2(0.0, 1.5) * k, c + Vector2(4.0, 5.0) * k]), bark, 2.4 * k, true)
+	draw_circle(c + Vector2(-5.5, -9.5) * k, 1.2 * k, bark_hi)
+	draw_circle(c + Vector2(5.5, -9.5) * k, 1.2 * k, bark_hi)
+	if motes:
+		for m in 4:
+			var t := fposmod(_time * 0.22 + float(m) * 0.25, 1.0)
+			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 6.0, -12.0 * k - t * 34.0)
+			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))

@@ -924,14 +924,14 @@ func _process(delta: float) -> void:
 		_examine_prompt.hide_prompt()
 
 	# Companion radial: Pet and Call are core (always there); Go look joins the arc only in a Ruin
-	# with a ward still to open; then one entry per drawable FORM the player can instruct it into
+	# with a ward still to open, or a world whose secret the companion leads you to (Underroot); then one entry per drawable FORM the player can instruct it into
 	# (F-1's temporary picker — the proper contextual UI comes with the tap-an-object item). The
 	# chip's dot warms with the live bond.
 	_radial.set_bond(_companion.bond_value())
 	var radial_actions: Array = [
 		{ "id": "pet", "label": "Pet", "enabled": true },
 		{ "id": "call", "label": "Call", "enabled": true },
-		{ "id": "seek", "label": "Go look", "enabled": _ruin.has_unopened_ward() },
+		{ "id": "seek", "label": "Go look", "enabled": _ruin.has_unopened_ward() or _secret_dir.can_go_look() },
 	]
 	for sp in _companion.available_form_species():
 		radial_actions.append({ "id": "form:" + String(sp), "label": String(sp).capitalize(), "enabled": true })
@@ -1008,7 +1008,13 @@ func _on_radial_action(id: String) -> void:
 	match id:
 		"pet": _try_pet()
 		"call": _try_call()
-		"seek": _ruin.try_seek()
+		"seek":
+			# In a world whose secret is LED to (Underroot's root-heart) "Go look" asks the companion to
+			# lead; everywhere else it is the Ruin's search.
+			if _secret_dir.can_go_look():
+				_secret_dir.go_look()
+			else:
+				_ruin.try_seek()
 
 
 ## Map a gear-menu tap to the SAME handler its old button used.
