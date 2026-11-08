@@ -44,7 +44,10 @@ defmodule Server.Seeds do
       tags: ["forest", "sleepy", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.74, 1.0], featured: true},
     %{world_id: "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", slug: "steamhollow", name: "Steamhollow", file: "steamhollow.json",
       blurb: "A bathhouse village lost in fog. Boardwalks, hot springs and paper lanterns, and a bell too faint for you to hear.",
-      tags: ["fog", "hot-springs", "lanterns", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.80, 0.52], featured: true}
+      tags: ["fog", "hot-springs", "lanterns", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.80, 0.52], featured: true},
+    %{world_id: "cccccccc-cccc-cccc-cccc-cccccccccccc", slug: "underroot", name: "Underroot", file: "underroot.json",
+      blurb: "Caves beneath the great tree: root tunnels, glow-moss and slow dripping water, so dark you see only a small circle of light. Let your companion go first, and follow.",
+      tags: ["caves", "dark", "roots", "glow", "quiet", "explore", "cozy", "secret"], accent: [0.50, 0.95, 0.72], featured: true}
   ]
 
   # The currency the bazaar shop charges in.
