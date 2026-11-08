@@ -733,7 +733,10 @@ playtest).
 
 **Playtest fixes (2026-11-08), from the owner's first play:**
 - *The fog should come in closer.* Clear view 64 → 40 px, full density 215 → 150 px (`atmosphere.fog`).
-  Lanterns and lit doors still thin it into their own pockets, so it's most open by the arrival.
+  Lanterns and lit doors still thin it into their own pockets.
+- *Lanterns lit too much.* They should only hint that something is there, so you go and look: the
+  lantern fog pockets shrank from 120 px to 36 (paper) and 90 to 28 (stone), a small warm glint each.
+  Doors (150 px) are unchanged.
 - *The fog jittered and lagged behind the player.* The veil was screen-space: each frame it converted the
   player's position through the camera's transform, which could be a frame stale while the camera eased,
   so the clear patch trailed and jittered. Now the veil's layer follows the viewport (drawn with the

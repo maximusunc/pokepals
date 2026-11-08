@@ -465,7 +465,7 @@ ATMOSPHERE = {
         "density": 0.93, "swirl": 0.35, "noise_scale": 0.011, "drift": [7, 3], "fade_in": 2.5,
         "light_clear": 0.9, "max_lights": 12, "companion_radius": 56, "friend_radius": 46,
         "lit": {
-            "prop_types": {"sh_lantern": {"radius": 120, "warm": 1.0, "y": -22}, "sh_stone_lantern": {"radius": 90, "warm": 0.9, "y": -14}},
+            "prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "y": -22}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -14}},
             "buildings": {"radius": 150, "warm": 0.85, "y": -20},
         },
     },
