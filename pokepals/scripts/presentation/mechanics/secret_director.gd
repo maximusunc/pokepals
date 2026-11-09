@@ -52,7 +52,11 @@ extends Node
 ##     mirror lake, has walked the shore and stopped over the stone's place (ReflectionDirector over the pure
 ##     ReflectionWalker, drawn by the world's ReflectionLayer); then the prop (Stillglass's mirror stone)
 ##     rises on the bank. Once found, the reflection stays a quiet toy; only the stone is gone.
-## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
+##   * `tide`: nothing shows until the tide is at its lowest and your companion, in a shape that can dig, digs
+##     the far bar (TideDirector over the pure TideClock / DigPlan, drawn by the world's TideLayer); then the
+##     prop (Ebbmere's sand-dollar) is there to take. The server checks the clock too (Server.Tide), so a
+##     missed window is simply the next tide.
+## The server checks the conditions it can (an open door, a perfect hunt, the tide) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
 const STILL_COMPANION_RADIUS := 110.0
@@ -79,6 +83,7 @@ var _follow: FollowDirector
 var _shadow: ShadowDirector
 var _screens: Array = []        # the world's shadow-screen views (Lanternfold)
 var _reflection: ReflectionDirector
+var _tide: TideDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -128,6 +133,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_reflection):
 		_reflection.queue_free()
 	_reflection = null
+	if is_instance_valid(_tide):
+		_tide.queue_free()
+	_tide = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
@@ -144,6 +152,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "reflection" \
 			and Net.has_discovery(String(secret["id"])):
 		_start_reflection(secret, true)   # found already: the lake keeps its walking reflection, the stone doesn't come
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "tide" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_tide(data, true)   # found already: the flats keep their digging, the sand-dollar doesn't come
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -198,6 +209,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		"reflection":
 			# Nothing to see yet: the lake's picture of your companion has to turn and walk you to the stone.
 			_start_reflection(secret, false)
+		"tide":
+			# Nothing to see yet: the sand-dollar is under the far bar, and only the lowest tide uncovers it.
+			_start_tide(data, false)
 		_:
 			combined.append(_secret_prop())
 
@@ -224,6 +238,31 @@ func _on_mural_done() -> void:
 ## a tap on the lit stage stands your companion there. Returns whether it did.
 func on_ground_tap(world: Vector2) -> bool:
 	return _shadow != null and _shadow.on_ground_tap(world)
+
+
+func _start_tide(data: Dictionary, found: bool) -> void:
+	_tide = TideDirector.new()
+	_tide.name = "TideDirector"
+	add_child(_tide)
+	_tide.setup(_host, _companion, _world_art, _player)
+	_tide.configure(data, found)
+	_tide.dollar_unearthed.connect(_on_dollar_unearthed)
+
+
+## Your companion dug the far bar in the lowest water: the sand-dollar is there to take.
+func _on_dollar_unearthed() -> void:
+	if _reveal_type() == "tide" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## A tap on a buried spot the flats' tide has uncovered (Ebbmere): an order to the companion through its form.
+## The controller asks this BEFORE it snaps a tap to the nearest examinable thing.
+func on_spot_tap(world: Vector2) -> bool:
+	return _tide != null and _tide.on_spot_tap(world)
+
+
+func tide_director() -> TideDirector:
+	return _tide
 
 
 func _start_reflection(secret: Dictionary, found: bool) -> void:
@@ -317,6 +356,8 @@ func update(delta: float) -> void:
 		_shadow.update(delta)
 	if _reflection != null:
 		_reflection.update(delta)
+	if _tide != null:
+		_tide.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -414,6 +455,8 @@ func on_touched(entry: Dictionary) -> bool:
 ## rung (quietly, no pulse), so it's clear at a glance that you've already sung this world's song.
 ## Before it's found, every visit starts with them all waiting again.
 func after_world_drawn() -> void:
+	if _tide != null:
+		_tide.after_world_drawn()   # the sea, the tide pole and the lamp go into the drawn world
 	if _found_props.is_empty() or not _secret.is_empty():
 		return  # not a touch_all world, or still to be found this visit
 	_light_found_props()
@@ -504,6 +547,9 @@ static func names_phrase(names: Array) -> String:
 
 func _on_secret_refused(_secret_id: String) -> void:
 	_claiming = false
+	# Ebbmere: the sand-dollar was claimed after the lowest water had slipped away (the server checks the clock).
+	if _reveal_type() == "tide" and not _entry.is_empty():
+		_host.show_hint(String((_secret["reveal"] as Dictionary).get("refused_line", "")))
 
 
 ## A join's discovery list arrived after we laid the world out (a cold build, or a find made on
@@ -515,6 +561,10 @@ func _on_discoveries(ids: Array) -> void:
 			_shadow.set_found()
 	if not _secret.is_empty() and _reveal_type() == "echo" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the howling stays, the stone doesn't come
+	if not _secret.is_empty() and _reveal_type() == "tide" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the digging stays, the sand-dollar doesn't come
+		if _tide != null:
+			_tide.finish()
 	if not _secret.is_empty() and _reveal_type() == "reflection" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the walking reflection stays, the stone doesn't come
 		if _reflection != null:
@@ -537,6 +587,8 @@ func _take() -> void:
 		_follow.finish()
 	if _reflection != null:
 		_reflection.finish()
+	if _tide != null:
+		_tide.finish()
 	# Every entry for this secret, not just the one we adopted: should the world ever hold more than one
 	# (it did, from a layout bug), none may be left behind to be found again.
 	var id := String(_entry["secret"]["id"])

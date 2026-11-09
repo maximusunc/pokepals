@@ -1339,6 +1339,9 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	if peer != "":
 		_social_dir.tap_player(peer)
 		return
+	# Ebbmere: a tap on a buried spot the tide has uncovered is an order to dig, ahead of anything it snaps to.
+	if _secret_dir.on_spot_tap(world):
+		return
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:
 		_secret_dir.on_ground_tap(world)   # Lanternfold: empty lit ground stands your companion in the shadows
