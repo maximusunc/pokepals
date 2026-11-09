@@ -940,6 +940,124 @@ enjoyed and the lead resumed. Screenshots under Xvfb (opengl3) checked by eye. E
 `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked), so the new channel test is unrun. *Not
 checked:* phone frame rate, the world-pack build, a real two-player session, and the feel (that is the playtest).
 
+## Stillglass — built 2026-11, every choice below OPEN for the owner's review
+
+Stillglass follows the Drifthallow template: **a mirror lake**, a perfectly flat silver lake, pale reeds and a sky that
+matches the water, whose reflections are slightly wrong (tall silver pines and a pale great oak stand in the water with
+nothing on the shore to cast them). It hides **a stone that only exists in the reflection**, found by standing your
+companion at the water's edge, watching its reflection turn into a different animal and walk off along the shore, and
+following it on the bank, step for step, to where the real stone surfaces. The pitch was agreed (reflection layer with
+ordinary and "wrong" reflections; the companion's reflection its own creature; waits for you; the companion guides;
+interruptions keep progress; a new reveal type; the player's own reflection is ordinary). **Everything finer was decided
+by the builder and is listed here for review.** Nothing below changes the pitch; if any of it is wrong, say so and it is
+data or a small edit.
+
+**What it is.** `server/priv/world_seeds/stillglass.json` (and the test fixture) from `tools/gen_stillglass_world.py`; art
+from `pokepals/tools/gen_stillglass.py` over `tools/pixelart/stillglass.py`; catalog id `ffffffff-ffff-ffff-ffff-ffffffffffff`,
+slug `stillglass`, listed and featured, with the standard small portal home beside the arrival spot.
+
+**The secret: reveal type `reflection`.** Spec shape (`secret.reveal`): `species_pool`, `start` (where the walk resumes, a point
+ON the waterline), `trail` (waterline waypoints along the north bank, the last is where the stone surfaces), then every
+number and `lines`. Flow: you linger near the start of the bank, your companion goes to stand at the edge, settles,
+its reflection (the lake's picture of it) dissolves and an **animal it is not wearing** forms in its place, turns and walks
+the shore a little ahead of you; your companion keeps its eyes on it and walks beside it; it waits when you fall behind;
+at the end it stops, rings spread on the water, and a beat later the stone rises on the bank (`SecretDirector` -> the usual
+claim). Code: pure `ReflectionWalker`, `MirrorGeometry` and `WaterMask` (`scripts/world`, tested), presentation
+`ReflectionLayer`, `ReflectionPuppet` and `ReflectionDirector` (`scripts/presentation`, `mechanics/`), `assets/reflect.gdshader`.
+
+**The reflection layer (`atmosphere.reflections`).** The camera looks from above and a little in front, so the image of
+something on the north bank hangs straight down the screen from its feet: the waterline is the axis. So:
+- **Actors** (you, your companion, friends and their companions) are each a `ReflectionPuppet`: a node flipped upside down
+  (`scale.y = -1`) that runs the actor's OWN drawing code (`AvatarCompositor` / `PalSprite`) with the actor's pose, so it is
+  never a copy of the art; read through two small appended read-only accessors, `PlayerView.reflection_pose()` and
+  `CompanionView.reflection_pose()`. Only actors within `reach` (110 px) of the waterline show, fading with distance.
+- **Trees** within `tree_reach` (150 px) of the water are baked once into `Chunk` nodes of 512 px, each drawn as two flipped
+  quads (trunk, canopy) with a vertex-colour gradient fading toward the crown. A chunk is only visible while the camera can
+  see it, so draw cost follows the view, and nothing redraws per frame.
+- **Phantoms** (13 of them) are the same kind of quad for trees with no tree on the shore: `phantoms: [x, base_y, sprite]`,
+  baked as pale blue-silver pines, a willow, a birch and a great oak (`sg_ghost_*`), a touch more opaque than the real
+  images and rippling more slowly on their own beat, so the lake is wrong in a way you feel before you can name it.
+- **Phone-cheap by construction (the MistVeil lesson):** no SubViewport, no render target, no screen read. One shader
+  (`reflect.gdshader`) does the whole look: it clips to the water by sampling a small bitmap (`WaterMask`, 2 world px per
+  texel, only over the lake's bounding box, R8, ~0.6 MB), silvers and cools the image, ripples it a whole texel at a time and
+  fades it with depth below the waterline. The bitmap is scanline-filled once at load from the very rings `WorldArt`
+  draws (`WorldArt.pond_rings()`, a small appended read-only accessor), so the clip lines up with the visible water.
+  The CPU reads the same bitmap to find the waterline below an actor (`MirrorGeometry.waterline_below`, stepping, then
+  bisecting).
+
+**Judgment calls (all open):**
+1. **Reflections hang DOWN from the north bank only.** That is what the camera physically sees, and it makes the lake's
+   north shore the place where everything happens. Something on the south bank has no image (it would fall on land). The
+   world's one walk runs along the north bank for that reason.
+2. **Which animal.** The reflection is always **a different animal to the one the companion is wearing**, chosen from the
+   spec's `species_pool` (cat, fox, rabbit, bird, wolf) by a seed taken from the secret's id, so a given shape always meets
+   the same other animal (`MirrorGeometry.pick_species`, tested); coat variant seeded too. If the companion drifts into
+   the reflection's shape mid-walk, the reflection becomes another one. The form drift is held off while it is under way
+   (`postpone_form_drift`, as Drifthallow and Underroot).
+3. **The hand-over.** Your companion's own mirror simply stops while the lake is showing someone else walking off (it
+   dims during the turn, absent while it walks); that missing reflection is part of the eeriness. The odd reflection forms
+   at the start of the path as the companion's image dissolves (a flicker through the other animals, rings on the water),
+   then walks. When it is interrupted, your companion's mirror comes back.
+4. **Triggers are generous (Drifthallow's lesson).** Only YOU have to be near and lingering: within 280 px of where the walk
+   resumes and moving under 34 px/s for 1.2 s. If the companion is not already at the edge (190 px of the spot) it goes to
+   stand there by itself (`approach`, a `guide` order, to a point 26 px up the bank), the way Drifthallow's fox trots to the
+   scent. It must then stand still (under 14 px/s) for 1 s; the water stirs (rings, its gaze turns down to its own image)
+   as it settles. A player just walking past is never hijacked (the linger test).
+5. **The companion guides.** During the turn it stands and watches; while the reflection walks it keeps beside it (a `guide`
+   order to a point 26 px up the bank from the reflection, hurrying at 1.6x pace when it falls more than 90 px behind),
+   and its gaze is turned toward the reflection throughout (`CompanionView.listen_toward`, a pose that never stops the
+   body). The reflection walks at 68 px/s (you walk at 118) and waits, standing, when you are over 200 px from it, resuming
+   within 120 px: step for step. It never gets ahead of you out of reach, and it is never a fail state.
+6. **Interruptions keep progress.** If your companion gets more than 380 px from the reflection, or you wander more than
+   760 px, the reflection goes back to mirroring where it stopped; stand your companion at the edge THERE and it picks
+   up from that point (a scratch run teleported the companion 520 px away mid-walk: the walk dropped, kept its waypoint,
+   resumed and finished). Standing at the start again does nothing once it has moved on.
+7. **Natural actions (Dozewood and Underroot lessons).** The brain's order slot holds one order, so ours never overwrites a
+   Pet or a Call: a Pet is enjoyed (we leave the companion alone for 3 s) and a Call is answered (4 s); for both, the
+   reflection simply stands still (`hold`) and never lets go. Checked in scratch runs through the real loop.
+8. **Noticing.** As you come near the start of the bank, in any shape, the companion stops and points down at the water
+   (range 280 px at zero bond, 620 at full; every 16 s, every 6 s bonded; held 2.5 s), plus a one-time hint line.
+   Pure: `ReflectionWalker.notice`. A scratched stone at the landing and a cairn at the start of the bank say, diegetically,
+   what to do (stand your companion at the edge on the north bank, be still, watch the water).
+9. **Readable states.** A first-time hint for each of: notice, approach, gather, turn, set off, wait, follow; the cue that
+   needs an action (it let go) says so every time. The walking reflection is brighter and less silvered than the plain
+   images (`walker_silver_mix` 0.12), leaves a ripple at each step, and has its own shimmer while it changes.
+10. **Server check stays minimal and honest** (like `stillness`, `tracks`, `follow`): "this world, standing at the stone". It
+    cannot tell a followed reflection from a walked-to bank.
+11. **Personal and display-only.** Your lake's reflection that walks is yours; a friend beside you sees their OWN lake
+    (their companion's reflection, ordinary), plus your ordinary reflections. Friends' actors are mirrored like yours.
+12. **The lake's shoreline is walled with a chain of invisible posts, and pond collision is OFF.** The shared ponds are
+    collision circles of the nominal radius, but the drawn bank is a wobbly ring (`WorldArt.organic_radius`, up to ~20% off
+    the circle), which would let you stand ~50 px into the lake or stop ~50 px short of it exactly where the reflection
+    must stand on the waterline. So the spec sets `collision.pond_blocks: false` and the generator (which ports the same
+    ring formula) places 372 solid `sg_shore` props (an `unseen` prop type, so nothing is drawn) along the union's outer
+    boundary every 14 px, so you stop at the water you see. (Posts are 8 px radius and the body's feet sit 8 px below its
+    centre, so feet stay dry.) This is the cost of a mismatch that already exists in every pond world; fixing it in
+    `Solids` for everyone would be a shared change, left out.
+13. **Layout.** 3400 x 2600, eight regions (Sedge Landing where you arrive, South Shore, West Marsh, Still Water, East
+    Shallows, Grey Orchard, Silverbank, Quiet End), four overlapping ponds (radii 400 to 470) making one lake, 382 trees,
+    ~120 props. The shore path is 24 waypoints, about 1930 px, about 28 s of walking, from the west of the north bank to
+    the east; the generator keeps a 74 px corridor of the bank clear of trees and props and asserts every waypoint stands
+    on a north bank (water just below, dry just above). The stone surfaces 16 px up the bank from the last waypoint.
+14. **Look.** Pale silver-green turf and cool grey-green trees (willows, birches, poplars, oaks), a nearly featureless silver
+    water tile, pale vignette and day tint, a very slow ping-pong between two silvers for the day cycle. No butterflies,
+    no fireflies; a leaf now and then. Visitors are not re-lit. No native creatures (optional; skipped).
+15. **Keepsake and qualities.** `kept_mirror_stone` (the stone in a shallow dish of still water with its image beneath, a
+    touch too bright), drawn by `WorldArt` like the other secrets; the in-world `mirror_stone` too. Qualities `quiet`,
+    `watery`, `old`; temperament curious-ish, low energy, a little clingy.
+16. **Lore and lines** (the landing stone, cairns, posts and boulders, the eight hints and the found line) are the builder's
+    wording.
+
+**Verified:** Godot unit suite (new `TestMirrorGeometry`, `TestReflectionWalker`) and every smoke (new `smoke_stillglass`)
+except `smoke_clickton`'s one known baseline failure. Scratch runs through the REAL loop (the paused scene un-paused each
+frame, the companion met, the player driven with `ui_*` actions): a companion that started 100 px away walked to the edge
+itself, settled, its reflection turned into another animal and walked the whole shore in about 30 s with the companion
+keeping beside it, and the stone rose; the interrupt, pet and call scenarios above all recovered and finished. Screenshots
+under Xvfb (opengl3) checked by eye: the silver lake, ordinary reflections of you and the shore trees, the phantoms, the
+walking reflection and its ripples, the rings and the rising stone. Elixir: the standalone `secret_reveal_test.exs` passes;
+`mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
+session, and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →
