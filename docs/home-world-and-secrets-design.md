@@ -1171,6 +1171,119 @@ walking reflection and its ripples, the rings and the rising stone. Elixir: the 
 `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
 session, and the feel (that is the playtest).
 
+## Loftreach — built 2026-11, every choice below OPEN for the owner's review
+
+Loftreach follows the Drifthallow template: **sky islands**: grassy islets floating in open sky over a sea of cloud, joined by
+rope bridges, with windmills, kites and weathervanes, bright and breezy and high. It hides **a nest on an islet you cannot reach
+on foot**, found by borrowing your companion's eyes. The pitch was agreed (a bird sent up; the camera rises with it; the clouds
+and the islands' shapes form a picture pointing at the islet; the hidden bridge appears once it has been seen from above; walk it
+and examine the nest; Go up offered in every shape with a cue; bond shapes it; the companion notices the islet; a new reveal
+type; the camera always returns). **Everything finer was decided by the builder and is listed here for review.** Nothing below
+changes the pitch; if any of it is wrong, say so and it is data or a small edit. Catalog id `12121212-...`, slug `loftreach`,
+listed and featured, with the standard small portal home beside the arrival spot.
+
+**What it is.** `server/priv/world_seeds/loftreach.json` (and the test fixture) from `tools/gen_loftreach_world.py`; art from
+`pokepals/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`.
+
+**The secret: reveal type `skyview`.** Spec shape (`secret.reveal`): `species` (bird), `bridge` (the hidden bridge's id), `vantage`
+(where the bird hangs), `targets` (what must be in view: the nest and the bridge's head), `head`, then every number and `lines`.
+Flow: shift to a bird, tap **Go up**; the bird (a `SkyBird` puppet drawing the companion's own animal sheet) lifts off, the
+real body is hidden and held where it stands, the camera zooms out and follows to the vantage, the high clouds fade in as an
+arrow, and when the bird has looked at the nest AND the bridge's head for `see_secs` the rope bridge unspools from its head
+toward the Rookery. It stays up a few more seconds to let you watch, then glides home. The nest is the secret's prop, there from
+the start in plain sight; examining it is the usual claim. Code: pure `SkyView` (flight, bond scaling, seen, noticing; 11 tests)
+and `SkyRealm` (island fences, bridges, ground test; 15 checks) in `scripts/world`, `SkyDirector` in `mechanics/`.
+
+**Judgment calls (all open):**
+1. **The sky is the world's ground, not a ground layer plus obstacles.** The spec's `sky` block (island outlines, bridges, the
+   windmill, kites, the picture's puffs) is the only description; `SkyRealm` derives the collision fence and the walkable ground
+   from it, and `SkyLayer` draws it, so the three cannot disagree. `WorldArt` paints no ground of its own when a `sky` block
+   exists (`ground.render: "none"`; one line in `_draw`), and no border ring of trees.
+2. **Island edges are segment solids, not posts.** Each outline edge is one capsule (radius 5), and where an open bridge joins an
+   island the edge is cut by exactly the bridge's strip (a slab test, any angle); the bridge gets a rail down each side. Bodies
+   inside are pushed back in the way hedges push them. 469 solids for the world. No change to `Solids.resolve`; one appended
+   call in `Solids.build`.
+3. **The hidden bridge is not a gate prop; it is shut by geometry.** A hidden bridge has no gap, no rails and no ground until its
+   id is in `sky.revealed`. Revealing appends the id and rebuilds the solids and the companion's grid
+   (`WorldController.reveal_sky_bridge`, like the Ruin's `rebuild_solids_dropping`). A found secret starts the visit revealed.
+   The bridge stays down for the visit (a fresh visit before the find shuts it again, so the bird has to look again; it is quick).
+4. **Routing never goes through the sky.** `NavGrid.build` gained one optional argument, a ground test; cells whose centre is not on
+   an island or an open bridge are unwalkable. Without it the grid would have treated open sky as walkable and a companion pressed
+   against an island's edge could be planned a route from the sky side. The ground test is `SkyRealm.ground_test`. A scratch
+   run confirmed a companion crosses a bridge by itself, and a player-driven bot crossed every bridge, including the new one,
+   with the companion following.
+5. **The picture.** The high clouds (`sky.picture.puffs`, 32 puffs) draw a great arrow from over Vane Hill, across Pennant Crag's
+   edge where the bridge begins, to the Rookery, with barbs at its head and a fletching at its tail. It is drawn by `SkyAir` above
+   everything and is invisible below `picture_from` 0.35 of the climb, fully there by 0.8, so it can only be read from up high; it
+   is also 1500 px long, which no ground-level view (640 x 360) holds. The islands are egg-shaped, all leaning toward the Rookery,
+   and the weathervanes (three on Vane Hill, one on High Perch) all point up and to the right whatever the wind, and the standing
+   stones carry the same hint in words: the picture is the confirmation, not the only clue.
+6. **Why the bridge starts where it does.** The way is a long hidden bridge (408 px, the head on Pennant Crag's north-east edge,
+   far mouth on the Rookery) so the islet is not in view from any island at ordinary zoom (the half-view is 320 px). The head
+   shows from the start as two posts with frayed rope ends stirring, "two anchors that go nowhere", and the arrow's shaft crosses
+   the crag right over them.
+7. **Go up.** A radial entry in every shape, in any world with a `skyview` secret (the Hollowsong Howl pattern). In bird form: the
+   flight. In any other shape: the companion looks up and a hint says only a bird can climb that high, then to shift to Bird and
+   tell it to Go up. The bird form is held for the flight (`postpone_form_drift`); an instructed change of shape mid-flight brings it
+   home. A found secret leaves Go up as a quiet toy.
+8. **The flight (data in `reveal`).** Rise 1.6 s while it flies to the vantage at 1100 px/s (0.9 to 3.0 s, so far away is still a few
+   seconds), hangs `stay` seconds (5 at zero bond, 10 at full), glides home 1.5 s to wherever the companion stands now. Seeing the
+   way extends the stay to at least the bridge's 3 s unspooling plus 2.2 s, so the bridge is watched coming down. **Ending:** a tap
+   on the world, the first step (keys or the stick), a Call, or an instructed shape change brings it home; the very first 0.7 s is
+   ignored so the tap that launched it cannot end it. **Holding:** pressing Go up again while it is up adds 3 s, up to 20 s total.
+   Movement is NOT locked (the step ends the flight, nothing is stuck); no input gating, so nothing can leave you unable to walk.
+9. **Bond (all data).** Stay 5 to 10 s; how high it climbs and so how much sky the view takes in (camera zoom 0.38 at zero bond,
+   1640 px of world across, to 0.30, 2100 px); how far it notices the islet (780 to 1250 px) and how often (every 18 s down to 8 s).
+   The view is deliberately wide enough at zero bond to hold the nest and the bridge's head (checked by the generator), so a newcomer
+   is never blocked; bond adds context (more of the arrow's tail) and time, not a gate.
+10. **"Seen" (pure `SkyView`).** The bird must be at 0.72 of full height, with the nest and the bridge's head both inside the view
+    (shrunk by a 30 px margin), for 1.2 s; the clock backs off if it drifts out, never resets hard. The view is the viewport
+    divided by the zoom, so a wider phone screen sees more. The server stays minimal and honest: "this world, standing at the
+    nest"; it cannot tell a looked-at bridge from a walked-to nest.
+11. **Noticing (Riverbank/Drifthallow lesson).** Coming within range of the islet, in any shape, the companion stops and looks
+    toward it for 2.5 s (a point), then cools down; a one-time hint says it has seen something. Stops once the way is seen. After
+    a flight that showed the way the companion looks at the bridge's head for 3 s and a hint says to follow the arrow to the edge of
+    Pennant Crag.
+12. **Natural actions never reset anything (Dozewood lesson).** A Pet during the flight is enjoyed (the flight goes on; checked in a
+    scratch run), the one-order brain slot is only used for a hold when nothing is pending, and a Call ends it gracefully.
+13. **The camera always returns.** `CameraRig.hold_view(center, zoom)` steers it every frame (the cinematic mode the Gateway
+    reveal uses) and `end_hold()` hands it back; the director restores on landing, on `finish()` (the secret taken) and in
+    `_exit_tree` (the world left mid-flight), and the real body is made visible again in all three. A smoke check drops a flight
+    mid-air and checks the camera, zoom and body. The follow resumes from where the camera is, so it glides back to you.
+14. **Phone and web cost.** The islands' turf, cliff and tapering underside are baked once into one mesh each; a bridge is chunks of
+    six planks; nothing per plank or per edge is drawn per frame; islands and bridges are skipped when the camera cannot see them;
+    the cloud sea is 150 batched quads on a parallax, culled to the view; the arrow is 32 sprites drawn only while it is visible.
+    At the zoomed-out view the draw count is a handful of meshes, the visible trees (the scenery already culls to the view) and
+    the clouds. No SubViewport, no shader, no per-frame allocation of meshes. *Phone frame rate not measured.*
+15. **Other forms of "who sees it".** Personal and display-only. A friend sees your companion body stand still (it is only hidden on
+    your screen) and does not see your bird; each player's bridge is their own. Friends' companions cross your bridge freely only
+    if they too have seen the way.
+16. **Layout.** 3400 x 2600, nine islands: Anchor Landing (where you arrive, with the way home), Millstone Lea (the windmill), Kite
+    Green, Cloud Orchard (blossom, a great apple tree), Vane Hill, Pennant Crag (the bridge's head), Lantern Pasture, High Perch,
+    and the Rookery (the nest). Nine bridges (80 px wide, 145 to 316 px long: wide so a 24 px routing grid always has a connected
+    lane) and one hidden (408 px). The generator checks the islands stand at least 110 px apart, no bridge crosses a third island,
+    every prop and tree stands on an island and away from its edge, the nest is on the Rookery, and the nest and the bridge's head
+    both fit the zero-bond view from the vantage. ~100 trees, 60 props, 7 kites, one windmill. The windmill's sails turn (drawn by
+    `SkyAir`, above the actors; the hub is measured from the tower sprite, 72 px above the prop's position).
+17. **Look.** Bright sky gradient, sunlit pixel turf (its own seamless tile) with litter and worn paths from each bridge mouth, a
+    stratified rock cliff and tapering underside lit from the upper left, island and bridge shadows on the clouds, two parallax depths
+    of pixel cloud drifting toward the nest, butterflies and a few petals, a slow day cycle. Visitors are not re-lit. No native
+    creatures (optional; skipped).
+18. **Keepsake and qualities.** `kept_nest` (the little nest in a wooden dish), drawn by `WorldArt` like the other secrets; the in-world
+    `lr_nest` too (an egg with a faint blue light, a feather laid across it that lifts). Qualities `high`, `old`, `warm`; temperament
+    curious, a little energetic, not clingy.
+19. **Lore and lines** (the signs, standing stones, vanes, the ten hints and the found line) are the builder's wording.
+
+**Verified:** Godot unit suite (new `TestSkyRealm`, `TestSkyView`) and every smoke (new `smoke_loftreach`) except `smoke_clickton`'s
+one known baseline failure. Scratch runs through the REAL loop (the paused scene un-paused each frame, the companion met, the bird
+chosen and Go up taken through `_on_radial_action`, the player driven with `ui_*` actions): a bot crossed the rope bridge and the
+companion followed; a step ended a flight; a flight left alone (with a Pet in the middle) saw the way in about 11 s, landed with the
+camera, zoom and body restored, and the bot then walked the new bridge to the Rookery, the companion following, with the nest in
+reach. Screenshots under Xvfb (opengl3) checked by eye: the islands and cliffs, the windmill and kites, the companion noticing, the
+view from above with the cloud arrow and the bridge unspooling toward the nest. Elixir: the standalone `secret_reveal_test.exs`
+passes; `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
+session, an actual claim round trip against a server, and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

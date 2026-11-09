@@ -52,6 +52,10 @@ extends Node
 ##     mirror lake, has walked the shore and stopped over the stone's place (ReflectionDirector over the pure
 ##     ReflectionWalker, drawn by the world's ReflectionLayer); then the prop (Stillglass's mirror stone)
 ##     rises on the bank. Once found, the reflection stays a quiet toy; only the stone is gone.
+##   * `skyview`: the prop (Loftreach's nest) is in plain sight on an islet no foot can reach; shifted into a bird and
+##     sent up (the radial's Go up), your companion rises, the camera with it, and from high above the high clouds make a
+##     picture that points the way; once it has looked at the islet and the bridge's head, a hidden rope bridge comes
+##     down (SkyDirector over the pure SkyView / SkyRealm). Examining the nest claims. Once found, going up stays a toy.
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).

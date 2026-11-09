@@ -468,7 +468,6 @@ SECRET = {
             "hold": "Your companion hangs on the wind a little longer.",
             "landed": "Your companion comes down beside you, windblown and pleased. Follow the arrow, to the edge of Pennant Crag.",
             "ended": "Your companion banks, and glides home.",
-            "lost": "Your companion drops out of the wind, and the shape of the clouds comes apart. Ask again.",
             "bridge": "A rope bridge, where nothing was. It runs out from the edge of Pennant Crag, toward the far islet.",
         },
         "reveal_line": "The nest is just as you saw it from above: woven, warm, and still. One pale egg lies in it, with a feather across it.",
