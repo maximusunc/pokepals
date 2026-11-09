@@ -931,3 +931,21 @@ func _draw_emotes() -> void:
 		var rise := -18.0 - p * 16.0
 		var pop := 0.7 + 0.5 * clampf(p / 0.25, 0.0, 1.0)
 		EmoteGlyphs.draw(self, String(e["kind"]), Vector2(0.0, rise), alpha, pop)
+
+
+## The sheet the companion is drawing its animal from right now, read-only: { tex, sheet } (the PalSprite layout),
+## or {} when no form is worn. For things that draw the SAME animal elsewhere: Lanternfold's shadow on the screen.
+func form_sheet_info() -> Dictionary:
+	if _form_tex == null:
+		return {}
+	return { "tex": _form_tex, "sheet": _form_sheet }
+
+
+## Read-only, for a REFLECTION of this companion (Stillglass's mirror lake): the animal sheet it wears and
+## how its pose looks right now. { tex, sheet, look, speed, time }; empty when no animal is worn (the
+## procedural rig has no sheet to mirror).
+func reflection_pose() -> Dictionary:
+	if _form_tex == null:
+		return {}
+	var facing := velocity.normalized() if velocity.length() > 6.0 else _look_dir
+	return { "tex": _form_tex, "sheet": _form_sheet, "look": facing, "speed": velocity.length(), "time": _time }

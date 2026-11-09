@@ -256,3 +256,16 @@ func _draw() -> void:
 		"head": true,
 		"width": float(cfg.get("width", 1.0)),
 	})
+
+
+## The worn wardrobe as loaded drawable layers (AvatarCompositor.load_layers), read-only: for things that draw
+## this avatar again elsewhere (Lanternfold's shadow on the screen).
+func avatar_layers() -> Array:
+	return _avatar_layers
+
+
+## Read-only, for a REFLECTION of this player (Stillglass's mirror lake): the worn layers and how the pose
+## looks right now. { layers: Array, facing: Vector2, speed: float, time: float }; layers is empty until the
+## wardrobe has resolved (nothing to mirror yet).
+func reflection_pose() -> Dictionary:
+	return { "layers": _avatar_layers, "facing": _facing, "speed": velocity.length(), "time": _time }

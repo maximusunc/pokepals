@@ -354,6 +354,26 @@ defmodule Server.HomeAndSecretChannelTest do
     assert_push "secret_found", %{id: "root_heart", new: true}
   end
 
+  test "the paper bird behind the mural's door is claimed standing at it, not from afar" do
+    t = "shadow-#{System.unique_integer([:positive])}"
+    uid = user_id(t)
+
+    w =
+      seed_world_with(%{
+        "secret" => %{"id" => "paper_bird", "position" => [100.0, 100.0], "radius" => 120.0,
+                      "reveal" => %{"type" => "shadow", "species" => "bird", "spot" => [40, 111]}}
+      })
+
+    {:ok, _, socket} = subscribe_and_join(connect_as(t), "world:" <> w, %{})
+    stand_at(socket, w, uid, [-900.0, 0.0])
+    push(socket, "claim_secret", %{"id" => "paper_bird"})
+    assert_push "secret_refused", %{id: "paper_bird"}
+
+    stand_at(socket, w, uid, [95.0, 105.0])
+    push(socket, "claim_secret", %{"id" => "paper_bird"})
+    assert_push "secret_found", %{id: "paper_bird", new: true}
+  end
+
   test "a lantern behind a shut door can't be claimed" do
     t = "lantern-#{System.unique_integer([:positive])}"
     uid = user_id(t)

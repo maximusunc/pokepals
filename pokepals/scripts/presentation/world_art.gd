@@ -2144,12 +2144,33 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# Underroot's secret: a seed the great tree keeps at its deepest root, wrapped in roots and glowing
 			# from inside, slowly, like something with a pulse.
 			_draw_root_heart(p + Vector2(0, 1), color, 1.0, true)
+		"mirror_stone":
+			# Stillglass's secret: a smooth grey stone that came up out of the bank, cold and quiet, with a faint
+			# silver breath of light about it that comes and goes like the lake's own sheen.
+			_draw_mirror_stone(p + Vector2(0, 5), color, 1.0, false)
+		"kept_mirror_stone":
+			# its keepsake at home: the same stone in a shallow dish of still water, with its image beneath it,
+			# a touch too bright
+			draw_circle(p + Vector2(0, 7), 12.0, Color(0.10, 0.12, 0.16, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.58, 0.60, 0.64), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.70, 0.78, 0.84), true, -1.0, true)
+			_draw_mirror_stone(p + Vector2(0, 4), color, 0.6, true)
 		"kept_root_heart":
 			# its keepsake at home: the same seed, wrapped in a few small roots on a clay saucer
 			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.07, 0.05, 0.22), true, -1.0, true)
 			draw_circle(p + Vector2(0, 5), 8.0, Color(0.52, 0.34, 0.24), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 8.0, 0.1, PI - 0.1, 12, Color(0.34, 0.22, 0.16), 1.0, true)
 			_draw_root_heart(p + Vector2(0, 3), color, 0.7, false)
+		"paper_bird":
+			# Lanternfold's secret: the bird the mural was missing, a cut-paper puppet on a stick, glowing warm
+			# where the lantern's light has soaked into it.
+			_draw_paper_bird(p + Vector2(0, 1), color, 1.0, true)
+		"kept_paper_bird":
+			# its keepsake at home: the same puppet, its stick standing in a little dish of sand
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.20, 0.10, 0.06, 0.20), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.78, 0.56, 0.34), true, -1.0, true)
+			draw_arc(p + Vector2(0, 5), 8.0, 0.1, PI - 0.1, 12, Color(0.52, 0.34, 0.20), 1.0, true)
+			_draw_paper_bird(p + Vector2(0, 3), color, 0.78, false)
 		"hedge_seed":
 			# a curled seed nestled in a small cushion of moss, with the faint green warmth of
 			# something alive inside: the hedge maze's secret, resting at its heart
@@ -3016,3 +3037,66 @@ func _draw_root_heart(c: Vector2, tint: Color, k: float, motes: bool) -> void:
 			var t := fposmod(_time * 0.22 + float(m) * 0.25, 1.0)
 			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 6.0, -12.0 * k - t * 34.0)
 			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))
+
+
+## The paper bird: a cut-out bird in flight, wings up, dark umber with a warm rim, on a thin stick, a soft amber
+## light breathing out of it (`breathe`) and, for the secret itself, a few motes rising. `k` scales it.
+func _draw_paper_bird(c: Vector2, tint: Color, k: float, motes: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.6 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -14.0 * k), 30.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.26 + 0.12 * breathe), 1.0)
+	var ink := Color(0.20, 0.09, 0.07)
+	draw_line(c + Vector2(0, 3.0 * k), c + Vector2(0, -11.0 * k), Color(0.34, 0.20, 0.12), 1.4 * k, true)
+	var body := c + Vector2(0, -14.0 * k)
+	var wing_l := PackedVector2Array([body + Vector2(-1, -1) * k, body + Vector2(-5, -9) * k, body + Vector2(-11, -12) * k, body + Vector2(-9, -5) * k, body + Vector2(-4, 1) * k])
+	var wing_r := PackedVector2Array([body + Vector2(1, -1) * k, body + Vector2(5, -9) * k, body + Vector2(11, -12) * k, body + Vector2(9, -5) * k, body + Vector2(4, 1) * k])
+	var tail := PackedVector2Array([body + Vector2(-2, 2) * k, body + Vector2(0, 8) * k, body + Vector2(2, 2) * k])
+	for poly in [wing_l, wing_r, tail]:
+		draw_colored_polygon(poly, ink)
+		draw_polyline(PackedVector2Array(poly) + PackedVector2Array([poly[0]]), tint.darkened(0.1), 1.0, true)
+	draw_circle(body, 4.4 * k, ink, true, -1.0, true)
+	draw_arc(body, 4.4 * k, PI * 1.05, PI * 1.9, 8, tint, 1.0, true)
+	draw_circle(body + Vector2(3.5, -3.2) * k, 2.4 * k, ink, true, -1.0, true)
+	draw_colored_polygon(PackedVector2Array([body + Vector2(5.4, -3.6) * k, body + Vector2(9.0, -2.6) * k, body + Vector2(5.4, -1.8) * k]), tint)
+	draw_circle(body + Vector2(3.8, -3.8) * k, 0.8 * k, Color(1.0, 0.96, 0.74))
+	if motes:
+		for m in 4:
+			var t := fposmod(_time * 0.24 + float(m) * 0.25, 1.0)
+			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 7.0, -18.0 * k - t * 30.0)
+			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))
+
+
+## Read-only, for the reflection layer (Stillglass): every pond's baked outline (world px), so a mask of
+## the water can be made from exactly the shapes that are drawn.
+func pond_rings() -> Array:
+	var out: Array = []
+	for pd in _ponds:
+		if pd.has("ring"):
+			out.append(pd["ring"])
+	return out
+
+
+## The mirror stone: a smooth grey egg-shaped stone, lit from the upper left, with a pale glint, and (in the
+## keepsake's dish of water) its own image hanging upside down below it, a little too bright. `k` scales it.
+func _draw_mirror_stone(c: Vector2, tint: Color, k: float, with_image: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.2 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -8.0 * k), 26.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.16 + 0.1 * breathe), 1.0)
+	var rx := 7.0 * k
+	var ry := 10.0 * k
+	var stone := PackedVector2Array()
+	var shade := PackedVector2Array()
+	for i in 20:
+		var a := TAU * float(i) / 20.0
+		# an egg: a touch narrower at the top
+		var sq := 1.0 - 0.14 * maxf(0.0, -sin(a))
+		stone.append(c + Vector2(cos(a) * rx * sq, -ry + sin(a) * ry))
+		shade.append(c + Vector2(cos(a) * rx * sq * 0.96 + rx * 0.14, -ry + sin(a) * ry * 0.96 + ry * 0.08))
+	if with_image:
+		var img := PackedVector2Array()
+		for p in stone:
+			img.append(Vector2(p.x, c.y + (c.y - p.y)))
+		draw_colored_polygon(img, Color(0.78, 0.88, 0.96, 0.55))
+	draw_colored_polygon(stone, Color(0.34, 0.38, 0.44))
+	draw_colored_polygon(shade, Color(0.52, 0.57, 0.64))
+	draw_circle(c + Vector2(-rx * 0.25, -ry * 1.35), rx * 0.55, Color(0.80, 0.85, 0.92, 0.9), true, -1.0, true)
+	draw_circle(c + Vector2(-rx * 0.35, -ry * 1.5), 1.3 * k, Color(1, 1, 1, 0.9))
+	draw_polyline(stone + PackedVector2Array([stone[0]]), Color(0.18, 0.20, 0.26), 1.0, true)

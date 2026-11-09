@@ -73,7 +73,7 @@ func add_buildings(list: Array, style: ArtStyle) -> Array:
 	for spec in list:
 		# a spec's "view" picks a dressed-up kind of building (Steamhollow's timber bathhouses)
 		var view := String(spec.get("view", ""))
-		var bv: BuildingView = BathhouseView.new() if view == "bathhouse" else (CliffView.new() if view == "cliff" else BuildingView.new())
+		var bv: BuildingView = BathhouseView.new() if view == "bathhouse" else (CliffView.new() if view == "cliff" else (ShadowScreenView.new() if view == "shadow_screen" else BuildingView.new()))
 		bv.setup(spec, style)
 		add_child(bv)
 		_buildings.append(bv)

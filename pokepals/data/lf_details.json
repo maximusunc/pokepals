@@ -1,0 +1,12 @@
+{
+	"bladetuft_a": [0, 0, 8, 5],
+	"bladetuft_b": [9, 0, 7, 5],
+	"midtuft": [17, 0, 5, 4],
+	"scrap_a": [23, 0, 3, 3],
+	"scrap_b": [27, 0, 3, 3],
+	"star": [31, 0, 5, 5],
+	"pebbles": [37, 0, 6, 5],
+	"flatstone": [44, 0, 9, 6],
+	"ribbonbit": [54, 0, 6, 4],
+	"ember": [61, 0, 3, 3]
+}
