@@ -1859,6 +1859,27 @@ func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
 	draw_circle(c + Vector2(-0.6, -0.8) * k, 1.0 * k, Color(1, 1, 1, 0.95))
 
 
+## Thimblewick's teacup: the saucer, the cup's wall and its gold rim, as one round image centred on `c` (the
+## pond's centre), the tea showing through the middle. Loaded once; absent art draws nothing.
+var _teacup_tex: Texture2D = null
+var _teacup_tried := false
+
+func _draw_teacup(c: Vector2) -> void:
+	if not _teacup_tried:
+		_teacup_tried = true
+		if ResourceLoader.exists("res://assets/sprites/tw_teacup.png"):
+			_teacup_tex = ResourceLoader.load("res://assets/sprites/tw_teacup.png")
+	if _teacup_tex != null:
+		draw_texture(_teacup_tex, c - _teacup_tex.get_size() * 0.5)
+
+
+## Move a drawn interactable (Thimblewick's thimble, set down again at the player's feet by a second trip).
+func move_interactable(index: int, pos: Vector2) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["pos"] = pos
+		queue_redraw()
+
+
 ## The faint bell: a bronze bell hung by a cord from the arm of a leaning post (`post`), swaying a hair, with
 ## the barest rings spreading from it, as if it were sounding just under what you can hear. `k` scales it.
 func _draw_bronze_bell(base: Vector2, tint: Color, k: float, post: bool) -> void:
@@ -2343,6 +2364,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 5), 9.0, Color(0.20, 0.14, 0.10, 0.18), true, -1.0, true)
 			draw_circle(p + Vector2(0, 4), 7.0, Color(0.52, 0.38, 0.26), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.34, 0.24, 0.16), 1.0, true)
+		"find_pebble", "find_acorn", "find_feather", "find_bead", "find_button", "thimble":
+			# Thimblewick's finds, fetched through the fence by a small, quick companion: the pebble, the acorn's
+			# cup, a feather, a glass bead and a button, and the one that is the secret, the silver thimble.
+			FindDraw.draw(self, type.trim_prefix("find_"), p, 1.0, _time)
+		"kept_thimble":
+			# its keepsake at home: the thimble standing on a spool of red cotton
+			FindDraw.draw_kept_thimble(self, p, _time)
+		"teacup":
+			# Thimblewick's pond: a cup-and-saucer ring drawn round the tea, centred on the pond
+			_draw_teacup(p)
 			_draw_bronze_bell(p + Vector2(-9, 6), color, 0.9, false)
 		"echo_stone":
 			# Hollowsong's secret: a smooth bowl of red stone on the cave's threshold, a violet light breathing

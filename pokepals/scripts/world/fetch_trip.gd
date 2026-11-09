@@ -14,7 +14,7 @@ extends RefCounted
 ##            lost, and the hint says only something small and quick would fit.
 ##   SQUEEZE  it shrinks into the gap (the director moves the body across to the far side as it goes).
 ##   AWAY     gone, a few seconds (`away`, shorter as the bond deepens). The body is hidden; the director
-##            plays a rustle at the gap. A Call brings it back early (`hurry_seconds`), gracefully.
+##            plays a rustle at the gap and, near the end, a small line about missing it. A Call brings it back early (`hurry_seconds`), gracefully.
 ##   EMERGE   it slips back out of the gap, carrying the find.
 ##   BRING    it carries the find to you wherever you have gone (a Call just brings it faster), and drops it
 ##            at your feet. If it cannot reach you in `bring_patience` seconds it simply sets the find down
@@ -39,7 +39,8 @@ const DEFAULTS := {
 	"species": ["rabbit"],        # the shapes small enough to fit
 	"mouth_reach": 10.0,          # arrived at the gap's mouth
 	"go_speed": 100.0,
-	"go_patience": 16.0,          # seconds without arriving before it gives up the way
+	"go_patience": 10.0,          # seconds of SLACK, on top of the time the way takes, before it gives up
+	"go_run_distance": 240.0,     # further from the gap than this it runs (at `bring_speed`) instead of trotting
 	"poke_seconds": 1.8,          # how long it nudges at a gap it cannot fit before giving up
 	"squeeze_seconds": 0.8,
 	"away_low": 9.0,              # seconds gone at zero bond...
@@ -70,9 +71,11 @@ var _gap := -1                    # the gap this trip is at
 var _find: Dictionary = {}        # the find it will bring (decided as it squeezes through)
 var _t := 0.0                     # seconds in the current phase
 var _go_time := 0.0               # seconds spent heading for the mouth (a pet's pause does not count)
+var _go_budget := -1.0            # how long the way may take: the travel time plus the slack (set on the first GO frame)
 var _away := 0.0
 var _hurried := false
 var _found_cued := false
+var _missing_cued := false
 var _cooldown := 0.0
 var _pet_left := 0.0
 var _rustle_cd := 0.0
@@ -189,6 +192,7 @@ func ask(index: int, bond: float) -> bool:
 	phase = Phase.GO
 	_t = 0.0
 	_go_time = 0.0
+	_go_budget = -1.0
 	_pet_left = 0.0
 	_find = {}
 	_hurried = false
@@ -238,14 +242,18 @@ func update(delta: float, ctx: Dictionary) -> Dictionary:
 				return out
 			if pending == "pet":
 				_pet_left = float(_cfg["pet_pause"])
+			var away_from_mouth := companion.distance_to(mouth)
+			if _go_budget < 0.0:
+				# a fresh companion keeps a wide berth and may be a long way off: the way gets the time it needs
+				_go_budget = float(_cfg["go_patience"]) + away_from_mouth / float(_cfg["go_speed"]) * 1.6
 			if _pet_left > 0.0:
 				_pet_left -= delta   # enjoying it: no orders, and the patience clock waits
 			else:
 				_go_time += delta
 				out["command"] = "guide"
 				out["target"] = mouth
-				out["speed"] = float(_cfg["go_speed"])
-				if _go_time >= float(_cfg["go_patience"]):
+				out["speed"] = float(_cfg["bring_speed"]) if away_from_mouth > float(_cfg["go_run_distance"]) else float(_cfg["go_speed"])
+				if _go_time >= _go_budget:
 					out["events"].append("lost_way")
 					out["command"] = ""
 					cancel()
@@ -279,6 +287,7 @@ func update(delta: float, ctx: Dictionary) -> Dictionary:
 				_away = at_bond("away", _bond)
 				_hurried = false
 				_found_cued = false
+				_missing_cued = false
 				_rustle_cd = 0.0
 				out["events"].append("gone")
 		Phase.AWAY:
@@ -296,6 +305,9 @@ func update(delta: float, ctx: Dictionary) -> Dictionary:
 			if not _found_cued and not _hurried and u >= 0.5 and not _find.is_empty():
 				_found_cued = true
 				out["events"].append("found")
+			if not _missing_cued and not _hurried and u >= 0.72:
+				_missing_cued = true
+				out["events"].append("missing")   # a moment of missing it: the garden is very big without it
 			if _t >= _away:
 				phase = Phase.EMERGE
 				_t = 0.0

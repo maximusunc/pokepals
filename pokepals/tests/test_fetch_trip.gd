@@ -14,7 +14,7 @@ const FINDS := [
 	{ "item": "thimble", "min_bond": 0.55 },
 ]
 const CFG := {
-	"ask_range": 300.0, "species": ["rabbit"], "mouth_reach": 8.0, "go_speed": 100.0, "go_patience": 10.0,
+	"ask_range": 300.0, "species": ["rabbit"], "mouth_reach": 8.0, "go_speed": 100.0, "go_patience": 10.0, "go_run_distance": 240.0,
 	"poke_seconds": 1.5, "squeeze_seconds": 0.5, "away_low": 8.0, "away_high": 4.0, "hurry_seconds": 1.0,
 	"emerge_seconds": 0.5, "bring_speed": 120.0, "drop_distance": 30.0, "bring_patience": 20.0, "cooldown": 2.0,
 	"pet_pause": 2.0, "warm": 0.05, "warm_decay": 0.5, "warm_min": 0.01,
@@ -35,6 +35,7 @@ static func run_all() -> int:
 	fails += _test_a_deep_bond_brings_the_thimble()
 	fails += _test_the_middle_bond_brings_a_button()
 	fails += _test_the_body_is_hidden_only_while_away()
+	fails += _test_a_moment_of_missing_it()
 	fails += _test_other_shapes_poke_and_give_up()
 	fails += _test_a_call_in_go_calls_it_off()
 	fails += _test_a_call_while_away_brings_it_back_early()
@@ -45,6 +46,7 @@ static func run_all() -> int:
 	fails += _test_repeat_trips_warm_less()
 	fails += _test_cannot_ask_while_busy()
 	fails += _test_gives_up_the_way_after_patience()
+	fails += _test_a_far_off_companion_is_given_time_to_arrive()
 	fails += _test_notice_range_grows_with_bond()
 	fails += _test_notice_holds_then_cools_down()
 	fails += _test_no_notice_while_busy()
@@ -196,6 +198,20 @@ static func _test_the_body_is_hidden_only_while_away() -> int:
 	return fails
 
 
+static func _test_a_moment_of_missing_it() -> int:
+	var t := _trip()
+	t.ask(0, 0.0)
+	var log := _drive(t, MOUTH, PLAYER, 0.0, "rabbit", 40.0)
+	var misses := 0
+	for e in log["events"]:
+		if e == "missing":
+			misses += 1
+	var t2 := _trip()
+	t2.ask(0, 0.0)
+	var log2 := _drive(t2, MOUTH, PLAYER, 0.0, "rabbit", 3.0, "")
+	return _ok(misses == 1 and (log["events"] as Array).has("found"), "one small moment of missing it per trip (and the find cue before it)") + _ok(not (log2["events"] as Array).has("missing"), "...not before it has been gone a while")
+
+
 static func _test_other_shapes_poke_and_give_up() -> int:
 	var t := _trip()
 	t.ask(0, 0.9)
@@ -340,11 +356,19 @@ static func _test_gives_up_the_way_after_patience() -> int:
 	t.ask(0, 0.5)
 	var events: Array = []
 	var pos := Vector2(100, 900)   # never gets anywhere: we do not move it
-	for i in 400:
+	for i in 800:
 		var r := t.update(0.05, { "companion_pos": pos, "player_pos": PLAYER, "bond": 0.5, "species": "rabbit", "pending": "" })
 		for e in r["events"]:
 			events.append(e)
 	return _ok(events.has("lost_way") and t.phase == FetchTrip.Phase.IDLE, "a companion that cannot reach the gap gives up the way, gently")
+
+
+static func _test_a_far_off_companion_is_given_time_to_arrive() -> int:
+	# a fresh companion can be 1500 px from the gap: at a trot that is 15 s, longer than the bare slack
+	var t := _trip()
+	t.ask(0, 0.1)
+	var log := _drive(t, Vector2(100, 1600), PLAYER, 0.1, "rabbit", 60.0)
+	return _ok((log["events"] as Array).has("squeeze") and not (log["events"] as Array).has("lost_way") and String((log["drop"] as Dictionary).get("item", "")) != "", "a companion 1500 px away still gets there, runs, and brings its find")
 
 
 static func _test_notice_range_grows_with_bond() -> int:
