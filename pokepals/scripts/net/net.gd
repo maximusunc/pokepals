@@ -188,6 +188,9 @@ var _session_save: Dictionary = {}
 var _world_specs: Dictionary = {}
 # The world secret ids we've found (server-canonical; refreshed on every join and on each new find).
 var _discoveries: Array = []
+# How far our wall clock is behind the server's (ms), from the "clock" push on each world join. A world that
+# runs on shared time (Ebbmere's tide) reads server_unix_ms() so a skewed device still sees the same water.
+var _clock_offset_ms := 0.0
 # Our name + friend code, and our social snapshot (see friends_received). Kept across world hops.
 var _my_name := ""
 var _friend_code := ""
@@ -547,6 +550,12 @@ func has_discovery(secret_id: String) -> bool:
 	return _discoveries.has(secret_id)
 
 
+## The server's wall clock now, in unix milliseconds (our own clock plus the offset the last join told us;
+## our own clock as it stands before any join). For worlds that run on shared time.
+func server_unix_ms() -> int:
+	return int(Time.get_unix_time_from_system() * 1000.0 + _clock_offset_ms)
+
+
 ## The in-session mirror of our server save, so a freshly-loaded world scene can dress its companion
 ## without a round-trip. Empty until our first load/save this session.
 func session_save() -> Dictionary:
@@ -834,6 +843,10 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var hy: Variant = payload.get("y", null)
 			if (hx is float or hx is int) and (hy is float or hy is int):
 				howl_heard.emit(float(hx), float(hy))
+		"clock":
+			var server_ms: Variant = payload.get("ms", null)
+			if server_ms is float or server_ms is int:
+				_clock_offset_ms = float(server_ms) - Time.get_unix_time_from_system() * 1000.0
 		"discoveries":
 			var ids: Variant = payload.get("ids", [])
 			_discoveries = (ids as Array).duplicate() if ids is Array else []

@@ -54,10 +54,17 @@ defmodule Server.SecretReveal do
       (`ReflectionWalker` on the client), so the server only checks "this world, standing at it", like
       `stillness` and `tracks`. Honest about what that means: it can't tell a followed reflection from a
       walked-to bank.
+    * `tide`: it appears only at the LOWEST tide (Ebbmere's sand-dollar, buried on the far bar). Unlike the
+      others the server CAN check this one honestly, because the tide is a pure function of time
+      (`Server.Tide`, the twin of the client's `TideClock`): the claim is honoured only while the tide is in
+      its low window (the reveal's `tide` block: period, epoch, levels and the `yield_level` that bounds the
+      window), widened by the reveal's `grace_s` for clock skew and a slow claim. It still relies on
+      `Discoveries.claimable?/3` for "standing at the spot". Miss the window and it is simply the next tide.
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
-  of flare props this player has touched this visit).
+  of flare props this player has touched this visit; `now_ms`: the server's unix time in milliseconds, for
+  the tide).
   """
 
   @doc "Whether `secret`'s reveal condition is met, given what the channel knows."
@@ -72,12 +79,21 @@ defmodule Server.SecretReveal do
       %{"type" => "follow"} -> true
       %{"type" => "shadow"} -> true
       %{"type" => "reflection"} -> true
+      %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end
   end
 
   def met?(_secret, _ctx), do: false
+
+  # The tide is low enough to give the sand-dollar up (Server.Tide), within the reveal's grace period.
+  defp tide_low?(%{"tide" => params} = reveal, now_ms) when is_map(params) and is_integer(now_ms) do
+    grace = Map.get(reveal, "grace_s", 30.0)
+    Server.Tide.low_window?(params, now_ms, if(is_number(grace), do: grace, else: 30.0))
+  end
+
+  defp tide_low?(_reveal, _now_ms), do: false
 
   defp ward_open?(wards, ward) do
     Enum.any?(wards, fn w -> to_string(Map.get(w, :id, Map.get(w, "id"))) == ward and Map.get(w, :open, Map.get(w, "open")) == true end)

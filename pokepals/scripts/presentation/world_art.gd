@@ -2155,6 +2155,12 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 6), 10.0, Color(0.58, 0.60, 0.64), true, -1.0, true)
 			draw_circle(p + Vector2(0, 5), 8.0, Color(0.70, 0.78, 0.84), true, -1.0, true)
 			_draw_mirror_stone(p + Vector2(0, 4), color, 0.6, true)
+		"kept_sand_dollar":
+			# Ebbmere's keepsake at home: the sand-dollar in a shallow dish of sand, a five-petalled flower in its back
+			draw_circle(p + Vector2(0, 7), 12.0, Color(0.10, 0.09, 0.07, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.58, 0.50, 0.38), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.5, Color(0.84, 0.76, 0.60), true, -1.0, true)
+			_draw_sand_dollar(p + Vector2(0, 3), 1.0)
 		"kept_root_heart":
 			# its keepsake at home: the same seed, wrapped in a few small roots on a clay saucer
 			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.07, 0.05, 0.22), true, -1.0, true)
@@ -3100,3 +3106,16 @@ func _draw_mirror_stone(c: Vector2, tint: Color, k: float, with_image: bool) -> 
 	draw_circle(c + Vector2(-rx * 0.25, -ry * 1.35), rx * 0.55, Color(0.80, 0.85, 0.92, 0.9), true, -1.0, true)
 	draw_circle(c + Vector2(-rx * 0.35, -ry * 1.5), 1.3 * k, Color(1, 1, 1, 0.9))
 	draw_polyline(stone + PackedVector2Array([stone[0]]), Color(0.18, 0.20, 0.26), 1.0, true)
+
+
+## The sand-dollar: a pale disc seen a little from above, with a five-petalled flower pressed into it. `k` scales it.
+func _draw_sand_dollar(c: Vector2, k: float) -> void:
+	draw_set_transform(c, 0.0, Vector2(1.0, 0.72))
+	draw_circle(Vector2.ZERO, 7.5 * k, Color(0.52, 0.46, 0.38))
+	draw_circle(Vector2(0.0, -0.6 * k), 7.0 * k, Color(0.93, 0.89, 0.80))
+	draw_circle(Vector2(-1.4 * k, -1.6 * k), 4.6 * k, Color(0.98, 0.96, 0.90))
+	for i in 5:
+		var a := TAU * float(i) / 5.0 - PI * 0.5
+		draw_line(Vector2.ZERO, Vector2(cos(a), sin(a)) * 3.8 * k, Color(0.66, 0.60, 0.50), 1.2 * k)
+		draw_circle(Vector2(cos(a), sin(a)) * 3.0 * k, 0.9 * k, Color(0.66, 0.60, 0.50))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)

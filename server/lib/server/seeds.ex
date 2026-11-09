@@ -56,7 +56,10 @@ defmodule Server.Seeds do
       tags: ["paper", "shadow", "lantern", "amber", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.76, 0.34], featured: true},
     %{world_id: "ffffffff-ffff-ffff-ffff-ffffffffffff", slug: "stillglass", name: "Stillglass", file: "stillglass.json",
       blurb: "A mirror lake, so flat and silver the sky and the water are one. The reflections are slightly wrong. Stand your companion at the edge, and watch what it sees.",
-      tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true}
+      tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true},
+    %{world_id: "14141414-1414-1414-1414-141414141414", slug: "ebbmere", name: "Ebbmere", file: "ebbmere.json",
+      blurb: "Tidal flats under a wide sky. The sea goes out and leaves wet sand, tide pools and a lighthouse. Let your companion dig, and mind the lowest water.",
+      tags: ["tide", "beach", "sand", "lighthouse", "quiet", "explore", "cozy", "secret"], accent: [0.86, 0.90, 0.88], featured: true}
   ]
 
   # The currency the bazaar shop charges in.
