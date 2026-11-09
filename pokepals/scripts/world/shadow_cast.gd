@@ -21,7 +21,7 @@ extends RefCounted
 ## Nearer than this to the lantern (px) and a thing blocks its light outright, so no shadow is cast.
 const MIN_D := 20.0
 ## The biggest a shadow may grow to (a thing right beside the lantern): beyond it no shadow is cast.
-const MAX_SCALE := 6.0
+const MAX_SCALE := 4.5
 
 
 ## The shadow of a thing standing at ground point `at` held `z` px off the ground:

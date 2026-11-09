@@ -17,6 +17,8 @@ extends Node
 ##   * feeds the guide where the companion stands, what it wears and how still it is, and turns the answer into
 ##     the screen's glow (`ShadowScreenView.set_fit`), the first-time hint lines, the companion NOTICING the gap
 ##     and pointing at it as you come near, and, when the gap is filled, `mural_done`;
+##   * lifts the camera's gaze toward the mural while you stand on the stage (Camera2D.offset, eased), because the
+##     view is only 360 px tall and the mural stands well north of the spot you watch from;
 ##   * keeps the screen's shadows current: every player and companion in the world (you, and friends' pairs)
 ##     throws one, which is part of the fun.
 ## Everything is personal and display-only: a friend sees your companion stand there and sees the screen as it
@@ -46,6 +48,7 @@ var _pointing := false
 var _sync_t := 0.0
 var _release_in := -1.0                 # seconds until the standing is let go after the gap is filled
 var _last_fit := 0.0
+var _lift := 0.0                        # the camera's eased upward offset (px)
 
 
 func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: PlayerView) -> void:
@@ -215,10 +218,31 @@ func update(delta: float) -> void:
 		_release_in -= delta
 		if _release_in <= 0.0:
 			_posing = false
+	_update_camera(delta)
 	_sync_t -= delta
 	if _sync_t <= 0.0:
 		_sync_t = 0.5
 		_sync_casters()
+
+
+## Lift the camera toward the mural while you are on the stage (in the lantern's light or just short of it),
+## and let it back down when you leave. Camera2D.offset is the framing's own free knob; nothing else uses it.
+func _update_camera(delta: float) -> void:
+	var cam: Variant = _host.get("_camera") if _host != null else null
+	if cam == null or not (cam is Camera2D):
+		return
+	var face := _guide.face()
+	var p := _player.position
+	var on_stage: bool = p.y > float(face["base_y"]) and p.y < _guide.lantern().y + 50.0 and absf(p.x - _guide.lantern().x) < 260.0
+	var want := -float(_reveal.get("camera_lift", 60.0)) if on_stage else 0.0
+	_lift = move_toward(_lift, want, delta * 70.0)
+	(cam as Camera2D).offset = Vector2(0.0, _lift)
+
+
+func _exit_tree() -> void:
+	var cam: Variant = _host.get("_camera") if _host != null and is_instance_valid(_host) else null
+	if cam != null and cam is Camera2D:
+		(cam as Camera2D).offset = Vector2.ZERO
 
 
 func _on_event(event: String) -> void:

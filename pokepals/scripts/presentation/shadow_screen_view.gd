@@ -21,7 +21,7 @@ extends BuildingView
 
 const MASS := Color(0.16, 0.075, 0.065)
 const MASS_LIT := Color(0.34, 0.17, 0.12)
-const PAPER := Color(0.97, 0.84, 0.60)
+const PAPER := Color(1.0, 0.94, 0.76)
 const INK := Color(0.19, 0.085, 0.07)
 const SHADOW_SHADER := preload("res://assets/silhouette.gdshader")
 const FLAP_FPS := 4.0
@@ -58,7 +58,7 @@ func setup(s: Dictionary, style: ArtStyle) -> void:
 		var dh := float(d.get("h", 46.0))
 		_door = Rect2(float(d.get("x", 0.0)) - dw * 0.5, -dh, dw, dh)
 	_ink_mat = _make_mat(INK)
-	_ghost_mat = _make_mat(Color(1.0, 0.96, 0.80))
+	_ghost_mat = _make_mat(Color(1.0, 0.72, 0.28))
 	_flock_fx = Node2D.new()
 	_flock_fx.name = "Flock"
 	_flock_fx.material = _ink_mat
@@ -359,9 +359,9 @@ func _draw_door_seams() -> void:
 # ── the flock and the ghost ───────────────────────────────────────────────────────────────────────────
 ## The mural's other birds, relative to the gap: [dx, dv, scale relative to the gap bird].
 const FLOCK := [
-	[-148.0, -18.0, 0.42], [-108.0, -8.0, 0.52], [-70.0, 2.0, 0.66], [-34.0, 8.0, 0.84],
-	[36.0, 6.0, 0.84], [74.0, 14.0, 0.66], [112.0, 24.0, 0.52], [146.0, 36.0, 0.42],
-	[-84.0, 46.0, 0.36], [22.0, 54.0, 0.40], [96.0, 62.0, 0.34],
+	[-66.0, 6.0, 0.62], [-114.0, 15.0, 0.50], [-152.0, 25.0, 0.40],
+	[64.0, 9.0, 0.62], [112.0, 19.0, 0.50], [148.0, 31.0, 0.40],
+	[-90.0, 52.0, 0.32], [20.0, 58.0, 0.36], [100.0, 66.0, 0.30],
 ]
 
 
@@ -424,7 +424,7 @@ func _draw_door_fx() -> void:
 		var warm := Color(1.0, 0.68, 0.22)
 		var amount := _fit if not _done else 0.0
 		# a halo that warms as a shadow nears the gap, and swells a little while it is being held
-		SoftGlow.draw(_door_fx, centre, size * (1.9 + 0.5 * _filling), Color(warm.r, warm.g, warm.b, 0.10 + 0.55 * amount), 0.9)
+		SoftGlow.draw(_door_fx, centre, size * (1.9 + 0.5 * _filling), Color(warm.r, warm.g, warm.b, 0.20 + 0.50 * amount), 0.9)
 		if _filling > 0.0 and not _done:
 			SoftGlow.draw(_door_fx, centre, size * 1.2, Color(1.0, 0.9, 0.55, 0.5 * _filling), 0.9)
 		if _done and _done_t < 3.0:
@@ -458,5 +458,7 @@ func _draw_door_fx() -> void:
 ## The door's two leaves, dark slivers at its sides, standing open.
 func draw_dark_leaves(o: float, r: Rect2, cx: float, half: float) -> void:
 	var edge := r.size.x * 0.5
-	_door_fx.draw_rect(Rect2(cx - edge, r.position.y + edge, edge - half, -r.position.y - edge), INK)
-	_door_fx.draw_rect(Rect2(cx + half, r.position.y + edge, edge - half, -r.position.y - edge), INK)
+	# the leaves start as paper (the door was only a seam) and darken as they swing clear
+	var leaf := _face_color_at(cx).lerp(INK, clampf(o * 2.5, 0.0, 1.0))
+	_door_fx.draw_rect(Rect2(cx - edge, r.position.y + edge, edge - half, -r.position.y - edge), leaf)
+	_door_fx.draw_rect(Rect2(cx + half, r.position.y + edge, edge - half, -r.position.y - edge), leaf)

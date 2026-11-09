@@ -248,16 +248,16 @@ def face_tile():
         for x in range(32):
             g = round(rng.uniform(0.90, 0.97) * 255)
             px[x, y] = (g, g, g, 255)
-    for _ in range(4):                       # a faint horizontal seam
+    for _ in range(2):                       # a faint horizontal seam
         y = rng.randrange(32)
         for x in range(32):
-            if rng.random() < 0.7:
-                g = round(0.80 * 255)
+            if rng.random() < 0.6:
+                g = round(0.91 * 255)
                 px[x, y] = (g, g, g, 255)
     for _ in range(90):                      # fibre flecks, short and pale or dark
         x, y = rng.randrange(32), rng.randrange(32)
         for k in range(rng.randint(1, 3)):
-            g = round(rng.choice([0.74, 0.84, 1.0]) * 255)
+            g = round(rng.choice([0.86, 0.92, 1.0]) * 255)
             px[(x + k) % 32, y] = (g, g, g, 255)
     return img
 

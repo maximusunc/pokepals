@@ -371,7 +371,7 @@
 					"bush_b",
 					"stump"
 				],
-				"density": 0.55
+				"density": 0.35
 			},
 			"ambient_life": {
 				"butterflies": {
@@ -1038,9 +1038,9 @@
 		[390, -1024, "far"]
 	],
 	"props": [
-		{"id": "great_lantern", "type": "lf_great_lantern", "position": [0, -816], "color": [1.0, 0.82, 0.4], "label": "the great lantern", "interactive": true, "lore": "The great lantern. Its paper is as thin as a held breath, and the flame inside has never once needed trimming. Whatever stands between it and the cliff is on the screen, whether it likes it or not.", "solid": true, "collision_radius": 6},
+		{"id": "great_lantern", "type": "lf_great_lantern", "position": [0, -816], "color": [1.0, 0.82, 0.4], "label": "the great lantern", "solid": true, "collision_radius": 6},
 		{"id": "landing_sign", "type": "lf_signboard", "position": [-1060, 840], "color": [1.0, 1.0, 1.0], "label": "a notice board", "interactive": true, "lore": "A paper notice, pinned straight. 'WELCOME TO LANTERNFOLD. Everything here is cut from paper and lit by one lantern, far to the north, which throws a shadow of whatever stands before it onto the cliff. Walk north. Tap the lit ground to stand your companion in the light, and watch the cliff. The cliff has a mural, and the mural has a gap. A companion's shape is on the little chip at the bottom right.'", "solid": true, "collision_radius": 5},
-		{"id": "stage_board", "type": "lf_signboard", "position": [-400, -880], "color": [1.0, 1.0, 1.0], "label": "a painted notice", "interactive": true, "lore": "'TONIGHT: THE CROSSING. A flock of birds against the moon. (One is missing. The painter said it would come when it was ready.) Please stand in the light and see: nearer the lantern, a shadow is bigger; to one side, it slides. Things that walk throw their shadows on the ground. A bird's shadow is up in the air, where a bird belongs.'", "solid": true, "collision_radius": 5},
+		{"id": "stage_board", "type": "lf_signboard", "position": [-400, -880], "color": [1.0, 1.0, 1.0], "label": "a painted notice", "interactive": true, "lore": "'TONIGHT: THE CROSSING. A flock of birds against the moon. (One is missing. The painter said it would come when it was ready.) The great lantern, whose paper is as thin as a held breath and whose flame has never needed trimming, throws whatever stands before it onto the cliff. Please stand in the light and see: nearer the lantern, a shadow is bigger; to one side, it slides. Things that walk throw their shadows on the ground. A bird's shadow is up in the air, where a bird belongs.'", "solid": true, "collision_radius": 5},
 		{"id": "puppeteer_cart", "type": "lf_cart", "position": [-980, 180], "color": [1.0, 1.0, 1.0], "label": "a puppeteer's cart", "interactive": true, "lore": "A little cart with a curtain, and a stage the size of a bread-box lit by one tiny lamp. The puppeteer is nowhere about, but the stage is set: a cut-paper moon, and room for a bird.", "solid": true, "collision_radius": 12},
 		{"id": "moon_pole", "type": "lf_moon", "position": [1260, 520], "color": [1.0, 1.0, 1.0], "label": "a paper moon on a pole", "interactive": true, "lore": "A crescent of pale paper on a pole, turning very slowly. It is the moon from the mural, or its cousin."},
 		{"id": "village_tower", "type": "lf_cutout_tower", "position": [430, -380], "color": [1.0, 1.0, 1.0], "label": "a cut-out tower", "interactive": true, "lore": "A tall paper tower with one lit window at the top. Whoever lives there has been up all night, cutting out stars.", "solid": true, "collision_radius": 10},
@@ -1055,7 +1055,7 @@
 		{"id": "puppet_3", "type": "lf_puppet_stick", "position": [-820, 300], "color": [1.0, 1.0, 1.0], "label": "a paper puppet", "interactive": true, "lore": "A puppet with one arm raised, as if it were about to say something and then thought better of it.", "solid": true, "collision_radius": 4},
 		{"id": "puppet_4", "type": "lf_puppet_stick", "position": [700, 720], "color": [1.0, 1.0, 1.0], "label": "a paper puppet", "solid": true, "collision_radius": 4},
 		{"id": "puppet_5", "type": "lf_puppet_stick", "position": [-620, -560], "color": [1.0, 1.0, 1.0], "label": "a paper puppet", "solid": true, "collision_radius": 4},
-		{"id": "footlight_1", "type": "lf_lantern_post", "position": [-162, -924], "color": [1.0, 0.82, 0.4], "label": "a footlight", "interactive": true, "lore": "A small paper lantern on a crooked post. A row of them marks where the great lantern's light begins.", "solid": true, "collision_radius": 3},
+		{"id": "footlight_1", "type": "lf_lantern_post", "position": [-162, -924], "color": [1.0, 0.82, 0.4], "label": "a footlight", "solid": true, "collision_radius": 3},
 		{"id": "footlight_2", "type": "lf_lantern_post", "position": [162, -924], "color": [1.0, 0.82, 0.4], "label": "a footlight", "solid": true, "collision_radius": 3},
 		{"id": "footlight_3", "type": "lf_lantern_post", "position": [-124, -894], "color": [1.0, 0.82, 0.4], "label": "a footlight", "solid": true, "collision_radius": 3},
 		{"id": "footlight_4", "type": "lf_lantern_post", "position": [124, -894], "color": [1.0, 0.82, 0.4], "label": "a footlight", "solid": true, "collision_radius": 3},

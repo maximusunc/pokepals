@@ -107,9 +107,9 @@ for k, cy in enumerate([BASE_Y + 36, BASE_Y + 66, BASE_Y + 96, BASE_Y + 126]):
 
 SPECIAL = [
     # the great lantern: the light everything here is cut by
-    prop("great_lantern", "lf_great_lantern", LANTERN_PROP, LAMP, "the great lantern",
-         "The great lantern. Its paper is as thin as a held breath, and the flame inside has never once needed trimming. "
-         "Whatever stands between it and the cliff is on the screen, whether it likes it or not.", solid=True, radius=6),
+    # NOT examinable (no lore): a tap near an examinable prop is an order to go and look at it, and the stage is
+    # where taps must mean "stand there"; the lantern's story is on the painted notice beside the stage instead
+    prop("great_lantern", "lf_great_lantern", LANTERN_PROP, LAMP, "the great lantern", solid=True, radius=6),
     prop("landing_sign", "lf_signboard", (-1060, 840), WHITE, "a notice board",
          "A paper notice, pinned straight. 'WELCOME TO LANTERNFOLD. Everything here is cut from paper and lit by one lantern, "
          "far to the north, which throws a shadow of whatever stands before it onto the cliff. Walk north. Tap the lit ground "
@@ -117,8 +117,10 @@ SPECIAL = [
          "companion's shape is on the little chip at the bottom right.'", solid=True, radius=5),
     prop("stage_board", "lf_signboard", (-400, -880), WHITE, "a painted notice",
          "'TONIGHT: THE CROSSING. A flock of birds against the moon. (One is missing. The painter said it would come when it "
-         "was ready.) Please stand in the light and see: nearer the lantern, a shadow is bigger; to one side, it slides. "
-         "Things that walk throw their shadows on the ground. A bird's shadow is up in the air, where a bird belongs.'", solid=True, radius=5),
+         "was ready.) The great lantern, whose paper is as thin as a held breath and whose flame has never needed trimming, throws "
+         "whatever stands before it onto the cliff. Please stand in the light and see: nearer the lantern, a shadow is bigger; to "
+         "one side, it slides. Things that walk throw their shadows on the ground. A bird's shadow is up in the air, where a bird "
+         "belongs.'", solid=True, radius=5),
     prop("puppeteer_cart", "lf_cart", (-980, 180), WHITE, "a puppeteer's cart",
          "A little cart with a curtain, and a stage the size of a bread-box lit by one tiny lamp. The puppeteer is nowhere "
          "about, but the stage is set: a cut-paper moon, and room for a bird.", solid=True, radius=12),
@@ -148,8 +150,7 @@ for i, pos in enumerate(PUPPET_SPOTS):
                         PUPPET_LORE[i] if i < len(PUPPET_LORE) else None, solid=True, radius=4))
 for i, (x, y) in enumerate(FOOTLIGHTS):
     SPECIAL.append(prop("footlight_%d" % (i + 1), "lf_lantern_post", (x, y), LAMP, "a footlight",
-                        "A small paper lantern on a crooked post. A row of them marks where the great lantern's light begins." if i == 0 else None,
-                        solid=True, radius=3))
+                        None, solid=True, radius=3))
 
 placed = [(p["position"][0], p["position"][1], 30) for p in SPECIAL]
 for lm in LANDMARKS:
@@ -307,7 +308,7 @@ ART = {
                 "lilies": [],
             },
         },
-        "understory": {"render": "sprite", "prefix": S + "lf_understory_", "types": ["bush_a", "bush_b", "stump"], "density": 0.55},
+        "understory": {"render": "sprite", "prefix": S + "lf_understory_", "types": ["bush_a", "bush_b", "stump"], "density": 0.35},
         # paper scraps drift down now and then; no butterflies or fireflies: only the lantern glows
         "ambient_life": {"butterflies": {"count": 0}, "fireflies": {"count": 0},
                          "clouds": {"count": 3, "alpha": 0.06, "speed": 5},
