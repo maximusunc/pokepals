@@ -59,7 +59,10 @@ defmodule Server.Seeds do
       tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true},
     %{world_id: "14141414-1414-1414-1414-141414141414", slug: "ebbmere", name: "Ebbmere", file: "ebbmere.json",
       blurb: "Tidal flats under a wide sky. The sea goes out and leaves wet sand, tide pools and a lighthouse. Let your companion dig, and mind the lowest water.",
-      tags: ["tide", "beach", "sand", "lighthouse", "quiet", "explore", "cozy", "secret"], accent: [0.86, 0.90, 0.88], featured: true}
+      tags: ["tide", "beach", "sand", "lighthouse", "quiet", "explore", "cozy", "secret"], accent: [0.86, 0.90, 0.88], featured: true},
+    %{world_id: "12121212-1212-1212-1212-121212121212", slug: "loftreach", name: "Loftreach", file: "loftreach.json",
+      blurb: "Grassy islands floating in open sky, joined by rope bridges, with windmills, kites and clouds drifting below. One islet has no way to it, but a bird can see where it is.",
+      tags: ["sky", "islands", "windmills", "kites", "bright", "bird", "explore", "cozy", "secret"], accent: [0.62, 0.84, 1.0], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

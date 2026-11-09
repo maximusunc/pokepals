@@ -56,6 +56,10 @@ extends Node
 ##     the far bar (TideDirector over the pure TideClock / DigPlan, drawn by the world's TideLayer); then the
 ##     prop (Ebbmere's sand-dollar) is there to take. The server checks the clock too (Server.Tide), so a
 ##     missed window is simply the next tide.
+##   * `skyview`: the prop (Loftreach's nest) is in plain sight on an islet no foot can reach; shifted into a bird and
+##     sent up (the radial's Go up), your companion rises, the camera with it, and from high above the high clouds make a
+##     picture that points the way; once it has looked at the islet and the bridge's head, a hidden rope bridge comes
+##     down (SkyDirector over the pure SkyView / SkyRealm). Examining the nest claims. Once found, going up stays a toy.
 ## The server checks the conditions it can (an open door, a perfect hunt, the tide) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -84,6 +88,7 @@ var _shadow: ShadowDirector
 var _screens: Array = []        # the world's shadow-screen views (Lanternfold)
 var _reflection: ReflectionDirector
 var _tide: TideDirector
+var _sky: SkyDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -136,7 +141,15 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_tide):
 		_tide.queue_free()
 	_tide = null
+	if is_instance_valid(_sky):
+		_sky.finish()
+		_sky.queue_free()
+	_sky = null
 	var secret: Dictionary = data.get("secret", {})
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "skyview" \
+			and Net.has_discovery(String(secret["id"])):
+		_open_sky_bridge(data, secret)   # found already: the bridge is simply down, and going up stays a quiet toy
+		_start_sky(secret, true)
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
 		_found_props = (secret["reveal"] as Dictionary).get("props", [])
@@ -212,8 +225,46 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		"tide":
 			# Nothing to see yet: the sand-dollar is under the far bar, and only the lowest tide uncovers it.
 			_start_tide(data, false)
+		"skyview":
+			# The nest is there from the start, on an islet you cannot walk to; a bird's-eye view brings the way down.
+			combined.append(_secret_prop())
+			_start_sky(secret, false)
 		_:
 			combined.append(_secret_prop())
+
+
+## Loftreach: the secret's hidden bridge is open for this visit (found already), so the world's barriers and
+## the drawn bridge start with it down.
+func _open_sky_bridge(data: Dictionary, secret: Dictionary) -> void:
+	var sky: Dictionary = data.get("sky", {})
+	var id := String((secret.get("reveal", {}) as Dictionary).get("bridge", ""))
+	var revealed: Array = sky.get("revealed", [])
+	if id != "" and not revealed.has(id):
+		revealed.append(id)
+	sky["revealed"] = revealed
+
+
+func _start_sky(secret: Dictionary, found: bool) -> void:
+	_sky = SkyDirector.new()
+	_sky.name = "SkyDirector"
+	add_child(_sky)
+	_sky.setup(_host, _companion, _world_art, _player)
+	_sky.configure(secret, found)
+
+
+## The radial's Go up, and whether this world offers it.
+func sky_available() -> bool:
+	return _sky != null
+
+
+func try_go_up() -> void:
+	if _sky != null:
+		_sky.try_go_up()
+
+
+## A tap on the world while your companion's eyes are up: true when it brought the bird home.
+func on_world_tap() -> bool:
+	return _sky != null and _sky.on_world_tap()
 
 
 func _start_shadow(secret: Dictionary, found: bool) -> void:
@@ -358,6 +409,8 @@ func update(delta: float) -> void:
 		_reflection.update(delta)
 	if _tide != null:
 		_tide.update(delta)
+	if _sky != null:
+		_sky.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -559,6 +612,8 @@ func _on_discoveries(ids: Array) -> void:
 		_secret = {}   # found on another device: the door is open and the shadows stay, the prop doesn't come
 		if _shadow != null:
 			_shadow.set_found()
+	if not _secret.is_empty() and _reveal_type() == "skyview" and ids.has(String(_secret.get("id", ""))) and _sky != null:
+		_sky.set_found()   # found on another device: the bridge is down (the nest is taken away by the ordinary path below)
 	if not _secret.is_empty() and _reveal_type() == "echo" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the howling stays, the stone doesn't come
 	if not _secret.is_empty() and _reveal_type() == "tide" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
@@ -579,6 +634,8 @@ func _on_discoveries(ids: Array) -> void:
 
 
 func _take() -> void:
+	if _sky != null:
+		_sky.finish()
 	if _shadow != null:
 		_shadow.finish()
 	if _listen != null:

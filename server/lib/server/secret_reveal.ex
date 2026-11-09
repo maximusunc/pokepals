@@ -61,6 +61,13 @@ defmodule Server.SecretReveal do
       window), widened by the reveal's `grace_s` for clock skew and a slow claim. It still relies on
       `Discoveries.claimable?/3` for "standing at the spot". Miss the window and it is simply the next tide.
 
+    * `skyview`: the nest is in plain sight on an islet you cannot walk to, until the player's companion, shifted
+      into a bird and sent up, has looked at it from high above and a hidden rope bridge comes down (Loftreach's
+      nest). The flight, the view, the picture in the clouds and the bridge all happen on the player's own screen
+      (`SkyView` / `SkyRealm` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `tracks`. Honest about what that means: it can't tell a bridge that was found from one
+      that was never needed (a player who somehow stood at the nest is at the nest).
+
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
   of flare props this player has touched this visit; `now_ms`: the server's unix time in milliseconds, for
@@ -80,6 +87,7 @@ defmodule Server.SecretReveal do
       %{"type" => "shadow"} -> true
       %{"type" => "reflection"} -> true
       %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))
+      %{"type" => "skyview"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end

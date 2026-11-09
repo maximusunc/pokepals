@@ -72,6 +72,9 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	for pl in world_data.get("plates", []):
 		if bool(pl.get("solid", false)):
 			solids.append_array(rect_solids(pl["rect"]))
+	# A sky-island world (Loftreach): every island's edge is a fence, bridges cut gaps in it (see SkyRealm).
+	if world_data.has("sky"):
+		solids.append_array(SkyRealm.solids(world_data["sky"]))
 	return solids
 
 

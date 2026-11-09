@@ -60,6 +60,21 @@ func glide_to(point: Vector2, secs: float) -> Tween:
 	return tw
 
 
+## Loftreach's flight (SkyDirector): the camera is steered directly, every frame, to `center` at `zoom_level`
+## (smaller is higher), and the usual follow stands down. Returned by end_hold(), which is safe to call any time.
+func hold_view(center: Vector2, zoom_level: float) -> void:
+	_cinematic = true
+	zoom = Vector2(zoom_level, zoom_level)
+	global_position = _clamp_to_limits(center)
+
+
+## End a hold_view: the zoom is the ordinary one again and the follow carries on from where the camera is.
+func end_hold() -> void:
+	_cinematic = false
+	_lead = Vector2.ZERO
+	zoom = Vector2.ONE
+
+
 ## Hand the camera back to the player after a glide_to.
 func release() -> void:
 	_cinematic = false

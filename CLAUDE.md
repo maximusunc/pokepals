@@ -331,6 +331,22 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_ebbmere_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Ebbmere").
 
+> **Loftreach (2026-11):** **sky islands** (3400x2600): nine grassy islets floating in open sky over a drifting sea of cloud,
+> joined by rope bridges, with a windmill, kites and weathervanes that all point the same way. Reached through the Gateway
+> (featured). The spec's `sky` block IS the ground: island outlines and bridges (`SkyRealm`, pure, tested) become the turf
+> (`SkyLayer`, behind `WorldArt`, meshes baked once), the collision fence (island edges as segment solids with a gap where an
+> open bridge joins, in `Solids.build`) and the companion's walkability (`NavGrid.build`'s optional ground test, so no route is
+> planned through the sky). **Secret:** a nest on an islet you cannot walk to, found by borrowing your companion's eyes: shift it
+> to a **bird** and tap the radial's **Go up** (offered in every shape; any other says only a bird can). The camera rises and
+> follows the bird to a vantage, and from up there the high clouds make a great arrow (`SkyAir`'s picture, visible only at
+> altitude) toward the islet and the head of a hidden bridge on Pennant Crag; once the bird has looked at both (pure `SkyView`)
+> the bridge unspools (`SkyLayer.set_bridge_reveal`) and the world rebuilds its barriers and routing with it open
+> (`reveal_sky_bridge`). A tap or a step brings it home; Go up again holds it; bond lengthens the stay, raises the view and
+> widens the companion's noticing. New reveal type `skyview` (server checks "this world, standing at it"). `SkyDirector`
+> (`mechanics/`), `SkyBird`, `CameraRig.hold_view`. Art: `pokepals/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`;
+> layout, lore and the secret: `tools/gen_loftreach_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Loftreach").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel
