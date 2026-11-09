@@ -1,0 +1,15 @@
+{
+	"strawtuft_a": [0, 0, 8, 5],
+	"strawtuft_b": [9, 0, 7, 5],
+	"sagebrush": [17, 0, 7, 6],
+	"yucca_spike": [25, 0, 6, 6],
+	"pricklypear": [32, 0, 7, 6],
+	"pebbles": [40, 0, 6, 5],
+	"redstone": [47, 0, 9, 6],
+	"palestone": [57, 0, 7, 6],
+	"bone": [65, 0, 8, 3],
+	"goldleaf": [74, 0, 5, 4],
+	"twig": [80, 0, 7, 4],
+	"ripple": [88, 0, 8, 3],
+	"desertbloom": [97, 0, 3, 4]
+}

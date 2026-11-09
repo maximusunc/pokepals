@@ -245,6 +245,44 @@ not a blocker** — pick it up if/when a shared world wants it.
 > over `tools/pixelart/steamhollow.py`; layout, lore and the secret: `tools/gen_steamhollow_world.py`. Every
 > finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Steamhollow").
 
+> **Hollowsong (2026-11):** an **echo canyon** at sunset (3600x2600): banded red cliffs, wind-carved arches
+> you can walk through and a dry riverbed; every sound comes back as soft, visible ripples. Reached through the
+> Gateway (featured). **Secret:** a hidden cave, the only place that answers *wrong*. In **wolf form** your
+> companion howls on command (the radial's **Howl**, offered in every shape; any other shape says a wolf's
+> voice would carry here). The canyon howls back: pure `EchoField` (`scripts/world`, tested) bounces the howl
+> off the authored cliff walls (mirror-image method, occlusion, bond-scaled reach) and `EchoRipples` draws the
+> returning gold wavefronts. One answer comes late, violet, dashed and thick from where there is no wall; it
+> leaves a lingering dotted bearing line toward the cave, with an error that shrinks the nearer you stand and
+> the deeper the bond, so a second howl from somewhere else crosses it. Friends' howls are relayed
+> (`howl` -> `howled`, a stateless server-stamped relay, `Server.Howl`) so two players find it much faster.
+> Walking up to the cave opens a crack in the cliff (reveal type `echo`, server: "this world, standing at it")
+> and the answering stone is claimed through the usual flow. The companion notices the cave and points at it as
+> you come near (by bond). Cliffs are `CliffView` (a `BuildingView`, spec `"view": "cliff"`, an `arch` opening
+> with `solid_rects` for its legs); the cliffs' edges ARE the echo walls. `EchoGuide` + `HowlDirector`
+> (`mechanics/`). Art: `pokepals/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`; layout, lore and
+> the secret: `tools/gen_hollowsong_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Hollowsong").
+
+> **Underroot (2026-11):** **caves beneath the great tree** (2800x2100): twisting root tunnels and nine
+> chambers, in the dark. You see only a small soft circle round yourself; glow-moss, glowcaps and your
+> companion's own light each thin the dark into a pocket, so it is hushed and safe-dark, not scary. The dark
+> is `MistVeil` again, configured (`atmosphere.fog`: near-black colour, steady, `lit` glow-moss props), with no
+> new shader. The tunnel walls are the spec's `hedges` (axis-aligned segments, so the nav grid understands
+> them) drawn through the art block's `hedge` tile as roots; the maze is generated (seeded DFS plus a few
+> loops, searched until the way to the heart is about 55 cells). Reached through the Gateway (featured).
+> **Secret:** the root-heart, a glowing seed deep in the tangle. The tunnels are hard to steer in the dark,
+> so you DELEGATE: tap your companion, choose **Go look** (now also offered where the secret is led to,
+> `SecretDirector.can_go_look`), and FOLLOW its light. New reveal type `follow` (server checks "this world,
+> standing at it"). Pure `FollowGuide` (`scripts/world`, tested) over `FollowDirector` (`mechanics/`): the
+> companion body plans a route through the tunnels (`CompanionView.plan_route`, the NavGrid) and the existing
+> `GuideAction` leads along it (now taking an optional `speed` in its command meta). It waits when you fall
+> behind; if you PUSH AHEAD of it along its route it holds back and in the end lets the lead go (never a
+> failure: ask again); a Call ends the lead, a Pet is enjoyed and the lead carries on. Bond shapes its pace,
+> patience and how far it leads per ask. Its light swells while it leads, so every state reads in the dark.
+> Art: `pokepals/tools/gen_underroot.py` over `tools/pixelart/underroot.py`; layout, lore and the secret:
+> `tools/gen_underroot_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Underroot").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

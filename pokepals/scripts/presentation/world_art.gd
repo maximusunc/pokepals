@@ -82,6 +82,7 @@ var _pool_world_tile := 64.0
 # Absent → the flat-green procedural hedges below.
 var _hedge_tex: Texture2D = null
 var _hedge_world_tile := 44.0
+var _hedge_hi := Color(0.41, 0.61, 0.34)   # the thin bright edge along a hedge's top (a world's hedge entity may set "highlight")
 
 # Optional pixel-art prop sprites (tools/gen_props.py), keyed by prop type. Each has a BASE
 # layer (fixed materials) and, when its colour is data, a grayscale TINT layer drawn with the
@@ -139,6 +140,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 	var hedge_cfg: Dictionary = _style.entity("hedge")
 	_hedge_tex = SpriteSlot.resolve(hedge_cfg, "tile")
 	_hedge_world_tile = float(hedge_cfg.get("world_tile", 44.0))
+	_hedge_hi = WorldData.to_color(hedge_cfg.get("highlight", [0.41, 0.61, 0.34, 1.0]))
 	if _pond_tex != null or _river_tex != null or _pool_tex != null or _hedge_tex != null:
 		texture_repeat = CanvasItem.TEXTURE_REPEAT_ENABLED
 	_parse_plates(data)
@@ -1624,7 +1626,7 @@ func _draw_hedges() -> void:
 	var shadow := Color(0.04, 0.06, 0.04, 0.20)
 	var front := Color(0.16, 0.30, 0.17)
 	var top := Color(0.27, 0.47, 0.25)
-	var hi := Color(0.41, 0.61, 0.34)
+	var hi := _hedge_hi
 	for h in _hedges:
 		draw_line(h["a"] + Vector2(5, 8), h["b"] + Vector2(5, 8), shadow, float(h["t"]) + 2.0)
 	if _hedge_tex != null:
@@ -1887,6 +1889,22 @@ func _draw_bronze_bell(base: Vector2, tint: Color, k: float, post: bool) -> void
 	SoftGlow.draw(self, ring_c, 14.0 * k, Color(1.0, 0.86, 0.5, 0.10 + 0.05 * sin(_time * 1.7)), 0.8)
 
 
+## The answering stone: a smooth bowl of red stone (a lit rim, a dark hollow with a violet light in it) and two
+## thin rings opening from the lip, slowly, as if it were saying the last thing it heard back. `k` scales it.
+func _draw_echo_stone(base: Vector2, tint: Color, k: float) -> void:
+	var breathe := 0.7 + 0.3 * sin(_time * 1.5 + _phase_for(base))
+	draw_circle(base + Vector2(0.0, 5.0 * k), 11.0 * k, Color(0.22, 0.08, 0.08, 0.20), true, -1.0, true)
+	draw_circle(base + Vector2(0.0, 2.0 * k), 9.0 * k, Color(0.52, 0.24, 0.17), true, -1.0, true)
+	draw_circle(base + Vector2(-1.0, 0.0) * k, 8.0 * k, Color(0.70, 0.36, 0.24), true, -1.0, true)
+	draw_arc(base + Vector2(-1.0, 0.0) * k, 8.0 * k, PI * 1.05, PI * 1.85, 14, Color(0.92, 0.62, 0.44), 1.5 * k, true)
+	draw_circle(base + Vector2(0.0, 0.0), 5.4 * k, Color(0.20, 0.12, 0.26), true, -1.0, true)
+	draw_circle(base + Vector2(0.0, 0.5 * k), 3.4 * k, Color(tint.r, tint.g, tint.b, 0.55 + 0.3 * breathe), true, -1.0, true)
+	SoftGlow.draw(self, base + Vector2(0.0, -2.0 * k), 18.0 * k, Color(tint.r, tint.g, tint.b, 0.20 * breathe), 0.8)
+	for j in 2:
+		var t := fposmod(_time * 0.4 + float(j) * 0.5, 1.0)
+		draw_arc(base + Vector2(0.0, -1.0 * k), (7.0 + 17.0 * t) * k, 0.0, TAU, 28, Color(tint.r, tint.g, tint.b, 0.30 * (1.0 - t)), 1.0, true)
+
+
 ## A bubble that never pops: a faint fill, an iridescent rim whose colours slide round it, a window
 ## glint, and a gentle wobble (it breathes, a little wider, a little taller).
 func _draw_forever_bubble(c: Vector2, r: float, tint: Color) -> void:
@@ -2122,6 +2140,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 2), 12.0, color)
 			draw_circle(p + Vector2(0, 0), 8.0, Color(0.40, 0.56, 0.64))
 			draw_arc(p + Vector2(0, 0), 8.0, 0.0, TAU, 20, Color(0.85, 0.92, 0.95, 0.6), 1.0)
+		"root_heart":
+			# Underroot's secret: a seed the great tree keeps at its deepest root, wrapped in roots and glowing
+			# from inside, slowly, like something with a pulse.
+			_draw_root_heart(p + Vector2(0, 1), color, 1.0, true)
+		"kept_root_heart":
+			# its keepsake at home: the same seed, wrapped in a few small roots on a clay saucer
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.07, 0.05, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.52, 0.34, 0.24), true, -1.0, true)
+			draw_arc(p + Vector2(0, 4), 8.0, 0.1, PI - 0.1, 12, Color(0.34, 0.22, 0.16), 1.0, true)
+			_draw_root_heart(p + Vector2(0, 3), color, 0.7, false)
 		"hedge_seed":
 			# a curled seed nestled in a small cushion of moss, with the faint green warmth of
 			# something alive inside: the hedge maze's secret, resting at its heart
@@ -2295,6 +2323,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 4), 7.0, Color(0.52, 0.38, 0.26), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.34, 0.24, 0.16), 1.0, true)
 			_draw_bronze_bell(p + Vector2(-9, 6), color, 0.9, false)
+		"echo_stone":
+			# Hollowsong's secret: a smooth bowl of red stone on the cave's threshold, a violet light breathing
+			# in it, and thin rings opening from its lip as if it were repeating the last thing said to it.
+			_draw_echo_stone(p, color, 1.0)
+		"kept_echo_stone":
+			# its keepsake at home: the same bowl, on a flat slab of sandstone
+			draw_circle(p + Vector2(0, 6), 11.0, Color(0.30, 0.14, 0.10, 0.18), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 9.0, Color(0.78, 0.60, 0.42), true, -1.0, true)
+			draw_arc(p + Vector2(0, 5), 9.0, 0.1, PI - 0.1, 12, Color(0.56, 0.38, 0.26), 1.0, true)
+			_draw_echo_stone(p + Vector2(0, 1), color, 0.8)
 		"stallholder":
 			# a stallholder minding their stall (the Bazaar's packed market): the shopkeeper figure in their
 			# own colours, with a little idle bob, offset so each seems to breathe on their own
@@ -2947,3 +2985,34 @@ func _draw_crate(p: Vector2, color: Color) -> void:
 	# a smaller crate stacked on top
 	draw_rect(Rect2(p + Vector2(-6, -20), Vector2(13, 11)), color.lightened(0.05))
 	draw_rect(Rect2(p + Vector2(-6, -20), Vector2(13, 3)), color.lightened(0.16))
+
+
+## The root-heart: a seed the colour of lit honey, cradled in a tangle of roots that curl up round it, and
+## breathing a warm light (`breathe`) that a handful of motes drift up out of. `k` scales it; `motes` is off
+## for the keepsake.
+func _draw_root_heart(c: Vector2, tint: Color, k: float, motes: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.5 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -8.0 * k), 34.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.26 + 0.12 * breathe), 1.0)
+	var bark := Color(0.30, 0.20, 0.14)
+	var bark_hi := Color(0.46, 0.32, 0.22)
+	# the roots behind: two arcs curling up and over the seed's far side
+	for side in [-1.0, 1.0]:
+		draw_polyline(PackedVector2Array([c + Vector2(side * 12.0, 3.0) * k, c + Vector2(side * 11.0, -6.0) * k,
+			c + Vector2(side * 7.0, -15.0) * k, c + Vector2(side * 2.5, -17.0) * k]), bark, 2.6 * k, true)
+	# the seed: a plump teardrop, lit from within
+	draw_circle(c + Vector2(0, -8.0 * k), 7.4 * k, tint.darkened(0.25), true, -1.0, true)
+	draw_circle(c + Vector2(0, -8.0 * k), 6.2 * k, tint, true, -1.0, true)
+	draw_circle(c + Vector2(0, -8.0 * k), 3.6 * k, Color(1.0, 0.96, 0.74, 0.55 + 0.35 * breathe), true, -1.0, true)
+	draw_circle(c + Vector2(-2.0, -10.4) * k, 1.5 * k, Color(1, 1, 0.92, 0.9))
+	draw_arc(c + Vector2(0, -8.0 * k), 6.2 * k, PI * 0.15, PI * 0.85, 8, tint.darkened(0.4), 1.0, true)
+	# the roots in front: a cradle of three, ending in curled tips
+	draw_polyline(PackedVector2Array([c + Vector2(-13.0, 4.0) * k, c + Vector2(-8.0, 0.5) * k, c + Vector2(-5.0, -5.0) * k, c + Vector2(-5.5, -9.0) * k]), bark_hi, 2.2 * k, true)
+	draw_polyline(PackedVector2Array([c + Vector2(13.0, 4.0) * k, c + Vector2(8.0, 0.5) * k, c + Vector2(5.0, -5.0) * k, c + Vector2(5.5, -9.0) * k]), bark_hi, 2.2 * k, true)
+	draw_polyline(PackedVector2Array([c + Vector2(-4.0, 5.0) * k, c + Vector2(0.0, 1.5) * k, c + Vector2(4.0, 5.0) * k]), bark, 2.4 * k, true)
+	draw_circle(c + Vector2(-5.5, -9.5) * k, 1.2 * k, bark_hi)
+	draw_circle(c + Vector2(5.5, -9.5) * k, 1.2 * k, bark_hi)
+	if motes:
+		for m in 4:
+			var t := fposmod(_time * 0.22 + float(m) * 0.25, 1.0)
+			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 6.0, -12.0 * k - t * 34.0)
+			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))

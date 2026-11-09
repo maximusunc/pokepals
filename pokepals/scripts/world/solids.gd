@@ -62,8 +62,13 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	# Brick BUILDINGS and solid plates (Clickton): a footprint rect becomes a stack of segment solids
 	# (see rect_solids), so everything that already understands segments (the resolver, the nav grid)
 	# understands a building.
+	# (An arch has `solid_rects`, just its legs, so the opening between them can be walked through.)
 	for b in world_data.get("buildings", []):
-		solids.append_array(rect_solids(b["rect"]))
+		if b.has("solid_rects"):
+			for r in b["solid_rects"]:
+				solids.append_array(rect_solids(r))
+		else:
+			solids.append_array(rect_solids(b["rect"]))
 	for pl in world_data.get("plates", []):
 		if bool(pl.get("solid", false)):
 			solids.append_array(rect_solids(pl["rect"]))

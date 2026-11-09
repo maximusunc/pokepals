@@ -31,6 +31,16 @@ defmodule Server.SecretReveal do
       toward the sound) happens entirely on the player's own screen (`ListenGuide` on the client), so
       the server only checks "this world, standing at it", like `stillness` and `tracks`. Honest about
       what that means: it can't tell a heard bell from a stumbled-on one.
+    * `echo`: a hidden cave that answers a howl from the wrong place (Hollowsong's answering stone).
+      The howling, the echoes' geometry and the cave opening as you walk up to it all happen on the player's
+      own screen (`EchoField` / `EchoGuide` on the client), so the server only checks "this world, standing
+      at it", like `stillness`. Honest about what that means: it can't tell a found cave from a walked-in one.
+
+    * `follow`: it appears once the player and their companion have both arrived at the place, led there
+      through the dark by the companion (Underroot's root-heart, deep in the tangle of tunnels). The asking
+      ("Go look"), the lead, the waiting and the arrival all happen on the player's own screen
+      (`FollowGuide` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `tracks`. Honest about what that means: it can't tell a led arrival from a walked-in one.
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
@@ -44,8 +54,9 @@ defmodule Server.SecretReveal do
       %{"type" => "ward_open", "ward" => ward} -> ward_open?(Map.get(ctx, :wards, []), ward)
       %{"type" => "hunt_perfect"} -> hunt_perfect?(Map.get(ctx, :hunt_found, 0), Map.get(ctx, :hunt_goal, %{}))
       %{"type" => "touch_all", "props" => props} -> touched_all?(Map.get(ctx, :touched, MapSet.new()), props)
-      %{"type" => type} when type in ["always", "stillness", "tracks", "listen"] -> true
+      %{"type" => type} when type in ["always", "stillness", "tracks", "listen", "echo"] -> true
       %{"type" => "dream"} -> true
+      %{"type" => "follow"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end

@@ -302,6 +302,25 @@ defmodule Server.WorldChannel do
     end
   end
 
+  # A HOWL (Hollowsong): this player's companion howled and the canyon answers; everyone ELSE in the world
+  # should see the ripples too. A stateless relay (Server.Howl): the client sends only the event, the position
+  # is the server's own last-known one for this player (so it can't be spoofed), only a world with an `echo`
+  # secret relays at all, and one player may howl at most once per Howl.min_gap. The ripples are drawn on every
+  # client from the world's own wall geometry; nothing is kept here.
+  def handle_in("howl", _payload, socket) do
+    now = System.monotonic_time(:millisecond)
+    last = Map.get(socket.assigns, :last_howl)
+
+    with true <- Server.Howl.echo_world?(socket.assigns.definition),
+         true <- Server.Howl.allow?(last, now),
+         %{x: _, y: _} = out <- Server.Howl.payload(Map.get(socket.assigns, :last_p)) do
+      broadcast_from!(socket, "howled", out)
+      {:noreply, assign(socket, :last_howl, now)}
+    else
+      _ -> {:noreply, socket}
+    end
+  end
+
   def handle_in("save", payload, socket) do
     Saves.store(socket.assigns.user_id, payload["companion"], payload["appearance"])
     {:noreply, socket}
