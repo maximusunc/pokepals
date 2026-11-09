@@ -67,6 +67,13 @@ defmodule Server.SecretReveal do
       (`SkyView` / `SkyRealm` on the client), so the server only checks "this world, standing at it", like
       `stillness` and `tracks`. Honest about what that means: it can't tell a bridge that was found from one
       that was never needed (a player who somehow stood at the nest is at the nest).
+    * `fetch`: it appears once the player's companion, in a shape small enough to fit (a rabbit), has been
+      sent through the right gap in the garden fence and has come back carrying it, with a bond deep enough to
+      have found it (Thimblewick's silver thimble). The asking ("Go look"), the squeeze, the time away and the
+      carrying all happen on the player's own screen (`FetchTrip` on the client), and the thimble is set down
+      at the player's feet wherever they stand, so the server only checks "this world" (the secret's `radius`
+      covers the whole world), like `stillness` and `tracks`. Honest about what that means: it can't tell a
+      fetched thimble from one that never needed fetching (but the only way to see it is to have it fetched).
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
@@ -88,6 +95,7 @@ defmodule Server.SecretReveal do
       %{"type" => "reflection"} -> true
       %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))
       %{"type" => "skyview"} -> true
+      %{"type" => "fetch"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end

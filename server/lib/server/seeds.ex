@@ -62,7 +62,10 @@ defmodule Server.Seeds do
       tags: ["tide", "beach", "sand", "lighthouse", "quiet", "explore", "cozy", "secret"], accent: [0.86, 0.90, 0.88], featured: true},
     %{world_id: "12121212-1212-1212-1212-121212121212", slug: "loftreach", name: "Loftreach", file: "loftreach.json",
       blurb: "Grassy islands floating in open sky, joined by rope bridges, with windmills, kites and clouds drifting below. One islet has no way to it, but a bird can see where it is.",
-      tags: ["sky", "islands", "windmills", "kites", "bright", "bird", "explore", "cozy", "secret"], accent: [0.62, 0.84, 1.0], featured: true}
+      tags: ["sky", "islands", "windmills", "kites", "bright", "bird", "explore", "cozy", "secret"], accent: [0.62, 0.84, 1.0], featured: true},
+    %{world_id: "13131313-1313-1313-1313-131313131313", slug: "thimblewick", name: "Thimblewick", file: "thimblewick.json",
+      blurb: "A tiny cottage garden, and you are the size of a beetle. Clover for umbrellas, a teacup for a pond, a fence like a castle wall, and a gap in it too small for you.",
+      tags: ["garden", "tiny", "giant", "flowers", "rabbit", "explore", "cozy", "secret"], accent: [0.92, 0.84, 0.46], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

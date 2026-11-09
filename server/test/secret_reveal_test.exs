@@ -93,6 +93,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "the thimble is fetched through the fence on the player's screen, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "fetch", "species" => ["rabbit"], "gaps" => [%{"id" => "gap_thread", "finds" => [%{"item" => "thimble", "min_bond" => 0.55}]}]}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})

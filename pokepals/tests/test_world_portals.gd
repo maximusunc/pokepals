@@ -5,7 +5,7 @@ class_name TestWorldPortals
 ## the Vale's Gateway. "Close" means near enough to see on arrival, but far enough that you don't
 ## start inside its trigger (world_controller arms a portal once you're 22 + 18 px clear of it).
 
-const FIXTURES := ["riverbank", "bazaar", "maze", "ruin", "nocthollow", "bobbledown", "clickton", "drifthallow", "dozewood", "steamhollow", "hollowsong", "underroot", "lanternfold", "stillglass", "ebbmere", "loftreach", "home"]
+const FIXTURES := ["riverbank", "bazaar", "maze", "ruin", "nocthollow", "bobbledown", "clickton", "drifthallow", "dozewood", "steamhollow", "hollowsong", "underroot", "lanternfold", "stillglass", "ebbmere", "loftreach", "thimblewick", "home"]
 const ARM_CLEAR := 40.0  # world_controller's PORTAL_RANGE + PORTAL_ARM_BUFFER
 const NEAR := 120.0      # how close to the arrival spot the way home must stand
 const VALE_ID := "11111111-1111-1111-1111-111111111111"

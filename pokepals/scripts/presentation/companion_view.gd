@@ -310,6 +310,16 @@ func bond_value() -> float:
 	return _brain.get_self().bond
 
 
+## Warm the bond by `amount` (bond units, 0..1), for an errand the two of you did together (Thimblewick's
+## fetch: each trip through the fence draws you closer). Local only. Not a bond SOURCE the brain's own growth
+## knows about (so it fires no milestone), just a nudge; the director tapers it so it cannot be farmed.
+func warm_bond(amount: float) -> void:
+	if not _is_local or _brain == null or amount <= 0.0:
+		return
+	var s := _brain.get_self()
+	s.bond = clampf(s.bond + amount, 0.0, float(_cfg.get("bond", {}).get("max", 1.0)))
+
+
 ## Lie down and stay put (true), or get up (false): Dozewood's nap. The body stops where it is, sinks into
 ## a low, slowly breathing pose and dims a little; the brain keeps thinking, it just isn't obeyed. A
 ## whistle, a pet or a step away is the director's cue to let go. Local only; presentation, no saved state.

@@ -60,6 +60,11 @@ extends Node
 ##     sent up (the radial's Go up), your companion rises, the camera with it, and from high above the high clouds make a
 ##     picture that points the way; once it has looked at the islet and the bridge's head, a hidden rope bridge comes
 ##     down (SkyDirector over the pure SkyView / SkyRealm). Examining the nest claims. Once found, going up stays a toy.
+##   * `fetch`: the thimble is behind a gap in the garden fence too small for you. In a small, quick shape (a rabbit)
+##     your companion, sent with "Go look", squeezes through, is gone a few seconds and comes back carrying the best
+##     find its bond has earned from that gap, setting it at your feet; the silver thimble is the deepest one
+##     (FetchDirector over the pure FetchTrip; Thimblewick). Nothing shows until it is brought. Once found, the
+##     fetching stays a quiet toy of small finds; only the thimble stops coming.
 ## The server checks the conditions it can (an open door, a perfect hunt, the tide) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -89,6 +94,7 @@ var _screens: Array = []        # the world's shadow-screen views (Lanternfold)
 var _reflection: ReflectionDirector
 var _tide: TideDirector
 var _sky: SkyDirector
+var _fetch: FetchDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -145,6 +151,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		_sky.finish()
 		_sky.queue_free()
 	_sky = null
+	if is_instance_valid(_fetch):
+		_fetch.queue_free()
+	_fetch = null
 	var secret: Dictionary = data.get("secret", {})
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "skyview" \
 			and Net.has_discovery(String(secret["id"])):
@@ -168,6 +177,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "tide" \
 			and Net.has_discovery(String(secret["id"])):
 		_start_tide(data, true)   # found already: the flats keep their digging, the sand-dollar doesn't come
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "fetch" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_fetch(secret, true)   # found already: the fetching stays a toy of small finds, the thimble doesn't come
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -229,6 +241,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			# The nest is there from the start, on an islet you cannot walk to; a bird's-eye view brings the way down.
 			combined.append(_secret_prop())
 			_start_sky(secret, false)
+		"fetch":
+			# Nothing to see yet: your companion has to bring the thimble back through the fence.
+			_start_fetch(secret, false)
 		_:
 			combined.append(_secret_prop())
 
@@ -265,6 +280,31 @@ func try_go_up() -> void:
 ## A tap on the world while your companion's eyes are up: true when it brought the bird home.
 func on_world_tap() -> bool:
 	return _sky != null and _sky.on_world_tap()
+
+
+func _start_fetch(secret: Dictionary, found: bool) -> void:
+	_fetch = FetchDirector.new()
+	_fetch.name = "FetchDirector"
+	add_child(_fetch)
+	_fetch.setup(_host, _companion, _world_art, _player)
+	_fetch.configure(secret, found, _interactables)
+	_fetch.thimble_dropped.connect(_on_thimble_dropped)
+
+
+## Your companion has set the thimble down at your feet: it is there to examine (and to claim). A second trip
+## that brings it again, before you have taken it, simply sets it down afresh where you now stand.
+func _on_thimble_dropped(pos: Vector2, line: String) -> void:
+	if _reveal_type() != "fetch" or _secret.is_empty():
+		return
+	if _entry.is_empty():
+		_reveal(line, pos)
+		return
+	if not is_taken(_entry):
+		_entry["pos"] = pos
+		_world_art.move_interactable(int(_entry["render_index"]), pos)
+		_host.secret_taken()
+		if line != "":
+			_host.show_hint(line)
 
 
 func _start_shadow(secret: Dictionary, found: bool) -> void:
@@ -411,6 +451,8 @@ func update(delta: float) -> void:
 		_tide.update(delta)
 	if _sky != null:
 		_sky.update(delta)
+	if _fetch != null:
+		_fetch.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -458,13 +500,15 @@ func _on_stone_surfaced() -> void:
 ## "Go look" is on offer in a world whose secret is led to (Underroot): the radial's entry lights up while
 ## the heart is still to be found, and is greyed once you've reached it.
 func can_go_look() -> bool:
-	return _follow != null and _follow.can_ask()
+	return (_follow != null and _follow.can_ask()) or (_fetch != null and _fetch.available())
 
 
 ## The player chose "Go look": the companion leads (FollowDirector), and you follow.
 func go_look() -> void:
 	if _follow != null:
 		_follow.ask()
+	elif _fetch != null:
+		_fetch.ask()
 
 
 ## The pockets where the dark thins round something only just in view (the faint bell, once you are close;
@@ -528,9 +572,9 @@ func rung_count() -> int:
 
 ## Bring a staged secret into the world: draw its prop, add it to the examine list, let the companion
 ## notice it, and say the line that goes with it.
-func _reveal(line: String) -> void:
+func _reveal(line: String, at := Vector2.INF) -> void:
 	var prop := _secret_prop()
-	var pos := WorldData.to_vec2(prop["position"])
+	var pos := WorldData.to_vec2(prop["position"]) if at == Vector2.INF else at
 	var render_index := _world_art.add_interactable(pos, WorldData.to_color(prop.get("color", [0.8, 0.8, 0.8])), String(prop.get("type", "")))
 	var entry := {
 		"pos": pos, "label": String(prop.get("label", "something")), "id": String(prop["id"]), "tags": prop.get("tags", []),
@@ -620,6 +664,10 @@ func _on_discoveries(ids: Array) -> void:
 		_secret = {}   # found on another device: the digging stays, the sand-dollar doesn't come
 		if _tide != null:
 			_tide.finish()
+	if not _secret.is_empty() and _reveal_type() == "fetch" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the fetching stays, the thimble doesn't come
+		if _fetch != null:
+			_fetch.set_found()
 	if not _secret.is_empty() and _reveal_type() == "reflection" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the walking reflection stays, the stone doesn't come
 		if _reflection != null:
@@ -636,6 +684,8 @@ func _on_discoveries(ids: Array) -> void:
 func _take() -> void:
 	if _sky != null:
 		_sky.finish()
+	if _fetch != null:
+		_fetch.set_found()   # the thimble is ours: later trips bring it as an ordinary find
 	if _shadow != null:
 		_shadow.finish()
 	if _listen != null:
