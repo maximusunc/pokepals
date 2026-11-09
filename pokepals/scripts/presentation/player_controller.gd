@@ -256,3 +256,9 @@ func _draw() -> void:
 		"head": true,
 		"width": float(cfg.get("width", 1.0)),
 	})
+
+
+## The worn wardrobe as loaded drawable layers (AvatarCompositor.load_layers), read-only: for things that draw
+## this avatar again elsewhere (Lanternfold's shadow on the screen).
+func avatar_layers() -> Array:
+	return _avatar_layers

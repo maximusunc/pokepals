@@ -160,7 +160,7 @@ func _shape_of(species: String) -> float:
 	var score := 0.0
 	if a != null and b != null:
 		var iou := maxf(ShadowMask.iou(a, 1.0, b, 1.0), ShadowMask.iou(a, 1.0, b, 1.0, true))
-		score = smoothstep(0.10, 0.65, iou)
+		score = smoothstep(0.30, 0.95, iou)
 	_shape_cache[species] = score
 	return score
 

@@ -42,6 +42,13 @@ defmodule Server.SecretReveal do
       (`FollowGuide` on the client), so the server only checks "this world, standing at it", like
       `stillness` and `tracks`. Honest about what that means: it can't tell a led arrival from a walked-in one.
 
+    * `shadow`: it appears once the player's companion, wearing the right animal (a bird), has been stood in
+      the great lantern's light so that its shadow fills the gap in the mural (Lanternfold's paper bird, behind
+      a door in the cliff). The standing, the shadow's geometry and the filling all happen on the player's own
+      screen (`ShadowCast` / `MuralGuide` on the client), so the server only checks "this world, standing at
+      it", like `stillness` and `tracks`. Honest about what that means: it can't tell a filled mural from a
+      walked-in one.
+
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
   of flare props this player has touched this visit).
@@ -57,6 +64,7 @@ defmodule Server.SecretReveal do
       %{"type" => type} when type in ["always", "stillness", "tracks", "listen", "echo"] -> true
       %{"type" => "dream"} -> true
       %{"type" => "follow"} -> true
+      %{"type" => "shadow"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end
