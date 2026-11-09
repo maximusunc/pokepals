@@ -298,6 +298,22 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/pixelart/lanternfold.py`; layout, lore and the secret: `tools/gen_lanternfold_world.py`. Every finer choice is
 > listed, open for review, in `docs/home-world-and-secrets-design.md` ("Lanternfold").
 
+> **Stillglass (2026-11):** **a mirror lake** (3400x2600): a perfectly flat silver lake, pale reeds, grey-green willows and
+> birches, and a sky that matches the water; reached through the Gateway (featured). The lake mirrors whatever stands on its
+> north bank (`ReflectionLayer`, from the spec's `atmosphere.reflections`: actors are flipped nodes running their own drawing
+> code, shore trees are baked flipped quads in view-culled chunks, all clipped to the water by one cheap shader,
+> `assets/reflect.gdshader`, sampling a small bitmap of the lake, `WaterMask`; no render target, no screen read), and its
+> reflections are slightly wrong: pale silver pines and a great oak in the water with nothing on the shore. **Secret:** a
+> stone that only exists in the reflection. Stand your companion at the water's edge and its reflection becomes a different
+> animal, turns and walks off along the shore; follow it on the bank, step for step (it waits for you), to where it stops
+> and the real stone surfaces. Your companion keeps beside it and its gaze follows it. If the companion or you wander off the
+> reflection goes back to mirroring, progress kept. New reveal type `reflection` (server checks "this world, standing at
+> it"). Pure `ReflectionWalker`, `MirrorGeometry`, `WaterMask` (`scripts/world`, tested) over `ReflectionDirector`
+> (`mechanics/`). The lake's real shoreline is walled with invisible posts (pond collision is off), so you stop at the water
+> you see. Art: `pokepals/tools/gen_stillglass.py` over `tools/pixelart/stillglass.py`; layout, lore and the secret:
+> `tools/gen_stillglass_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Stillglass").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

@@ -48,6 +48,12 @@ defmodule Server.SecretReveal do
       screen (`ShadowCast` / `MuralGuide` on the client), so the server only checks "this world, standing at
       it", like `stillness` and `tracks`. Honest about what that means: it can't tell a filled mural from a
       walked-in one.
+    * `reflection`: it appears once the player's companion has stood at the lake's edge and its reflection, a
+      different animal, has walked the shore to the place where the stone surfaces (Stillglass's mirror stone).
+      The settling, the turn, the walk and the waiting all happen on the player's own screen
+      (`ReflectionWalker` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `tracks`. Honest about what that means: it can't tell a followed reflection from a
+      walked-to bank.
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
@@ -65,6 +71,7 @@ defmodule Server.SecretReveal do
       %{"type" => "dream"} -> true
       %{"type" => "follow"} -> true
       %{"type" => "shadow"} -> true
+      %{"type" => "reflection"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end
