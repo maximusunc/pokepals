@@ -81,7 +81,7 @@ def _periodic(seed, waves=6, fmax=5):
     def f(x, y):
         s = 0.0
         for (kx, ky, p1, p2) in parts:
-            s += math.sin(math.tau * (kx * x + ky * y) / TILE + p1) * math.cos(math.tau * (ky * x - kx * y) / TILE * 0.5 + p2)
+            s += math.sin(math.tau * (kx * x + ky * y) / TILE + p1) * math.cos(math.tau * (ky * x - kx * y) / TILE + p2)
         return 0.5 + 0.5 * max(-1.0, min(1.0, s / (waves * 0.55)))
     return f
 
@@ -104,7 +104,7 @@ def turf_tile():
             v = swell(x, y)
             d = (BAYER[y % 4][x % 4] / 16.0 - 0.5) * 0.22
             v += d
-            grid[y][x] = 0 if v < 0.36 else (2 if v > 0.68 else 1)
+            grid[y][x] = 0 if v < 0.30 else (2 if v > 0.72 else 1)
     # blades: little 'v' strokes of the lighter and darker greens
     for _ in range(330):
         x, y = rng.randrange(TILE), rng.randrange(TILE)
@@ -135,7 +135,7 @@ def rock_tile():
         # strata: the band index depends mostly on y, wobbled by x
         for x in range(TILE):
             v = 0.5 + 0.5 * math.sin(math.tau * (y * 3 + 4.0 * math.sin(math.tau * x / TILE * 2)) / TILE)
-            v = 0.6 * v + 0.4 * bands(x * 0.3, y)
+            v = 0.6 * v + 0.4 * bands(x, y)
             v += (BAYER[y % 4][x % 4] / 16.0 - 0.5) * 0.18
             grid[y][x] = 0 if v < 0.34 else (2 if v > 0.66 else 1)
     for _ in range(26):   # cracks
@@ -157,37 +157,35 @@ def rock_tile():
 
 # ------------------------------------------------------------------ clouds
 def _cloud(w, h, seed, top, mid, bot, flat=0.55):
-    """One pixel cloud: a flat-ish bottom, lobed top, lit from above, with a dithered edge. RGBA."""
+    """One pixel cloud: round lobes of different sizes on a flat bottom, lit from above (each lobe shaded by its
+    own height), with a dithered edge. RGBA."""
     rng = random.Random(seed)
+    base_y = h * 0.86
     lobes = []
-    n = max(4, w // 22)
-    for i in range(n):
-        cx = w * (0.14 + 0.72 * i / max(1, n - 1)) + rng.uniform(-3, 3)
-        rx = rng.uniform(w * 0.12, w * 0.22)
-        ry = rng.uniform(h * 0.42, h * 0.7) * (1.0 - 0.3 * abs(i - (n - 1) / 2) / ((n - 1) / 2 + 0.01))
-        lobes.append((cx, h * 0.8 + rng.uniform(-2, 2), rx, ry))
+    x = w * 0.10
+    while x < w * 0.90:
+        r = rng.uniform(h * 0.32, h * 0.62)
+        # the taller lobes in the middle, small ones at the ends
+        mid_k = 1.0 - abs((x / w) - 0.5) * 1.1
+        r *= max(0.55, mid_k)
+        lobes.append((x, base_y - r * 0.55, r))
+        x += r * rng.uniform(0.9, 1.35)
     img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
     px = img.load()
-    base_y = h * 0.84
     for y in range(h):
         for x in range(w):
-            inside = 0.0
-            for (cx, cy, rx, ry) in lobes:
-                d = ((x - cx) / rx) ** 2 + ((y - cy) / ry) ** 2
-                if d <= 1.0 and y <= base_y:
-                    inside = max(inside, 1.0 - d)
-            if inside <= 0.0:
+            best = None
+            for (cx, cy, r) in lobes:
+                d = ((x - cx) ** 2 + (y - cy) ** 2) / (r * r)
+                if d <= 1.0 and y <= base_y and (best is None or (1.0 - d) > best[0]):
+                    best = (1.0 - d, cy, r)
+            if best is None:
                 continue
-            # dither the very edge
-            if inside < 0.16 and BAYER[y % 4][x % 4] / 16.0 > inside * 6.0:
+            inside, cy, r = best
+            if inside < 0.12 and BAYER[y % 4][x % 4] / 16.0 > inside * 8.0:
                 continue
-            t = y / base_y
-            if t < 0.38:
-                col = top
-            elif t < 0.72:
-                col = mid
-            else:
-                col = bot
+            t = (y - (cy - r)) / (2.0 * r)
+            col = top if t < 0.34 else (mid if t < 0.66 else bot)
             px[x, y] = (col[0], col[1], col[2], 255)
     return img
 
