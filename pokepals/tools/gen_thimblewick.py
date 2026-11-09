@@ -12,6 +12,7 @@ Writes, each with a .import sidecar (lossless, nearest-friendly, the same recipe
   assets/sprites/tw_picket_<style>_<N>.png             the fence's pickets (a missing one is a gap)
   assets/sprites/tw_understory_<name>.png              leaf rosettes and a toadstool
   assets/sprites/tw_tea.png                            the teacup pond's seamless tile
+  assets/sprites/tw_teacup.png                         the cup-and-saucer ring drawn round it (centred on the pond)
   assets/sprites/prop_<name>_base.png                  props, the props.py convention
 
 Its own terrain/detail atlas and names (prefix tw_ / unique prop names) mean it edits no shared art. The
@@ -69,6 +70,7 @@ def export_all():
     for name, fn in art.UNDERSTORY.items():
         _save(fn(), "assets/sprites/tw_understory_%s.png" % name)
     _save(art.tea_tile(), "assets/sprites/tw_tea.png")
+    _save(art.teacup_image(), "assets/sprites/tw_teacup.png")
     for name in art.PROP_BUILDERS:
         base, tint = art.make_prop(name)
         _save(base, "assets/sprites/prop_%s_base.png" % name)

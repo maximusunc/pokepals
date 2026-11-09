@@ -858,8 +858,15 @@ PROP_BUILDERS = {
     "bottle_cap": ((40, 22), _p_bottle_cap),
     "seed_packet": ((34, 44), _p_seed_packet),
     "flagstone": ((54, 30), _p_flagstone),
-    "teacup": ((344, 344), _p_teacup),
 }
+
+
+def teacup_image():
+    """The teacup-and-saucer RING (see _p_teacup), a plain image the world draws centred on the pond (it is not a
+    sprite prop: props anchor at their feet, and this one has to centre on its position)."""
+    c = Canvas(344, 344)
+    _p_teacup(c)
+    return c.img
 
 
 def make_prop(name):
@@ -867,8 +874,7 @@ def make_prop(name):
     (w, h), fn = PROP_BUILDERS[name]
     c = Canvas(w, h)
     fn(c)
-    if name != "teacup":
-        c.outline()
+    c.outline()
     return c.img, (c.tint if c.has_tint else None)
 
 
@@ -899,8 +905,8 @@ def preview(path, scale=2):
     for fn in UNDERSTORY.values():
         items.append(fn())
     for name in PROP_BUILDERS:
-        if name != "teacup":
-            items.append(make_prop(name)[0])
+        items.append(make_prop(name)[0])
+    items.append(teacup_image().resize((172, 172), Image.NEAREST))
     atlas, _ = detail_atlas()
     items.append(atlas)
     items.append(tea_tile())

@@ -56,7 +56,10 @@ defmodule Server.Seeds do
       tags: ["paper", "shadow", "lantern", "amber", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.76, 0.34], featured: true},
     %{world_id: "ffffffff-ffff-ffff-ffff-ffffffffffff", slug: "stillglass", name: "Stillglass", file: "stillglass.json",
       blurb: "A mirror lake, so flat and silver the sky and the water are one. The reflections are slightly wrong. Stand your companion at the edge, and watch what it sees.",
-      tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true}
+      tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true},
+    %{world_id: "13131313-1313-1313-1313-131313131313", slug: "thimblewick", name: "Thimblewick", file: "thimblewick.json",
+      blurb: "A tiny cottage garden, and you are the size of a beetle. Clover for umbrellas, a teacup for a pond, a fence like a castle wall, and a gap in it too small for you.",
+      tags: ["garden", "tiny", "giant", "flowers", "rabbit", "explore", "cozy", "secret"], accent: [0.92, 0.84, 0.46], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

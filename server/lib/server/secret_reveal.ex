@@ -54,6 +54,13 @@ defmodule Server.SecretReveal do
       (`ReflectionWalker` on the client), so the server only checks "this world, standing at it", like
       `stillness` and `tracks`. Honest about what that means: it can't tell a followed reflection from a
       walked-to bank.
+    * `fetch`: it appears once the player's companion, in a shape small enough to fit (a rabbit), has been
+      sent through the right gap in the garden fence and has come back carrying it, with a bond deep enough to
+      have found it (Thimblewick's silver thimble). The asking ("Go look"), the squeeze, the time away and the
+      carrying all happen on the player's own screen (`FetchTrip` on the client), and the thimble is set down
+      at the player's feet wherever they stand, so the server only checks "this world" (the secret's `radius`
+      covers the whole world), like `stillness` and `tracks`. Honest about what that means: it can't tell a
+      fetched thimble from one that never needed fetching (but the only way to see it is to have it fetched).
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
@@ -72,6 +79,7 @@ defmodule Server.SecretReveal do
       %{"type" => "follow"} -> true
       %{"type" => "shadow"} -> true
       %{"type" => "reflection"} -> true
+      %{"type" => "fetch"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end
