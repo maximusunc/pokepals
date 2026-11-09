@@ -56,7 +56,10 @@ defmodule Server.Seeds do
       tags: ["paper", "shadow", "lantern", "amber", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.76, 0.34], featured: true},
     %{world_id: "ffffffff-ffff-ffff-ffff-ffffffffffff", slug: "stillglass", name: "Stillglass", file: "stillglass.json",
       blurb: "A mirror lake, so flat and silver the sky and the water are one. The reflections are slightly wrong. Stand your companion at the edge, and watch what it sees.",
-      tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true}
+      tags: ["lake", "mirror", "silver", "quiet", "explore", "cozy", "secret"], accent: [0.78, 0.88, 0.96], featured: true},
+    %{world_id: "12121212-1212-1212-1212-121212121212", slug: "loftreach", name: "Loftreach", file: "loftreach.json",
+      blurb: "Grassy islands floating in open sky, joined by rope bridges, with windmills, kites and clouds drifting below. One islet has no way to it, but a bird can see where it is.",
+      tags: ["sky", "islands", "windmills", "kites", "bright", "bird", "explore", "cozy", "secret"], accent: [0.62, 0.84, 1.0], featured: true}
   ]
 
   # The currency the bazaar shop charges in.
