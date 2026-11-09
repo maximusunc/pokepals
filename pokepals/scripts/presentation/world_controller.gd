@@ -273,7 +273,7 @@ func _build_world(cached: Dictionary) -> void:
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
 	_player.set_solids(solids, bounds_rect, body_radius, margin)
-	_companion.set_solids(solids, bounds_rect, body_radius, margin)
+	_companion.set_solids(solids, bounds_rect, body_radius, margin, SkyRealm.ground_test(data.get("sky", {})))
 	# The first-meeting flock (if it comes up this session) walks against the same barriers, and
 	# injects its creatures into the live examine list.
 	_encounter_dir.set_world(_interactables, solids, bounds_rect, body_radius, margin)
@@ -607,7 +607,22 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 			it["solid"] = false
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(data_copy.get("sky", {})))
+
+
+## Loftreach: a hidden bridge is down. Rebuild the barriers and the companion's walkability grid with it open
+## (SkyRealm), so it can be walked, and remember it for the rest of the visit.
+func reveal_sky_bridge(bridge_id: String) -> void:
+	var sky: Dictionary = _world_data.get("sky", {})
+	if sky.is_empty():
+		return
+	var revealed: Array = sky.get("revealed", [])
+	if not revealed.has(bridge_id):
+		revealed.append(bridge_id)
+	sky["revealed"] = revealed
+	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
+	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(sky))
 
 
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
@@ -953,6 +968,8 @@ func _process(delta: float) -> void:
 		{ "id": "seek", "label": "Go look", "enabled": _ruin.has_unopened_ward() or _secret_dir.can_go_look() },
 		# Hollowsong: ask for a howl (offered in every shape so it is discoverable; only a wolf can)
 		{ "id": "howl", "label": "Howl", "enabled": _secret_dir.howl_available() },
+		# Loftreach: send the bird up (offered in every shape so it is discoverable; only a bird can)
+		{ "id": "up", "label": "Go up", "enabled": _secret_dir.sky_available() },
 	]
 	for sp in _companion.available_form_species():
 		radial_actions.append({ "id": "form:" + String(sp), "label": String(sp).capitalize(), "enabled": true })
@@ -1037,6 +1054,7 @@ func _on_radial_action(id: String) -> void:
 			else:
 				_ruin.try_seek()
 		"howl": _secret_dir.try_howl()
+		"up": _secret_dir.try_go_up()
 
 
 ## Map a gear-menu tap to the SAME handler its old button used.
@@ -1332,6 +1350,9 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	# No orders while the first-meeting search runs — there's no companion at your side to order
 	# yet. (Walking and Examine carry the whole search.)
 	if _encounter_dir.is_searching():
+		return
+	# Loftreach: a tap while your companion's eyes are up in the sky brings it home (and does nothing else)
+	if _secret_dir.on_world_tap():
 		return
 	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
 	# A tap on another player opens their card (Befriend, Invite home, …) instead of ordering the companion.
