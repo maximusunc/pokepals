@@ -283,6 +283,21 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_underroot_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Underroot").
 
+> **Lanternfold (2026-11):** a **shadow-puppet world** (3200x2400): flat paper-cut silhouettes (trees in three depths,
+> pale far to near-black) on warm paper under an amber sky, all lit by **one great lantern** at the north end, in front
+> of a pale cliff-face **screen**. Reached through the Gateway (featured). Everything standing in the lantern's light
+> throws a real projected shadow on the screen (pure `ShadowCast`: scale `D/d`, slides with the thing, feet on the face's
+> foot): you, your companion, and every friend's pair. **Secret:** a mural of a flock of birds with one missing, in flight.
+> You choose your companion's FORM and **tap the lit ground** to stand it there; its shadow is its current form's sprite
+> (`ShadowPuppet`, the silhouette shader), so a wolf's is too big and a rabbit's the wrong shape, and only a bird's, held in
+> the air and from the right spot, fills the gap (pure `ShadowMask` + `MuralGuide`: place x shape, held still, a bird
+> settles onto the spot). The gap glows as a shadow nears it; then a door in the cliff opens on a paper bird. New reveal
+> type `shadow` (server: "this world, standing at it"). `ShadowDirector` (`mechanics/`) places the companion (a Call ends
+> it, a Pet is enjoyed, form drift held off), points at the gap by bond, and lifts the camera toward the mural;
+> `ShadowScreenView` is a `BuildingView` (`"view": "shadow_screen"`). Art: `pokepals/tools/gen_lanternfold.py` over
+> `tools/pixelart/lanternfold.py`; layout, lore and the secret: `tools/gen_lanternfold_world.py`. Every finer choice is
+> listed, open for review, in `docs/home-world-and-secrets-design.md` ("Lanternfold").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

@@ -50,7 +50,10 @@ defmodule Server.Seeds do
       tags: ["canyon", "echo", "sunset", "wolf", "explore", "cozy", "secret"], accent: [1.0, 0.70, 0.44], featured: true},
     %{world_id: "cccccccc-cccc-cccc-cccc-cccccccccccc", slug: "underroot", name: "Underroot", file: "underroot.json",
       blurb: "Caves beneath the great tree: root tunnels, glow-moss and slow dripping water, so dark you see only a small circle of light. Let your companion go first, and follow.",
-      tags: ["caves", "dark", "roots", "glow", "quiet", "explore", "cozy", "secret"], accent: [0.50, 0.95, 0.72], featured: true}
+      tags: ["caves", "dark", "roots", "glow", "quiet", "explore", "cozy", "secret"], accent: [0.50, 0.95, 0.72], featured: true},
+    %{world_id: "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee", slug: "lanternfold", name: "Lanternfold", file: "lanternfold.json",
+      blurb: "A shadow-puppet world cut from paper, all lit by one great lantern. Everything casts a shadow on the cliff, and the mural there is missing a bird.",
+      tags: ["paper", "shadow", "lantern", "amber", "quiet", "explore", "cozy", "secret"], accent: [1.0, 0.76, 0.34], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

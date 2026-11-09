@@ -931,3 +931,11 @@ func _draw_emotes() -> void:
 		var rise := -18.0 - p * 16.0
 		var pop := 0.7 + 0.5 * clampf(p / 0.25, 0.0, 1.0)
 		EmoteGlyphs.draw(self, String(e["kind"]), Vector2(0.0, rise), alpha, pop)
+
+
+## The sheet the companion is drawing its animal from right now, read-only: { tex, sheet } (the PalSprite layout),
+## or {} when no form is worn. For things that draw the SAME animal elsewhere: Lanternfold's shadow on the screen.
+func form_sheet_info() -> Dictionary:
+	if _form_tex == null:
+		return {}
+	return { "tex": _form_tex, "sheet": _form_sheet }

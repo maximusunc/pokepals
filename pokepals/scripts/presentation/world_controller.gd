@@ -1323,6 +1323,7 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:
+		_secret_dir.on_ground_tap(world)   # Lanternfold: empty lit ground stands your companion in the shadows
 		return
 	var entry: Dictionary = _interactables[index]
 	_world_art.pulse_interactable(int(entry["render_index"]))

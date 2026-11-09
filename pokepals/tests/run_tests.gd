@@ -22,6 +22,7 @@ func _init() -> void:
 	failures += TestListenGuide.run_all()
 	failures += TestEcho.run_all()
 	failures += TestFollowGuide.run_all()
+	failures += TestShadowMural.run_all()
 	failures += TestCompanionSelf.run_all()
 	failures += TestCompanionAttention.run_all()
 	failures += TestWorldAreas.run_all()

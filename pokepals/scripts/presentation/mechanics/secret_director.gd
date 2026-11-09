@@ -42,6 +42,10 @@ extends Node
 ##   * `follow`: nothing shows until you and your companion have both arrived at the place; the dark makes
 ##     it hard to steer there yourself, so you ask your companion to "Go look" and FOLLOW its light
 ##     (FollowDirector over the pure FollowGuide); the prop (Underroot's root-heart) rises on arrival.
+##   * `shadow`: nothing shows until the mural's gap is filled: you choose your companion's form and stand it in
+##     the great lantern's light, so its SHADOW falls on the cliff-face screen (ShadowDirector over the pure
+##     ShadowCast / MuralGuide); only a bird's, from the right place, fits the gap, and then a door in the cliff
+##     opens on the prop (Lanternfold's paper bird). Once found, the shadows stay a quiet toy.
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -66,6 +70,8 @@ var _listen: ListenDirector
 var _howl: HowlDirector
 var _cliffs: Array = []        # the world's building views (a cliff holds the cave)
 var _follow: FollowDirector
+var _shadow: ShadowDirector
+var _screens: Array = []        # the world's shadow-screen views (Lanternfold)
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -109,6 +115,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_follow):
 		_follow.queue_free()
 	_follow = null
+	if is_instance_valid(_shadow):
+		_shadow.queue_free()
+	_shadow = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
@@ -119,6 +128,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "echo" \
 			and Net.has_discovery(String(secret["id"])):
 		_start_howl(secret, true)   # found already: the cave stays open and the howling stays, the stone doesn't
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "shadow" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_shadow(secret, true)   # found already: the door stays open and the shadows stay a toy, the prop doesn't come
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -167,8 +179,35 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_follow.setup(_host, _companion, _world_art, _player)
 			_follow.configure(secret)
 			_follow.heart_reached.connect(_on_heart_reached)
+		"shadow":
+			# Nothing to see yet: the gap in the mural has to be filled by the right shadow.
+			_start_shadow(secret, false)
 		_:
 			combined.append(_secret_prop())
+
+
+func _start_shadow(secret: Dictionary, found: bool) -> void:
+	_shadow = ShadowDirector.new()
+	_shadow.name = "ShadowDirector"
+	add_child(_shadow)
+	_shadow.setup(_host, _companion, _world_art, _player)
+	_shadow.configure(secret, found)
+	_shadow.mural_done.connect(_on_mural_done)
+	for s in _screens:
+		if is_instance_valid(s):
+			_shadow.bind_screen(s)
+
+
+## The gap is filled: the door in the cliff opens, and the paper bird is there on its threshold.
+func _on_mural_done() -> void:
+	if _reveal_type() == "shadow" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## A tap on EMPTY ground (the world controller found nothing to examine or command there): in a shadow world,
+## a tap on the lit stage stands your companion there. Returns whether it did.
+func on_ground_tap(world: Vector2) -> bool:
+	return _shadow != null and _shadow.on_ground_tap(world)
 
 
 func _start_howl(secret: Dictionary, found: bool) -> void:
@@ -185,6 +224,10 @@ func _start_howl(secret: Dictionary, found: bool) -> void:
 
 ## Scenery has stood the world's buildings up: hand the one with the cave in it to the howling.
 func bind_buildings(views: Array) -> void:
+	_screens = views.filter(func(v: Variant) -> bool: return v is ShadowScreenView)
+	if _shadow != null:
+		for s in _screens:
+			_shadow.bind_screen(s)
 	_cliffs = views.filter(func(v: Variant) -> bool: return v is CliffView)
 	if _howl != null:
 		for c in _cliffs:
@@ -245,6 +288,8 @@ func update(delta: float) -> void:
 		_howl.update(delta)
 	if _follow != null:
 		_follow.update(delta)
+	if _shadow != null:
+		_shadow.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -431,6 +476,10 @@ func _on_secret_refused(_secret_id: String) -> void:
 ## A join's discovery list arrived after we laid the world out (a cold build, or a find made on
 ## another device): if it says we already have this one, quietly take it away.
 func _on_discoveries(ids: Array) -> void:
+	if not _secret.is_empty() and _reveal_type() == "shadow" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the door is open and the shadows stay, the prop doesn't come
+		if _shadow != null:
+			_shadow.set_found()
 	if not _secret.is_empty() and _reveal_type() == "echo" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the howling stays, the stone doesn't come
 	if not _secret.is_empty() and _reveal_type() == "dream" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
@@ -443,6 +492,8 @@ func _on_discoveries(ids: Array) -> void:
 
 
 func _take() -> void:
+	if _shadow != null:
+		_shadow.finish()
 	if _listen != null:
 		_listen.finish()
 	if _follow != null:

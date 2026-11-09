@@ -2150,6 +2150,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 5), 8.0, Color(0.52, 0.34, 0.24), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 8.0, 0.1, PI - 0.1, 12, Color(0.34, 0.22, 0.16), 1.0, true)
 			_draw_root_heart(p + Vector2(0, 3), color, 0.7, false)
+		"paper_bird":
+			# Lanternfold's secret: the bird the mural was missing, a cut-paper puppet on a stick, glowing warm
+			# where the lantern's light has soaked into it.
+			_draw_paper_bird(p + Vector2(0, 1), color, 1.0, true)
+		"kept_paper_bird":
+			# its keepsake at home: the same puppet, its stick standing in a little dish of sand
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.20, 0.10, 0.06, 0.20), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.78, 0.56, 0.34), true, -1.0, true)
+			draw_arc(p + Vector2(0, 5), 8.0, 0.1, PI - 0.1, 12, Color(0.52, 0.34, 0.20), 1.0, true)
+			_draw_paper_bird(p + Vector2(0, 3), color, 0.78, false)
 		"hedge_seed":
 			# a curled seed nestled in a small cushion of moss, with the faint green warmth of
 			# something alive inside: the hedge maze's secret, resting at its heart
@@ -3015,4 +3025,30 @@ func _draw_root_heart(c: Vector2, tint: Color, k: float, motes: bool) -> void:
 		for m in 4:
 			var t := fposmod(_time * 0.22 + float(m) * 0.25, 1.0)
 			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 6.0, -12.0 * k - t * 34.0)
+			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))
+
+
+## The paper bird: a cut-out bird in flight, wings up, dark umber with a warm rim, on a thin stick, a soft amber
+## light breathing out of it (`breathe`) and, for the secret itself, a few motes rising. `k` scales it.
+func _draw_paper_bird(c: Vector2, tint: Color, k: float, motes: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.6 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -14.0 * k), 30.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.26 + 0.12 * breathe), 1.0)
+	var ink := Color(0.20, 0.09, 0.07)
+	draw_line(c + Vector2(0, 3.0 * k), c + Vector2(0, -11.0 * k), Color(0.34, 0.20, 0.12), 1.4 * k, true)
+	var body := c + Vector2(0, -14.0 * k)
+	var wing_l := PackedVector2Array([body + Vector2(-1, -1) * k, body + Vector2(-5, -9) * k, body + Vector2(-11, -12) * k, body + Vector2(-9, -5) * k, body + Vector2(-4, 1) * k])
+	var wing_r := PackedVector2Array([body + Vector2(1, -1) * k, body + Vector2(5, -9) * k, body + Vector2(11, -12) * k, body + Vector2(9, -5) * k, body + Vector2(4, 1) * k])
+	var tail := PackedVector2Array([body + Vector2(-2, 2) * k, body + Vector2(0, 8) * k, body + Vector2(2, 2) * k])
+	for poly in [wing_l, wing_r, tail]:
+		draw_colored_polygon(poly, ink)
+		draw_polyline(PackedVector2Array(poly) + PackedVector2Array([poly[0]]), tint.darkened(0.1), 1.0, true)
+	draw_circle(body, 4.4 * k, ink, true, -1.0, true)
+	draw_arc(body, 4.4 * k, PI * 1.05, PI * 1.9, 8, tint, 1.0, true)
+	draw_circle(body + Vector2(3.5, -3.2) * k, 2.4 * k, ink, true, -1.0, true)
+	draw_colored_polygon(PackedVector2Array([body + Vector2(5.4, -3.6) * k, body + Vector2(9.0, -2.6) * k, body + Vector2(5.4, -1.8) * k]), tint)
+	draw_circle(body + Vector2(3.8, -3.8) * k, 0.8 * k, Color(1.0, 0.96, 0.74))
+	if motes:
+		for m in 4:
+			var t := fposmod(_time * 0.24 + float(m) * 0.25, 1.0)
+			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 7.0, -18.0 * k - t * 30.0)
 			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))
