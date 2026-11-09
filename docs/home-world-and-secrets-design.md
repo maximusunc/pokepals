@@ -1171,6 +1171,129 @@ walking reflection and its ripples, the rings and the rising stone. Elixir: the 
 `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
 session, and the feel (that is the playtest).
 
+## Thimblewick — built 2026-11, every choice below OPEN for the owner's review
+
+Thimblewick follows the Drifthallow template: **a tiny cottage garden at beetle size**. A clover leaf is an umbrella, a
+teacup is a pond, the garden fence is a castle wall, a dropped button is a landmark. It hides **a lost silver thimble behind
+a gap in the fence much too small for you**, which only your companion can reach: in **rabbit form** it squeezes through,
+is gone a few seconds and comes back carrying a find, and **what it finds depends on the bond** (a pebble, then a button,
+then the thimble). The pitch was agreed (the garden, the gap, rabbit form, bond-tiered finds, a pebble as a sweet ordinary
+find with a gentle hint, a new reveal type, a hidden companion that does not break presence, a keepsake). **Everything finer
+was decided by the builder and is listed here for review.** Nothing below changes the pitch; if any of it is wrong, say so
+and it is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/thimblewick.json` (and the test fixture) from `tools/gen_thimblewick_world.py`; art
+from `pokepals/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; catalog id
+`13131313-1313-1313-1313-131313131313`, slug `thimblewick`, listed and featured, with the standard small portal home beside the
+arrival spot.
+
+**The secret: reveal type `fetch`.** Spec shape (`secret.reveal`): `species` (the shapes that fit: `["rabbit"]`), `gaps`
+(each `{ id, mouth, inside, cache, finds: [{ item, min_bond }] }`), `items` (each find's drawing type, colour, label, lore and
+the line when it is set down), every number below, and `lines`. Flow: tap your companion, **Go look**; it trots to the nearest
+gap to YOU, squeezes through, is gone, and slips back out carrying the best find that gap holds for the current bond, and
+sets it down at your feet. Examining the dropped thimble claims the secret as usual. Code: pure `FetchTrip`
+(`scripts/world`, tested) over `FetchDirector` (`scripts/presentation/mechanics`), `FetchFx` (the rustle and the carried
+item), `FindDraw` (the finds, drawn procedurally so the ground, the carry and the keepsake share one drawing),
+`CompanionView.warm_bond`, and `SecretDirector` (the `fetch` arm, `can_go_look` / `go_look`).
+
+**Judgment calls (all open):**
+1. **The fence and its gaps.** The fence is a row of **pickets, one "tree" kind each, 12 px apart** along y = -700, wall to
+   wall, so it y-sorts (you walk behind it) and collides with no new code (tree radius 7, so the wall is continuous). A gap
+   is **one missing picket**: 24 px between neighbours' centres is 10 px clear, narrower than any body (it needs 16). A
+   smoke check walks a body at every gap and at the pickets beside it, and a control proves the check can tell (two missing
+   pickets let a body through). The lane behind the fence ("Far Side", 3200 x 500) is sealed by the fence, so only the
+   companion ever goes there; its long grass and a few things lying about are set-dressing. 262 pickets, 5 gaps.
+2. **How it goes through.** No new movement. The Drifthallow `guide` order takes it to the gap's **mouth** (the open side),
+   routed by the NavAgent; there the director takes over the body: it **shrinks** (1 to 0.22 over 0.8 s) while moving to the
+   `inside` point just behind the pickets (so it slides out of sight behind the neighbouring ones, as the y-sort puts it
+   behind the fence), is **hidden** and its mind **paused** (the first meeting's `visible = false` + `set_process(false)`),
+   and its position walks inside, cache, inside again, unseen. Then it grows back at the mouth and the brain resumes.
+3. **What friends see.** Nothing new on the wire: the companion's position is relayed as always, so a friend sees the puppet
+   trot to the gap, then **scamper about behind the fence at full size** (the hidden flag and the shrink are local), then
+   come back out. It does not show the carried item or the rustle. If that reads wrong, the fix is a `hidden` bit in the
+   state packet, not a change here.
+4. **Sending it: "Go look" only** (delegated). It is on the radial in every form once the companion is yours (so it is
+   discoverable); asking while it is away says so. The gap is the nearest to the **player** within 480 px (you point, it
+   goes), not the nearest to the companion. A shape that does not fit trots up, nudges at the gap, gives up with a line
+   ("a rabbit's shape, perhaps") and loses nothing. **Tapping the gap is not built:** the worn earth at each mouth is
+   examinable lore only (a form-affordance verb for a rabbit would add it; left out as not cheap).
+5. **What it brings.** Every gap has `finds` ordered by `min_bond`; the trip brings the best one whose `min_bond` the bond has
+   reached **as it squeezes through**. Four gaps hold ordinary small things (the Roots: pebble, acorn cup at 0.45; the Hollow:
+   pebble, feather at 0.40; the Stoop: pebble, glass bead at 0.40; the Corner: pebble, feather at 0.35, acorn cup at 0.65). The
+   **thimble gap** (the fourth, at x = 640) is marked by a **trail of red cotton** from its mouth and the reel it came off:
+   **a pebble, then a button at 0.40, then the thimble at 0.65**. The other four never hold the thimble. An ordinary find is a
+   plain examinable prop with its own line; at most three lie about (the oldest is taken away).
+6. **The gentle hint.** When a deeper find exists at that gap, the drop line adds "there is something more back there... once
+   you know each other better": the first time, then every third trip (so it explains the pebble without nagging).
+7. **Bond, measured.** Bond is on the dev `time_scale` (145) in `data/companion.json`. In the real loop (headless,
+   `--fixed-fps 60`, the world un-paused each frame, the companion met at 0.12, the player walking at 118 px/s from the arrival
+   spot to the thimble gap, then asking again after each drop): walking there (about 20 s) took bond from 0.12 to about 0.22
+   (0.13 to 0.24 in other runs); the first trip then carried it to about 0.47 to 0.57 (the companion crosses new regions on
+   the way, and a first visit to a region is worth about +0.09); each later trip added about +0.05 to +0.10 (the trip's own
+   warmth plus the ordinary near-trickle). While walking a lap, bond reached 0.44 after 40 s and 0.73 after three minutes.
+   Standing at the gap and just re-asking, the thimble came on **trip 4 (thresholds 0.35 / 0.65), trip 5 and trip 7 (0.40 /
+   0.70)** in about 80 to 150 s from arriving; the final **0.40 / 0.65** should sit at the quick end of that. A newcomer who
+   sends it right after the meeting (bond 0.12 to 0.35) gets a pebble first; a companion already bonded 0.65 or more brings
+   the thimble on the first trip. A player who also walks about between trips warms much faster (every new region). **Caveat:**
+   these thresholds are tuned to `time_scale` 145. At the real rate (`1.0`, about ten hours to a close bond) the trips' own
+   warmth is the only fast source (call 8), so the thimble would take far longer; the thresholds are data, to be retuned with
+   the scale.
+8. **Each trip warms the bond.** `warm` 0.06 (bond units, not time-scaled) the first trip to a gap, times 0.8 for every
+   earlier trip there, never under 0.008, so it cannot be farmed.
+9. **Timing.** Go at 100 px/s (128 beyond 240 px from the gap); a patience of 10 s plus 1.6 times the travel time (a fresh
+   companion keeps a wide berth and can start 1400 px away; a first version with a flat patience gave up 35 px short, found
+   by the real-loop run); squeeze 0.8 s; **away 9 s at zero bond, 5 s at full**; emerge 0.6 s; bring at 128 px/s, set down
+   within 30 px of you. A whole trip is about 10 s from the gap (22 s for the first, which starts far off).
+10. **Natural actions never lose it.** A **Call** while it is on its way calls it off ("it turns back"); a Call while it is
+    away brings it back **early** (at most 1.1 s later), with its find; a Call while it carries hands it to the brain, which
+    brings it faster. A **Pet** is enjoyed (3 s) and the trip carries on. **Walking off** is fine: it finds you wherever you
+    went; if it cannot reach you in 45 s it sets the find down where it stands and waits (never lost). Its form's drift is held
+    off while it works (the Drifthallow rule); an instructed change to another shape before it squeezes simply makes the gap
+    too small. The director hands the body back in `_exit_tree`.
+11. **Noticing (lesson from Drifthallow and Underroot).** As you come near any gap the companion stops and points toward it
+    for 2.4 s: from 240 px away and every 18 s when fresh, from 560 px and every 7 s when bonded. It does not say which gap
+    holds the thimble (the red cotton does).
+12. **Readable states.** A first-time hint for every phase (set off, gone, carrying), plus the cues that need an action (too
+    big, lost the way, called off, set down) every time. While it is away a **rustle** shivers the long grass wherever the
+    hidden companion is behind the fence (`FetchFx`, y-sorted so the pickets hide part of it), with a small burst when it has
+    found something (half way) and one line about **missing it** near the end ("the garden is very big, and very quiet,
+    without it"): the separation, short and warm. The carried find rides over its head, bobbing, at 62% size. The **camera
+    looks up to 120 px north** while it is behind the fence, so the rustle (above the picket tops) and the slip back out are
+    in view when you stand within a couple of hundred px.
+13. **The drop.** Ordinary finds are set down beside you. The **thimble** is handed to the `SecretDirector`, which makes it
+    the secret's prop at your feet (its line, the usual claim on examine); a second trip before you claim it moves it to your
+    feet again. Once claimed, the thimble is an ordinary find ("a silver thimble") you can still fetch, and the fetching stays
+    a quiet toy.
+14. **Server check stays minimal and honest** (like `stillness`): `fetch` is "this world". Because the thimble is set down
+    wherever you stand, the secret's `radius` is 4000 (the whole world), so the usual "standing at it" test cannot fail. It
+    cannot tell a fetched thimble from a walked-to one; but the only way to see the thimble is to have it fetched.
+15. **Layout.** 3200 x 2400, eight regions (Far Side behind the fence; Clover Commons, Dew Run, Hose Works in the north;
+    Teacup Green in the middle; Button Meadow, the Doorstep where you arrive, Peg Corner in the south). About 800 tree-kind
+    scenery nodes (262 are pickets), 88 hand-placed and scattered props, four great sunflowers as landmarks, a gravel path from
+    the doorstep north past the cup. The generator keeps 70 px clear round every mouth, keeps the lane behind the fence clear
+    between each gap's inside and its cache, and asserts every gap is exactly one missing picket in an unbroken run that
+    reaches both walls.
+16. **Scale.** Everything reads giant by size: stalks 100 to 130 px tall (you are about 30), clover umbrellas, sunflowers 230 px,
+    a hose, a watering can, a tipped pot, a trampoline-sized button, dew drops, a snail shell as a boulder. The **teacup** is a
+    pond (tea-coloured water) with a 344 px cup-and-saucer ring drawn round it. Props anchor at their feet and cull by that
+    point, so a centred ring needed its own small `WorldArt` arm (`teacup`, loads `tw_teacup.png` centred on the pond).
+17. **Look.** A warm late afternoon (honey tint, a slow golden loop), saturated greens, own terrain and litter atlas
+    (`tw_terrain`, `tw_details`), butterflies, falling petals and pollen. Visitors are not re-lit.
+18. **Keepsake and qualities.** `kept_thimble`: the thimble standing on a spool of red cotton, drawn by `WorldArt` through
+    `FindDraw`. Qualities `crafted`, `warm`, `old`; temperament curious, fairly energetic, a little clingy.
+19. **Lore and lines** (the gaps, the cotton, the finds, the hints) are the builder's wording. **Not built:** native creatures
+    (a ladybird, a bumblebee), tapping a gap, a hidden-companion flag for friends.
+
+**Verified:** Godot unit suite (new `TestFetchTrip`: the tiers, the taper, every phase and each natural action, a far-off
+companion, the notice scaling) and every smoke except `smoke_clickton` (its one known baseline failure); the new
+`smoke_thimblewick` checks the re-skin, that **no body gets through any gap** (with a control), the hidden thimble, "Go look",
+a pebble for a new companion, the thimble at the player's feet for a bonded one, and a wolf that cannot fit. Scratch runs
+through the REAL loop (the tree un-paused each frame, the companion met, rabbit chosen and Go look triggered through the radial
+handler, a Call mid-trip): the numbers in call 7. Screenshots under Xvfb (opengl3) of the arrival, the teacup, the fence with
+the red cotton and the gap, and the companion going through and coming back carrying a find were checked by eye. Elixir: the
+standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate (about
+800 scenery nodes, view-culled), the world-pack build, a real two-player session, and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

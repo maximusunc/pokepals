@@ -314,6 +314,24 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_stillglass_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Stillglass").
 
+> **Thimblewick (2026-11):** **a tiny cottage garden** (3200x2400) seen at beetle size: clover leaves for umbrellas, a teacup
+> for a pond (a gold-rimmed china ring round tea water), flower stalks standing like trees (daisy, poppy, cosmos, dandelion
+> clock, foxglove, bluebell; sunflowers as landmarks), giant props (a coiled hose, a watering can, a dropped button, a tipped
+> pot), a warm late afternoon with butterflies and falling petals; reached through the Gateway (featured). A long
+> whitewashed **picket fence** crosses the garden (one tree-kind picket every 12 px, so you walk behind it), and its **gaps are
+> missing pickets**: 10 px between neighbours, narrower than any body. **Secret:** a lost silver thimble behind one of them.
+> Tap your companion, choose **Go look**, and in **rabbit form** it trots to the nearest gap, squeezes through, is gone a few
+> seconds (a rustle in the grass behind the fence, its body hidden and its mind paused, a friend sees it scamper behind the
+> fence), and comes back carrying a find, which it sets at your feet. What it brings depends on the gap and the **bond** (each
+> gap has finds ordered by `min_bond`: a pebble, then a button, then the thimble at the one marked by a trail of red cotton),
+> and each trip warms the bond a little (tapering), so a fresh pair reaches the thimble in one visit. Any other shape finds the
+> gap too small and says so; a Call ends the trip or brings it back early; a Pet is enjoyed and the trip carries on. New reveal
+> type `fetch` (server: "this world", the secret's radius covers it, since the thimble is set down wherever you stand). Pure
+> `FetchTrip` (`scripts/world`, tested) over `FetchDirector` (`mechanics/`), `FetchFx`, `FindDraw`, and
+> `CompanionView.warm_bond`. Art: `pokepals/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; layout, lore and the
+> secret: `tools/gen_thimblewick_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Thimblewick").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel
