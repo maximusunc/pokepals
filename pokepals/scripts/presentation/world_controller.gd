@@ -323,6 +323,8 @@ func _build_world(cached: Dictionary) -> void:
 
 	# STEAMHOLLOW: steam rising off the hot springs, and the drifting mist that limits how far you can see.
 	_setup_mist(data)
+	# STILLGLASS: the mirror lake draws everything near its north bank again, upside down, in the water.
+	_setup_reflections(data)
 
 	# Glow-plants someone ELSE touched blaze up here too (the server relays each flare to the world).
 	Net.prop_flared.connect(_on_prop_flared)
@@ -826,6 +828,22 @@ func _setup_mist(data: Dictionary) -> void:
 		add_child(veil)
 		move_child(veil, get_node("Vignette").get_index())
 		veil.setup(atmo["fog"], data, _player, _walkers, Callable(_secret_dir, "mist_pockets"))
+
+
+## Stillglass's mirror: the reflection layer (above the water, under every character and tree), only for a world
+## whose atmosphere has a `reflections` block. Purely presentation; any other world is untouched.
+func _setup_reflections(data: Dictionary) -> void:
+	var old := _world_art.get_node_or_null("ReflectionLayer")
+	if old != null:
+		old.queue_free()
+	var cfg: Dictionary = data.get("atmosphere", {}).get("reflections", {})
+	if cfg.is_empty():
+		return
+	var layer := ReflectionLayer.new()
+	layer.name = "ReflectionLayer"
+	_world_art.add_child(layer)
+	if not layer.setup(cfg, _world_art, _scenery, Callable(self, "_walkers")):
+		layer.queue_free()
 
 
 ## Show a hint at full opacity, cancelling the opening fade if it's still running, so

@@ -42,6 +42,10 @@ extends Node
 ##   * `follow`: nothing shows until you and your companion have both arrived at the place; the dark makes
 ##     it hard to steer there yourself, so you ask your companion to "Go look" and FOLLOW its light
 ##     (FollowDirector over the pure FollowGuide); the prop (Underroot's root-heart) rises on arrival.
+##   * `reflection`: nothing shows until your companion's reflection, turned into a different animal by the
+##     mirror lake, has walked the shore and stopped over the stone's place (ReflectionDirector over the pure
+##     ReflectionWalker, drawn by the world's ReflectionLayer); then the prop (Stillglass's mirror stone)
+##     rises on the bank. Once found, the reflection stays a quiet toy; only the stone is gone.
 ## The server checks the conditions it can (an open door, a perfect hunt) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -66,6 +70,7 @@ var _listen: ListenDirector
 var _howl: HowlDirector
 var _cliffs: Array = []        # the world's building views (a cliff holds the cave)
 var _follow: FollowDirector
+var _reflection: ReflectionDirector
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -109,6 +114,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_follow):
 		_follow.queue_free()
 	_follow = null
+	if is_instance_valid(_reflection):
+		_reflection.queue_free()
+	_reflection = null
 	var secret: Dictionary = data.get("secret", {})
 	_found_props = []
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "touch_all":
@@ -119,6 +127,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "echo" \
 			and Net.has_discovery(String(secret["id"])):
 		_start_howl(secret, true)   # found already: the cave stays open and the howling stays, the stone doesn't
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "reflection" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_reflection(secret, true)   # found already: the lake keeps its walking reflection, the stone doesn't come
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -167,8 +178,20 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_follow.setup(_host, _companion, _world_art, _player)
 			_follow.configure(secret)
 			_follow.heart_reached.connect(_on_heart_reached)
+		"reflection":
+			# Nothing to see yet: the lake's picture of your companion has to turn and walk you to the stone.
+			_start_reflection(secret, false)
 		_:
 			combined.append(_secret_prop())
+
+
+func _start_reflection(secret: Dictionary, found: bool) -> void:
+	_reflection = ReflectionDirector.new()
+	_reflection.name = "ReflectionDirector"
+	add_child(_reflection)
+	_reflection.setup(_host, _companion, _world_art, _player)
+	_reflection.configure(secret, found)
+	_reflection.stone_surfaced.connect(_on_stone_surfaced)
 
 
 func _start_howl(secret: Dictionary, found: bool) -> void:
@@ -245,6 +268,8 @@ func update(delta: float) -> void:
 		_howl.update(delta)
 	if _follow != null:
 		_follow.update(delta)
+	if _reflection != null:
+		_reflection.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -280,6 +305,12 @@ func _on_place_found() -> void:
 func _on_heart_reached() -> void:
 	if _reveal_type() == "follow" and _entry.is_empty() and not _secret.is_empty():
 		_follow.mark_revealed()
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
+## The reflection stopped over the stone's place: the stone rises on the bank.
+func _on_stone_surfaced() -> void:
+	if _reveal_type() == "reflection" and _entry.is_empty() and not _secret.is_empty():
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
 
 
@@ -433,6 +464,10 @@ func _on_secret_refused(_secret_id: String) -> void:
 func _on_discoveries(ids: Array) -> void:
 	if not _secret.is_empty() and _reveal_type() == "echo" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the howling stays, the stone doesn't come
+	if not _secret.is_empty() and _reveal_type() == "reflection" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the walking reflection stays, the stone doesn't come
+		if _reflection != null:
+			_reflection.finish()
 	if not _secret.is_empty() and _reveal_type() == "dream" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the nap and the dream stay, the prop doesn't come
 	if not _entry.is_empty() and not is_taken(_entry) and ids.has(String(_entry["secret"]["id"])):
@@ -447,6 +482,8 @@ func _take() -> void:
 		_listen.finish()
 	if _follow != null:
 		_follow.finish()
+	if _reflection != null:
+		_reflection.finish()
 	# Every entry for this secret, not just the one we adopted: should the world ever hold more than one
 	# (it did, from a layout bug), none may be left behind to be found again.
 	var id := String(_entry["secret"]["id"])

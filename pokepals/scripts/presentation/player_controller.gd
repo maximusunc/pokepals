@@ -256,3 +256,10 @@ func _draw() -> void:
 		"head": true,
 		"width": float(cfg.get("width", 1.0)),
 	})
+
+
+## Read-only, for a REFLECTION of this player (Stillglass's mirror lake): the worn layers and how the pose
+## looks right now. { layers: Array, facing: Vector2, speed: float, time: float }; layers is empty until the
+## wardrobe has resolved (nothing to mirror yet).
+func reflection_pose() -> Dictionary:
+	return { "layers": _avatar_layers, "facing": _facing, "speed": velocity.length(), "time": _time }

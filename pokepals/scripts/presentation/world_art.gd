@@ -2144,6 +2144,17 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# Underroot's secret: a seed the great tree keeps at its deepest root, wrapped in roots and glowing
 			# from inside, slowly, like something with a pulse.
 			_draw_root_heart(p + Vector2(0, 1), color, 1.0, true)
+		"mirror_stone":
+			# Stillglass's secret: a smooth grey stone that came up out of the bank, cold and quiet, with a faint
+			# silver breath of light about it that comes and goes like the lake's own sheen.
+			_draw_mirror_stone(p + Vector2(0, 5), color, 1.0, false)
+		"kept_mirror_stone":
+			# its keepsake at home: the same stone in a shallow dish of still water, with its image beneath it,
+			# a touch too bright
+			draw_circle(p + Vector2(0, 7), 12.0, Color(0.10, 0.12, 0.16, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.58, 0.60, 0.64), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.70, 0.78, 0.84), true, -1.0, true)
+			_draw_mirror_stone(p + Vector2(0, 4), color, 0.6, true)
 		"kept_root_heart":
 			# its keepsake at home: the same seed, wrapped in a few small roots on a clay saucer
 			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.07, 0.05, 0.22), true, -1.0, true)
@@ -3016,3 +3027,40 @@ func _draw_root_heart(c: Vector2, tint: Color, k: float, motes: bool) -> void:
 			var t := fposmod(_time * 0.22 + float(m) * 0.25, 1.0)
 			var mp := c + Vector2(sin(_time * 0.9 + float(m) * 2.1) * 6.0, -12.0 * k - t * 34.0)
 			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))
+
+
+## Read-only, for the reflection layer (Stillglass): every pond's baked outline (world px), so a mask of
+## the water can be made from exactly the shapes that are drawn.
+func pond_rings() -> Array:
+	var out: Array = []
+	for pd in _ponds:
+		if pd.has("ring"):
+			out.append(pd["ring"])
+	return out
+
+
+## The mirror stone: a smooth grey egg-shaped stone, lit from the upper left, with a pale glint, and (in the
+## keepsake's dish of water) its own image hanging upside down below it, a little too bright. `k` scales it.
+func _draw_mirror_stone(c: Vector2, tint: Color, k: float, with_image: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.2 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -8.0 * k), 26.0 * k * (0.9 + 0.2 * breathe), Color(tint.r, tint.g, tint.b, 0.16 + 0.1 * breathe), 1.0)
+	var rx := 7.0 * k
+	var ry := 10.0 * k
+	var stone := PackedVector2Array()
+	var shade := PackedVector2Array()
+	for i in 20:
+		var a := TAU * float(i) / 20.0
+		# an egg: a touch narrower at the top
+		var sq := 1.0 - 0.14 * maxf(0.0, -sin(a))
+		stone.append(c + Vector2(cos(a) * rx * sq, -ry + sin(a) * ry))
+		shade.append(c + Vector2(cos(a) * rx * sq * 0.96 + rx * 0.14, -ry + sin(a) * ry * 0.96 + ry * 0.08))
+	if with_image:
+		var img := PackedVector2Array()
+		for p in stone:
+			img.append(Vector2(p.x, c.y + (c.y - p.y)))
+		draw_colored_polygon(img, Color(0.78, 0.88, 0.96, 0.55))
+	draw_colored_polygon(stone, Color(0.34, 0.38, 0.44))
+	draw_colored_polygon(shade, Color(0.52, 0.57, 0.64))
+	draw_circle(c + Vector2(-rx * 0.25, -ry * 1.35), rx * 0.55, Color(0.80, 0.85, 0.92, 0.9), true, -1.0, true)
+	draw_circle(c + Vector2(-rx * 0.35, -ry * 1.5), 1.3 * k, Color(1, 1, 1, 0.9))
+	draw_polyline(stone + PackedVector2Array([stone[0]]), Color(0.18, 0.20, 0.26), 1.0, true)
