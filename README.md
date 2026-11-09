@@ -91,6 +91,7 @@ godot --headless --path pokepals --script res://tests/smoke_dozewood.gd
 godot --headless --path pokepals --script res://tests/smoke_steamhollow.gd
 godot --headless --path pokepals --script res://tests/smoke_hollowsong.gd
 godot --headless --path pokepals --script res://tests/smoke_underroot.gd
+godot --headless --path pokepals --script res://tests/smoke_lanternfold.gd
 godot --headless --path pokepals --script res://tests/smoke_packs.gd
 
 # The web build's world-pack planner (Python):

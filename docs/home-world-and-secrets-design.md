@@ -940,6 +940,119 @@ enjoyed and the lead resumed. Screenshots under Xvfb (opengl3) checked by eye. E
 `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked), so the new channel test is unrun. *Not
 checked:* phone frame rate, the world-pack build, a real two-player session, and the feel (that is the playtest).
 
+## Lanternfold — built 2026-11, every choice below OPEN for the owner's review
+
+Lanternfold follows the Drifthallow template: **a shadow-puppet world**, flat layered paper-cut silhouettes against a warm
+amber sky, all lit by one great lantern, hiding **a mural with one figure missing (a bird in flight)** whose gap only your
+companion's SHADOW can fill. The pitch was agreed (a cliff-face screen the lantern throws shadows on; you choose the
+companion's form and stand it in the light; the wolf's shadow is too big, the rabbit's the wrong shape, only the bird's,
+from the right place, fills the gap; the mural reacts as it nears; a door in the cliff opens; players cast shadows too;
+a new reveal type). **Everything finer was decided by the builder and is listed here for review.** Nothing below changes
+the pitch; if any of it is wrong, say so and it is data or a small edit. Catalog id `eeeeeeee-...`, slug `lanternfold`,
+listed and featured, with the standard small portal home beside the arrival spot.
+
+**What it is.** `server/priv/world_seeds/lanternfold.json` (and the test fixture) from `tools/gen_lanternfold_world.py`;
+art from `pokepals/tools/gen_lanternfold.py` over `tools/pixelart/lanternfold.py`.
+
+**The secret: reveal type `shadow`.** Spec shape (`secret.reveal`): `face` (the screen's face: x0, x1, base_y, height),
+`lantern` (its ground point), `spot` (the ground point the missing bird's shadow would be thrown from), `species`
+(bird), `hover`, every tolerance and time, and `lines` (the hints). Code: pure `ShadowCast` (the projection), `ShadowMask`
+(does one silhouette have another's shape) and `MuralGuide` (the state: fit, hold, settle, notice, events) in
+`scripts/world` (52 checks, `test_shadow_mural.gd`); presentation `ShadowDirector` (`mechanics/`), `ShadowScreenView` (a
+`BuildingView`, spec `"view": "shadow_screen"`), `ShadowPuppet` and `assets/silhouette.gdshader`; `SecretDirector` (the
+`shadow` arm and an empty-ground tap hook); two small read-only accessors, `CompanionView.form_sheet_info()` and
+`PlayerView.avatar_layers()`; `WorldArt` arms for the paper bird and its keepsake; server: `secret_reveal.ex` honours it.
+
+**Judgment calls (all open):**
+1. **The projection (pure, one rule).** The lantern stands on the ground south of the screen. A thing between them throws a
+   shadow of scale `s = D / d` (D: lantern to the screen's foot, d: lantern to the thing), at `x = lantern.x + (thing.x -
+   lantern.x) * s` along the face, with its feet at `v = z * s` up the face (z: how high it is held). So it grows as it nears
+   the lantern, slides with it, and is life-size at the screen. Right beside the lantern (under 20 px) it blocks the light and
+   casts nothing, and a shadow past 4.5x is not cast. Everything walks on the ground (z = 0), so its shadow stands on the
+   face's foot. This is what a real lamp on a stage floor does; no fudge factors.
+2. **Why only the bird fits: it is in the air.** The mural's missing bird is mid-flight, so its gap is up the face. Only a
+   bird form's shadow is held aloft (`hover`, 14 px, so `v = 28` at the spot): a shadow-only conceit (the bird itself does not
+   leave the ground) that makes the form matter twice over, by shape and by height. A bird's shadow plays its sheet's fly row
+   (wings beating); every other animal's shows its right-hand profile, walking when it walks and idling when it stands.
+3. **Shadows are profiles.** A shadow puppet is always seen from the side, so whichever way the caster faces on the ground
+   the shadow shows the right-hand profile row (mirrored for left), read straight off the same sheet the caster draws, so a
+   wolf's shadow IS a wolf and yours is you in whatever you wear (`ShadowPuppet`). The silhouette shader keeps only the shape
+   and clips it to the face by world position, so a too-big shadow ends at the screen's edge.
+4. **Everyone present casts one** (you, your companion, and every friend's pair), not just you. It is the fun of the place, it
+   costs one small node each (a handful of draws), and it needs no networking: remote puppets are already in the scene.
+5. **How you place the companion: tap the lit ground.** A tap on EMPTY ground (the world controller found nothing to examine
+   or command within its 100 px pick radius, then asks `SecretDirector.on_ground_tap`) inside the lantern's cone and south of
+   the screen sends your companion to stand there, using the existing Drifthallow `guide` order re-issued each frame (the
+   NavAgent routes it round things), and it stays until released. This is the "tap = an order" path, extended to ground
+   only where a world asks for it; every other world is untouched. Because the pick radius would swallow a stage tap near an
+   examinable prop, the great lantern and the footlights are not examinable and the generator keeps the stage clear of
+   props and trees (it asserts it). The lore lives on a painted notice beside the stage.
+6. **The settle.** A pixel-hunt is not cosy, so a bird told to stand within 36 px of the right spot is put ON it ("it shuffles
+   to the right place"); other animals are not helped, so the form still matters. It re-applies when the form changes while
+   posed: tap near the spot first and choose Bird after, and it settles then.
+7. **What "fills the gap" means (`MuralGuide.fit_of`).** `fit = place x shape`. *Place*: where the companion's shadow lands
+   (x) and how big it is (s) against the gap's, forgiving in the middle and nothing at 26 screen px / 30 percent of scale.
+   *Shape*: the overlap of its silhouette with the bird's (`ShadowMask.iou` on masks read off the real sheets, lined up
+   centre to centre), mapped through `smoothstep(0.30, 0.95)`. It FILLS only when the form IS a bird (`species`), the fit is
+   at least 0.8, and it is standing still (under 12 px/s), held for 2.2 s fresh down to 1.2 s bonded; a lost fit drains the
+   hold at 1.5x rather than resetting it. With the real sheets a wolf scores 0.14 on the spot, a fox 0.20, a rabbit 0.26, a cat
+   0.33 (the bird 1.0), so the gap only shimmers faintly for a wrong animal. Once filled it stays filled.
+8. **Readable feedback (lesson 3).** The missing bird is a bird-shaped patch of lamplight in the flock (a "ghost"), with an
+   amber halo that grows with the fit and swells while you hold it; filling ink-spreads the bird into the flock, a burst of
+   light, and the door opens. Hints, once each: you step into the light and how to place the companion (`arrive`), what a
+   shadow does (`shadow`), the companion noticing the gap (`notice`), the gap glowing (`close`), "its shadow stands on the
+   ground; the missing bird is in the air" for a right-place wrong-shape (`wrong`), holding (`holding`); `called` and
+   `let_go` every time, since they are cues to act.
+9. **Generous triggers (lesson 1).** As you come near the spot (360 px fresh, 700 bonded) the companion stops and points
+   at the gap on the wall for 2.5 s, then rests 16 s fresh, 6 s bonded (`MuralGuide.update`, the Riverbank/Drifthallow
+   shape), and only until you are making progress. Bond also shortens the hold.
+10. **Natural actions (lesson 2).** The standing re-issues its order each frame, so it checks `pending_command()`: a **Call**
+    ends it (the companion comes to you; a hint says to tap again), a **Pet** is enjoyed (we leave it alone for 3 s, then the
+    standing resumes; checked in a scratch run), a **form change** keeps the place, and its autonomous form drift is held off
+    (`postpone_form_drift`, 30 s each frame) while it stands, as Drifthallow's fox. Walking more than 760 px away lets it go
+    (a hint says so) and it follows you again; after the gap is filled it is released after 3 s.
+11. **The camera.** The view is only 360 px tall and the mural stands about 190 px north of where you watch the companion, so
+    while you are on the stage `ShadowDirector` eases `Camera2D.offset` 60 px up (nothing else uses it) and lets it back when
+    you leave. Without it the bird's shadow is cut off by the top of the view.
+12. **Layout.** 3200x2400, nine regions (Paper Landing where you arrive, Long Shadow, Moon Hill, Marionette Lane, Cutout
+    Village, Reed Pools, Far Wood, Near Wood, the Footlights), the screen at the north end: a 380 x 112 face (a 380 x 30
+    solid footprint), the lantern 150 px south of its foot, the spot 75 px south of the foot (2x scale), a door at the foot of
+    the face 120 px right of centre. Footlights (small paper lanterns) stand along both edges of the lantern's cone so the lit
+    stage reads as a stage, and a road of lit posts leads from the landing north-east to it. The generator asserts the gap
+    bird fits the face with room for a flock on both sides, the spot is on the lit stage, nothing stands on the stage but the
+    lantern and footlights, and nothing stands in the door's clearing or a pond.
+13. **Look.** Warm paper ground in five moods with its own fibre-grain terrain and litter atlas (`lf_terrain`, `lf_details`),
+    trees as flat umber silhouettes in three DEPTHS (far in the north is a pale apricot, mid a sienna, near in the south
+    almost black), houses and a tower as flat cut shapes with a lit window, an ink pool holding amber glints, paper scraps
+    for falling leaves; the great lantern is the only thing that glows (and a few posts and windows). The mural is drawn in
+    `ShadowScreenView`: a pale lit face, a crescent moon, scalloped paper clouds, a village on cut hills, gold stars, and the
+    flock drawn from the bird's own sheet so they are the very shape the bird form's shadow has.
+14. **Visitors are NOT re-lit** (no `actor_look`). A silhouette look would make you unrecognisable against the dark trees, and
+    your shadow on the screen already says "you are a cut-out here". Native creatures are skipped.
+15. **Keepsake and qualities.** The secret is a little cut-paper bird on a stick behind the door (`paper_bird`, drawn by
+    `WorldArt` like the other secrets); its keepsake `kept_paper_bird` stands in a dish of sand. Qualities `warm`, `old`,
+    `glowing`; temperament curious, middling energy.
+16. **The server check stays minimal and honest** ("this world, standing at the bird", like `stillness`, `tracks` and
+    `follow`): it cannot tell a filled mural from a walked-in one.
+17. **Found already.** On a later visit the mural is simply complete and the door open, and the shadows stay a quiet toy; only
+    the bird is gone. Nothing about the mural is networked; a friend sees your companion stand there and their own screen.
+18. **Performance.** The face, hills and mural are drawn once; the flock redraws only 4 times a second; shadows are one small
+    node per caster that is in the light (none otherwise) using a one-sample shader with a rectangle test (no screen reads, no
+    render targets, nothing allocated per frame); the fit's mask overlap is a cached lookup per species. *Phone frame rate not
+    measured.*
+19. **Lore and lines** (the notices, props, the nine hints and the found line) are the builder's wording.
+
+**Verified:** Godot unit suite (new `TestShadowMural`) and every smoke except `smoke_clickton` (its one known baseline
+failure); the new `smoke_lanternfold` checks the re-skin, the screen and lantern, the shadow's projection, that only the bird's
+real silhouette matches the gap, that a tap places the companion (and a tap in the dark does not), the fill and the door. A
+scratch run through the REAL loop (the paused scene un-paused each frame, companion met with a bond, forms through
+`_on_radial_action("form:...")`, placement through `_on_world_tap`, Pet and Call through the real handlers) saw: a wolf walk
+to the spot with a big wolf shadow standing on the face's foot and the "wrong" hint; the bird's shadow hanging in the gap,
+filling, the door opening and the paper bird on its threshold; the companion staying put through a Pet and released by a Call;
+the player's own (huge) shadow. Screenshots under Xvfb (opengl3) checked by eye. Elixir: the standalone `secret_reveal_test.exs`
+passes; `mix test` could not run (hex.pm blocked), so the new channel test is unrun. *Not checked:* phone frame rate, the
+world-pack build, a real two-player session (friends' shadows), and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →
