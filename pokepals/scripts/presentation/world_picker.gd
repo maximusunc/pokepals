@@ -27,6 +27,9 @@ signal closed()
 const SEARCH_DEBOUNCE := 0.25
 const PANEL_W := 380.0
 const LIST_H := 190.0
+## How far a finger must travel before a touch counts as a scroll rather than a tap. Below it, a slightly
+## wobbly tap still picks the card; past it, the list scrolls and the card under the finger lets go.
+const DRAG_DEADZONE := 8
 ## How far the panel drifts up into place as it appears, and the scale it settles from.
 const SETTLE_RISE := 6.0
 const SETTLE_SCALE := 0.96
@@ -51,6 +54,10 @@ var _center: CenterContainer
 var _chosen := false  # latched once a world is picked, so a double-tap can't fire two trips
 var _tab := "worlds"  # "worlds" (the catalog) or "homes"
 var _tab_buttons: Dictionary = {}  # tab id -> its Button
+## The list button (card or "Show more") the finger went down on, and whether the list has scrolled
+## since. A press that turned into a scroll is cancelled, so lifting the finger never travels.
+var _held: BaseButton = null
+var _scrolled := false
 
 
 func _ready() -> void:
@@ -156,6 +163,10 @@ func _build_ui() -> void:
 	_scroll = ScrollContainer.new()
 	_scroll.custom_minimum_size = Vector2(0, LIST_H)
 	_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	# Touch drag-to-scroll: the cards PASS their touches up to this container (see _list_button), and it
+	# only starts scrolling once the finger has moved past the deadzone, so a tap stays a tap.
+	_scroll.scroll_deadzone = DRAG_DEADZONE
+	_scroll.scroll_started.connect(_on_scroll_started)
 	box.add_child(_scroll)
 	_list = VBoxContainer.new()
 	_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -210,7 +221,10 @@ func _render() -> void:
 		more.disabled = _dir.is_loading()
 		UiStyle.pill_button(more, 9)
 		more.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
-		more.pressed.connect(func() -> void: _send(_dir.begin_more()))
+		_list_button(more)
+		more.pressed.connect(func() -> void:
+			if _tap_ok(more):
+				_send(_dir.begin_more()))
 		_list.add_child(more)
 
 
@@ -232,8 +246,17 @@ func _card(w: Dictionary) -> Button:
 	var hover := sb.duplicate() as StyleBoxFlat
 	hover.border_color = UiStyle.GOLD
 	UiStyle.set_button_boxes(card, sb, pressed)
-	card.add_theme_stylebox_override("hover", hover)
-	card.pressed.connect(_on_card_pressed.bind(String(w["world_id"]), String(w["name"])))
+	# The gold hover border is a mouse nicety. On a touch screen the "mouse" is your finger, so it would
+	# light up every card the finger slides over while scrolling; there, hover looks like rest.
+	if not DisplayServer.is_touchscreen_available():
+		card.add_theme_stylebox_override("hover", hover)
+	else:
+		card.add_theme_stylebox_override("hover", sb)
+		card.add_theme_stylebox_override("hover_pressed", pressed)
+	_list_button(card)
+	card.pressed.connect(func() -> void:
+		if _tap_ok(card):
+			_on_card_pressed(String(w["world_id"]), String(w["name"])))
 
 	var row := HBoxContainer.new()
 	row.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -290,6 +313,38 @@ func _card(w: Dictionary) -> Button:
 		here.add_theme_stylebox_override("normal", pill)
 	row.add_child(here)
 	return card
+
+
+# --- tap vs scroll -------------------------------------------------------------------------
+
+## Make a button inside the scrolling list play nicely with drag-to-scroll. A Button normally STOPs its
+## touches, so the ScrollContainer behind it never sees the drag and the list won't move. PASS lets the
+## button react to the press AND hands the same touch on up to the ScrollContainer (Godot offers each
+## input event to the control under the finger first, then to its parents unless one STOPs it).
+func _list_button(b: BaseButton) -> void:
+	b.mouse_filter = Control.MOUSE_FILTER_PASS
+	b.button_down.connect(func() -> void:
+		_held = b
+		_scrolled = false)
+
+
+## The list has started a touch scroll: whatever card the finger went down on is no longer being
+## pressed. Flicking `disabled` on and off is BaseButton's way to drop a press in progress (it clears the
+## pressed look and means the release won't fire `pressed`), all within one frame so nothing flickers.
+func _on_scroll_started() -> void:
+	_scrolled = true
+	if _held != null and is_instance_valid(_held) and not _held.disabled:
+		_held.disabled = true
+		_held.disabled = false
+	_held = null
+
+
+## A release counts as a tap only if the list didn't scroll in between (belt and braces for the cancel).
+func _tap_ok(b: BaseButton) -> bool:
+	var ok := not (_scrolled and _held == null)
+	if _held == b:
+		_held = null
+	return ok
 
 
 # --- events -------------------------------------------------------------------------------
