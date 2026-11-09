@@ -314,6 +314,23 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_stillglass_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Stillglass").
 
+> **Ebbmere (2026-11):** **tidal flats** (3600x2600): wet sand that holds the sky, tide pools, creeks, shell ridges and a
+> lighthouse on a rocky point; reached through the Gateway (featured). **The tide is shared**: a pure function of UTC time
+> (`TideClock`, `scripts/world`, with an Elixir twin `Server.Tide` held to the same test vectors), 6 minutes a cycle, so
+> everyone sees the same water with no simulation or broadcast (the channel also pushes its clock on join, `Net.server_unix_ms`).
+> The world carries a baked **seabed** (`tide.field`, 16-bit elevation per 16 px cell, `TideField`); the water covers a place
+> whenever the level is over its elevation, drawn by ONE shader over one quad (`TideLayer`, `assets/eb_tide.gdshader`, no render
+> target) and read by the CPU from the same grid. Open sea (elevation under `deep_elev`) is walled with invisible posts; everything
+> else is wadeable. **Secret:** a sand-dollar that rises only at the lowest tide. While the tide is out your companion sniffs out
+> buried spots (`DigSense`, `DigPlan`: alive spots and what they hold are hashed from the tide's cycle number, so all clients agree);
+> tap one and a form that can dig (fox, rabbit, wolf) digs it, a bird or cat cannot (a cue); most spots give shells, sea-glass or a
+> crab, and the far bar gives up the sand-dollar, but only in the low window. New reveal type `tide`: unlike the others the server
+> CAN check it honestly (the low window plus a grace period, `Server.SecretReveal` + `Server.Tide`), still "standing at it". The
+> tide pole (`TideGauge`) and the lighthouse lamp (`LampGlow`) always show where the tide is. `TideDirector` (`mechanics/`) ties it
+> together; art: `pokepals/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; layout, lore and the secret:
+> `tools/gen_ebbmere_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Ebbmere").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

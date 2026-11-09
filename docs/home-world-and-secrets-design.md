@@ -1171,6 +1171,124 @@ walking reflection and its ripples, the rings and the rising stone. Elixir: the 
 `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
 session, and the feel (that is the playtest).
 
+## Ebbmere — built 2026-11, every choice below OPEN for the owner's review
+
+Ebbmere follows the Drifthallow template: **tidal flats**, wide wet sand under a wide sky, tide pools, creeks, shell
+ridges and a lighthouse on a rocky point. The sea slowly goes out and comes back on a **shared clock**, and a sand-dollar
+rises only at the lowest tide, buried on the far bar, which your companion helps you find and dig. The pitch was agreed
+(the tide as a pure function of UTC time with an authored period and low window; sniffing out dig spots; tap-to-dig through
+the form, with fox and rabbit digging and bird and cat not; mostly shells and crabs; one spot that gives up the sand-dollar
+only in the lowest window, with no fail state; a new reveal type the server can honestly check). **Everything finer was
+decided by the builder and is listed here for review.** Nothing below changes the pitch; if any of it is wrong, say so and it
+is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/ebbmere.json` (and the test fixture) from `tools/gen_ebbmere_world.py`; art from
+`pokepals/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; catalog id `14141414-…`, slug `ebbmere`, listed and
+featured, with the standard small portal home beside the arrival spot.
+
+**The tide clock.** `TideClock` (`scripts/world`, pure, tested) and its Elixir twin `Server.Tide`: integer unix
+milliseconds in, one cosine per period out. Phase 0 is high water, 0.5 the lowest; `level = low + (high - low) * (0.5 + 0.5
+cos(2π phase))`. **Judgment calls (all open):**
+1. **Numbers.** Period 360 s (the pitch's "such as 6 minutes"), epoch 0 (so high water is on every 6-minute mark of the UTC
+   hour), level 0.30 to 0.78, `yield_level` 0.345. The **low window** is where the level is at or under `yield_level`:
+   about 71 s wide (35.7 s either side of the lowest), a fifth of the cycle, so it is generous without being always.
+2. **Skew.** Server and clients agree to the millisecond if their clocks do. Clients use their own clock plus an offset: the
+   channel now pushes `clock` (`ms`) on join and `Net.server_unix_ms()` applies it (one-way latency is not corrected, which
+   is tens of milliseconds against a 71 s window). The server also allows `grace_s` = 30 s either side of the window on a
+   claim, so a slow examine or a skewed device is still honoured.
+3. **Held to the same vectors.** `tests/world_fixtures/tide_vectors.json` (generated from a Python reference) is read by the
+   GDScript test; the identical `server/test/fixtures/tide_vectors.json` by the Elixir one (phase, cycle, level, low window
+   with and without grace, countdown).
+4. **Per-tide hashing instead of a server.** Which dig spots are alive in a tide, and what each holds, are
+   `DigPlan.hash01(cycle, id)` (FNV-1a, deliberately not `String.hash()`), so every client agrees on both with nothing
+   simulated or sent.
+
+**The tide's look and the walkable sand.** The world carries a baked **seabed** (`tide.field`): 16 bits of elevation per
+16 px cell (225 x 163 for the 3600 x 2600 world, about 98 KB of base64 in the spec; one byte stair-stepped the gentle flats into squares, so the GPU reads it as a half-float texture). The water covers a place whenever the level
+is over its elevation, so one number per place says when it is wet.
+5. **One shader, one quad, no render target.** `TideLayer` is a single rectangle (clipped to the rows the water can ever
+   reach) with `assets/eb_tide.gdshader`, which samples the seabed texture and the level uniform: open sea, shallows,
+   a foam lace at the edge, then a band of darkened, glossy sand just behind the retreating water that holds the sky (the
+   "wet sand that reflects the sky"). The only per-frame work is two uniforms and a few small wading ripples; nothing is
+   rebuilt. It is a child of `WorldArt` (above ground/props/litter, under the y-sorted Scenery), so props stand under the
+   water if the tide covers them. `TideField.wet_extent` keeps the rect off the always-dry dunes.
+6. **Wading rule.** **No moving walls.** Elevation under `deep_elev` (0.26) is open sea: always water, never wadeable, walled
+   by 336 invisible `eb_shore` props along its edge (the Stillglass lesson: the posts are placed from the very grid the
+   shader reads, so the drawn drop-off and the collision agree). Everything else is wadeable however far the tide covers it
+   (it is knee-deep at the deepest; the water just looks deeper). The generator keeps the arrival, the tide pole and the
+   lighthouse over the highest tide.
+7. **Geography.** Sea to the north, a shelf, flats rising about 0.5 over 1500 px to dunes at the south (so the waterline travels
+   about 1400 px between low and high tide, at most ~12 px/s, easily outwalked), three creeks and fifteen pools whose floor
+   (0.285) is under the lowest water so they carry water through every tide, five shell ridges (low rises), the rocky point.
+   Regions: Dune Landing (you arrive), Wrack Line, Cockle Ridge, Pool Terrace, The Creeks, Far Bars, Lantern Point, Greywater.
+   `border.ring` is false (a treeline in the sea would be wrong); the south is edged with wind-bent dune pines, thorn
+   scrub and tamarisk.
+8. **The tide is always readable.** Three ways: the **tide pole** (`TideGauge`, a post in the y-sorted Scenery by the landing:
+   a blue float rides it with the water with an arrow for which way it is going, and a gold notch for the lowest-tide level
+   that glows while the tide is under it); the **lighthouse lamp** (`LampGlow`), which burns brighter the lower the tide is;
+   and the **waterline itself**. First-time hints (spec `tide.hints`) for each state: going out, lowest tide close (24 s
+   before the window), lowest tide, coming back, high water; later tides get a short version of "lowest is coming" and
+   "lowest tide".
+9. **Not done.** Wading does not slow you (a shared-physics change); a friend's feet do not make ripples (only yours and
+   your companion's).
+
+**Dig spots and sniffing.** 26 authored spots across the flats plus the far bar's `bar_dollar`.
+10. **Alive and exposed.** A spot is *alive* in a tide with probability 0.62 (hashed; the far bar's is always alive until the
+    secret is found) and is *exposed* when the level is under its elevation by `expose_margin` (0.012), so a spot shows its
+    sign only once the water has drawn back a little. Elevations run 0.37 to 0.74, so more appear as the tide falls: none at
+    high water, about 21 at the lowest. Everything resets at the next high water (a new cycle): the sea has smoothed the sand.
+11. **Sniffing, and generous triggers.** Pure `DigSense` (tested): when an alive, exposed, un-noticed spot lies within a
+    range of YOU (240 px at zero bond to 560 at full), your companion stops and points at the nearest for 2.4 s (cooldown
+    9 s to 3.5 s by bond), after which the spot is *noticed* and shows its sign: a dimple with a ring of rising bubbles.
+    A spot within 64 px of you or your companion is noticed at once (you would see it yourself). A hint reads once for the
+    sniff and once for the sign.
+12. **Tap to dig is an order through the form.** The world-tap hook (one line in `_on_world_tap`, ahead of the snap to the
+    nearest examinable thing) gives `TideDirector` first refusal of a tap within 54 px of a noticed, exposed spot. A form
+    that can dig gets the same `visit` command the Vale's mounds use, with `verb: dig`, and digs for 1.8 s with a spray of
+    sand when it arrives. **Which forms dig (open):** fox, rabbit and wolf (`dig.affordances`; a wolf is a canine, the pitch left
+    it open); bird and cat cannot, and the classic procedural rig (no animal) digs (`_default`). The **cue** for a shape that
+    cannot: the companion still goes over and pats at the spot, a ring flashes there and a hint names the shapes that could.
+    A sign pulses in the form's highlight colour (C-3) only while the worn form can dig it.
+13. **Natural actions are safe.** The order slot holds one order, so ours never overwrites a Pet or a Call: a Pet or Call
+    cancels the dig in flight (as it cancels any visit; nothing is lost, the spot is still buried, tap again), and the
+    sniffing stands down for 3 s after a Pet, 4 s after a Call. Changing form mid-order is fine (the verb was resolved
+    at the tap). Digging a spot twice says it is already dug.
+14. **What a spot holds** (spec `dig.outcomes`, hashed per tide and spot): a shell (cockle, whelk, razor shell, scallop or
+    periwinkle; weight 7), a crab that scuttles for the sea (2), or a piece of sea-glass (1). It is a drawn find lying by the
+    hole until the tide takes it: shells and sea-glass are **display-only** (not an inventory item, not saved), which is the
+    cheap, cozy option; making them collectable (a shell collection, a keepsake, a coin) is a possible follow-up.
+15. **Personal and display-only.** The tide and which spots are alive are shared (the same hash); your holes, signs and finds
+    are yours. A friend does not see them dug.
+
+**The secret: reveal type `tide`.** The sand-dollar's spot is the far bar, a low sandbar whose top stands at exactly
+`yield_level + expose_margin` (the generator forces it and asserts it), so it is uncovered **exactly while the tide is in its
+low window, and never otherwise**. A fox, rabbit or wolf sent to dig it brings the sand-dollar up (`TideDirector` ->
+`dollar_unearthed` -> `SecretDirector._reveal`), and examining it makes the usual claim. A missed window is just the next tide.
+16. **The server CAN check this one.** `Server.SecretReveal` honours a `tide` claim only while `Server.Tide.low_window?` is
+    true for the server's own clock, widened by `grace_s` (30 s), plus the usual "standing within 130 px of the spot". It
+    cannot tell whether you dug it (the digging is on your screen), only that the claim is made at the lowest tide at
+    the bar, which is an honest, if modest, check; it refuses with no clock rather than guessing (tested).
+17. **If the window passes before you examine it.** The prop stays where it came up; if the claim is refused a line says the
+    tide has turned and the sand-dollar will rise again at the next lowest tide (examine it then). Nothing is lost.
+18. **Keepsake and qualities.** `kept_sand_dollar`: the sand-dollar in a shallow dish of sand, drawn by `WorldArt` (a procedural
+    arm, since homes use the shared art); the in-world prop is the sprite `eb_sand_dollar`. Qualities `quiet`, `watery`,
+    `old`; temperament curious, middling energy.
+19. **Lore and lines** (the tide stone at the landing, the rowboat, buoy, groynes, the hints and the dig lines) are the builder's
+    wording.
+
+**Look.** Pale sand in five moods with baked ripple marks (own terrain + litter atlas `eb_terrain`, `eb_details`: cockles,
+whelks, razor shells, a scallop, starfish, wrack, lugworm coils), wind-bent dune pines, thorn scrub and tamarisk, a pale
+sky-warm tint with a very slow rose swing for the day cycle, a barely-there cloud drift. The lighthouse is a landmark
+(`lighthouse` art entry: trunk = tower, canopy = gallery, lamp room and roof) you can walk behind. Visitors are not re-lit.
+Native creatures (crabs, gulls) were skipped: the crab that scuttles from a dig is a drawn effect, not a pal.
+
+**Verified:** Godot unit suite (new `TestTide`: clock vectors, field, dig plan, sensing) and every smoke (new
+`smoke_ebbmere`) except `smoke_clickton`'s one known baseline failure. The smoke drives the REAL scene through the director's
+debug clock: the level at high water and at the lowest, the far bar covered ebbing and bare at the lowest, a bird that is
+sent over but cannot dig, a fox that digs the sand-dollar up, a rabbit that digs an ordinary spot in a later tide. Elixir:
+the standalone `secret_reveal_test.exs` and `tide_test.exs` pass (with the vectors); `mix test` could not run (hex.pm blocked).
+*Not checked:* phone frame rate, the world-pack build, a real two-player session and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →
