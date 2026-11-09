@@ -28,6 +28,7 @@ static func run_all() -> int:
 	fails += _test_companion_leaving_lets_go_and_keeps_progress()
 	fails += _test_resumes_from_where_it_stopped()
 	fails += _test_wandering_far_away_lets_go()
+	fails += _test_hold_stands_it_still_and_never_lets_go()
 	fails += _test_turn_is_cancelled_if_you_both_leave()
 	fails += _test_done_is_final_and_counts_up()
 	fails += _test_reset_starts_afresh()
@@ -175,6 +176,22 @@ static func _test_wandering_far_away_lets_go() -> int:
 	_run(w, 2.5, Vector2(20, -20), Vector2(10, -40))
 	var ev := _run(w, 1.0, w.pos + Vector2(0, -20), w.pos + Vector2(-900, 0))
 	return _ok(ev.has("lost") and w.phase == ReflectionWalker.Phase.MIRROR, "you wander far off: the reflection goes back to mirroring")
+
+
+static func _test_hold_stands_it_still_and_never_lets_go() -> int:
+	var w := _make()
+	_run(w, 2.5, Vector2(20, -20), Vector2(10, -40))
+	for _i in 40:
+		w.update(0.05, w.pos + Vector2(0, -20), 0.0, w.pos + Vector2(-50, -40), 10.0)
+	var at := w.pos
+	var lost := false
+	for _i in 200:   # ten seconds of a pet, with the companion far off and the player wandering
+		var r := w.update(0.05, at + Vector2(0, 600), 0.0, at + Vector2(-700, 0), 0.0, true)
+		lost = lost or (r["events"] as Array).has("lost")
+	var fails := _ok(not lost and w.phase == ReflectionWalker.Phase.WALK and w.pos.distance_to(at) < 0.01, "held: it stands still and never lets go, whatever else is going on")
+	var r2 := w.update(0.05, at + Vector2(0, -20), 0.0, at + Vector2(-50, -40), 10.0)
+	fails += _ok(bool(r2["moving"]), "...and walks on the moment the hold ends")
+	return fails
 
 
 static func _test_turn_is_cancelled_if_you_both_leave() -> int:

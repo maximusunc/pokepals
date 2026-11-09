@@ -156,11 +156,17 @@ func _offset() -> Vector2:
 ##            reflection: `target` is the point, `speed` the pace)
 ##   target / speed: for those orders
 ##   moving: the reflection is walking this frame (its feet animate)
+## `hold` (default false) stands the reflection still for this frame without any other change: no step, no
+## waiting logic, no letting go. The director uses it while the player is petting or calling the companion, so
+## those natural things never cost the walk.
 ##   events: one-shot moments: "gather" (the water stirs), "turn", "set_off", "wait", "resume", "reached",
 ##           "lost" (it let go; progress kept), "done"
-func update(delta: float, companion_pos: Vector2, companion_speed: float, player_pos: Vector2, player_speed: float) -> Dictionary:
+func update(delta: float, companion_pos: Vector2, companion_speed: float, player_pos: Vector2, player_speed: float, hold: bool = false) -> Dictionary:
 	var out := { "command": "", "target": companion_pos, "speed": float(_cfg["pace"]), "moving": false, "events": [] }
 	if _trail.is_empty():
+		return out
+	if hold and (phase == Phase.WALK or phase == Phase.WAIT or phase == Phase.TURN):
+		out["target"] = pos
 		return out
 	match phase:
 		Phase.MIRROR:

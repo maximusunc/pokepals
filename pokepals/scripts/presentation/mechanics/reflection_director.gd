@@ -139,7 +139,8 @@ func update(delta: float) -> void:
 	var free_to_order := _pet_pause <= 0.0 and _call_pause <= 0.0 and pc != "pet" and pc != "come"
 
 	var was := _walker.phase
-	var r := _walker.update(delta, _companion.position, _companion.velocity.length(), _player.position, _player_speed)
+	# While you pet or call it the reflection simply waits (hold), so a natural thing never costs the walk.
+	var r := _walker.update(delta, _companion.position, _companion.velocity.length(), _player.position, _player_speed, not free_to_order)
 	for e in r["events"]:
 		_on_event(String(e))
 
@@ -149,6 +150,7 @@ func update(delta: float) -> void:
 		match cmd:
 			"approach":
 				_companion.issue_command("guide", r["target"], { "hold": false })
+				_say_once("approach")
 			"hold":
 				_companion.issue_command("guide", _companion.position, { "hold": true })
 			"follow":
