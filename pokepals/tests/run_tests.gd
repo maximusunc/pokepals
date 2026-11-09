@@ -25,6 +25,8 @@ func _init() -> void:
 	failures += TestShadowMural.run_all()
 	failures += TestMirrorGeometry.run_all()
 	failures += TestReflectionWalker.run_all()
+	failures += TestSkyRealm.run_all()
+	failures += TestSkyView.run_all()
 	failures += TestCompanionSelf.run_all()
 	failures += TestCompanionAttention.run_all()
 	failures += TestWorldAreas.run_all()
