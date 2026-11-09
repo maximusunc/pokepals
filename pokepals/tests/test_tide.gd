@@ -133,6 +133,8 @@ static func _test_field_round_trips_the_spec_encoding() -> int:
 	var f := TideField.from_spec(spec, 0.26)
 	var fails := _ok(not f.is_empty() and f.width == 5 and f.height == 4 and f.origin == Vector2(10, 20), "a field decodes from the spec's block")
 	fails += _ok(_near(f.elev_at(Vector2(10 + 4 + 8 * 2, 20 + 4 + 8 * 1)), 7.0 / 20.0, 0.004), "...with its values intact")
+	var fine := TideField.from_spec({ "origin": [0, 0], "cell": 10, "w": 3, "h": 1, "bits": 16, "data": TideField.encode16([0.2501, 0.2502, 0.9]) })
+	fails += _ok(not fine.is_empty() and _near(fine.elev_at(Vector2(5, 5)), 0.2501, 0.0001) and _near(fine.elev_at(Vector2(15, 5)), 0.2502, 0.0001), "a 16-bit field keeps differences far finer than one byte can")
 	var wrong := spec.duplicate()
 	wrong["w"] = 6
 	fails += _ok(TideField.from_spec(wrong).is_empty(), "a block whose size does not match its data is rejected, not misread")
@@ -143,6 +145,8 @@ static func _test_field_round_trips_the_spec_encoding() -> int:
 static func _test_field_deep_and_exposed() -> int:
 	var f := TideField.from_bytes(Vector2.ZERO, 10.0, 3, 1, _grid(3, 1, func(x, _y): return [0.1, 0.5, 0.9][x]), 0.26)
 	var fails := _ok(f.is_deep(Vector2(5, 5)) and not f.is_deep(Vector2(15, 5)), "the low cell is open sea, the others are not")
+	var tall := TideField.from_bytes(Vector2(0, 0), 10.0, 2, 4, _grid(2, 4, func(_x, y): return [0.2, 0.5, 0.9, 0.95][y]))
+	fails += _ok(tall.wet_extent(0.6, 0.05) == Rect2(0, 0, 20, 20), "the water's reach stops at the last row it can wet")
 	fails += _ok(f.is_exposed(Vector2(25, 5), 0.78 - 0.1), "high sand is dry at high water")
 	fails += _ok(not f.is_exposed(Vector2(15, 5), 0.6) and f.is_exposed(Vector2(15, 5), 0.4), "a flat is dry once the tide falls under it")
 	fails += _ok(not f.is_exposed(Vector2(15, 5), 0.49, 0.02) and f.is_exposed(Vector2(15, 5), 0.47, 0.02), "a margin keeps the sign out of the wet edge")

@@ -10,6 +10,9 @@ extends RefCounted
 ##   * the world generator walls the DEEP part (elevation under `deep_elev`: the open sea) with invisible
 ##     posts, so you stop at the drop-off you can see. Everything over that, however far the tide covers it, is
 ##     wadeable; no moving wall.
+## Elevation is stored in 16 bits per cell (`bits`: 16, big-endian pairs; a field without it is the older one byte per
+## cell): at one byte the gentle flats stair-stepped into square patches of the same value and the waterline
+## followed the grid. The shader gets the grid as a half-float texture, so it is as fine as the CPU's.
 ## Sampling is bilinear on cell centres, the same as a linear-filtered texture, so CPU and GPU agree.
 ## Pure data: no nodes, no rendering.
 
@@ -18,7 +21,7 @@ var cell := 16.0               # world px per cell
 var width := 0
 var height := 0
 var deep_elev := 0.26          # elevation under which the sea is too deep to wade
-var _bytes := PackedByteArray()
+var _vals := PackedFloat32Array()   # width * height elevations, 0..1
 
 
 static func from_spec(field: Dictionary, deep: float = 0.26) -> TideField:
@@ -31,11 +34,19 @@ static func from_spec(field: Dictionary, deep: float = 0.26) -> TideField:
 	f.width = int(field.get("w", 0))
 	f.height = int(field.get("h", 0))
 	var raw := Marshalls.base64_to_raw(String(field.get("data", "")))
-	if raw.size() != f.width * f.height:
+	var bits := int(field.get("bits", 8))
+	var n := f.width * f.height
+	if (bits != 8 and bits != 16) or raw.size() != n * (bits / 8):
 		f.width = 0
 		f.height = 0
 		return f
-	f._bytes = raw
+	f._vals.resize(n)
+	if bits == 16:
+		for i in n:
+			f._vals[i] = float(raw[i * 2] * 256 + raw[i * 2 + 1]) / 65535.0
+	else:
+		for i in n:
+			f._vals[i] = float(raw[i]) / 255.0
 	return f
 
 
@@ -47,7 +58,9 @@ static func from_bytes(origin_px: Vector2, cell_px: float, w: int, h: int, bytes
 	f.width = w
 	f.height = h
 	f.deep_elev = deep
-	f._bytes = bytes
+	f._vals.resize(bytes.size())
+	for i in bytes.size():
+		f._vals[i] = float(bytes[i]) / 255.0
 	return f
 
 
@@ -61,7 +74,7 @@ func rect() -> Rect2:
 
 
 func _at(x: int, y: int) -> float:
-	return float(_bytes[clampi(y, 0, height - 1) * width + clampi(x, 0, width - 1)]) / 255.0
+	return _vals[clampi(y, 0, height - 1) * width + clampi(x, 0, width - 1)]
 
 
 ## Elevation at a world point, 0..1 (bilinear between cell centres; clamped at the grid's edge).
@@ -94,10 +107,37 @@ func is_exposed(p: Vector2, level: float, margin: float = 0.0) -> bool:
 	return level < elev_at(p) - margin
 
 
-## The elevation grid as a one-channel image, for the tide shader.
+## The part of the grid the water can ever reach (or wet): the rows down to the last one whose sand is under
+## `level_max` + `margin` anywhere. Everything under that is always dry, so nothing needs drawing there.
+func wet_extent(level_max: float, margin: float = 0.0) -> Rect2:
+	if is_empty():
+		return Rect2()
+	var last := 0
+	for j in height:
+		for i in width:
+			if _at(i, j) < level_max + margin:
+				last = j
+				break
+	return Rect2(origin, Vector2(width, last + 1) * cell)
+
+
+## The elevation grid as a one-channel half-float image, for the tide shader (filterable on every target).
 func to_image() -> Image:
-	return Image.create_from_data(width, height, false, Image.FORMAT_R8, _bytes)
+	var img := Image.create_from_data(width, height, false, Image.FORMAT_RF, _vals.to_byte_array())
+	img.convert(Image.FORMAT_RH)
+	return img
 
 
 static func encode(bytes: PackedByteArray) -> String:
 	return Marshalls.raw_to_base64(bytes)
+
+
+## 16-bit big-endian encoding of elevations 0..1 (what the generator writes, with "bits": 16).
+static func encode16(vals: Array) -> String:
+	var b := PackedByteArray()
+	b.resize(vals.size() * 2)
+	for i in vals.size():
+		var v := clampi(int(round(float(vals[i]) * 65535.0)), 0, 65535)
+		b[i * 2] = v >> 8
+		b[i * 2 + 1] = v & 0xFF
+	return Marshalls.raw_to_base64(b)

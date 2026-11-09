@@ -6,7 +6,7 @@ shell ridges, a stranded rowboat and a lighthouse on a rocky point. The TIDE slo
 a shared clock (a pure function of UTC time: tide.period_s, so everyone sees the same water). The drawn
 waterline, the sand you can wade and where things are buried all follow it.
 
-How the tide is drawn and read: the world carries a baked SEABED, one byte per 16 px cell (`tide.field`),
+How the tide is drawn and read: the world carries a baked SEABED, one 16-bit value per 16 px cell (`tide.field`),
 elevation 0..1. The water covers a point whenever the tide level is above its elevation, so one grid says
 where the waterline is at every moment. Elevation under `deep_elev` is open sea, too deep to wade; it is
 walled with invisible posts (the Stillglass lesson: a drawn shore and a collision shape must agree, so the
@@ -169,14 +169,14 @@ def pick_pools():
 POOLS = pick_pools()
 
 # ── bake the seabed ─────────────────────────────────────────────────────────────────────────────────
-FIELD = bytearray(GW * GH)
+FIELD = [0] * (GW * GH)     # 16-bit elevations (a single byte stair-stepped the gentle flats into squares)
 for j in range(GH):
     for i in range(GW):
-        FIELD[j * GW + i] = int(round(elev(BOUNDS_MIN[0] + (i + 0.5) * CELL, BOUNDS_MIN[1] + (j + 0.5) * CELL) * 255.0))
+        FIELD[j * GW + i] = int(round(elev(BOUNDS_MIN[0] + (i + 0.5) * CELL, BOUNDS_MIN[1] + (j + 0.5) * CELL) * 65535.0))
 
 
 def _at(i, j):
-    return FIELD[max(0, min(GH - 1, j)) * GW + max(0, min(GW - 1, i))] / 255.0
+    return FIELD[max(0, min(GH - 1, j)) * GW + max(0, min(GW - 1, i))] / 65535.0
 
 
 def field_elev(x, y):
@@ -452,7 +452,8 @@ TIDE_BLOCK = dict(TIDE)
 TIDE_BLOCK.update({
     "deep_elev": DEEP_ELEV,
     "expose_margin": EXPOSE_MARGIN,
-    "field": {"origin": list(BOUNDS_MIN), "cell": CELL, "w": GW, "h": GH, "data": base64.b64encode(bytes(FIELD)).decode("ascii")},
+    "field": {"origin": list(BOUNDS_MIN), "cell": CELL, "w": GW, "h": GH, "bits": 16,
+              "data": base64.b64encode(b"".join(v.to_bytes(2, "big") for v in FIELD)).decode("ascii")},
     # how the water looks (colours 0..1); the shader and TideLayer read these
     "look": {
         "deep": [0.14, 0.30, 0.40], "shallow": [0.52, 0.76, 0.80], "foam": [0.97, 0.99, 0.97], "wet": [0.36, 0.32, 0.27],
@@ -526,7 +527,7 @@ SECRET = {
 
 HEADER = ("EBBMERE - the tidal flats. A walk-and-wonder world: wet sand that holds the sky, tide pools, creeks, shell ridges and a "
           "lighthouse. The TIDE goes out and comes back on a shared clock (tide: a pure function of UTC time, TideClock / Server.Tide); "
-          "tide.field is the baked seabed (one byte per 16 px cell) the water covers whenever the level is above it; elevation under "
+          "tide.field is the baked seabed (one 16-bit value per 16 px cell) the water covers whenever the level is above it; elevation under "
           "tide.deep_elev is open sea, walled with invisible 'eb_shore' posts. Eight regions: Dune Landing (where you arrive), Wrack Line, "
           "Cockle Ridge, Pool Terrace, The Creeks, Far Bars, Lantern Point and Greywater. It RE-SKINS ITSELF through its 'art' block: its own "
           "sand + shore-litter atlas, windswept dune trees, a lighthouse landmark. 'dig' holds the buried spots; its secret is a sand-dollar "
