@@ -25,7 +25,7 @@ var _inflate := 8.0               # body_radius + margin — clearance around ev
 ## cell's CENTER touches no solid and no map edge. Each solid only visits the cells in its
 ## own inflated bounding box, so the whole build is a few milliseconds even for the maze's
 ## ~230 hedge segments — cheap enough to redo whenever solids change (the Ruin's slabs).
-static func build(solids: Array, bounds: Rect2, body_radius: float, margin: float, cell_size: float) -> NavGrid:
+static func build(solids: Array, bounds: Rect2, body_radius: float, margin: float, cell_size: float, ground: Callable = Callable()) -> NavGrid:
 	var g := NavGrid.new()
 	g._cell_size = maxf(cell_size, 1.0)
 	g._origin = bounds.position
@@ -47,6 +47,15 @@ static func build(solids: Array, bounds: Rect2, body_radius: float, margin: floa
 				continue
 			if not interior.has_point(g.center_of(Vector2i(col, row))):
 				g._walk[row * g._cols + col] = 0
+
+	# A world whose walkable ground is only part of the map (a sky-island world: islands and bridges in open sky)
+	# says which points ARE ground; every other cell is unwalkable, so no route is ever planned through the sky.
+	if ground.is_valid():
+		for col in g._cols:
+			for row in g._rows:
+				var idx0 := row * g._cols + col
+				if g._walk[idx0] == 1 and not bool(ground.call(g.center_of(Vector2i(col, row)))):
+					g._walk[idx0] = 0
 
 	# A solid smaller than the half-cell diagonal could slip between cell CENTERS and go
 	# unseen by the grid (a lone tree near a cell corner), letting A* plan a leg through

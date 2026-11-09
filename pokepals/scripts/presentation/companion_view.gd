@@ -209,7 +209,7 @@ func set_remote_state(pos: Vector2, look: Vector2) -> void:
 ## route AROUND walls (the maze) instead of only sliding along them. Re-calling this
 ## with changed solids (the Ruin's rising slabs) rebuilds the grid and drops any path
 ## planned against the old geometry.
-func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float) -> void:
+func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float, ground: Callable = Callable()) -> void:
 	_solids = solids
 	_bounds = bounds
 	_body_radius = body_radius
@@ -222,7 +222,7 @@ func set_solids(solids: Array, bounds: Rect2, body_radius: float, margin: float)
 				_nav_agent = NavAgent.new(nav_cfg)
 			_nav_wander_detour = float(nav_cfg.get("wander_detour_ratio", 2.0))
 			_nav_grid = NavGrid.build(solids, bounds, body_radius, margin,
-				float(nav_cfg.get("cell_size", 24.0)))
+				float(nav_cfg.get("cell_size", 24.0)), ground)
 			_nav_agent.set_grid(_nav_grid)
 		else:
 			_nav_agent = null
@@ -308,6 +308,16 @@ func bond_value() -> float:
 	if _brain == null:
 		return 0.0
 	return _brain.get_self().bond
+
+
+## Warm the bond by `amount` (bond units, 0..1), for an errand the two of you did together (Thimblewick's
+## fetch: each trip through the fence draws you closer). Local only. Not a bond SOURCE the brain's own growth
+## knows about (so it fires no milestone), just a nudge; the director tapers it so it cannot be farmed.
+func warm_bond(amount: float) -> void:
+	if not _is_local or _brain == null or amount <= 0.0:
+		return
+	var s := _brain.get_self()
+	s.bond = clampf(s.bond + amount, 0.0, float(_cfg.get("bond", {}).get("max", 1.0)))
 
 
 ## Lie down and stay put (true), or get up (false): Dozewood's nap. The body stops where it is, sinks into

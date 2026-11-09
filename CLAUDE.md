@@ -314,6 +314,57 @@ not a blocker** — pick it up if/when a shared world wants it.
 > `tools/gen_stillglass_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Stillglass").
 
+> **Ebbmere (2026-11):** **tidal flats** (3600x2600): wet sand that holds the sky, tide pools, creeks, shell ridges and a
+> lighthouse on a rocky point; reached through the Gateway (featured). **The tide is shared**: a pure function of UTC time
+> (`TideClock`, `scripts/world`, with an Elixir twin `Server.Tide` held to the same test vectors), 6 minutes a cycle, so
+> everyone sees the same water with no simulation or broadcast (the channel also pushes its clock on join, `Net.server_unix_ms`).
+> The world carries a baked **seabed** (`tide.field`, 16-bit elevation per 16 px cell, `TideField`); the water covers a place
+> whenever the level is over its elevation, drawn by ONE shader over one quad (`TideLayer`, `assets/eb_tide.gdshader`, no render
+> target) and read by the CPU from the same grid. Open sea (elevation under `deep_elev`) is walled with invisible posts; everything
+> else is wadeable. **Secret:** a sand-dollar that rises only at the lowest tide. While the tide is out your companion sniffs out
+> buried spots (`DigSense`, `DigPlan`: alive spots and what they hold are hashed from the tide's cycle number, so all clients agree);
+> tap one and a form that can dig (fox, rabbit, wolf) digs it, a bird or cat cannot (a cue); most spots give shells, sea-glass or a
+> crab, and the far bar gives up the sand-dollar, but only in the low window. New reveal type `tide`: unlike the others the server
+> CAN check it honestly (the low window plus a grace period, `Server.SecretReveal` + `Server.Tide`), still "standing at it". The
+> tide pole (`TideGauge`) and the lighthouse lamp (`LampGlow`) always show where the tide is. `TideDirector` (`mechanics/`) ties it
+> together; art: `pokepals/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; layout, lore and the secret:
+> `tools/gen_ebbmere_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Ebbmere").
+
+> **Loftreach (2026-11):** **sky islands** (3400x2600): nine grassy islets floating in open sky over a drifting sea of cloud,
+> joined by rope bridges, with a windmill, kites and weathervanes that all point the same way. Reached through the Gateway
+> (featured). The spec's `sky` block IS the ground: island outlines and bridges (`SkyRealm`, pure, tested) become the turf
+> (`SkyLayer`, behind `WorldArt`, meshes baked once), the collision fence (island edges as segment solids with a gap where an
+> open bridge joins, in `Solids.build`) and the companion's walkability (`NavGrid.build`'s optional ground test, so no route is
+> planned through the sky). **Secret:** a nest on an islet you cannot walk to, found by borrowing your companion's eyes: shift it
+> to a **bird** and tap the radial's **Go up** (offered in every shape; any other says only a bird can). The camera rises and
+> follows the bird to a vantage, and from up there the high clouds make a great arrow (`SkyAir`'s picture, visible only at
+> altitude) toward the islet and the head of a hidden bridge on Pennant Crag; once the bird has looked at both (pure `SkyView`)
+> the bridge unspools (`SkyLayer.set_bridge_reveal`) and the world rebuilds its barriers and routing with it open
+> (`reveal_sky_bridge`). A tap or a step brings it home; Go up again holds it; bond lengthens the stay, raises the view and
+> widens the companion's noticing. New reveal type `skyview` (server checks "this world, standing at it"). `SkyDirector`
+> (`mechanics/`), `SkyBird`, `CameraRig.hold_view`. Art: `pokepals/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`;
+> layout, lore and the secret: `tools/gen_loftreach_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Loftreach").
+
+> **Thimblewick (2026-11):** **a tiny cottage garden** (3200x2400) seen at beetle size: clover leaves for umbrellas, a teacup
+> for a pond (a gold-rimmed china ring round tea water), flower stalks standing like trees (daisy, poppy, cosmos, dandelion
+> clock, foxglove, bluebell; sunflowers as landmarks), giant props (a coiled hose, a watering can, a dropped button, a tipped
+> pot), a warm late afternoon with butterflies and falling petals; reached through the Gateway (featured). A long
+> whitewashed **picket fence** crosses the garden (one tree-kind picket every 12 px, so you walk behind it), and its **gaps are
+> missing pickets**: 10 px between neighbours, narrower than any body. **Secret:** a lost silver thimble behind one of them.
+> Tap your companion, choose **Go look**, and in **rabbit form** it trots to the nearest gap, squeezes through, is gone a few
+> seconds (a rustle in the grass behind the fence, its body hidden and its mind paused, a friend sees it scamper behind the
+> fence), and comes back carrying a find, which it sets at your feet. What it brings depends on the gap and the **bond** (each
+> gap has finds ordered by `min_bond`: a pebble, then a button, then the thimble at the one marked by a trail of red cotton),
+> and each trip warms the bond a little (tapering), so a fresh pair reaches the thimble in one visit. Any other shape finds the
+> gap too small and says so; a Call ends the trip or brings it back early; a Pet is enjoyed and the trip carries on. New reveal
+> type `fetch` (server: "this world", the secret's radius covers it, since the thimble is set down wherever you stand). Pure
+> `FetchTrip` (`scripts/world`, tested) over `FetchDirector` (`mechanics/`), `FetchFx`, `FindDraw`, and
+> `CompanionView.warm_bond`. Art: `pokepals/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; layout, lore and the
+> secret: `tools/gen_thimblewick_world.py`. Every finer choice is listed, open for review, in
+> `docs/home-world-and-secrets-design.md` ("Thimblewick").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

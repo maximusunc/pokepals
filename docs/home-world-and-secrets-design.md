@@ -1171,6 +1171,360 @@ walking reflection and its ripples, the rings and the rising stone. Elixir: the 
 `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
 session, and the feel (that is the playtest).
 
+## Ebbmere — built 2026-11, every choice below OPEN for the owner's review
+
+Ebbmere follows the Drifthallow template: **tidal flats**, wide wet sand under a wide sky, tide pools, creeks, shell
+ridges and a lighthouse on a rocky point. The sea slowly goes out and comes back on a **shared clock**, and a sand-dollar
+rises only at the lowest tide, buried on the far bar, which your companion helps you find and dig. The pitch was agreed
+(the tide as a pure function of UTC time with an authored period and low window; sniffing out dig spots; tap-to-dig through
+the form, with fox and rabbit digging and bird and cat not; mostly shells and crabs; one spot that gives up the sand-dollar
+only in the lowest window, with no fail state; a new reveal type the server can honestly check). **Everything finer was
+decided by the builder and is listed here for review.** Nothing below changes the pitch; if any of it is wrong, say so and it
+is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/ebbmere.json` (and the test fixture) from `tools/gen_ebbmere_world.py`; art from
+`pokepals/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; catalog id `14141414-…`, slug `ebbmere`, listed and
+featured, with the standard small portal home beside the arrival spot.
+
+**The tide clock.** `TideClock` (`scripts/world`, pure, tested) and its Elixir twin `Server.Tide`: integer unix
+milliseconds in, one cosine per period out. Phase 0 is high water, 0.5 the lowest; `level = low + (high - low) * (0.5 + 0.5
+cos(2π phase))`. **Judgment calls (all open):**
+1. **Numbers.** Period 360 s (the pitch's "such as 6 minutes"), epoch 0 (so high water is on every 6-minute mark of the UTC
+   hour), level 0.30 to 0.78, `yield_level` 0.345. The **low window** is where the level is at or under `yield_level`:
+   about 71 s wide (35.7 s either side of the lowest), a fifth of the cycle, so it is generous without being always.
+2. **Skew.** Server and clients agree to the millisecond if their clocks do. Clients use their own clock plus an offset: the
+   channel now pushes `clock` (`ms`) on join and `Net.server_unix_ms()` applies it (one-way latency is not corrected, which
+   is tens of milliseconds against a 71 s window). The server also allows `grace_s` = 30 s either side of the window on a
+   claim, so a slow examine or a skewed device is still honoured.
+3. **Held to the same vectors.** `tests/world_fixtures/tide_vectors.json` (generated from a Python reference) is read by the
+   GDScript test; the identical `server/test/fixtures/tide_vectors.json` by the Elixir one (phase, cycle, level, low window
+   with and without grace, countdown).
+4. **Per-tide hashing instead of a server.** Which dig spots are alive in a tide, and what each holds, are
+   `DigPlan.hash01(cycle, id)` (FNV-1a, deliberately not `String.hash()`), so every client agrees on both with nothing
+   simulated or sent.
+
+**The tide's look and the walkable sand.** The world carries a baked **seabed** (`tide.field`): 16 bits of elevation per
+16 px cell (225 x 163 for the 3600 x 2600 world, about 98 KB of base64 in the spec; one byte stair-stepped the gentle flats into squares, so the GPU reads it as a half-float texture). The water covers a place whenever the level
+is over its elevation, so one number per place says when it is wet.
+5. **One shader, one quad, no render target.** `TideLayer` is a single rectangle (clipped to the rows the water can ever
+   reach) with `assets/eb_tide.gdshader`, which samples the seabed texture and the level uniform: open sea, shallows,
+   a foam lace at the edge, then a band of darkened, glossy sand just behind the retreating water that holds the sky (the
+   "wet sand that reflects the sky"). The only per-frame work is two uniforms and a few small wading ripples; nothing is
+   rebuilt. It is a child of `WorldArt` (above ground/props/litter, under the y-sorted Scenery), so props stand under the
+   water if the tide covers them. `TideField.wet_extent` keeps the rect off the always-dry dunes.
+6. **Wading rule.** **No moving walls.** Elevation under `deep_elev` (0.26) is open sea: always water, never wadeable, walled
+   by 336 invisible `eb_shore` props along its edge (the Stillglass lesson: the posts are placed from the very grid the
+   shader reads, so the drawn drop-off and the collision agree). Everything else is wadeable however far the tide covers it
+   (it is knee-deep at the deepest; the water just looks deeper). The generator keeps the arrival, the tide pole and the
+   lighthouse over the highest tide.
+7. **Geography.** Sea to the north, a shelf, flats rising about 0.5 over 1500 px to dunes at the south (so the waterline travels
+   about 1400 px between low and high tide, at most ~12 px/s, easily outwalked), three creeks and fifteen pools whose floor
+   (0.285) is under the lowest water so they carry water through every tide, five shell ridges (low rises), the rocky point.
+   Regions: Dune Landing (you arrive), Wrack Line, Cockle Ridge, Pool Terrace, The Creeks, Far Bars, Lantern Point, Greywater.
+   `border.ring` is false (a treeline in the sea would be wrong); the south is edged with wind-bent dune pines, thorn
+   scrub and tamarisk.
+8. **The tide is always readable.** Three ways: the **tide pole** (`TideGauge`, a post in the y-sorted Scenery by the landing:
+   a blue float rides it with the water with an arrow for which way it is going, and a gold notch for the lowest-tide level
+   that glows while the tide is under it); the **lighthouse lamp** (`LampGlow`), which burns brighter the lower the tide is;
+   and the **waterline itself**. First-time hints (spec `tide.hints`) for each state: going out, lowest tide close (24 s
+   before the window), lowest tide, coming back, high water; later tides get a short version of "lowest is coming" and
+   "lowest tide".
+9. **Not done.** Wading does not slow you (a shared-physics change); a friend's feet do not make ripples (only yours and
+   your companion's).
+
+**Dig spots and sniffing.** 26 authored spots across the flats plus the far bar's `bar_dollar`.
+10. **Alive and exposed.** A spot is *alive* in a tide with probability 0.62 (hashed; the far bar's is always alive until the
+    secret is found) and is *exposed* when the level is under its elevation by `expose_margin` (0.012), so a spot shows its
+    sign only once the water has drawn back a little. Elevations run 0.37 to 0.74, so more appear as the tide falls: none at
+    high water, about 21 at the lowest. Everything resets at the next high water (a new cycle): the sea has smoothed the sand.
+11. **Sniffing, and generous triggers.** Pure `DigSense` (tested): when an alive, exposed, un-noticed spot lies within a
+    range of YOU (240 px at zero bond to 560 at full), your companion stops and points at the nearest for 2.4 s (cooldown
+    9 s to 3.5 s by bond), after which the spot is *noticed* and shows its sign: a dimple with a ring of rising bubbles.
+    A spot within 64 px of you or your companion is noticed at once (you would see it yourself). A hint reads once for the
+    sniff and once for the sign.
+12. **Tap to dig is an order through the form.** The world-tap hook (one line in `_on_world_tap`, ahead of the snap to the
+    nearest examinable thing) gives `TideDirector` first refusal of a tap within 54 px of a noticed, exposed spot. A form
+    that can dig gets the same `visit` command the Vale's mounds use, with `verb: dig`, and digs for 1.8 s with a spray of
+    sand when it arrives. **Which forms dig (open):** fox, rabbit and wolf (`dig.affordances`; a wolf is a canine, the pitch left
+    it open); bird and cat cannot, and the classic procedural rig (no animal) digs (`_default`). The **cue** for a shape that
+    cannot: the companion still goes over and pats at the spot, a ring flashes there and a hint names the shapes that could.
+    A sign pulses in the form's highlight colour (C-3) only while the worn form can dig it.
+13. **Natural actions are safe.** The order slot holds one order, so ours never overwrites a Pet or a Call: a Pet or Call
+    cancels the dig in flight (as it cancels any visit; nothing is lost, the spot is still buried, tap again), and the
+    sniffing stands down for 3 s after a Pet, 4 s after a Call. Changing form mid-order is fine (the verb was resolved
+    at the tap). Digging a spot twice says it is already dug.
+14. **What a spot holds** (spec `dig.outcomes`, hashed per tide and spot): a shell (cockle, whelk, razor shell, scallop or
+    periwinkle; weight 7), a crab that scuttles for the sea (2), or a piece of sea-glass (1). It is a drawn find lying by the
+    hole until the tide takes it: shells and sea-glass are **display-only** (not an inventory item, not saved), which is the
+    cheap, cozy option; making them collectable (a shell collection, a keepsake, a coin) is a possible follow-up.
+15. **Personal and display-only.** The tide and which spots are alive are shared (the same hash); your holes, signs and finds
+    are yours. A friend does not see them dug.
+
+**The secret: reveal type `tide`.** The sand-dollar's spot is the far bar, a low sandbar whose top stands at exactly
+`yield_level + expose_margin` (the generator forces it and asserts it), so it is uncovered **exactly while the tide is in its
+low window, and never otherwise**. A fox, rabbit or wolf sent to dig it brings the sand-dollar up (`TideDirector` ->
+`dollar_unearthed` -> `SecretDirector._reveal`), and examining it makes the usual claim. A missed window is just the next tide.
+16. **The server CAN check this one.** `Server.SecretReveal` honours a `tide` claim only while `Server.Tide.low_window?` is
+    true for the server's own clock, widened by `grace_s` (30 s), plus the usual "standing within 130 px of the spot". It
+    cannot tell whether you dug it (the digging is on your screen), only that the claim is made at the lowest tide at
+    the bar, which is an honest, if modest, check; it refuses with no clock rather than guessing (tested).
+17. **If the window passes before you examine it.** The prop stays where it came up; if the claim is refused a line says the
+    tide has turned and the sand-dollar will rise again at the next lowest tide (examine it then). Nothing is lost.
+18. **Keepsake and qualities.** `kept_sand_dollar`: the sand-dollar in a shallow dish of sand, drawn by `WorldArt` (a procedural
+    arm, since homes use the shared art); the in-world prop is the sprite `eb_sand_dollar`. Qualities `quiet`, `watery`,
+    `old`; temperament curious, middling energy.
+19. **Lore and lines** (the tide stone at the landing, the rowboat, buoy, groynes, the hints and the dig lines) are the builder's
+    wording.
+
+**Look.** Pale sand in five moods with baked ripple marks (own terrain + litter atlas `eb_terrain`, `eb_details`: cockles,
+whelks, razor shells, a scallop, starfish, wrack, lugworm coils), wind-bent dune pines, thorn scrub and tamarisk, a pale
+sky-warm tint with a very slow rose swing for the day cycle, a barely-there cloud drift. The lighthouse is a landmark
+(`lighthouse` art entry: trunk = tower, canopy = gallery, lamp room and roof) you can walk behind. Visitors are not re-lit.
+Native creatures (crabs, gulls) were skipped: the crab that scuttles from a dig is a drawn effect, not a pal.
+
+**Verified:** Godot unit suite (new `TestTide`: clock vectors, field, dig plan, sensing) and every smoke (new
+`smoke_ebbmere`) except `smoke_clickton`'s one known baseline failure. The smoke drives the REAL scene through the director's
+debug clock: the level at high water and at the lowest, the far bar covered ebbing and bare at the lowest, a bird that is
+sent over but cannot dig, a fox that digs the sand-dollar up, a rabbit that digs an ordinary spot in a later tide. Elixir:
+the standalone `secret_reveal_test.exs` and `tide_test.exs` pass (with the vectors); `mix test` could not run (hex.pm blocked).
+*Not checked:* phone frame rate, the world-pack build, a real two-player session and the feel (that is the playtest).
+
+## Loftreach — built 2026-11, every choice below OPEN for the owner's review
+
+Loftreach follows the Drifthallow template: **sky islands**: grassy islets floating in open sky over a sea of cloud, joined by
+rope bridges, with windmills, kites and weathervanes, bright and breezy and high. It hides **a nest on an islet you cannot reach
+on foot**, found by borrowing your companion's eyes. The pitch was agreed (a bird sent up; the camera rises with it; the clouds
+and the islands' shapes form a picture pointing at the islet; the hidden bridge appears once it has been seen from above; walk it
+and examine the nest; Go up offered in every shape with a cue; bond shapes it; the companion notices the islet; a new reveal
+type; the camera always returns). **Everything finer was decided by the builder and is listed here for review.** Nothing below
+changes the pitch; if any of it is wrong, say so and it is data or a small edit. Catalog id `12121212-...`, slug `loftreach`,
+listed and featured, with the standard small portal home beside the arrival spot.
+
+**What it is.** `server/priv/world_seeds/loftreach.json` (and the test fixture) from `tools/gen_loftreach_world.py`; art from
+`pokepals/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`.
+
+**The secret: reveal type `skyview`.** Spec shape (`secret.reveal`): `species` (bird), `bridge` (the hidden bridge's id), `vantage`
+(where the bird hangs), `targets` (what must be in view: the nest and the bridge's head), `head`, then every number and `lines`.
+Flow: shift to a bird, tap **Go up**; the bird (a `SkyBird` puppet drawing the companion's own animal sheet) lifts off, the
+real body is hidden and held where it stands, the camera zooms out and follows to the vantage, the high clouds fade in as an
+arrow, and when the bird has looked at the nest AND the bridge's head for `see_secs` the rope bridge unspools from its head
+toward the Rookery. It stays up a few more seconds to let you watch, then glides home. The nest is the secret's prop, there from
+the start in plain sight; examining it is the usual claim. Code: pure `SkyView` (flight, bond scaling, seen, noticing; 11 tests)
+and `SkyRealm` (island fences, bridges, ground test; 15 checks) in `scripts/world`, `SkyDirector` in `mechanics/`.
+
+**Judgment calls (all open):**
+1. **The sky is the world's ground, not a ground layer plus obstacles.** The spec's `sky` block (island outlines, bridges, the
+   windmill, kites, the picture's puffs) is the only description; `SkyRealm` derives the collision fence and the walkable ground
+   from it, and `SkyLayer` draws it, so the three cannot disagree. `WorldArt` paints no ground of its own when a `sky` block
+   exists (`ground.render: "none"`; one line in `_draw`), and no border ring of trees.
+2. **Island edges are segment solids, not posts.** Each outline edge is one capsule (radius 5), and where an open bridge joins an
+   island the edge is cut by exactly the bridge's strip (a slab test, any angle); the bridge gets a rail down each side. Bodies
+   inside are pushed back in the way hedges push them. 469 solids for the world. No change to `Solids.resolve`; one appended
+   call in `Solids.build`.
+3. **The hidden bridge is not a gate prop; it is shut by geometry.** A hidden bridge has no gap, no rails and no ground until its
+   id is in `sky.revealed`. Revealing appends the id and rebuilds the solids and the companion's grid
+   (`WorldController.reveal_sky_bridge`, like the Ruin's `rebuild_solids_dropping`). A found secret starts the visit revealed.
+   The bridge stays down for the visit (a fresh visit before the find shuts it again, so the bird has to look again; it is quick).
+4. **Routing never goes through the sky.** `NavGrid.build` gained one optional argument, a ground test; cells whose centre is not on
+   an island or an open bridge are unwalkable. Without it the grid would have treated open sky as walkable and a companion pressed
+   against an island's edge could be planned a route from the sky side. The ground test is `SkyRealm.ground_test`. A scratch
+   run confirmed a companion crosses a bridge by itself, and a player-driven bot crossed every bridge, including the new one,
+   with the companion following.
+5. **The picture.** The high clouds (`sky.picture.puffs`, 32 puffs) draw a great arrow from over Vane Hill, across Pennant Crag's
+   edge where the bridge begins, to the Rookery, with barbs at its head and a fletching at its tail. It is drawn by `SkyAir` above
+   everything and is invisible below `picture_from` 0.35 of the climb, fully there by 0.8, so it can only be read from up high; it
+   is also 1500 px long, which no ground-level view (640 x 360) holds. The islands are egg-shaped, all leaning toward the Rookery,
+   and the weathervanes (three on Vane Hill, one on High Perch) all point up and to the right whatever the wind, and the standing
+   stones carry the same hint in words: the picture is the confirmation, not the only clue.
+6. **Why the bridge starts where it does.** The way is a long hidden bridge (408 px, the head on Pennant Crag's north-east edge,
+   far mouth on the Rookery) so the islet is not in view from any island at ordinary zoom (the half-view is 320 px). The head
+   shows from the start as two posts with frayed rope ends stirring, "two anchors that go nowhere", and the arrow's shaft crosses
+   the crag right over them.
+7. **Go up.** A radial entry in every shape, in any world with a `skyview` secret (the Hollowsong Howl pattern). In bird form: the
+   flight. In any other shape: the companion looks up and a hint says only a bird can climb that high, then to shift to Bird and
+   tell it to Go up. The bird form is held for the flight (`postpone_form_drift`); an instructed change of shape mid-flight brings it
+   home. A found secret leaves Go up as a quiet toy.
+8. **The flight (data in `reveal`).** Rise 1.6 s while it flies to the vantage at 1100 px/s (0.9 to 3.0 s, so far away is still a few
+   seconds), hangs `stay` seconds (5 at zero bond, 10 at full), glides home 1.5 s to wherever the companion stands now. Seeing the
+   way extends the stay to at least the bridge's 3 s unspooling plus 2.2 s, so the bridge is watched coming down. **Ending:** a tap
+   on the world, the first step (keys or the stick), a Call, or an instructed shape change brings it home; the very first 0.7 s is
+   ignored so the tap that launched it cannot end it. **Holding:** pressing Go up again while it is up adds 3 s, up to 20 s total.
+   Movement is NOT locked (the step ends the flight, nothing is stuck); no input gating, so nothing can leave you unable to walk.
+9. **Bond (all data).** Stay 5 to 10 s; how high it climbs and so how much sky the view takes in (camera zoom 0.38 at zero bond,
+   1640 px of world across, to 0.30, 2100 px); how far it notices the islet (780 to 1250 px) and how often (every 18 s down to 8 s).
+   The view is deliberately wide enough at zero bond to hold the nest and the bridge's head (checked by the generator), so a newcomer
+   is never blocked; bond adds context (more of the arrow's tail) and time, not a gate.
+10. **"Seen" (pure `SkyView`).** The bird must be at 0.72 of full height, with the nest and the bridge's head both inside the view
+    (shrunk by a 30 px margin), for 1.2 s; the clock backs off if it drifts out, never resets hard. The view is the viewport
+    divided by the zoom, so a wider phone screen sees more. The server stays minimal and honest: "this world, standing at the
+    nest"; it cannot tell a looked-at bridge from a walked-to nest.
+11. **Noticing (Riverbank/Drifthallow lesson).** Coming within range of the islet, in any shape, the companion stops and looks
+    toward it for 2.5 s (a point), then cools down; a one-time hint says it has seen something. Stops once the way is seen. After
+    a flight that showed the way the companion looks at the bridge's head for 3 s and a hint says to follow the arrow to the edge of
+    Pennant Crag.
+12. **Natural actions never reset anything (Dozewood lesson).** A Pet during the flight is enjoyed (the flight goes on; checked in a
+    scratch run), the one-order brain slot is only used for a hold when nothing is pending, and a Call ends it gracefully.
+13. **The camera always returns.** `CameraRig.hold_view(center, zoom)` steers it every frame (the cinematic mode the Gateway
+    reveal uses) and `end_hold()` hands it back; the director restores on landing, on `finish()` (the secret taken) and in
+    `_exit_tree` (the world left mid-flight), and the real body is made visible again in all three. A smoke check drops a flight
+    mid-air and checks the camera, zoom and body. The follow resumes from where the camera is, so it glides back to you.
+14. **Phone and web cost.** The islands' turf, cliff and tapering underside are baked once into one mesh each; a bridge is chunks of
+    six planks; nothing per plank or per edge is drawn per frame; islands and bridges are skipped when the camera cannot see them;
+    the cloud sea is 150 batched quads on a parallax, culled to the view; the arrow is 32 sprites drawn only while it is visible.
+    At the zoomed-out view the draw count is a handful of meshes, the visible trees (the scenery already culls to the view) and
+    the clouds. No SubViewport, no shader, no per-frame allocation of meshes. *Phone frame rate not measured.*
+15. **Other forms of "who sees it".** Personal and display-only. A friend sees your companion body stand still (it is only hidden on
+    your screen) and does not see your bird; each player's bridge is their own. Friends' companions cross your bridge freely only
+    if they too have seen the way.
+16. **Layout.** 3400 x 2600, nine islands: Anchor Landing (where you arrive, with the way home), Millstone Lea (the windmill), Kite
+    Green, Cloud Orchard (blossom, a great apple tree), Vane Hill, Pennant Crag (the bridge's head), Lantern Pasture, High Perch,
+    and the Rookery (the nest). Nine bridges (80 px wide, 145 to 316 px long: wide so a 24 px routing grid always has a connected
+    lane) and one hidden (408 px). The generator checks the islands stand at least 110 px apart, no bridge crosses a third island,
+    every prop and tree stands on an island and away from its edge, the nest is on the Rookery, and the nest and the bridge's head
+    both fit the zero-bond view from the vantage. ~100 trees, 60 props, 7 kites, one windmill. The windmill's sails turn (drawn by
+    `SkyAir`, above the actors; the hub is measured from the tower sprite, 72 px above the prop's position).
+17. **Look.** Bright sky gradient, sunlit pixel turf (its own seamless tile) with litter and worn paths from each bridge mouth, a
+    stratified rock cliff and tapering underside lit from the upper left, island and bridge shadows on the clouds, two parallax depths
+    of pixel cloud drifting toward the nest, butterflies and a few petals, a slow day cycle. Visitors are not re-lit. No native
+    creatures (optional; skipped).
+18. **Keepsake and qualities.** `kept_nest` (the little nest in a wooden dish), drawn by `WorldArt` like the other secrets; the in-world
+    `lr_nest` too (an egg with a faint blue light, a feather laid across it that lifts). Qualities `high`, `old`, `warm`; temperament
+    curious, a little energetic, not clingy.
+19. **Lore and lines** (the signs, standing stones, vanes, the ten hints and the found line) are the builder's wording.
+
+**Verified:** Godot unit suite (new `TestSkyRealm`, `TestSkyView`) and every smoke (new `smoke_loftreach`) except `smoke_clickton`'s
+one known baseline failure. Scratch runs through the REAL loop (the paused scene un-paused each frame, the companion met, the bird
+chosen and Go up taken through `_on_radial_action`, the player driven with `ui_*` actions): a bot crossed the rope bridge and the
+companion followed; a step ended a flight; a flight left alone (with a Pet in the middle) saw the way in about 11 s, landed with the
+camera, zoom and body restored, and the bot then walked the new bridge to the Rookery, the companion following, with the nest in
+reach. Screenshots under Xvfb (opengl3) checked by eye: the islands and cliffs, the windmill and kites, the companion noticing, the
+view from above with the cloud arrow and the bridge unspooling toward the nest. Elixir: the standalone `secret_reveal_test.exs`
+passes; `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate, the world-pack build, a real two-player
+session, an actual claim round trip against a server, and the feel (that is the playtest).
+
+## Thimblewick — built 2026-11, every choice below OPEN for the owner's review
+
+Thimblewick follows the Drifthallow template: **a tiny cottage garden at beetle size**. A clover leaf is an umbrella, a
+teacup is a pond, the garden fence is a castle wall, a dropped button is a landmark. It hides **a lost silver thimble behind
+a gap in the fence much too small for you**, which only your companion can reach: in **rabbit form** it squeezes through,
+is gone a few seconds and comes back carrying a find, and **what it finds depends on the bond** (a pebble, then a button,
+then the thimble). The pitch was agreed (the garden, the gap, rabbit form, bond-tiered finds, a pebble as a sweet ordinary
+find with a gentle hint, a new reveal type, a hidden companion that does not break presence, a keepsake). **Everything finer
+was decided by the builder and is listed here for review.** Nothing below changes the pitch; if any of it is wrong, say so
+and it is data or a small edit.
+
+**What it is.** `server/priv/world_seeds/thimblewick.json` (and the test fixture) from `tools/gen_thimblewick_world.py`; art
+from `pokepals/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; catalog id
+`13131313-1313-1313-1313-131313131313`, slug `thimblewick`, listed and featured, with the standard small portal home beside the
+arrival spot.
+
+**The secret: reveal type `fetch`.** Spec shape (`secret.reveal`): `species` (the shapes that fit: `["rabbit"]`), `gaps`
+(each `{ id, mouth, inside, cache, finds: [{ item, min_bond }] }`), `items` (each find's drawing type, colour, label, lore and
+the line when it is set down), every number below, and `lines`. Flow: tap your companion, **Go look**; it trots to the nearest
+gap to YOU, squeezes through, is gone, and slips back out carrying the best find that gap holds for the current bond, and
+sets it down at your feet. Examining the dropped thimble claims the secret as usual. Code: pure `FetchTrip`
+(`scripts/world`, tested) over `FetchDirector` (`scripts/presentation/mechanics`), `FetchFx` (the rustle and the carried
+item), `FindDraw` (the finds, drawn procedurally so the ground, the carry and the keepsake share one drawing),
+`CompanionView.warm_bond`, and `SecretDirector` (the `fetch` arm, `can_go_look` / `go_look`).
+
+**Judgment calls (all open):**
+1. **The fence and its gaps.** The fence is a row of **pickets, one "tree" kind each, 12 px apart** along y = -700, wall to
+   wall, so it y-sorts (you walk behind it) and collides with no new code (tree radius 7, so the wall is continuous). A gap
+   is **one missing picket**: 24 px between neighbours' centres is 10 px clear, narrower than any body (it needs 16). A
+   smoke check walks a body at every gap and at the pickets beside it, and a control proves the check can tell (two missing
+   pickets let a body through). The lane behind the fence ("Far Side", 3200 x 500) is sealed by the fence, so only the
+   companion ever goes there; its long grass and a few things lying about are set-dressing. 262 pickets, 5 gaps.
+2. **How it goes through.** No new movement. The Drifthallow `guide` order takes it to the gap's **mouth** (the open side),
+   routed by the NavAgent; there the director takes over the body: it **shrinks** (1 to 0.22 over 0.8 s) while moving to the
+   `inside` point just behind the pickets (so it slides out of sight behind the neighbouring ones, as the y-sort puts it
+   behind the fence), is **hidden** and its mind **paused** (the first meeting's `visible = false` + `set_process(false)`),
+   and its position walks inside, cache, inside again, unseen. Then it grows back at the mouth and the brain resumes.
+3. **What friends see.** Nothing new on the wire: the companion's position is relayed as always, so a friend sees the puppet
+   trot to the gap, then **scamper about behind the fence at full size** (the hidden flag and the shrink are local), then
+   come back out. It does not show the carried item or the rustle. If that reads wrong, the fix is a `hidden` bit in the
+   state packet, not a change here.
+4. **Sending it: "Go look" only** (delegated). It is on the radial in every form once the companion is yours (so it is
+   discoverable); asking while it is away says so. The gap is the nearest to the **player** within 480 px (you point, it
+   goes), not the nearest to the companion. A shape that does not fit trots up, nudges at the gap, gives up with a line
+   ("a rabbit's shape, perhaps") and loses nothing. **Tapping the gap is not built:** the worn earth at each mouth is
+   examinable lore only (a form-affordance verb for a rabbit would add it; left out as not cheap).
+5. **What it brings.** Every gap has `finds` ordered by `min_bond`; the trip brings the best one whose `min_bond` the bond has
+   reached **as it squeezes through**. Four gaps hold ordinary small things (the Roots: pebble, acorn cup at 0.45; the Hollow:
+   pebble, feather at 0.40; the Stoop: pebble, glass bead at 0.40; the Corner: pebble, feather at 0.35, acorn cup at 0.65). The
+   **thimble gap** (the fourth, at x = 640) is marked by a **trail of red cotton** from its mouth and the reel it came off:
+   **a pebble, then a button at 0.40, then the thimble at 0.65**. The other four never hold the thimble. An ordinary find is a
+   plain examinable prop with its own line; at most three lie about (the oldest is taken away).
+6. **The gentle hint.** When a deeper find exists at that gap, the drop line adds "there is something more back there... once
+   you know each other better": the first time, then every third trip (so it explains the pebble without nagging).
+7. **Bond, measured.** Bond is on the dev `time_scale` (145) in `data/companion.json`. In the real loop (headless,
+   `--fixed-fps 60`, the world un-paused each frame, the companion met at 0.12, the player walking at 118 px/s from the arrival
+   spot to the thimble gap, then asking again after each drop): walking there (about 20 s) took bond from 0.12 to about 0.22
+   (0.13 to 0.24 in other runs); the first trip then carried it to about 0.47 to 0.57 (the companion crosses new regions on
+   the way, and a first visit to a region is worth about +0.09); each later trip added about +0.05 to +0.10 (the trip's own
+   warmth plus the ordinary near-trickle). While walking a lap, bond reached 0.44 after 40 s and 0.73 after three minutes.
+   Standing at the gap and just re-asking, the thimble came on **trip 4 (thresholds 0.35 / 0.65), trip 5 and trip 7 (0.40 /
+   0.70)** in about 80 to 150 s from arriving; the final **0.40 / 0.65** should sit at the quick end of that. A newcomer who
+   sends it right after the meeting (bond 0.12 to 0.35) gets a pebble first; a companion already bonded 0.65 or more brings
+   the thimble on the first trip. A player who also walks about between trips warms much faster (every new region). **Caveat:**
+   these thresholds are tuned to `time_scale` 145. At the real rate (`1.0`, about ten hours to a close bond) the trips' own
+   warmth is the only fast source (call 8), so the thimble would take far longer; the thresholds are data, to be retuned with
+   the scale.
+8. **Each trip warms the bond.** `warm` 0.06 (bond units, not time-scaled) the first trip to a gap, times 0.8 for every
+   earlier trip there, never under 0.008, so it cannot be farmed.
+9. **Timing.** Go at 100 px/s (128 beyond 240 px from the gap); a patience of 10 s plus 1.6 times the travel time (a fresh
+   companion keeps a wide berth and can start 1400 px away; a first version with a flat patience gave up 35 px short, found
+   by the real-loop run); squeeze 0.8 s; **away 9 s at zero bond, 5 s at full**; emerge 0.6 s; bring at 128 px/s, set down
+   within 30 px of you. A whole trip is about 10 s from the gap (22 s for the first, which starts far off).
+10. **Natural actions never lose it.** A **Call** while it is on its way calls it off ("it turns back"); a Call while it is
+    away brings it back **early** (at most 1.1 s later), with its find; a Call while it carries hands it to the brain, which
+    brings it faster. A **Pet** is enjoyed (3 s) and the trip carries on. **Walking off** is fine: it finds you wherever you
+    went; if it cannot reach you in 45 s it sets the find down where it stands and waits (never lost). Its form's drift is held
+    off while it works (the Drifthallow rule); an instructed change to another shape before it squeezes simply makes the gap
+    too small. The director hands the body back in `_exit_tree`.
+11. **Noticing (lesson from Drifthallow and Underroot).** As you come near any gap the companion stops and points toward it
+    for 2.4 s: from 240 px away and every 18 s when fresh, from 560 px and every 7 s when bonded. It does not say which gap
+    holds the thimble (the red cotton does).
+12. **Readable states.** A first-time hint for every phase (set off, gone, carrying), plus the cues that need an action (too
+    big, lost the way, called off, set down) every time. While it is away a **rustle** shivers the long grass wherever the
+    hidden companion is behind the fence (`FetchFx`, y-sorted so the pickets hide part of it), with a small burst when it has
+    found something (half way) and one line about **missing it** near the end ("the garden is very big, and very quiet,
+    without it"): the separation, short and warm. The carried find rides over its head, bobbing, at 62% size. The **camera
+    looks up to 120 px north** while it is behind the fence, so the rustle (above the picket tops) and the slip back out are
+    in view when you stand within a couple of hundred px.
+13. **The drop.** Ordinary finds are set down beside you. The **thimble** is handed to the `SecretDirector`, which makes it
+    the secret's prop at your feet (its line, the usual claim on examine); a second trip before you claim it moves it to your
+    feet again. Once claimed, the thimble is an ordinary find ("a silver thimble") you can still fetch, and the fetching stays
+    a quiet toy.
+14. **Server check stays minimal and honest** (like `stillness`): `fetch` is "this world". Because the thimble is set down
+    wherever you stand, the secret's `radius` is 4000 (the whole world), so the usual "standing at it" test cannot fail. It
+    cannot tell a fetched thimble from a walked-to one; but the only way to see the thimble is to have it fetched.
+15. **Layout.** 3200 x 2400, eight regions (Far Side behind the fence; Clover Commons, Dew Run, Hose Works in the north;
+    Teacup Green in the middle; Button Meadow, the Doorstep where you arrive, Peg Corner in the south). About 800 tree-kind
+    scenery nodes (262 are pickets), 88 hand-placed and scattered props, four great sunflowers as landmarks, a gravel path from
+    the doorstep north past the cup. The generator keeps 70 px clear round every mouth, keeps the lane behind the fence clear
+    between each gap's inside and its cache, and asserts every gap is exactly one missing picket in an unbroken run that
+    reaches both walls.
+16. **Scale.** Everything reads giant by size: stalks 100 to 130 px tall (you are about 30), clover umbrellas, sunflowers 230 px,
+    a hose, a watering can, a tipped pot, a trampoline-sized button, dew drops, a snail shell as a boulder. The **teacup** is a
+    pond (tea-coloured water) with a 344 px cup-and-saucer ring drawn round it. Props anchor at their feet and cull by that
+    point, so a centred ring needed its own small `WorldArt` arm (`teacup`, loads `tw_teacup.png` centred on the pond).
+17. **Look.** A warm late afternoon (honey tint, a slow golden loop), saturated greens, own terrain and litter atlas
+    (`tw_terrain`, `tw_details`), butterflies, falling petals and pollen. Visitors are not re-lit.
+18. **Keepsake and qualities.** `kept_thimble`: the thimble standing on a spool of red cotton, drawn by `WorldArt` through
+    `FindDraw`. Qualities `crafted`, `warm`, `old`; temperament curious, fairly energetic, a little clingy.
+19. **Lore and lines** (the gaps, the cotton, the finds, the hints) are the builder's wording. **Not built:** native creatures
+    (a ladybird, a bumblebee), tapping a gap, a hidden-companion flag for friends.
+
+**Verified:** Godot unit suite (new `TestFetchTrip`: the tiers, the taper, every phase and each natural action, a far-off
+companion, the notice scaling) and every smoke except `smoke_clickton` (its one known baseline failure); the new
+`smoke_thimblewick` checks the re-skin, that **no body gets through any gap** (with a control), the hidden thimble, "Go look",
+a pebble for a new companion, the thimble at the player's feet for a bonded one, and a wolf that cannot fit. Scratch runs
+through the REAL loop (the tree un-paused each frame, the companion met, rabbit chosen and Go look triggered through the radial
+handler, a Call mid-trip): the numbers in call 7. Screenshots under Xvfb (opengl3) of the arrival, the teacup, the fence with
+the red cotton and the gap, and the companion going through and coming back carrying a find were checked by eye. Elixir: the
+standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate (about
+800 scenery nodes, view-culled), the world-pack build, a real two-player session, and the feel (that is the playtest).
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

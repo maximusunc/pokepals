@@ -54,10 +54,31 @@ defmodule Server.SecretReveal do
       (`ReflectionWalker` on the client), so the server only checks "this world, standing at it", like
       `stillness` and `tracks`. Honest about what that means: it can't tell a followed reflection from a
       walked-to bank.
+    * `tide`: it appears only at the LOWEST tide (Ebbmere's sand-dollar, buried on the far bar). Unlike the
+      others the server CAN check this one honestly, because the tide is a pure function of time
+      (`Server.Tide`, the twin of the client's `TideClock`): the claim is honoured only while the tide is in
+      its low window (the reveal's `tide` block: period, epoch, levels and the `yield_level` that bounds the
+      window), widened by the reveal's `grace_s` for clock skew and a slow claim. It still relies on
+      `Discoveries.claimable?/3` for "standing at the spot". Miss the window and it is simply the next tide.
+
+    * `skyview`: the nest is in plain sight on an islet you cannot walk to, until the player's companion, shifted
+      into a bird and sent up, has looked at it from high above and a hidden rope bridge comes down (Loftreach's
+      nest). The flight, the view, the picture in the clouds and the bridge all happen on the player's own screen
+      (`SkyView` / `SkyRealm` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `tracks`. Honest about what that means: it can't tell a bridge that was found from one
+      that was never needed (a player who somehow stood at the nest is at the nest).
+    * `fetch`: it appears once the player's companion, in a shape small enough to fit (a rabbit), has been
+      sent through the right gap in the garden fence and has come back carrying it, with a bond deep enough to
+      have found it (Thimblewick's silver thimble). The asking ("Go look"), the squeeze, the time away and the
+      carrying all happen on the player's own screen (`FetchTrip` on the client), and the thimble is set down
+      at the player's feet wherever they stand, so the server only checks "this world" (the secret's `radius`
+      covers the whole world), like `stillness` and `tracks`. Honest about what that means: it can't tell a
+      fetched thimble from one that never needed fetching (but the only way to see it is to have it fetched).
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
-  of flare props this player has touched this visit).
+  of flare props this player has touched this visit; `now_ms`: the server's unix time in milliseconds, for
+  the tide).
   """
 
   @doc "Whether `secret`'s reveal condition is met, given what the channel knows."
@@ -72,12 +93,23 @@ defmodule Server.SecretReveal do
       %{"type" => "follow"} -> true
       %{"type" => "shadow"} -> true
       %{"type" => "reflection"} -> true
+      %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))
+      %{"type" => "skyview"} -> true
+      %{"type" => "fetch"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end
   end
 
   def met?(_secret, _ctx), do: false
+
+  # The tide is low enough to give the sand-dollar up (Server.Tide), within the reveal's grace period.
+  defp tide_low?(%{"tide" => params} = reveal, now_ms) when is_map(params) and is_integer(now_ms) do
+    grace = Map.get(reveal, "grace_s", 30.0)
+    Server.Tide.low_window?(params, now_ms, if(is_number(grace), do: grace, else: 30.0))
+  end
+
+  defp tide_low?(_reveal, _now_ms), do: false
 
   defp ward_open?(wards, ward) do
     Enum.any?(wards, fn w -> to_string(Map.get(w, :id, Map.get(w, "id"))) == ward and Map.get(w, :open, Map.get(w, "open")) == true end)

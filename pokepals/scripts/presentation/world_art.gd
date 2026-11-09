@@ -275,6 +275,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		_flowers.append({ "pos": fp, "color": Color(float(f[2]), float(f[3]), float(f[4])), "phase": _phase_for(fp) })
 
 	_build_pixel_ground(data)
+	_build_sky(data)
 	if _ground == null:
 		_scatter_grass()
 
@@ -540,6 +541,27 @@ func _build_pixel_ground(data: Dictionary) -> void:
 		# behind WorldArt's drawing, but added after the ground so it lands on top of it
 		_litter_under = _make_litter_proxy("LitterUnder", true, _bucket(_details))
 		_litter_over = _make_litter_proxy("LitterOver", false, _bucket(_shore_details))
+
+
+## A sky-island world (Loftreach): the spec's `sky` block is the whole ground, drawn by a SkyLayer standing behind
+## this node's own drawing (so props and trees land on it), and this node paints no ground of its own.
+var _sky_layer: SkyLayer = null
+
+
+func _build_sky(data: Dictionary) -> void:
+	if is_instance_valid(_sky_layer):
+		_sky_layer.queue_free()
+	_sky_layer = null
+	if not data.has("sky"):
+		return
+	_sky_layer = SkyLayer.new()
+	_sky_layer.name = "SkyLayer"
+	add_child(_sky_layer)
+	_sky_layer.build(data["sky"], _bounds)
+
+
+func sky_layer() -> SkyLayer:
+	return _sky_layer
 
 
 ## Litter is grouped into square BUCKETS of world space, so a frame only walks the buckets on screen
@@ -1078,7 +1100,7 @@ func _draw() -> void:
 	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
 	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
 	# (With the pixel ground, the GroundLayer child draws the floor, the paths and the shores instead.)
-	if _ground == null:
+	if _ground == null and _sky_layer == null:
 		if _ground_grad != null:
 			draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
 		else:
@@ -1859,6 +1881,27 @@ func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
 	draw_circle(c + Vector2(-0.6, -0.8) * k, 1.0 * k, Color(1, 1, 1, 0.95))
 
 
+## Thimblewick's teacup: the saucer, the cup's wall and its gold rim, as one round image centred on `c` (the
+## pond's centre), the tea showing through the middle. Loaded once; absent art draws nothing.
+var _teacup_tex: Texture2D = null
+var _teacup_tried := false
+
+func _draw_teacup(c: Vector2) -> void:
+	if not _teacup_tried:
+		_teacup_tried = true
+		if ResourceLoader.exists("res://assets/sprites/tw_teacup.png"):
+			_teacup_tex = ResourceLoader.load("res://assets/sprites/tw_teacup.png")
+	if _teacup_tex != null:
+		draw_texture(_teacup_tex, c - _teacup_tex.get_size() * 0.5)
+
+
+## Move a drawn interactable (Thimblewick's thimble, set down again at the player's feet by a second trip).
+func move_interactable(index: int, pos: Vector2) -> void:
+	if index >= 0 and index < _interactables.size():
+		_interactables[index]["pos"] = pos
+		queue_redraw()
+
+
 ## The faint bell: a bronze bell hung by a cord from the arm of a leaning post (`post`), swaying a hair, with
 ## the barest rings spreading from it, as if it were sounding just under what you can hear. `k` scales it.
 func _draw_bronze_bell(base: Vector2, tint: Color, k: float, post: bool) -> void:
@@ -2148,6 +2191,14 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			# Stillglass's secret: a smooth grey stone that came up out of the bank, cold and quiet, with a faint
 			# silver breath of light about it that comes and goes like the lake's own sheen.
 			_draw_mirror_stone(p + Vector2(0, 5), color, 1.0, false)
+		"lr_nest":
+			# Loftreach's secret: a woven nest of rope-ends, wind-flowers and feathers, one pale egg in it
+			_draw_nest(p + Vector2(0, 4), color, 1.0, true)
+		"kept_nest":
+			# its keepsake at home: the same little nest in a small wooden dish, the feather across the egg
+			draw_circle(p + Vector2(0, 7), 12.0, Color(0.16, 0.12, 0.08, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.46, 0.34, 0.22), true, -1.0, true)
+			_draw_nest(p + Vector2(0, 4), color, 0.7, false)
 		"kept_mirror_stone":
 			# its keepsake at home: the same stone in a shallow dish of still water, with its image beneath it,
 			# a touch too bright
@@ -2155,6 +2206,12 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 6), 10.0, Color(0.58, 0.60, 0.64), true, -1.0, true)
 			draw_circle(p + Vector2(0, 5), 8.0, Color(0.70, 0.78, 0.84), true, -1.0, true)
 			_draw_mirror_stone(p + Vector2(0, 4), color, 0.6, true)
+		"kept_sand_dollar":
+			# Ebbmere's keepsake at home: the sand-dollar in a shallow dish of sand, a five-petalled flower in its back
+			draw_circle(p + Vector2(0, 7), 12.0, Color(0.10, 0.09, 0.07, 0.22), true, -1.0, true)
+			draw_circle(p + Vector2(0, 6), 10.0, Color(0.58, 0.50, 0.38), true, -1.0, true)
+			draw_circle(p + Vector2(0, 5), 8.5, Color(0.84, 0.76, 0.60), true, -1.0, true)
+			_draw_sand_dollar(p + Vector2(0, 3), 1.0)
 		"kept_root_heart":
 			# its keepsake at home: the same seed, wrapped in a few small roots on a clay saucer
 			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.07, 0.05, 0.22), true, -1.0, true)
@@ -2343,6 +2400,16 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 5), 9.0, Color(0.20, 0.14, 0.10, 0.18), true, -1.0, true)
 			draw_circle(p + Vector2(0, 4), 7.0, Color(0.52, 0.38, 0.26), true, -1.0, true)
 			draw_arc(p + Vector2(0, 4), 7.0, 0.1, PI - 0.1, 12, Color(0.34, 0.24, 0.16), 1.0, true)
+		"find_pebble", "find_acorn", "find_feather", "find_bead", "find_button", "thimble":
+			# Thimblewick's finds, fetched through the fence by a small, quick companion: the pebble, the acorn's
+			# cup, a feather, a glass bead and a button, and the one that is the secret, the silver thimble.
+			FindDraw.draw(self, type.trim_prefix("find_"), p, 1.0, _time)
+		"kept_thimble":
+			# its keepsake at home: the thimble standing on a spool of red cotton
+			FindDraw.draw_kept_thimble(self, p, _time)
+		"teacup":
+			# Thimblewick's pond: a cup-and-saucer ring drawn round the tea, centred on the pond
+			_draw_teacup(p)
 			_draw_bronze_bell(p + Vector2(-9, 6), color, 0.9, false)
 		"echo_stone":
 			# Hollowsong's secret: a smooth bowl of red stone on the cave's threshold, a violet light breathing
@@ -3065,6 +3132,38 @@ func _draw_paper_bird(c: Vector2, tint: Color, k: float, motes: bool) -> void:
 			draw_circle(mp, 1.1, Color(tint.r, tint.g, tint.b, (1.0 - t) * 0.8))
 
 
+## Loftreach's nest: a shallow bowl of woven straw and rope-ends with a rim of wind-flowers and feathers, one pale
+## egg with a faint blue light in the shell, and (the secret itself) a feather laid across it that stirs. `k` scales.
+func _draw_nest(c: Vector2, tint: Color, k: float, live: bool) -> void:
+	var breathe := 0.5 + 0.5 * sin(_time * 1.4 + _phase_for(c))
+	SoftGlow.draw(self, c + Vector2(0, -6.0 * k), 26.0 * k * (0.9 + 0.2 * breathe), Color(0.62, 0.82, 1.0, 0.14 + 0.1 * breathe), 0.8)
+	draw_circle(c + Vector2(0, 5.0 * k), 13.0 * k, Color(0.10, 0.14, 0.08, 0.22), true, -1.0, true)
+	# the bowl: dark outside, lighter straw rim
+	draw_circle(c + Vector2(0, 2.0 * k), 12.0 * k, tint.darkened(0.45), true, -1.0, true)
+	draw_circle(c + Vector2(0, 0), 11.0 * k, tint.darkened(0.12), true, -1.0, true)
+	for i in 14:
+		var a := TAU * float(i) / 14.0
+		var q := c + Vector2(cos(a) * 11.0 * k, sin(a) * 5.0 * k)
+		draw_line(q, q + Vector2(cos(a + 0.6) * 4.0 * k, sin(a + 0.6) * 2.0 * k), tint.lightened(0.25 if i % 2 else 0.05), 1.2 * k)
+	draw_circle(c + Vector2(0, -1.0 * k), 8.5 * k, tint.darkened(0.3), true, -1.0, true)
+	# the egg, with its faint blue light
+	var egg := c + Vector2(0, -5.0 * k)
+	draw_circle(egg, 5.0 * k, Color(0.90, 0.94, 0.98), true, -1.0, true)
+	draw_circle(egg + Vector2(-1.2, -1.4) * k, 2.4 * k, Color(1, 1, 1, 0.9), true, -1.0, true)
+	draw_arc(egg, 5.0 * k, 0.2, PI - 0.2, 10, Color(0.62, 0.78, 0.96), 1.2 * k, true)
+	# flowers and feathers at the rim
+	for f in [Vector2(-10, -2), Vector2(9, -3), Vector2(-3, 5), Vector2(5, 5)]:
+		draw_circle(c + f * k, 1.6 * k, Color(0.96, 0.84, 1.0))
+	# the feather laid across the egg (it lifts a little, when nothing is moving)
+	var lift := sin(_time * 1.1) * (2.0 if live else 1.0) * k
+	draw_line(egg + Vector2(-9, 2.0 + lift) * k, egg + Vector2(10, -6.0 - lift) * k, Color(0.96, 0.96, 1.0), 1.6 * k, true)
+	draw_line(egg + Vector2(-9, 2.0 + lift) * k, egg + Vector2(10, -6.0 - lift) * k, Color(0.62, 0.74, 0.90, 0.8), 0.6 * k, true)
+	if live:
+		for m in 3:
+			var t := fposmod(_time * 0.22 + float(m) / 3.0, 1.0)
+			draw_circle(c + Vector2(sin(_time * 0.8 + float(m) * 2.0) * 8.0, -14.0 * k - t * 24.0), 1.0, Color(0.8, 0.92, 1.0, (1.0 - t) * 0.8))
+
+
 ## Read-only, for the reflection layer (Stillglass): every pond's baked outline (world px), so a mask of
 ## the water can be made from exactly the shapes that are drawn.
 func pond_rings() -> Array:
@@ -3100,3 +3199,16 @@ func _draw_mirror_stone(c: Vector2, tint: Color, k: float, with_image: bool) -> 
 	draw_circle(c + Vector2(-rx * 0.25, -ry * 1.35), rx * 0.55, Color(0.80, 0.85, 0.92, 0.9), true, -1.0, true)
 	draw_circle(c + Vector2(-rx * 0.35, -ry * 1.5), 1.3 * k, Color(1, 1, 1, 0.9))
 	draw_polyline(stone + PackedVector2Array([stone[0]]), Color(0.18, 0.20, 0.26), 1.0, true)
+
+
+## The sand-dollar: a pale disc seen a little from above, with a five-petalled flower pressed into it. `k` scales it.
+func _draw_sand_dollar(c: Vector2, k: float) -> void:
+	draw_set_transform(c, 0.0, Vector2(1.0, 0.72))
+	draw_circle(Vector2.ZERO, 7.5 * k, Color(0.52, 0.46, 0.38))
+	draw_circle(Vector2(0.0, -0.6 * k), 7.0 * k, Color(0.93, 0.89, 0.80))
+	draw_circle(Vector2(-1.4 * k, -1.6 * k), 4.6 * k, Color(0.98, 0.96, 0.90))
+	for i in 5:
+		var a := TAU * float(i) / 5.0 - PI * 0.5
+		draw_line(Vector2.ZERO, Vector2(cos(a), sin(a)) * 3.8 * k, Color(0.66, 0.60, 0.50), 1.2 * k)
+		draw_circle(Vector2(cos(a), sin(a)) * 3.0 * k, 0.9 * k, Color(0.66, 0.60, 0.50))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
