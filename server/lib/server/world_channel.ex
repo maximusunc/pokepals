@@ -126,6 +126,10 @@ defmodule Server.WorldChannel do
     # built straight from it already knows to leave a found secret out (the maze's seed, once taken).
     push(socket, "discoveries", %{ids: Discoveries.list(user_id)})
 
+    # The server's wall clock, so a client whose own clock is off still reads the same TIDE as everyone else
+    # (Ebbmere's tide is a pure function of time, Server.Tide / the client's TideClock).
+    push(socket, "clock", %{ms: System.system_time(:millisecond)})
+
     if etag == known_etag do
       push(socket, "world_spec_unchanged", %{world_id: world_id, version: definition.version, etag: etag})
     else
@@ -410,7 +414,7 @@ defmodule Server.WorldChannel do
 
     # How it becomes findable (Server.SecretReveal): a door that must be open, a perfect hunt this visit.
     reveal_ctx = %{wards: World.wards(world_id), hunt_found: Map.get(socket.assigns, :hunt_found, 0), hunt_goal: core["goal"] || %{},
-      touched: Map.get(socket.assigns, :touched, MapSet.new())}
+      touched: Map.get(socket.assigns, :touched, MapSet.new()), now_ms: System.system_time(:millisecond)}
 
     if Discoveries.claimable?(core, secret_id, pos) and Server.SecretReveal.met?(core["secret"], reveal_ctx) do
       # S-4: was the companion beside us, and which friends were near (about a screen away)?

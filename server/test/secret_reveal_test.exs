@@ -46,6 +46,48 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  describe "the sand-dollar only rises at the lowest tide (the server checks the clock)" do
+    @tide %{"period_s" => 360.0, "epoch_s" => 0.0, "level_low" => 0.30, "level_high" => 0.78, "yield_level" => 0.345}
+    @secret %{"reveal" => %{"type" => "tide", "tide" => @tide, "grace_s" => 30.0}}
+    # the lowest point of the tide is half a period in; the window is about +-35.7 s round it
+    @lowest 180_000
+
+    test "a claim in the middle of the lowest water is honoured" do
+      assert SecretReveal.met?(@secret, %{now_ms: @lowest})
+      assert SecretReveal.met?(@secret, %{now_ms: @lowest + 30_000})
+    end
+
+    test "a claim at high water, or on the way out, is not" do
+      refute SecretReveal.met?(@secret, %{now_ms: 0})
+      refute SecretReveal.met?(@secret, %{now_ms: 90_000})
+      refute SecretReveal.met?(@secret, %{now_ms: 270_000})
+    end
+
+    test "a slow claim is still honoured for the grace period after the window closes, and not after" do
+      # window edge ~35.66 s from the lowest; grace 30 s
+      assert SecretReveal.met?(@secret, %{now_ms: @lowest + 60_000})
+      refute SecretReveal.met?(@secret, %{now_ms: @lowest + 70_000})
+      refute SecretReveal.met?(@secret, %{now_ms: @lowest - 70_000})
+    end
+
+    test "every later tide has its own window" do
+      assert SecretReveal.met?(@secret, %{now_ms: @lowest + 360_000 * 7})
+      refute SecretReveal.met?(@secret, %{now_ms: 360_000 * 7})
+    end
+
+    test "with no clock (or a malformed reveal) it refuses rather than guessing" do
+      refute SecretReveal.met?(@secret, %{})
+      refute SecretReveal.met?(@secret, %{now_ms: nil})
+      refute SecretReveal.met?(%{"reveal" => %{"type" => "tide"}}, %{now_ms: @lowest})
+    end
+
+    test "no grace means exactly the window" do
+      strict = put_in(@secret, ["reveal", "grace_s"], 0.0)
+      assert SecretReveal.met?(strict, %{now_ms: @lowest + 35_000})
+      refute SecretReveal.met?(strict, %{now_ms: @lowest + 36_500})
+    end
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})
