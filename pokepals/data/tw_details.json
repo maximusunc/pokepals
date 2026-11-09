@@ -1,0 +1,14 @@
+{
+	"grassblade_a": [0, 0, 6, 8],
+	"grassblade_b": [7, 0, 5, 7],
+	"cloverleaf": [13, 0, 7, 6],
+	"petal_white": [21, 0, 4, 4],
+	"petal_pink": [26, 0, 4, 4],
+	"seed": [31, 0, 4, 3],
+	"pebble_a": [36, 0, 7, 6],
+	"crumb": [44, 0, 4, 3],
+	"twig": [49, 0, 8, 4],
+	"acorncap": [58, 0, 8, 6],
+	"tealeaf": [67, 0, 6, 5],
+	"buttercup": [74, 0, 5, 4]
+}
