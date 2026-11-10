@@ -104,8 +104,15 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
   **Stillglass is not excluded:** the owner doesn't think the mirror lake necessarily needs to be
   off-limits. How fishing sits beside its reflection secret is a detail for build time. Each world's
   water needs its own catches, or a sensible default set (U-7, U-10).
-- ⬜ **U-7 — What fishing pays.** Catches as journal entries, as materials, as things to sell for
-  coins, or some mix. Rare catches per world give a long tail to chase.
+- ✅ **U-7 — What fishing pays.** *(Decided 2026-11-10.)*
+  - **Common fish sell for coins** at a shop: fishing is a steady, calm source of coins.
+  - **Some catches are materials** (things reeled up, like shells, sea-glass or an old boot) that
+    can be traded between players, and later used in crafting (U-11). Each world's water yields
+    different ones, which gives players reasons to trade.
+  - **Rare fish go in a tank in your home**, on display for you and visiting friends.
+  - **Not in the journal:** catches are not logged as journal entries.
+  **Still to decide:** what the tank looks like and how it fits the home's layout; whether a rare
+  fish can also be sold or traded instead of kept; and the actual fish and materials for each world.
 - ⬜ **U-8 — How you get the rod.** Bought at a shop, crafted from materials, or both. Its price, and
   whether the very first rod is easy to come by so a newcomer can try fishing early.
 - ⬜ **U-9 — Using an item (the general mechanism).** How a player holds and uses an item on screen
