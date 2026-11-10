@@ -86,15 +86,13 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
 - ✅ **U-3 — The pilot item: the fishing rod.** *(Decided 2026-11-10.)* Built end to end first:
   one way to earn it, one way to get it, two worlds where it does something. Chosen because a calm
   activity that differs in every world's water naturally makes worlds replayable.
-- 🔶 **U-4 — What fishing feels like: a light skill moment.** *(Direction decided 2026-11-10;
-  the exact mechanic is still open.)* Landing a fish is a short timing or tension moment, in the
-  spirit of the Riverbank hunt, with rarer fish asking a little more of you. Not chosen: purely
-  gentle cast-and-tap, or a game mostly about reading the water. Still cozy: a fish that gets away
-  is just "next time," never a loss. **Still to decide:** the mechanic itself (a timing ring, a
-  tension bar, following the fish's pull), and how much harder a rare fish is.
-
-## Open items (walk through one at a time)
-
+- ✅ **U-4 — What fishing feels like: a light skill moment, landed with a timing ring.**
+  *(Decided 2026-11-10; the ring is "for now," open to revisiting once it's been played.)* Landing a
+  fish is a short timing moment in the spirit of the Riverbank hunt: a ring shrinks around the bobber
+  and you tap when it lines up. Rarer fish make the window smaller. Still cozy: a fish that gets away
+  is just "next time," never a loss. Not chosen: purely gentle cast-and-tap, a game mostly about
+  reading the water, a tension bar, or following the fish's pull with the joystick. **Tuning left
+  for build time:** window sizes, ring speed, and how much smaller a rare fish's window is (as data).
 - ⬜ **U-5 — The companion's part.** How the companion joins in, by form. E.g. a cat watches the
   water and points; a bird spots shadows from above. Fishing should be something you do *together*.
 - 🔶 **U-6 — Where you can fish.** The owner said **"fish anywhere"** (2026-11-10), which replaces
