@@ -113,8 +113,12 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
   - **Not in the journal:** catches are not logged as journal entries.
   **Still to decide:** what the tank looks like and how it fits the home's layout; whether a rare
   fish can also be sold or traded instead of kept; and the actual fish and materials for each world.
-- ⬜ **U-8 — How you get the rod.** Bought at a shop, crafted from materials, or both. Its price, and
-  whether the very first rod is easy to come by so a newcomer can try fishing early.
+- 🔶 **U-8 — How you get the rod: a free starter rod.** *(Starter rod decided 2026-11-10.)* Every
+  player gets a plain rod for free, so fishing is something anyone can try from day one; the pilot
+  needs no shop and no crafting. **Still to decide:** how the starter rod reaches you (already in
+  your inventory, or handed over at a small fishing spot in the Vale), and whether to have better
+  rods later (bought at the bazaar, eventually crafted) and what "better" would mean. Better rods
+  were suggested but not decided.
 - ⬜ **U-9 — Using an item (the general mechanism).** How a player holds and uses an item on screen
   (a radial slot, a hand slot, a tap), designed so the rod is the first of many, not a one-off.
 - ⬜ **U-10 — Worlds declare what they allow.** How a world spec says "fishing works here, with these
