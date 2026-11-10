@@ -113,14 +113,29 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
   - **Not in the journal:** catches are not logged as journal entries.
   **Still to decide:** what the tank looks like and how it fits the home's layout; whether a rare
   fish can also be sold or traded instead of kept; and the actual fish and materials for each world.
-- 🔶 **U-8 — How you get the rod: a free starter rod.** *(Starter rod decided 2026-11-10.)* Every
-  player gets a plain rod for free, so fishing is something anyone can try from day one; the pilot
-  needs no shop and no crafting. **Still to decide:** how the starter rod reaches you (already in
-  your inventory, or handed over at a small fishing spot in the Vale), and whether to have better
-  rods later (bought at the bazaar, eventually crafted) and what "better" would mean. Better rods
-  were suggested but not decided.
-- ⬜ **U-9 — Using an item (the general mechanism).** How a player holds and uses an item on screen
-  (a radial slot, a hand slot, a tap), designed so the rod is the first of many, not a one-off.
+- 🔶 **U-8 — How you get the rod: a free starter rod, on a post in the Vale.** *(Decided
+  2026-11-10.)* Every player gets a plain rod for free, so fishing is something anyone can try from
+  day one; the pilot needs no shop and no crafting. The rod rests on a post at a small fishing spot by
+  a Vale pond; you pick it up, and that is how you find out fishing exists. Not chosen: having it
+  silently in your bag from the start. **Still to decide:** which pond and what the spot looks like;
+  whether the post stays empty once you've taken yours (it is personal, so a friend still sees theirs);
+  and whether to have better rods later (bought at the bazaar, eventually crafted) and what "better"
+  would mean. Better rods were suggested but not decided.
+- 🔶 **U-9 — Using an item: a hotbar plus a use button.** *(Direction decided 2026-11-10.)* Like
+  Minecraft's hotbar: a row of **slots** where you put your frequently used items. **One slot is
+  selected**, and that is the item you use; tap another slot to switch. A **use-item button** sits on
+  the right, beside the companion button, and uses whatever is selected (with the rod: cast toward
+  the water, then tap again when the timing ring lines up). Built as the general mechanism, so the
+  rod is the first of many items, not a one-off. Not chosen: tapping the water to cast (it would
+  clash with tap-to-move and tap-to-order), or a single held-item button with no slots.
+  **Still to decide:**
+  - How many slots, and where the bar sits on a phone screen without crowding the joystick.
+  - How items get into slots: from a bag or inventory screen, and whether a newly picked-up item
+    (the starter rod) drops into a free slot by itself.
+  - Keyboard: number keys to switch slots, and a key for "use".
+  - What the use button shows: the selected item's icon, and whether it greys out or explains itself
+    when there's nothing to use it on (a rod away from water).
+  - Whether an empty selected slot means "nothing in hand," and whether friends see what you hold.
 - ⬜ **U-10 — Worlds declare what they allow.** How a world spec says "fishing works here, with these
   catches" (and later, "no lights here"), as data in the world seed. With U-6 decided, the shape is
   set: fishing is **on by default**, worlds **opt out** and **name their own catches**, and worlds
