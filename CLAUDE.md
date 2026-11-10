@@ -70,6 +70,13 @@ design is being broken into one-at-a-time action items in
 yet. **Proximity text chat** was the last-named Rung-4 step; it was never built and is **deferred,
 not a blocker** — pick it up if/when a shared world wants it.
 
+> **Usable items (2026-11, design in progress):** the answer to "once I've found the secret, why come
+> back?" Items that **do things and work across worlds** (Oasis-style, no fighting): you earn coins and
+> materials in replayable worlds, buy, craft or trade for items, and use them in other worlds, which each
+> declare what they allow. Items open up more play and **never gate the core**. The pilot is a **fishing
+> rod**. Nothing is built yet; broken into one-at-a-time items in
+> [`docs/usable-items-design.md`](docs/usable-items-design.md).
+
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
 > server's *first* bit of world *simulation* (a per-world `Server.AmbientPals` sim ticked by
