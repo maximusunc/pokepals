@@ -93,12 +93,17 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
   is just "next time," never a loss. Not chosen: purely gentle cast-and-tap, a game mostly about
   reading the water, a tension bar, or following the fish's pull with the joystick. **Tuning left
   for build time:** window sizes, ring speed, and how much smaller a rare fish's window is (as data).
-- ⬜ **U-5 — The companion's part.** How the companion joins in, by form. E.g. a cat watches the
-  water and points; a bird spots shadows from above. Fishing should be something you do *together*.
-- 🔶 **U-6 — Where you can fish.** The owner said **"fish anywhere"** (2026-11-10), which replaces
-  "two pilot worlds." *Reading to confirm:* the rod works in **any water in every world** from the
-  start, rather than only in a couple of pilot worlds. If so, each world's water needs its own
-  catches, or at least a sensible default set.
+- ✅ **U-5 — The companion's part: it keeps you company.** *(Decided 2026-11-10, "for now.")* While
+  you fish, the companion sits beside you, watches the water, perks up on a bite, and is delighted
+  when you land one. It has **no mechanical effect**: no form-based hints, no bond-based help. Parked
+  for later, not rejected: form-based help (a cat pointing at fish, a bird spotting shadows, a fox
+  nosing the bobber before a bite) and bond making those hints better.
+- ✅ **U-6 — Where you can fish: anywhere there is water.** *(Decided 2026-11-10.)* The rod works
+  in any water in every world from the start, not in a couple of pilot worlds first. A world can
+  **opt out** where fishing would get in the way (see U-10), but none is excluded by default.
+  **Stillglass is not excluded:** the owner doesn't think the mirror lake necessarily needs to be
+  off-limits. How fishing sits beside its reflection secret is a detail for build time. Each world's
+  water needs its own catches, or a sensible default set (U-7, U-10).
 - ⬜ **U-7 — What fishing pays.** Catches as journal entries, as materials, as things to sell for
   coins, or some mix. Rare catches per world give a long tail to chase.
 - ⬜ **U-8 — How you get the rod.** Bought at a shop, crafted from materials, or both. Its price, and
@@ -106,9 +111,9 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
 - ⬜ **U-9 — Using an item (the general mechanism).** How a player holds and uses an item on screen
   (a radial slot, a hand slot, a tap), designed so the rod is the first of many, not a one-off.
 - ⬜ **U-10 — Worlds declare what they allow.** How a world spec says "fishing works here, with these
-  catches" (and later, "no lights here"), as data in the world seed. If U-6 is "any water in every
-  world," this flips to worlds **opting out** and **naming their own catches**, with a default for
-  worlds that name none.
+  catches" (and later, "no lights here"), as data in the world seed. With U-6 decided, the shape is
+  set: fishing is **on by default**, worlds **opt out** and **name their own catches**, and worlds
+  that name none get a default set. Still open: the exact data format.
 - ⬜ **U-11 — Materials and crafting.** Which materials exist, which worlds yield them, and how a
   recipe works. Probably *after* the rod, unless U-8 picks crafting for the rod.
 - ⬜ **U-12 — Shops.** Whether the bazaar sells more than dyes, and whether other worlds get their
