@@ -86,17 +86,21 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
 - ✅ **U-3 — The pilot item: the fishing rod.** *(Decided 2026-11-10.)* Built end to end first:
   one way to earn it, one way to get it, two worlds where it does something. Chosen because a calm
   activity that differs in every world's water naturally makes worlds replayable.
+- 🔶 **U-4 — What fishing feels like: a light skill moment.** *(Direction decided 2026-11-10;
+  the exact mechanic is still open.)* Landing a fish is a short timing or tension moment, in the
+  spirit of the Riverbank hunt, with rarer fish asking a little more of you. Not chosen: purely
+  gentle cast-and-tap, or a game mostly about reading the water. Still cozy: a fish that gets away
+  is just "next time," never a loss. **Still to decide:** the mechanic itself (a timing ring, a
+  tension bar, following the fish's pull), and how much harder a rare fish is.
 
 ## Open items (walk through one at a time)
 
-- ⬜ **U-4 — What fishing feels like.** The moment-to-moment: cast, wait, read the ripples, reel.
-  How much skill it asks for (the Riverbank hunt is "a real skill moment"; fishing could be gentler).
-  No fail state: a fish that gets away is just "next time."
 - ⬜ **U-5 — The companion's part.** How the companion joins in, by form. E.g. a cat watches the
   water and points; a bird spots shadows from above. Fishing should be something you do *together*.
-- ⬜ **U-6 — The two pilot worlds.** Which two worlds honour the rod first. The Vale (the hub, with
-  its ponds, so fishing is the first thing a newcomer can try) and the Riverbank (already about the
-  water) are natural candidates.
+- 🔶 **U-6 — Where you can fish.** The owner said **"fish anywhere"** (2026-11-10), which replaces
+  "two pilot worlds." *Reading to confirm:* the rod works in **any water in every world** from the
+  start, rather than only in a couple of pilot worlds. If so, each world's water needs its own
+  catches, or at least a sensible default set.
 - ⬜ **U-7 — What fishing pays.** Catches as journal entries, as materials, as things to sell for
   coins, or some mix. Rare catches per world give a long tail to chase.
 - ⬜ **U-8 — How you get the rod.** Bought at a shop, crafted from materials, or both. Its price, and
@@ -104,7 +108,9 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
 - ⬜ **U-9 — Using an item (the general mechanism).** How a player holds and uses an item on screen
   (a radial slot, a hand slot, a tap), designed so the rod is the first of many, not a one-off.
 - ⬜ **U-10 — Worlds declare what they allow.** How a world spec says "fishing works here, with these
-  catches" (and later, "no lights here"), as data in the world seed.
+  catches" (and later, "no lights here"), as data in the world seed. If U-6 is "any water in every
+  world," this flips to worlds **opting out** and **naming their own catches**, with a default for
+  worlds that name none.
 - ⬜ **U-11 — Materials and crafting.** Which materials exist, which worlds yield them, and how a
   recipe works. Probably *after* the rod, unless U-8 picks crafting for the rod.
 - ⬜ **U-12 — Shops.** Whether the bazaar sells more than dyes, and whether other worlds get their
