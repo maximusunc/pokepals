@@ -210,6 +210,14 @@ func _redraw_if_pose_changed() -> void:
 		queue_redraw()
 
 
+## Turn to face `dir` while standing (casting a line toward the water). Walking turns you as usual.
+func look_toward(dir: Vector2) -> void:
+	if dir.length() < 0.01:
+		return
+	_facing = dir.normalized()
+	_redraw_if_pose_changed()
+
+
 ## False while a menu is up over the live world (the Gateway's picker, the wardrobe): the world keeps
 ## running — it's shared, so it can't pause — but your own steering stands down, so keys typed into a
 ## search box or a held stick don't walk you off. The avatar eases to a stop rather than freezing.

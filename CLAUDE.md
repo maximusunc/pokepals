@@ -74,8 +74,14 @@ not a blocker** — pick it up if/when a shared world wants it.
 > back?" Items that **do things and work across worlds** (Oasis-style, no fighting): you earn coins and
 > materials in replayable worlds, buy, craft or trade for items, and use them in other worlds, which each
 > declare what they allow. Items open up more play and **never gate the core**. The pilot is a **fishing
-> rod**. Nothing is built yet; broken into one-at-a-time items in
-> [`docs/usable-items-design.md`](docs/usable-items-design.md).
+> rod**, broken into one-at-a-time items in [`docs/usable-items-design.md`](docs/usable-items-design.md).
+> **Step 1 (fishing itself) is built:** take the starter rod off its post by a small pond in the Vale; it
+> lands on a 5-slot **hotbar** (bottom centre, keys 1-5) and the **use button** beside the companion chip
+> (or F) casts into any water in any world (`FishingWater`; a world opts out with `"fishing": false`). A bite
+> brings up a **timing ring** (`FishingRing`); land it and the server grants the catch into your inventory
+> (`Server.Fishing`, `Server.Hotbar`). Your companion keeps you company; friends see your rod, cast and catch
+> (`RodView`, relayed with your identity). Client: `FishingDirector`. Next: selling to a fish buyer in the
+> bazaar (step 2), then a tank for rare fish at home (step 3).
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the

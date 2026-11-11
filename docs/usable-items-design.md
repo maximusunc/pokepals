@@ -171,3 +171,58 @@ The smallest end-to-end slice of fishing:
 
 **Later, not in the first build:** each world's own fish (a few worlds at a time), crafting (U-11),
 better rods, the second item (U-14).
+
+### Details agreed for the first build (2026-11-11)
+
+- **The tank (step 3):** a glass tank at your home that you walk up to and tap. It shows your rare fish
+  from your inventory, and you choose which ones swim in it. A fish in the tank leaves your inventory, and
+  you can take it back out. Rare fish not in the tank stay sellable and tradeable.
+- **The fish buyer (step 2):** a stall in the bazaar with a weathered awning and a barrel of ice. Buys
+  common fish and materials, but **not rare fish**. Common fish sell for **2–8 coins** (a dye costs 30–60,
+  so a few minutes of fishing earns about one dye). A starting price, to tune after playing.
+- **The fishing spot:** a small pond in the Vale near where you arrive, with a wooden post holding the rod.
+  Once you've taken the rod, the post is empty **for you only**; everyone else still sees a rod waiting.
+- **Built in three steps,** each played before the next: (1) fishing itself, (2) selling, (3) the tank.
+
+### Step 1, fishing itself: built (2026-11-11)
+
+**Server** (`server/lib/server/`):
+- `fishing.ex` (`Server.Fishing`): the rod (item 10, a `"tool"`) and the default catches: five common
+  fish (200–204), three rare fish (220–222) and two materials (old boot, sea-glass; 240–241), each with a
+  roll weight, a timing-ring difficulty (window and speed) and a sell price (common fish and materials
+  only; selling itself is step 2). About 5% of casts hook a rare fish and 9% a material. Seeded with the
+  other item definitions.
+- `hotbar.ex` (`Server.Hotbar`) + migration `create_hotbars`: 5 slots per player, saved server-side. A new
+  usable item drops into the first free slot.
+- `economy.ex`: `grant_stack/4` (a catch adds onto the one stack of that kind you hold), plus
+  `owned_quantity/2` and `inventory_summary/1`.
+- `world_channel.ex`: pushes `inventory` and `hotbar` on every join; `take_rod` (only while standing at a
+  prop with `"gives": "rod"`, and only once), `cast` (needs a rod and a world that allows fishing, at most one
+  per second; the server rolls the catch and the wait and tells the client only the wait and the ring's
+  difficulty), `reel` (grants the catch only for a landed reel after the bite and before the ring could have
+  run out). What you hold and your fishing (`held`, `fishing`) are relayed with your identity, validated.
+- The Vale (`priv/world_seeds/vale.json`): a small new pond just south-east of the spawn, and the
+  `rod_post` prop at its edge.
+- Tests: `test/fishing_test.exs`, `test/fishing_channel_test.exs`.
+
+**Client** (`pokepals/scripts/`):
+- `world/fishing_ring.gd` (`FishingRing`, pure, tested): the timing ring. A ring closes on the bobber over
+  1.4 s / speed, meets the target circle 70% of the way through, and a tap within the window lands it. Two
+  passes, then the fish swims off. The first tap decides.
+- `world/fishing_water.gd` (`FishingWater`, pure, tested): where the water is (ponds, a single pond, the
+  Riverbank's river, plus water a world adds, which is Ebbmere's tide) and where a cast lands: the way you
+  face first, else the nearest water within reach all around (18–96 px).
+- `presentation/hotbar.gd` (`Hotbar`), `presentation/use_button.gd` (`UseButton`), `presentation/item_icon.gd`
+  (`ItemIcon`, procedural pictures of the rod and the catches, no art yet).
+- `presentation/rod_view.gd` (`RodView`): the rod in hand, the cast, the line, the bobber, the bite (a dip,
+  ripples, a "!" over your head), the timing ring (yours only) and the catch rising out of the water. Used
+  for friends too.
+- `presentation/mechanics/fishing_director.gd` (`FishingDirector`): ties it together. The companion keeps you
+  company (it watches the bobber, glances at the bite, is delighted at a catch). Walking off reels the line in.
+- `net/net.gd`, `presence_director.gd` (`set_activity`, and friends' rods), `world_controller.gd` (the HUD,
+  keys **1–5** and **F**, the post), `world_art.gd` (the post), `companion_radial.gd` (`chip_rect`),
+  `player_controller.gd` (`look_toward`).
+- Tests: `tests/test_fishing.gd`.
+
+**Not in step 1:** the bag screen (rearranging slots, seeing everything you carry), selling (step 2), the
+tank (step 3), per-world catches.

@@ -129,6 +129,18 @@ signal sent_home()
 signal journal_received(owner_id: String, owner_name: String, entries: Array)
 ## The server answered a keepsake choice we sent.
 signal keepsakes_saved(ok: bool)
+# Usable items (docs/usable-items-design.md). What we carry, summed per item ([{ item_def_id, name, category,
+# key, color, quantity }]), and the hotbar's slots (item def ids, null = empty). Pushed on every join and
+# whenever they change; also kept here (inventory() / hotbar_slots()) for a world built after the push.
+signal inventory_received(items: Array)
+signal hotbar_received(slots: Array)
+# Fishing: the starter rod taken at its post (ok = we were at it; is_new = it's ours now, not before), a
+# cast hooked (when it bites, and how hard the timing ring is), a catch landed or let go, a cast refused.
+signal rod_taken(ok: bool, is_new: bool)
+signal fish_hooked(wait_ms: int, window: float, speed: float)
+signal fish_caught(item: Dictionary)
+signal fish_escaped()
+signal fish_refused(reason: String)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -188,6 +200,9 @@ var _session_save: Dictionary = {}
 var _world_specs: Dictionary = {}
 # The world secret ids we've found (server-canonical; refreshed on every join and on each new find).
 var _discoveries: Array = []
+var _inventory: Array = []
+var _hotbar: Array = []
+var _has_inventory := false
 # How far our wall clock is behind the server's (ms), from the "clock" push on each world join. A world that
 # runs on shared time (Ebbmere's tide) reads server_unix_ms() so a skewed device still sees the same water.
 var _clock_offset_ms := 0.0
@@ -540,6 +555,41 @@ func _push_social(event: String, payload: Dictionary) -> void:
 	_push_event(event, payload)
 
 
+## What we carry, as the server last told us (see inventory_received), and whether it has yet.
+func inventory() -> Array:
+	return _inventory
+
+
+func has_inventory() -> bool:
+	return _has_inventory
+
+
+## The hotbar's slots as the server last told us (item def ids, null = empty; [] before our first join).
+func hotbar_slots() -> Array:
+	return _hotbar
+
+
+## Take the starter rod off its post (we must be standing at it; the server checks). Answers rod_taken.
+func take_rod() -> void:
+	if not _can_send():
+		return
+	_push_event("take_rod", {})
+
+
+## Cast the line. The server decides what's on it and when it bites; answers fish_hooked or fish_refused.
+func cast_line() -> void:
+	if not _can_send():
+		return
+	_push_event("cast", {})
+
+
+## Reel in: `landed` = the timing ring was tapped in time. Answers fish_caught or fish_escaped.
+func reel(landed: bool) -> void:
+	if not _can_send():
+		return
+	_push_event("reel", { "landed": landed })
+
+
 ## The world secret ids we've found so far (empty before our first join).
 func discoveries() -> Array:
 	return _discoveries
@@ -815,6 +865,25 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 				String(payload.get("currency", "")),
 				int(payload.get("balance", 0)),
 				colors if colors is Array else [])
+		"inventory":
+			var items: Variant = payload.get("items", [])
+			_inventory = (items as Array).duplicate(true) if items is Array else []
+			_has_inventory = true
+			inventory_received.emit(_inventory)
+		"hotbar":
+			var slots: Variant = payload.get("slots", [])
+			_hotbar = (slots as Array).duplicate() if slots is Array else []
+			hotbar_received.emit(_hotbar)
+		"rod_taken":
+			rod_taken.emit(bool(payload.get("ok", false)), bool(payload.get("new", false)))
+		"fish_hooked":
+			fish_hooked.emit(int(payload.get("wait_ms", 0)), float(payload.get("window", 0.2)), float(payload.get("speed", 1.0)))
+		"fish_caught":
+			fish_caught.emit(payload)
+		"fish_escaped":
+			fish_escaped.emit()
+		"fish_refused":
+			fish_refused.emit(String(payload.get("reason", "")))
 		"bought":
 			purchase_succeeded.emit(int(payload.get("item_def_id", 0)), int(payload.get("balance", 0)))
 		"buy_failed":

@@ -151,6 +151,16 @@ defmodule Server.FishingChannelTest do
     wait_until(fn -> get_in(presence_identity(w, uid), ["held"]) == "rod" end)
     assert %{"b" => [12, 30], "ph" => "wait", "n" => 2} = presence_identity(w, uid)["fishing"]
 
+    catch_info = %{"b" => [12, 30], "ph" => "caught", "n" => 3, "k" => "koi", "r" => "rare_fish", "c" => [1, 0.9, 0.8]}
+    push(socket, "identity", %{"held" => "rod", "fishing" => catch_info})
+    wait_until(fn -> get_in(presence_identity(w, uid), ["fishing", "n"]) == 3 end)
+    assert presence_identity(w, uid)["fishing"] == catch_info
+
+    push(socket, "identity", %{"held" => "rod", "fishing" => Map.merge(catch_info, %{"n" => 4, "r" => "dragon", "c" => "red"})})
+    wait_until(fn -> get_in(presence_identity(w, uid), ["fishing", "n"]) == 4 end)
+    refute Map.has_key?(presence_identity(w, uid)["fishing"], "r")
+    refute Map.has_key?(presence_identity(w, uid)["fishing"], "c")
+
     push(socket, "identity", %{"held" => String.duplicate("x", 99), "fishing" => %{"b" => "nope", "ph" => "wait"}})
     wait_until(fn -> get_in(presence_identity(w, uid), ["held"]) == "" end)
     refute Map.has_key?(presence_identity(w, uid), "fishing")

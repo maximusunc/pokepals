@@ -52,6 +52,7 @@ func _init() -> void:
 	failures += TestPathShape.run_all()
 	failures += TestWorldPortals.run_all()
 	failures += TestPackLogic.run_all()
+	failures += TestFishing.run_all()
 
 	print("")
 	if failures == 0:

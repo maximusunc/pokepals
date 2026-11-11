@@ -841,8 +841,21 @@ defmodule Server.WorldChannel do
         when is_number(x) and is_number(y) and ph in ["cast", "wait", "bite", "caught", "escaped"] ->
           out = %{"b" => [x, y], "ph" => ph, "n" => int_param(Map.get(f, "n"), 0)}
 
-          case Map.get(f, "k") do
-            k when is_binary(k) and byte_size(k) <= 24 -> Map.put(out, "k", k)
+          # The last catch, so friends see what came up: its key, its kind and its colour.
+          out =
+            case Map.get(f, "k") do
+              k when is_binary(k) and byte_size(k) <= 24 -> Map.put(out, "k", k)
+              _ -> out
+            end
+
+          out =
+            case Map.get(f, "r") do
+              r when r in ["fish", "rare_fish", "material"] -> Map.put(out, "r", r)
+              _ -> out
+            end
+
+          case Map.get(f, "c") do
+            [r, g, b] = c when is_number(r) and is_number(g) and is_number(b) -> Map.put(out, "c", c)
             _ -> out
           end
 

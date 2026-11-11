@@ -108,6 +108,13 @@ func _layout() -> void:
 		_build_slices()
 
 
+## The companion chip's rect on screen (the use button sits just left of it).
+func chip_rect() -> Rect2:
+	if _chip == null:
+		return Rect2(size - Vector2(110, 40), Vector2(96, 26))
+	return Rect2(_chip.position, _chip.size)
+
+
 ## The controller's live bond reading (0..1), for the chip dot.
 func set_bond(bond: float) -> void:
 	if is_equal_approx(bond, _bond):
