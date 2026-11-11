@@ -111,6 +111,8 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
     different ones, which gives players reasons to trade.
   - **Rare fish go in a tank in your home**, on display for you and visiting friends.
   - **Not in the journal:** catches are not logged as journal entries.
+  - **Every catch goes into your inventory** *(decided 2026-11-11)*: fish and materials are ordinary
+    owned items, so they can be sold, traded or (rare fish) put in the tank from there.
   **Still to decide:** what the tank looks like and how it fits the home's layout; whether a rare
   fish can also be sold or traded instead of kept; and the actual fish and materials for each world.
 - 🔶 **U-8 — How you get the rod: a free starter rod, on a post in the Vale.** *(Decided
@@ -142,9 +144,30 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
   that name none get a default set. Still open: the exact data format.
 - ⬜ **U-11 — Materials and crafting.** Which materials exist, which worlds yield them, and how a
   recipe works. Probably *after* the rod, unless U-8 picks crafting for the rod.
-- ⬜ **U-12 — Shops.** Whether the bazaar sells more than dyes, and whether other worlds get their
-  own shops.
+- 🔶 **U-12 — Shops: a fish buyer in the bazaar.** *(Decided 2026-11-11.)* You sell fish from your
+  inventory to a **different shopkeeper in the bazaar**, not the one who sells dyes. Not chosen: a
+  fishmonger in the Vale by the fishing spot, or selling from anywhere through the bag. **Still to
+  decide:** who this shopkeeper is and where their stall sits; prices; whether they also buy
+  materials; and whether other worlds get their own shops later.
 - ✅ **U-13 — Being seen: yes.** *(Decided 2026-11-10.)* Friends see what you hold and what you
   do with it: the rod in your hand, the cast, and the catch, so fishing beside a friend feels shared.
   What you hold is relayed with each player's state (one more field), like the companion's form.
 - ⬜ **U-14 — What comes after the rod.** Which item is second, from the candidates above.
+
+---
+
+## The first build (scope agreed 2026-11-11)
+
+The smallest end-to-end slice of fishing:
+
+- The **starter rod** on a post by a Vale pond (U-8), dropping into the **hotbar** (U-9).
+- **Fishing in any water** in any world, with the **timing ring** (U-4, U-6); the companion keeps
+  you company (U-5); friends see the rod, the cast and the catch (U-13).
+- **One default set of common fish** that every water uses, a **short list of rare fish**, and a
+  couple of reeled-up **materials** (e.g. an old boot, sea-glass). Every catch goes into your
+  inventory (U-7).
+- **Selling** to a new **fish buyer in the bazaar** (U-12).
+- **The tank** at your home, for rare fish (U-7).
+
+**Later, not in the first build:** each world's own fish (a few worlds at a time), crafting (U-11),
+better rods, the second item (U-14).
