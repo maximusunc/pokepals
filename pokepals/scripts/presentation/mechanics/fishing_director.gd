@@ -118,7 +118,8 @@ func select_slot(index: int) -> void:
 	if index != _selected and _phase != "":
 		_reel_in_quietly()
 	_selected = index
-	_hotbar.set_selected(index)
+	# The selection decides what's in your hand and what the use button shows, so redo all of it.
+	_refresh_bar()
 	_refresh_use()
 
 

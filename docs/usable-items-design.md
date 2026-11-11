@@ -222,7 +222,9 @@ better rods, the second item (U-14).
 - `net/net.gd`, `presence_director.gd` (`set_activity`, and friends' rods), `world_controller.gd` (the HUD,
   keys **1–5** and **F**, the post), `world_art.gd` (the post), `companion_radial.gd` (`chip_rect`),
   `player_controller.gd` (`look_toward`).
-- Tests: `tests/test_fishing.gd`.
+- Tests: `tests/test_fishing.gd` (unit) and `tests/smoke_fishing.gd` (plays a whole catch in the real Vale
+  scene, the server's side played by hand: the post, the hotbar, a cast, the ring, a catch, a miss, walking
+  off, switching slots, a friend's rod and catch).
 
 **Not in step 1:** the bag screen (rearranging slots, seeing everything you carry), selling (step 2), the
 tank (step 3), per-world catches.
