@@ -27,7 +27,7 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Discoveries, Economy, Friends, HomePasses, Homes, HomeWorld, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
+  alias Server.{Discoveries, Economy, Fishing, Friends, HomePasses, Homes, HomeWorld, Hotbar, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
   @shop_currency "coins"
@@ -159,6 +159,11 @@ defmodule Server.WorldChannel do
     # concern (same in every world); the bazaar's shop reads it, every other world just ignores it.
     push(socket, "economy", economy_snapshot(user_id))
 
+    # What we carry (usable items, docs/usable-items-design.md): the inventory summed per item, and the
+    # hotbar's slots. Per-USER, the same in every world.
+    push(socket, "inventory", inventory_snapshot(user_id))
+    push(socket, "hotbar", %{slots: Hotbar.slots(user_id)})
+
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
       peers when map_size(peers) == 0 -> :ok
@@ -258,6 +263,7 @@ defmodule Server.WorldChannel do
     identity =
       payload
       |> Map.take(["appearance", "companion_look", "companion_form"])
+      |> Map.merge(activity(payload))
       |> Map.put("name", Map.get(socket.assigns, :name, "a wanderer"))
 
     # Remember how our companion looks, for the stand-in that naps at home while we're away (FR-5).
@@ -348,6 +354,96 @@ defmodule Server.WorldChannel do
           {:error, reason} ->
             push(socket, "buy_failed", %{item_def_id: item_def_id, reason: to_string(reason)})
         end
+    end
+
+    {:noreply, socket}
+  end
+
+  # ── Fishing (the pilot usable item; Server.Fishing has the rules) ──
+
+  # Take the starter rod off its post in the Vale. Honoured only while we stand at a prop that gives a rod
+  # (`"gives": "rod"`), and only once: a player who already owns a rod is told so (`new: false`) and gets
+  # nothing more. A new rod drops into the first free hotbar slot. Answers `rod_taken`, then the fresh
+  # `inventory` and `hotbar`.
+  def handle_in("take_rod", _payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    cond do
+      not Fishing.at_rod_post?(core, pos) ->
+        push(socket, "rod_taken", %{ok: false, new: false})
+
+      Economy.owned_quantity(user_id, Fishing.rod_id()) > 0 ->
+        push(socket, "rod_taken", %{ok: true, new: false})
+        push(socket, "hotbar", %{slots: Hotbar.place(user_id, Fishing.rod_id())})
+
+      true ->
+        {:ok, _item} =
+          Economy.grant_item(user_id, Fishing.rod_id(), txn_type: "grant", context: %{"source" => "rod_post"})
+
+        push(socket, "rod_taken", %{ok: true, new: true})
+        push(socket, "inventory", inventory_snapshot(user_id))
+        push(socket, "hotbar", %{slots: Hotbar.place(user_id, Fishing.rod_id())})
+    end
+
+    {:noreply, socket}
+  end
+
+  # Cast. Honoured only with a rod in our inventory, in a world that allows fishing, and not too soon
+  # after the last cast. The server rolls what's on the line and when it bites and keeps both to itself;
+  # the client is told only the wait and how hard the timing ring is (`fish_hooked`). Refused casts get
+  # `fish_refused` with a reason the client can say gently.
+  def handle_in("cast", _payload, socket) do
+    %{user_id: user_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    now = System.monotonic_time(:millisecond)
+    last = Map.get(socket.assigns, :last_cast)
+
+    cond do
+      not Fishing.allowed?(core) ->
+        push(socket, "fish_refused", %{reason: "no_fishing"})
+        {:noreply, socket}
+
+      last != nil and now - last < Fishing.min_cast_gap_ms() ->
+        push(socket, "fish_refused", %{reason: "too_soon"})
+        {:noreply, socket}
+
+      Economy.owned_quantity(user_id, Fishing.rod_id()) <= 0 ->
+        push(socket, "fish_refused", %{reason: "no_rod"})
+        {:noreply, socket}
+
+      true ->
+        haul = Fishing.roll(:rand.uniform())
+        wait = Fishing.wait_ms(:rand.uniform())
+        push(socket, "fish_hooked", Fishing.hook_payload(haul, wait))
+
+        {:noreply,
+         assign(socket, %{last_cast: now, fish_hook: %{id: haul.id, cast_at: now, wait_ms: wait}})}
+    end
+  end
+
+  # Reel in. `landed` is whether the timing ring was tapped in time (the client plays the ring). The hook
+  # is used up either way. A landed reel after the bite and before the ring could have run out grants the
+  # catch into our inventory (`fish_caught`, then the fresh `inventory`); anything else lets it go
+  # (`fish_escaped`), which is never a loss, just "next time".
+  def handle_in("reel", payload, socket) do
+    %{user_id: user_id} = socket.assigns
+    now = System.monotonic_time(:millisecond)
+    hook = Map.get(socket.assigns, :fish_hook)
+    landed = Map.get(payload, "landed") == true
+    socket = assign(socket, :fish_hook, nil)
+
+    with %{id: id, cast_at: cast_at, wait_ms: wait} <- hook,
+         true <- landed,
+         true <- Fishing.reel_in_time?(cast_at, wait, now),
+         %{} = haul <- Fishing.find_catch(id),
+         {:ok, _stack} <-
+           Economy.grant_stack(user_id, id, 1, txn_type: "reward", context: %{"source" => "fishing"}) do
+      push(socket, "fish_caught", Fishing.caught_payload(haul, Economy.owned_quantity(user_id, id)))
+      push(socket, "inventory", inventory_snapshot(user_id))
+    else
+      _ -> push(socket, "fish_escaped", %{})
     end
 
     {:noreply, socket}
@@ -710,6 +806,51 @@ defmodule Server.WorldChannel do
       end
 
     %{currency: @shop_currency, balance: Economy.balance(user_id, @shop_currency), colors: colors}
+  end
+
+  # Our inventory, summed per item, in the flat shape the client's hotbar and bag read.
+  defp inventory_snapshot(user_id) do
+    items =
+      for row <- Economy.inventory_summary(user_id) do
+        %{
+          item_def_id: row.item_def_id,
+          name: row.name,
+          category: row.category,
+          key: Map.get(row.attributes, "key", ""),
+          color: Map.get(row.attributes, "color"),
+          quantity: row.quantity
+        }
+      end
+
+    %{items: items}
+  end
+
+  # What a player is doing with their hands, relayed so friends see it (U-13): the item they hold
+  # (`held`, a short key like "rod") and, while fishing, where the bobber sits and what's happening
+  # (`fishing`). Untrusted, so only well-formed, small values get through; anything else is dropped.
+  defp activity(payload) do
+    held =
+      case Map.get(payload, "held") do
+        h when is_binary(h) and byte_size(h) <= 24 -> %{"held" => h}
+        _ -> %{"held" => ""}
+      end
+
+    fishing =
+      case Map.get(payload, "fishing") do
+        %{"b" => [x, y], "ph" => ph} = f
+        when is_number(x) and is_number(y) and ph in ["cast", "wait", "bite", "caught", "escaped"] ->
+          out = %{"b" => [x, y], "ph" => ph, "n" => int_param(Map.get(f, "n"), 0)}
+
+          case Map.get(f, "k") do
+            k when is_binary(k) and byte_size(k) <= 24 -> Map.put(out, "k", k)
+            _ -> out
+          end
+
+        _ ->
+          nil
+      end
+
+    if fishing, do: Map.put(held, "fishing", fishing), else: held
   end
 
   defp parse_item_def_id(id) when is_integer(id), do: {:ok, id}

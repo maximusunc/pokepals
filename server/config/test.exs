@@ -10,3 +10,6 @@ config :server, Server.Repo,
 config :server, Server.Endpoint, server: false
 
 config :logger, level: :warning
+
+# Fishing bites at once under test, so a channel test can cast and reel without sleeping.
+config :server, Server.Fishing, wait_range: {0, 0}
