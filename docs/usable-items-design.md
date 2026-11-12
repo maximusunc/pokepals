@@ -147,8 +147,8 @@ worlds to declare what they allow, materials and recipes, and shops that sell mo
 - 🔶 **U-12 — Shops: a fish buyer in the bazaar.** *(Decided 2026-11-11.)* You sell fish from your
   inventory to a **different shopkeeper in the bazaar**, not the one who sells dyes. Not chosen: a
   fishmonger in the Vale by the fishing spot, or selling from anywhere through the bag. **Still to
-  decide:** who this shopkeeper is and where their stall sits; prices; whether they also buy
-  materials; and whether other worlds get their own shops later.
+  decide:** whether other worlds get their own shops later. (Who, where, prices and what they buy were
+  settled 2026-11-11 and built in step 2, below.)
 - ✅ **U-13 — Being seen: yes.** *(Decided 2026-11-10.)* Friends see what you hold and what you
   do with it: the rod in your hand, the cast, and the catch, so fishing beside a friend feels shared.
   What you hold is relayed with each player's state (one more field), like the companion's form.
@@ -228,3 +228,36 @@ better rods, the second item (U-14).
 
 **Not in step 1:** the bag screen (rearranging slots, seeing everything you carry), selling (step 2), the
 tank (step 3), per-world catches.
+
+### First play (2026-11-12) and tuning
+
+Picking up the rod and fishing worked well. It felt **too easy**: bites came quickly and the ring was easy
+to land. Tuned in `Server.Fishing` (the server tells the client how hard each ring is, so no client change):
+- **The wait** before a bite: 1.8-5.2 s became **3-8 s**.
+- **The ring:** every window narrower and every ring quicker. A common fish's tap window went from about
+  0.37 s to 0.15-0.21 s; a rare fish's to about 0.08-0.1 s. Still two passes before it swims off.
+- **Sell prices** spread to the agreed 2-8 coins: minnow 2, perch 3, loach 4, bream 6, carp 8; old boot 1,
+  sea-glass 5.
+
+### Step 2, selling (and the bag): built (2026-11-12)
+
+Decided 2026-11-12: build **the bag** first (there was nowhere to see your catches), then the fish buyer,
+with both **Sell 1** and **Sell all** for each kind.
+
+- **The bag** (`BagPanel`, gear menu → Bag): everything you carry with how many of each, grouped as Tools,
+  Fish, Rare fish, and Odds and ends. Read-only; rearranging the hotbar comes once there's more than one
+  tool.
+- **The fishmonger** in the bazaar: the stall nearest where you arrive (about 140 px away) became the
+  fishmonger's stall (`fish_stall`, a weathered awning, fish on the counter, a barrel of ice) and its
+  stallholder the fish buyer (`"buys": "fish"`), both in `tools/gen_bazaar.py` so nothing else in the lane
+  moved. Examine them to open their window (`FishBuyerPanel`): what they buy with the price each, **Sell 1**,
+  and **Sell all (N coins)** when you hold more than one; rare fish listed apart, as yours to keep; your coins.
+- **Server:** `Economy.sell/4` (one transaction: the stacks drawn down oldest first, the coins minted, both
+  ledgered under one correlation id; refuses rare fish, unknown items, a bad quantity, or more than you
+  hold), and the channel's `sell` (only while you stand at a stall that buys fish; answers `sold` + the fresh
+  `inventory`, or `sell_failed`). The inventory snapshot now carries each item's sell price.
+- **Tests:** server `test/fishing_test.exs` and `test/fishing_channel_test.exs` (selling one, all, across
+  stacks, refusals, only at the stall); client `tests/smoke_fish_buyer.gd` (the Bazaar's fishmonger, their
+  window, a sale, the bag).
+
+**Next: step 3, the tank** at home for rare fish (details agreed above).

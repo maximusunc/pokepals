@@ -716,6 +716,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			entry["keepsake"] = String(it["keepsake"])  # a keepsake the companion chose (HomeDirector)
 		if it.has("gives"):
 			entry["gives"] = String(it["gives"])  # a prop that hands you an item (the starter rod's post)
+		if it.has("buys"):
+			entry["buys"] = String(it["buys"])  # someone who buys things from you (the bazaar's fishmonger)
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)
@@ -1057,6 +1059,7 @@ func _gather_gear_items() -> Array:
 	if Net.is_active():
 		items.append({ "id": "friends", "label": "Friends" })
 		items.append({ "id": "journal", "label": "Journal" })
+		items.append({ "id": "bag", "label": "Bag" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
 		items.append({ "id": "welcome", "label": "Welcome" })
 		items.append({ "id": "leave", "label": "Leave game" })
@@ -1098,6 +1101,7 @@ func _on_gear_item(id: String) -> void:
 		"wardrobe": _open_wardrobe()
 		"friends": _social_dir.open_friends()
 		"journal": _social_dir.open_journal()
+		"bag": open_sheet(BagPanel.new())
 		"welcome": _open_cards([], false)
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
@@ -1623,6 +1627,14 @@ func _try_interact() -> void:
 	if String(entry.get("gives", "")) == "rod":
 		_world_art.pulse_interactable(int(entry["render_index"]))
 		_fishing_dir.examine_post(entry)
+		return
+	# The fishmonger: open their window to sell what you've caught.
+	if String(entry.get("buys", "")) == "fish":
+		_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+		var buyer := FishBuyerPanel.new()
+		buyer.host = self
+		buyer.balance = _shop_dir.balance()
+		open_sheet(buyer)
 		return
 	if String(entry["kind"]) == "secret":
 		_world_art.pulse_interactable(int(entry["render_index"]))
