@@ -339,6 +339,30 @@
     "interactive": true,
     "journal": true,
     "lore": "A journal on a little stand. Every place you've found something is written in it."
+   },
+   {
+    "id": "home_tank",
+    "type": "fish_tank",
+    "position": [
+     182,
+     168
+    ],
+    "color": [
+     0.62,
+     0.8,
+     0.86
+    ],
+    "label": "your fish tank",
+    "tags": [
+     "water",
+     "made",
+     "alive"
+    ],
+    "interactive": true,
+    "tank": true,
+    "solid": true,
+    "collision_radius": 14,
+    "lore": "A glass tank of clear water, with room for three fish."
    }
   ],
   "portals": [

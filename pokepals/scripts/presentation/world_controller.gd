@@ -84,6 +84,7 @@ var _encounter_dir: EncounterDirector
 # Usable items (docs/usable-items-design.md): fishing, plus the hotbar and the use button it drives. The two
 # HUD pieces are made once in _ready (they live in the UI layer, like the radial); the director per world.
 var _fishing_dir: FishingDirector
+var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
 var _hotbar: Hotbar
 var _use_button: UseButton
 
@@ -227,6 +228,7 @@ func _build_world(cached: Dictionary) -> void:
 	# Fishing: this world's water (any water, in any world; U-6), and the rod's post if it has one. Ebbmere's
 	# water comes and goes with the tide, so the tide adds its own test for where it covers right now.
 	_fishing_dir.configure(data)
+	_tank_dir.configure(data)
 	if data.has("tide"):
 		_fishing_dir.add_water(_tide_covers)
 	_apply_atmosphere(data.get("atmosphere", {}))
@@ -466,6 +468,11 @@ func _create_directors() -> void:
 	_fishing_dir = FishingDirector.new()
 	add_child(_fishing_dir)
 	_fishing_dir.setup(self, _player, _companion, _presence_dir, _scenery, _hotbar, _use_button)
+
+	# The fish tank at home, for rare fish (only a home has one).
+	_tank_dir = TankDirector.new()
+	add_child(_tank_dir)
+	_tank_dir.setup(self, _companion, _player, _scenery)
 
 
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
@@ -718,6 +725,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			entry["gives"] = String(it["gives"])  # a prop that hands you an item (the starter rod's post)
 		if it.has("buys"):
 			entry["buys"] = String(it["buys"])  # someone who buys things from you (the bazaar's fishmonger)
+		if bool(it.get("tank", false)):
+			entry["tank"] = true  # the fish tank at home
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)
@@ -1038,6 +1047,7 @@ func _process(delta: float) -> void:
 	# Fishing: the line, the bite and the timing ring; and the hotbar / use button stay out of sight, like
 	# the radial, while the first-meeting search runs.
 	_fishing_dir.update(delta)
+	_tank_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()
 	_use_button.suppressed = _encounter_dir.is_searching()
 
@@ -1627,6 +1637,10 @@ func _try_interact() -> void:
 	if String(entry.get("gives", "")) == "rod":
 		_world_art.pulse_interactable(int(entry["render_index"]))
 		_fishing_dir.examine_post(entry)
+		return
+	# The fish tank at home: open its window.
+	if bool(entry.get("tank", false)):
+		_tank_dir.examine(entry)
 		return
 	# The fishmonger: open their window to sell what you've caught.
 	if String(entry.get("buys", "")) == "fish":

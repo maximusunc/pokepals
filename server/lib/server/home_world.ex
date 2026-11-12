@@ -44,7 +44,8 @@ defmodule Server.HomeWorld do
       spots: home.spots,
       keepsakes: home.keepsakes,
       cards: Discoveries.cards(owner_id, Map.get(template, "legacy_cards", %{})),
-      resident: if(viewer_id != owner_id, do: home.resident, else: %{})
+      resident: if(viewer_id != owner_id, do: home.resident, else: %{}),
+      tank: Server.Tank.view(owner_id)
     }
 
     %WorldDefinition{
@@ -86,7 +87,10 @@ defmodule Server.HomeWorld do
       "spot_positions" => template |> Map.get("keepsake_spots", []) |> Enum.take(spots),
       "keepsakes" => Map.get(state, :keepsakes, []) |> Enum.filter(&Map.has_key?(card_map, &1)) |> Enum.take(spots),
       # Every find, for the owner's companion to choose from (KeepsakeChoice, on the client).
-      "finds" => Enum.map(cards, fn {id, card} -> finds_entry(id, card) end)
+      "finds" => Enum.map(cards, fn {id, card} -> finds_entry(id, card) end),
+      # The rare fish swimming in the tank by the journal (Server.Tank), and how many it holds.
+      "tank" => Map.get(state, :tank, []),
+      "tank_capacity" => Server.Tank.capacity()
     }
 
     resident = Map.get(state, :resident, %{})

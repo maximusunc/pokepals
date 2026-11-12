@@ -261,3 +261,27 @@ with both **Sell 1** and **Sell all** for each kind.
   window, a sale, the bag).
 
 **Next: step 3, the tank** at home for rare fish (details agreed above).
+
+### Step 3, the tank: built (2026-11-12)
+
+Decided 2026-11-12 (all as suggested): the tank stands **by the journal**; it holds **3** fish; they
+**swim** behind the glass with bubbles rising; **friends see it** and can look in, only you change it; your
+**companion wanders over to watch** now and then; a fish **taken out goes back to your bag**.
+
+- **Server:** `Server.Tank` (put a rare fish in, take one out; each move is one transaction through
+  `Economy.consume/4` or `Economy.grant_stack/4`, ledgered, together with the tank's contents, so a fish is
+  always in exactly one place; only rare fish; full at 3). The home's record gains a `tank` column
+  (migration `add_tank_to_homes`, `Homes.set_tank/2`). The home's spec carries `home.tank` (what's
+  swimming) and `home.tank_capacity`; the template (`priv/home/home.json`) gains the `home_tank` prop
+  (`"tank": true`) beside the journal. The channel's `tank_put` / `tank_take` work only in your own home;
+  everyone there gets the new contents (`tank`, broadcast); refusals answer `tank_failed`.
+  `Economy.sell/4` and `consume/4` now share one draw-down.
+- **Client:** `TankView` (the glass tank, water, sand, weed, fish swimming back and forth, bubbles; a
+  y-sorted node), `TankPanel` (yours: Take out for each fish, Put in for each rare fish you carry while
+  there's room; a friend's: look only), `TankDirector` (places it from the spec, keeps it current from the
+  broadcast, opens the window, sends the companion over to watch every 40-80 s while you're nearby).
+- **Tests:** server `test/tank_test.exs`, `test/tank_channel_test.exs`; client `tests/smoke_tank.gd`.
+
+With step 3 the **first build of fishing is complete**. Open next: **U-11** (materials and crafting: what
+the old boots and sea-glass are for) and **U-14** (the second usable item).
+
