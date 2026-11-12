@@ -51,6 +51,8 @@ defmodule Server.Home do
     field :keepsakes, {:array, :string}, default: []
     field :spots, :integer, default: 3
     field :resident, :map, default: %{}
+    # The rare fish in the home's tank (item definition ids), put in by Server.Tank.
+    field :tank, {:array, :integer}, default: []
     timestamps(type: :utc_datetime_usec)
   end
 end

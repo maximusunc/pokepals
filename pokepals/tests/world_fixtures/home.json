@@ -453,7 +453,30 @@
         -60
       ]
     ],
-    "spots": 3
+    "spots": 3,
+    "tank": [
+      {
+        "item_def_id": 220,
+        "key": "koi",
+        "name": "Moonscale Koi",
+        "color": [
+          0.96,
+          0.94,
+          0.88
+        ]
+      },
+      {
+        "item_def_id": 222,
+        "key": "old_whiskers",
+        "name": "Old Whiskers",
+        "color": [
+          0.36,
+          0.4,
+          0.34
+        ]
+      }
+    ],
+    "tank_capacity": 3
   },
   "paths": [
     {
@@ -640,6 +663,30 @@
         "journal"
       ],
       "type": "journal_stand"
+    },
+    {
+      "id": "home_tank",
+      "type": "fish_tank",
+      "position": [
+        182,
+        168
+      ],
+      "color": [
+        0.62,
+        0.8,
+        0.86
+      ],
+      "label": "your fish tank",
+      "tags": [
+        "water",
+        "made",
+        "alive"
+      ],
+      "interactive": true,
+      "tank": true,
+      "solid": true,
+      "collision_radius": 14,
+      "lore": "A glass tank of clear water, with room for three fish."
     },
     {
       "color": [

@@ -487,6 +487,23 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # The fish TANK at home (step 3; Server.Tank). Only the owner, standing in their own home, changes it:
+  # `tank_put` moves one of their rare fish from their inventory into it, `tank_take` moves the fish at
+  # `index` back. Everyone in the home sees the new contents (`tank`, broadcast); the owner also gets
+  # their fresh `inventory`. Refusals answer `tank_failed` with a reason.
+  def handle_in("tank_put", %{"item_def_id" => raw_id}, socket) do
+    tank_change(socket, fn user_id ->
+      case parse_item_def_id(raw_id) do
+        {:ok, id} -> Server.Tank.put(user_id, id)
+        :error -> {:error, :not_rare}
+      end
+    end)
+  end
+
+  def handle_in("tank_take", %{"index" => index}, socket) when is_integer(index) do
+    tank_change(socket, fn user_id -> Server.Tank.take(user_id, index) end)
+  end
+
   # Claim the reward for finishing the riverbank salamander hunt. The client reports how many of the
   # ten it found; the SERVER decides the payout (see @hunt_rewards), mints it, and confirms the new
   # balance — the same server-authoritative discipline as `buy`. The grant is honoured only in a world
@@ -844,6 +861,26 @@ defmodule Server.WorldChannel do
       end
 
     %{currency: @shop_currency, balance: Economy.balance(user_id, @shop_currency), colors: colors}
+  end
+
+  # Run a change to our own tank, if we're standing in our own home, and tell everyone there.
+  defp tank_change(socket, change) do
+    user_id = socket.assigns.user_id
+
+    if socket.assigns.world_id == HomeWorld.world_id(user_id) do
+      case change.(user_id) do
+        {:ok, _contents} ->
+          broadcast!(socket, "tank", %{owner: user_id, fish: Server.Tank.view(user_id)})
+          push(socket, "inventory", inventory_snapshot(user_id))
+
+        {:error, reason} ->
+          push(socket, "tank_failed", %{reason: to_string(reason)})
+      end
+    else
+      push(socket, "tank_failed", %{reason: "not_home"})
+    end
+
+    {:noreply, socket}
   end
 
   # Our inventory, summed per item, in the flat shape the client's hotbar and bag read.

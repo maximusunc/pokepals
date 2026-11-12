@@ -144,6 +144,10 @@ signal fish_refused(reason: String)
 # Selling to the fish buyer: what went (how many, for how many coins) and the new balance, or why not.
 signal sold(item_def_id: int, quantity: int, coins: int, balance: int)
 signal sell_failed(reason: String)
+# The fish tank at home: what's swimming in it now (from the server, to everyone in that home), or why a
+# change was refused.
+signal tank_received(owner_id: String, fish: Array)
+signal tank_failed(reason: String)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -601,6 +605,21 @@ func sell(item_def_id: int, quantity: int) -> void:
 	_push_event("sell", { "item_def_id": item_def_id, "quantity": "all" if quantity <= 0 else quantity })
 
 
+## Put one of our rare fish into the tank at our home (we must be standing in it). Answers with a tank
+## broadcast and a fresh inventory, or tank_failed.
+func tank_put(item_def_id: int) -> void:
+	if not _can_send():
+		return
+	_push_event("tank_put", { "item_def_id": item_def_id })
+
+
+## Take the fish at `index` out of our tank, back into our bag.
+func tank_take(index: int) -> void:
+	if not _can_send():
+		return
+	_push_event("tank_take", { "index": index })
+
+
 ## The world secret ids we've found so far (empty before our first join).
 func discoveries() -> Array:
 	return _discoveries
@@ -899,6 +918,11 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			sold.emit(int(payload.get("item_def_id", 0)), int(payload.get("quantity", 0)), int(payload.get("coins", 0)), int(payload.get("balance", 0)))
 		"sell_failed":
 			sell_failed.emit(String(payload.get("reason", "")))
+		"tank":
+			var tf: Variant = payload.get("fish", [])
+			tank_received.emit(String(payload.get("owner", "")), tf if tf is Array else [])
+		"tank_failed":
+			tank_failed.emit(String(payload.get("reason", "")))
 		"bought":
 			purchase_succeeded.emit(int(payload.get("item_def_id", 0)), int(payload.get("balance", 0)))
 		"buy_failed":

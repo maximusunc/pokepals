@@ -83,7 +83,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 > (`RodView`, relayed with your identity). Client: `FishingDirector`. **Step 2 is built too:** a **bag**
 > (gear menu, `BagPanel`) lists what you carry, and the **fishmonger** in the bazaar (a stall near where you
 > arrive, `"buys": "fish"`, `FishBuyerPanel`) buys common fish and odds and ends, Sell 1 or Sell all, never
-> rare fish (`Economy.sell`, the channel's `sell`). Next: a tank for rare fish at home (step 3).
+> rare fish (`Economy.sell`, the channel's `sell`). **Step 3 is built:** a glass **tank** by the journal at
+> home holds 3 rare fish you choose (`Server.Tank`, `TankView`, `TankPanel`, `TankDirector`); they swim, friends
+> can look in, your companion wanders over to watch. The first fishing build is complete; next are crafting
+> (U-11) and the second usable item (U-14).
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the

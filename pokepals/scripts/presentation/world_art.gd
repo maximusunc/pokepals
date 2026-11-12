@@ -2526,6 +2526,8 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			_draw_sky_anchor(p, color)
 		"dry_well":
 			_draw_dry_well(p, color)
+		"fish_tank":
+			pass  # the tank at home draws itself (TankView, a y-sorted node), fish and all
 		"rod_post":
 			# the fishing spot's post (the starter rod rests across it until you take it; FishingDirector draws
 			# the rod): a short weathered post with a worn hook near the top

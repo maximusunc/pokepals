@@ -276,34 +276,7 @@ defmodule Server.Economy do
         true -> :ok
       end
 
-      stacks =
-        Repo.all(
-          from(i in InventoryItem,
-            where: i.user_id == ^user_id and i.item_def_id == ^item_def_id,
-            order_by: [asc: i.inserted_at],
-            lock: "FOR UPDATE"
-          )
-        )
-
-      held = Enum.reduce(stacks, 0, &(&1.quantity + &2))
-      count = if quantity == :all, do: held, else: quantity
-      if count < 1 or count > held, do: Repo.rollback(:not_enough)
-
-      # Draw the stacks down, oldest first, removing any that empty.
-      Enum.reduce_while(stacks, count, fn stack, need ->
-        cond do
-          need <= 0 ->
-            {:halt, 0}
-
-          stack.quantity <= need ->
-            Repo.delete!(stack)
-            {:cont, need - stack.quantity}
-
-          true ->
-            stack |> InventoryItem.changeset(%{quantity: stack.quantity - need}) |> Repo.update!()
-            {:halt, 0}
-        end
-      end)
+      {count, held} = draw_down!(user_id, item_def_id, quantity)
 
       write_ledger!(%{
         txn_type: "sell",
@@ -343,6 +316,71 @@ defmodule Server.Economy do
         left: held - count
       }
     end)
+  end
+
+  @doc """
+  Take `quantity` of an item OUT of a user's inventory without paying for it (it goes somewhere of
+  theirs: a fish into the tank at home). Their stacks are locked and drawn down oldest first (emptied
+  ones removed), with a ledger row in the same txn. Joins an enclosing transaction, so a caller can move
+  the item and record where it went atomically. `{:ok, left}` (how many they still hold) or
+  `{:error, :not_enough | :bad_quantity}` with nothing moved.
+  """
+  @spec consume(uuid(), integer(), pos_integer(), keyword()) :: {:ok, non_neg_integer()} | {:error, term()}
+  def consume(user_id, item_def_id, quantity, opts \\ []) do
+    {txn_type, context, correlation_id} = ledger_opts(opts, "consume")
+
+    Repo.transaction(fn ->
+      if not is_integer(quantity) or quantity < 1, do: Repo.rollback(:bad_quantity)
+      {count, held} = draw_down!(user_id, item_def_id, quantity)
+
+      write_ledger!(%{
+        txn_type: txn_type,
+        from_user: user_id,
+        to_user: nil,
+        asset_kind: "item",
+        asset_ref: Integer.to_string(item_def_id),
+        amount: count,
+        context: context,
+        correlation_id: correlation_id
+      })
+
+      held - count
+    end)
+  end
+
+  # Lock a user's stacks of an item and draw `quantity` (or `:all`) down from them, oldest first, removing
+  # any that empty. Must run inside a transaction. Returns `{taken, held_before}`; rolls back with
+  # `:not_enough` when they hold fewer than asked (or none at all).
+  defp draw_down!(user_id, item_def_id, quantity) do
+    stacks =
+      Repo.all(
+        from(i in InventoryItem,
+          where: i.user_id == ^user_id and i.item_def_id == ^item_def_id,
+          order_by: [asc: i.inserted_at],
+          lock: "FOR UPDATE"
+        )
+      )
+
+    held = Enum.reduce(stacks, 0, &(&1.quantity + &2))
+    count = if quantity == :all, do: held, else: quantity
+    if count < 1 or count > held, do: Repo.rollback(:not_enough)
+
+    Enum.reduce_while(stacks, count, fn stack, need ->
+      cond do
+        need <= 0 ->
+          {:halt, 0}
+
+        stack.quantity <= need ->
+          Repo.delete!(stack)
+          {:cont, need - stack.quantity}
+
+        true ->
+          stack |> InventoryItem.changeset(%{quantity: stack.quantity - need}) |> Repo.update!()
+          {:halt, 0}
+      end
+    end)
+
+    {count, held}
   end
 
   @doc "How many of an item definition a user holds, across all their stacks/instances (0 if none)."
