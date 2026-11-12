@@ -34,6 +34,10 @@ var _peer_names: Dictionary = {}
 var _net_accum := 0.0          # accumulates toward the next NET_SEND_INTERVAL broadcast
 var _save_accum := 0.0         # accumulates toward the next server SAVE_INTERVAL push
 var _bounds := Rect2()         # the world's walkable bounds, kept to CLAMP untrusted remote positions
+# What we're doing with our hands, relayed with our identity so friends see it (usable items, U-13): the
+# item we hold ("rod" or "") and, while fishing, { b: [x, y], ph, n, k?, r?, c? }. Set by FishingDirector.
+var _held := ""
+var _fishing: Dictionary = {}
 
 
 ## Wire up to the Net seam: publish our identity once, and react to peers joining, moving, and leaving,
@@ -119,12 +123,26 @@ func flush_save_on_exit() -> void:
 ## the player's worn look (already JSON) and the companion's resting-look floats (its grown self,
 ## with no mind attached). The friend never receives our save, our brain, or our bond — only this.
 func _local_identity() -> Dictionary:
-	return {
+	var out := {
 		"name": "Friend",
 		"appearance": _player.appearance_dict(),
 		"companion_look": _companion.resting_look_payload(),
 		"companion_form": _companion.companion_form_payload(),
+		"held": _held,
 	}
+	if not _fishing.is_empty():
+		out["fishing"] = _fishing
+	return out
+
+
+## What we hold and our fishing changed (FishingDirector): re-publish our identity so friends see it. Only
+## sent when something actually changed, since every identity update goes to everyone in the world.
+func set_activity(held: String, fishing: Dictionary) -> void:
+	if held == _held and fishing == _fishing:
+		return
+	_held = held
+	_fishing = fishing.duplicate(true)
+	Net.set_local_identity(_local_identity())
 
 
 ## Our companion just changed daemon form: refresh the relayed identity so peers re-render it.
@@ -292,6 +310,16 @@ func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
 	if form is Dictionary:
 		(pair["companion"] as CompanionView).apply_remote_form(
 			String((form as Dictionary).get("species", "")), int((form as Dictionary).get("variant", 0)))
+	# What they hold and their fishing (U-13): a rod in their hand, the cast, the bite, the catch.
+	var held := String(payload.get("held", ""))
+	var rod: RodView = pair.get("rod")
+	if rod == null and held != "":
+		rod = RodView.new()
+		rod.name = "Rod"
+		(pair["player"] as Node).add_child(rod)
+		pair["rod"] = rod
+	if rod != null:
+		rod.apply_remote(held, payload.get("fishing"))
 
 
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped

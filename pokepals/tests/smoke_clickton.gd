@@ -100,11 +100,37 @@ func _process(_delta: float) -> bool:
 	# Barriers: a building blocks its whole footprint, and so does the water.
 	var solids := Solids.build(data, [], data.get("collision", {}))
 	var bounds := WorldData.bounds_rect(data)
-	var first: Dictionary = (data["buildings"] as Array)[0]
-	var rr: Array = first["rect"]
-	var inside := Vector2(float(rr[0]) + 4.0, float(rr[1]) + float(rr[3]) * 0.5)
+	# The city is packed: most buildings share walls with their neighbours (a sealed party wall has no room
+	# on either side, so nothing could push a body out there). So test a wall that faces OPEN ground: the
+	# first building with a face that has a body's width of clear space outside it.
+	var rects: Array = []
+	for b in data["buildings"]:
+		var br: Array = b["rect"]
+		rects.append(Rect2(float(br[0]), float(br[1]), float(br[2]), float(br[3])))
+	var wall_rect := Rect2()
+	var inside := Vector2.ZERO
+	for rect: Rect2 in rects:
+		var c := rect.get_center()
+		var faces := [
+			[Vector2(c.x, rect.end.y - 4.0), Vector2(c.x, rect.end.y + 12.0)],        # south
+			[Vector2(c.x, rect.position.y + 4.0), Vector2(c.x, rect.position.y - 12.0)],  # north
+			[Vector2(rect.position.x + 4.0, c.y), Vector2(rect.position.x - 12.0, c.y)],  # west
+			[Vector2(rect.end.x - 4.0, c.y), Vector2(rect.end.x + 12.0, c.y)],        # east
+		]
+		for f in faces:
+			var outside: Vector2 = f[1]
+			var clear := bounds.has_point(outside)
+			for other: Rect2 in rects:
+				if other.grow(8.0).has_point(outside):
+					clear = false
+			if clear:
+				wall_rect = rect
+				inside = f[0]
+				break
+		if wall_rect.size != Vector2.ZERO:
+			break
 	var pushed := Solids.resolve(inside, 6.0, solids, bounds, 2.0)
-	fails += _check(not Rect2(float(rr[0]), float(rr[1]), float(rr[2]), float(rr[3])).has_point(pushed), "a body at a building's wall is pushed out of it")
+	fails += _check(wall_rect.size != Vector2.ZERO and not wall_rect.has_point(pushed), "a body at a building's wall is pushed out of it")
 	var in_bay := Solids.resolve(Vector2(-700, 706), 6.0, solids, bounds, 2.0)
 	fails += _check(in_bay.y < 700.0, "the bay's water blocks (a body at its edge is pushed back to the promenade)")
 

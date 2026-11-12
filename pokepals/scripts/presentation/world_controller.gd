@@ -81,6 +81,11 @@ var _presence_dir: PresenceDirector
 var _ambient_dir: AmbientPalDirector
 var _ruin: RuinController
 var _encounter_dir: EncounterDirector
+# Usable items (docs/usable-items-design.md): fishing, plus the hotbar and the use button it drives. The two
+# HUD pieces are made once in _ready (they live in the UI layer, like the radial); the director per world.
+var _fishing_dir: FishingDirector
+var _hotbar: Hotbar
+var _use_button: UseButton
 
 # The dressing-room overlay (first-run creation + gear-menu wardrobe), created on demand. The shared
 # cosmetics catalog is loaded once and reused for both. See scripts/presentation/avatar_customizer.gd.
@@ -151,6 +156,7 @@ var _bounds_rect := Rect2()
 
 func _ready() -> void:
 	_install_world_tap_catcher()
+	_install_item_hud()
 	# Which world to load is owned by WorldRouter (a platform world_id; defaults to the Vale on a fresh
 	# boot). The spec is SERVER-CANONICAL — there is no bundled copy. We stay subscribed to both spec
 	# signals so the join can drive our build, and so a world that changes on the server while we're
@@ -217,6 +223,12 @@ func _build_world(cached: Dictionary) -> void:
 
 	_world_art.render_world(data, _style)
 	_secret_dir.after_world_drawn()  # a world whose song you've already sung shows its chimes rung
+
+	# Fishing: this world's water (any water, in any world; U-6), and the rod's post if it has one. Ebbmere's
+	# water comes and goes with the tide, so the tide adds its own test for where it covers right now.
+	_fishing_dir.configure(data)
+	if data.has("tide"):
+		_fishing_dir.add_water(_tide_covers)
 	_apply_atmosphere(data.get("atmosphere", {}))
 	_setup_daycycle(_style.daycycle())
 
@@ -450,6 +462,11 @@ func _create_directors() -> void:
 	_encounter_dir.search_started.connect(_on_search_started)
 	_encounter_dir.bonded.connect(_on_companion_found)
 
+	# Fishing, the first usable item: the rod's post, the hotbar and use button, casting and catching.
+	_fishing_dir = FishingDirector.new()
+	add_child(_fishing_dir)
+	_fishing_dir.setup(self, _player, _companion, _presence_dir, _scenery, _hotbar, _use_button)
+
 
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept
 # public so each director can stay focused on its own mechanic and lean on the controller for the
@@ -625,6 +642,14 @@ func reveal_sky_bridge(bridge_id: String) -> void:
 	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(sky))
 
 
+## Whether the tide covers `p` right now (Ebbmere): water to fish in.
+func _tide_covers(p: Vector2) -> bool:
+	var td := _secret_dir.tide_director()
+	if td == null or td.field() == null or td.field().is_empty():
+		return false
+	return td.field().depth(p, td.level()) > 0.0
+
+
 ## Assemble everything the player can touch in this world: fold the salamander-hunt rocks (if
 ## any) and the portals into data["props"] so world_art draws them, and build the
 ## runtime lists the controller acts on — _interactables (the examinable subset: interactive props +
@@ -689,6 +714,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		}
 		if it.has("keepsake"):
 			entry["keepsake"] = String(it["keepsake"])  # a keepsake the companion chose (HomeDirector)
+		if it.has("gives"):
+			entry["gives"] = String(it["gives"])  # a prop that hands you an item (the starter rod's post)
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)
@@ -1006,6 +1033,12 @@ func _process(delta: float) -> void:
 	elif not _radial.visible:
 		_radial.visible = true
 
+	# Fishing: the line, the bite and the timing ring; and the hotbar / use button stay out of sight, like
+	# the radial, while the first-meeting search runs.
+	_fishing_dir.update(delta)
+	_hotbar.suppressed = _encounter_dir.is_searching()
+	_use_button.suppressed = _encounter_dir.is_searching()
+
 	# Shared presence: stream our own pair's transforms to peers at ~20 Hz (a no-op when offline).
 	_presence_dir.broadcast(delta)
 	_presence_dir.push_save_periodic(delta)
@@ -1302,6 +1335,29 @@ func _unhandled_input(event: InputEvent) -> void:
 			_try_call()
 		elif event.physical_keycode == KEY_E:
 			_try_pet()
+		# The hotbar (U-9): 1-5 pick a slot, F uses what's selected.
+		elif event.physical_keycode == KEY_F:
+			_fishing_dir.use_item()
+		elif event.physical_keycode >= KEY_1 and event.physical_keycode <= KEY_5:
+			_fishing_dir.select_slot(int(event.physical_keycode - KEY_1))
+
+
+## The usable-items HUD (U-9): the hotbar at the bottom centre and the use button just left of the companion
+## chip. Full-screen controls that let taps through everywhere but their own buttons (so a tap on a slot or on
+## Use never reaches the world as a companion order). FishingDirector fills them in once the world is built.
+func _install_item_hud() -> void:
+	_hotbar = Hotbar.new()
+	_hotbar.name = "Hotbar"
+	_hotbar.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	$UI.add_child(_hotbar)
+	_use_button = UseButton.new()
+	_use_button.name = "UseButton"
+	_use_button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	$UI.add_child(_use_button)
+	_use_button.attach_to(_radial)
+	# Under the radial, so its fanned-out arc draws over them.
+	$UI.move_child(_hotbar, _radial.get_index())
+	$UI.move_child(_use_button, _radial.get_index())
 
 
 ## Set up the single WORLD-TAP CATCHER: a full-screen surface placed UNDER all the HUD (moved to the
@@ -1562,6 +1618,11 @@ func _try_interact() -> void:
 		return
 	if String(entry["kind"]) == "shopkeeper":
 		_shop_dir.open_shop(entry)
+		return
+	# The starter rod's post: take the rod (the FishingDirector asks the server), or read the empty post.
+	if String(entry.get("gives", "")) == "rod":
+		_world_art.pulse_interactable(int(entry["render_index"]))
+		_fishing_dir.examine_post(entry)
 		return
 	if String(entry["kind"]) == "secret":
 		_world_art.pulse_interactable(int(entry["render_index"]))

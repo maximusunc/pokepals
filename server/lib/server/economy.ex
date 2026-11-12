@@ -195,6 +195,97 @@ defmodule Server.Economy do
     end)
   end
 
+  @doc """
+  Mint `quantity` of a STACKABLE item to a user: added onto the one stack they already hold of it, or a
+  new stack if they hold none, with a ledger row in the same txn. (A catch — a fish, a bit of sea-glass —
+  piles up in one inventory row rather than one row per fish.) Returns the stack as it now stands.
+  """
+  @spec grant_stack(uuid(), integer(), pos_integer(), keyword()) :: {:ok, InventoryItem.t()} | {:error, term()}
+  def grant_stack(user_id, item_def_id, quantity \\ 1, opts \\ []) when quantity > 0 do
+    {txn_type, context, correlation_id} = ledger_opts(opts, "grant")
+
+    Repo.transaction(fn ->
+      existing =
+        Repo.one(
+          from(i in InventoryItem,
+            where: i.user_id == ^user_id and i.item_def_id == ^item_def_id,
+            order_by: [asc: i.inserted_at],
+            limit: 1,
+            lock: "FOR UPDATE"
+          )
+        )
+
+      item =
+        case existing do
+          nil ->
+            %InventoryItem{}
+            |> InventoryItem.changeset(%{user_id: user_id, item_def_id: item_def_id, quantity: quantity})
+            |> Repo.insert!()
+
+          stack ->
+            stack
+            |> InventoryItem.changeset(%{quantity: stack.quantity + quantity})
+            |> Repo.update!()
+        end
+
+      write_ledger!(%{
+        txn_type: txn_type,
+        from_user: nil,
+        to_user: user_id,
+        asset_kind: "item",
+        asset_ref: item.item_instance_id,
+        amount: quantity,
+        context: context,
+        correlation_id: correlation_id
+      })
+
+      item
+    end)
+  end
+
+  @doc "How many of an item definition a user holds, across all their stacks/instances (0 if none)."
+  @spec owned_quantity(uuid(), integer()) :: non_neg_integer()
+  def owned_quantity(user_id, item_def_id) do
+    Repo.one(
+      from(i in InventoryItem,
+        where: i.user_id == ^user_id and i.item_def_id == ^item_def_id,
+        select: coalesce(sum(i.quantity), 0)
+      )
+    )
+    |> to_int()
+  end
+
+  @doc """
+  A user's inventory summed per item definition, with each definition's name/category/attributes:
+  `[%{item_def_id, name, category, attributes, quantity}]`, ordered by definition id. What the client's
+  bag and hotbar read.
+  """
+  @spec inventory_summary(uuid()) :: [map()]
+  def inventory_summary(user_id) do
+    Repo.all(
+      from(i in InventoryItem,
+        join: d in ItemDefinition,
+        on: d.item_def_id == i.item_def_id,
+        where: i.user_id == ^user_id,
+        group_by: [d.item_def_id, d.name, d.category, d.base_attributes],
+        order_by: [asc: d.item_def_id],
+        select: %{
+          item_def_id: d.item_def_id,
+          name: d.name,
+          category: d.category,
+          attributes: d.base_attributes,
+          quantity: sum(i.quantity)
+        }
+      )
+    )
+    |> Enum.map(fn row -> %{row | quantity: to_int(row.quantity), attributes: row.attributes || %{}} end)
+  end
+
+  # sum() comes back as a Decimal from Postgres; make it a plain integer.
+  defp to_int(%Decimal{} = d), do: Decimal.to_integer(d)
+  defp to_int(n) when is_integer(n), do: n
+  defp to_int(_), do: 0
+
   # ── Purchase (shop): sink price + grant the wardrobe unlock, atomically, ledger-logged ───────────
 
   @doc """

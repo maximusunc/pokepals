@@ -99,12 +99,15 @@ defmodule Server.Seeds do
     seed_worlds()
 
     summary =
-      "Seeded #{length(@item_defs)} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
+      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
 
     summary
   end
 
   defp seed_item_definitions do
+    # The fishing rod and everything it can catch live with the fishing rules (Server.Fishing).
+    Server.Fishing.seed_definitions()
+
     for attrs <- @item_defs do
       %ItemDefinition{}
       |> ItemDefinition.changeset(attrs)

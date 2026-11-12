@@ -34,11 +34,12 @@
 	},
 	"player_spawn": [560, -50],
 	"companion_spawn": [530, -30],
-	"_water_comment": "Still water along the southern edge only — one clean shore the meadow opens onto. Circular ponds (pond_blocks true) so it reads still, not flowing.",
+	"_water_comment": "Still water along the southern edge only — one clean shore the meadow opens onto. Circular ponds (pond_blocks true) so it reads still, not flowing. Plus one small FISHING POND just south-east of where you arrive, with the starter rod resting on a post at its edge (the 'rod_post' prop; see docs/usable-items-design.md).",
 	"ponds": [
 		{ "center": [-40, 600], "radius": 90, "color": [0.30, 0.46, 0.56] },
 		{ "center": [320, 580], "radius": 80, "color": [0.32, 0.50, 0.60] },
-		{ "center": [-320, 560], "radius": 70, "color": [0.34, 0.52, 0.62] }
+		{ "center": [-320, 560], "radius": 70, "color": [0.34, 0.52, 0.62] },
+		{ "center": [640, 110], "radius": 42, "color": [0.32, 0.50, 0.60] }
 	],
 	"_paths_comment": "The SPINE (grove -> pals -> finding -> Commons -> Threshold) plus three short trails out to the regions that hang off it (Overlook, Hollow, Meadow). Straight segments chained beat to beat.",
 	"paths": [
@@ -137,7 +138,8 @@
 					"reveal": { "id": "spotted_blooms", "label": "a hidden flush of late blooms", "type": "wildflowers", "color": [0.92, 0.72, 0.84], "tags": ["flower", "fragrant", "hidden"], "lore": "Deep in the grass where nothing walks, a whole drift of them, opened for no one. You'd never have found this from the ground.", "position": [420, -450] }
 				}
 			}
-		}
+		},
+		{ "id": "rod_post", "type": "rod_post", "position": [598, 64], "color": [0.52, 0.40, 0.28], "label": "a fishing rod resting on a post", "tags": ["made"], "interactive": true, "gives": "rod", "lore": "A weathered post at the pond's edge, with a hook worn smooth where a rod has rested." }
 	],
 	"_gateway_comment": "THE GATEWAY — the Vale is the one hub, and this is its door to every world in the catalog. Walk into it and the world picker opens (world_controller → WorldPicker): search the server's world directory (Server.Worlds.directory — name/blurb/tags, with a live 'N here' count) and pick a destination. You arrive at that world's own spawn; its way home (a portal or Return to the Vale) sets you back down HERE, since WorldRouter remembers you left by the gateway. It's the Vale's ONLY doorway (the old small direct portals are gone): every other world has its own small portal home beside where you arrive, pointed at this gateway's id. Only a world whose spec carries a 'gateway' block has one — today that's just the Vale. The id 'vale_gateway' is also WorldRouter.HUB_GATEWAY_ID (the default Return target for worlds that declare none) — keep it stable.",
 	"gateway": { "id": "vale_gateway", "position": [-570, 190], "color": [0.80, 0.74, 0.98], "label": "the great gate", "arrival_offset": [0, 56] },

@@ -2498,6 +2498,14 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			_draw_sky_anchor(p, color)
 		"dry_well":
 			_draw_dry_well(p, color)
+		"rod_post":
+			# the fishing spot's post (the starter rod rests across it until you take it; FishingDirector draws
+			# the rod): a short weathered post with a worn hook near the top
+			draw_circle(p + Vector2(0, 5), 5.5, Color(0.12, 0.10, 0.08, 0.22))
+			draw_rect(Rect2(p + Vector2(-2.5, -18), Vector2(5, 23)), color)
+			draw_rect(Rect2(p + Vector2(-2.5, -18), Vector2(1.6, 23)), color.lightened(0.15))
+			draw_rect(Rect2(p + Vector2(-3.5, -19), Vector2(7, 2.5)), color.darkened(0.2))
+			draw_arc(p + Vector2(4.5, -13), 2.2, -PI * 0.5, PI * 0.9, 8, Color(0.62, 0.62, 0.66), 1.2, true)
 		"notice_board":
 			_draw_notice_board(p, color)
 		"shrine":
