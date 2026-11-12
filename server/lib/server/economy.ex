@@ -243,6 +243,108 @@ defmodule Server.Economy do
     end)
   end
 
+  @doc """
+  SELL `quantity` of an item back to the platform (a buyer's stall: the fish buyer in the bazaar), or all of
+  it with `:all`. In ONE transaction: the user's stacks of it are locked and drawn down (emptied stacks are
+  removed), the price is minted to them in its currency, and both moves are ledgered under one
+  `correlation_id`.
+
+  The price lives in the definition's `base_attributes` (`"sell"`, and `"currency"`, default coins); a def
+  with no `"sell"` isn't bought (rare fish, which are for keeping). Only definitions in `categories` (if
+  given) are bought, so a stall buys only what it trades in. Rolls back with nothing moved on an unknown
+  def, one this stall doesn't buy, a bad quantity, or more than the user holds.
+
+  Returns `{:ok, %{item_def_id, quantity, coins, balance, left}}`: how many were sold, what they paid, the
+  new balance, and how many are left.
+  """
+  @spec sell(uuid(), integer(), pos_integer() | :all, keyword()) :: {:ok, map()} | {:error, term()}
+  def sell(user_id, item_def_id, quantity, opts \\ []) do
+    categories = Keyword.get(opts, :categories)
+    correlation_id = Ecto.UUID.generate()
+
+    Repo.transaction(fn ->
+      definition = item_definition(item_def_id)
+      attrs = (definition && definition.base_attributes) || %{}
+      price = Map.get(attrs, "sell")
+      currency = Map.get(attrs, "currency", "coins")
+
+      cond do
+        is_nil(definition) -> Repo.rollback(:no_definition)
+        categories != nil and definition.category not in categories -> Repo.rollback(:not_bought_here)
+        not is_integer(price) or price < 0 -> Repo.rollback(:not_bought_here)
+        quantity != :all and (not is_integer(quantity) or quantity < 1) -> Repo.rollback(:bad_quantity)
+        true -> :ok
+      end
+
+      stacks =
+        Repo.all(
+          from(i in InventoryItem,
+            where: i.user_id == ^user_id and i.item_def_id == ^item_def_id,
+            order_by: [asc: i.inserted_at],
+            lock: "FOR UPDATE"
+          )
+        )
+
+      held = Enum.reduce(stacks, 0, &(&1.quantity + &2))
+      count = if quantity == :all, do: held, else: quantity
+      if count < 1 or count > held, do: Repo.rollback(:not_enough)
+
+      # Draw the stacks down, oldest first, removing any that empty.
+      Enum.reduce_while(stacks, count, fn stack, need ->
+        cond do
+          need <= 0 ->
+            {:halt, 0}
+
+          stack.quantity <= need ->
+            Repo.delete!(stack)
+            {:cont, need - stack.quantity}
+
+          true ->
+            stack |> InventoryItem.changeset(%{quantity: stack.quantity - need}) |> Repo.update!()
+            {:halt, 0}
+        end
+      end)
+
+      write_ledger!(%{
+        txn_type: "sell",
+        from_user: user_id,
+        to_user: nil,
+        asset_kind: "item",
+        asset_ref: Integer.to_string(item_def_id),
+        amount: count,
+        context: %{"item_def_id" => item_def_id},
+        correlation_id: correlation_id
+      })
+
+      coins = price * count
+
+      if coins > 0 do
+        ensure_currency_rows!([user_id], [currency])
+        lock_currencies!([user_id], [currency])
+        bump_currency!(user_id, currency, coins)
+
+        write_ledger!(%{
+          txn_type: "sell",
+          from_user: nil,
+          to_user: user_id,
+          asset_kind: "currency",
+          asset_ref: currency,
+          amount: coins,
+          context: %{"item_def_id" => item_def_id, "quantity" => count},
+          correlation_id: correlation_id
+        })
+      end
+
+      %{
+        item_def_id: item_def_id,
+        quantity: count,
+        coins: coins,
+        balance: balance(user_id, currency),
+        left: held - count
+      }
+    end)
+  end
+
   @doc "How many of an item definition a user holds, across all their stacks/instances (0 if none)."
   @spec owned_quantity(uuid(), integer()) :: non_neg_integer()
   def owned_quantity(user_id, item_def_id) do

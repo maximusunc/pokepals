@@ -313,6 +313,24 @@ for p in special:
         p["person"] = {"appearance": random_person(holder_rng)}
         p["facing"] = [0, 1]
 
+# ── the fish buyer (usable items, step 2; docs/usable-items-design.md) ──────────────────────────────────
+# The stall nearest where you arrive becomes the fishmonger's: a weathered awning and a barrel of ice, drawn by
+# world_art as "fish_stall". Its stallholder becomes the fish buyer ("buys": "fish"): Examine them to sell
+# common fish and reeled-up materials (never rare ones). Converted after the layout is made, so nothing else in
+# the lane moves.
+FISH_SPOT = (PLAYER_SPAWN[0] - 100, PLAYER_SPAWN[1] - 80)
+def _holder_of(stall):
+    sx, sy = stall["position"]
+    near = [h for h in holders if math.hypot(h["position"][0] - sx, h["position"][1] - sy) <= 31]
+    return near[0] if near else None
+fish_stall = min((st for st in stalls if _holder_of(st) is not None),
+                 key=lambda st: math.hypot(st["position"][0] - FISH_SPOT[0], st["position"][1] - FISH_SPOT[1]))
+fish_buyer = _holder_of(fish_stall)
+fish_stall.update({"type": "fish_stall", "label": "the fishmonger's stall", "color": [0.46, 0.58, 0.64]})
+fish_buyer.update({"type": "fish_buyer", "label": "the fishmonger", "buys": "fish", "interactive": True,
+                   "lore": "\"Fresh from the water? Let's see what you've got. Ordinary fish and odds and ends, I'll buy. "
+                           "Anything rare, you keep: those deserve a tank, not a barrel.\""})
+
 # ── checks ────────────────────────────────────────────────────────────────────────────────────────────
 all_props = special + lanterns + stalls + holders + rugs + alley
 ids = [p["id"] for p in all_props]
@@ -442,6 +460,7 @@ text = "\n".join(out) + "\n"
 
 d = json.loads(text)
 assert any(i["type"] == "shopkeeper" for i in d["props"]), "no shopkeeper"
+assert sum(1 for i in d["props"] if i.get("buys") == "fish") == 1, "exactly one fish buyer"
 for i in d["props"]:
     want = bool(i.get("lore")) or i["type"] == "shopkeeper"
     assert bool(i.get("interactive", False)) == want, "interactive flag mismatch on %s" % i["id"]

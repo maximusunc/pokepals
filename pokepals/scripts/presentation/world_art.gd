@@ -2447,6 +2447,34 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, -1), 10.0, color.lightened(0.06))
 			for s in [Vector2(-3, -3), Vector2(3, -1), Vector2(0, 2)]:
 				draw_circle(p + s, 1.6, color.darkened(0.28))
+		"fish_stall":
+			# the fishmonger's stall (the bazaar's fish buyer): a counter under a weathered, sun-faded awning,
+			# a row of fish laid out on it, and a barrel of ice at its side with more fish poking out
+			var fs_awning := color
+			var fs_awning_alt := color.lightened(0.3)
+			draw_rect(Rect2(p + Vector2(-20, -8), Vector2(3, 24)), Color(0.36, 0.30, 0.24))
+			draw_rect(Rect2(p + Vector2(17, -8), Vector2(3, 24)), Color(0.36, 0.30, 0.24))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 10)), Color(0.50, 0.42, 0.34))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 3)), Color(0.60, 0.52, 0.42))
+			for k in 4:
+				ItemIcon.draw_fish(self, p + Vector2(-15 + float(k) * 10.0, 5), 0.55, Color(0.74, 0.80, 0.84).lerp(Color(0.80, 0.70, 0.46), float(k % 2) * 0.6))
+			for stripe in 4:
+				var fx0 := -22.0 + float(stripe) * 11.0
+				var fband := PackedVector2Array([
+					p + Vector2(fx0, -10), p + Vector2(fx0 + 11.0, -10),
+					p + Vector2(fx0 + 11.0, -22), p + Vector2(fx0, -22)])
+				draw_colored_polygon(fband, fs_awning if stripe % 2 == 0 else fs_awning_alt)
+			draw_line(p + Vector2(-22, -10), p + Vector2(22, -10), color.darkened(0.3), 1.5)
+			draw_line(p + Vector2(-12, -21), p + Vector2(-6, -12), Color(1, 1, 1, 0.18), 1.0)  # a faded patch
+			# the barrel of ice
+			var bp := p + Vector2(30, 9)
+			draw_rect(Rect2(bp + Vector2(-7, -6), Vector2(14, 14)), Color(0.46, 0.34, 0.22))
+			draw_line(bp + Vector2(-7, -2), bp + Vector2(7, -2), Color(0.30, 0.30, 0.32), 1.2)
+			draw_line(bp + Vector2(-7, 4), bp + Vector2(7, 4), Color(0.30, 0.30, 0.32), 1.2)
+			draw_circle(bp + Vector2(0, -6), 7.0, Color(0.86, 0.94, 0.98))
+			for ice in [Vector2(-3, -7), Vector2(2, -5), Vector2(4, -8)]:
+				draw_circle(bp + ice, 1.6, Color(1, 1, 1, 0.9))
+			ItemIcon.draw_fish(self, bp + Vector2(-1, -10), 0.5, Color(0.62, 0.70, 0.36))
 		"stall":
 			# a market stall: a timber counter under a striped, slightly billowing awning on two posts
 			var stall_awning := color

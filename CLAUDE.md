@@ -80,8 +80,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 > (or F) casts into any water in any world (`FishingWater`; a world opts out with `"fishing": false`). A bite
 > brings up a **timing ring** (`FishingRing`); land it and the server grants the catch into your inventory
 > (`Server.Fishing`, `Server.Hotbar`). Your companion keeps you company; friends see your rod, cast and catch
-> (`RodView`, relayed with your identity). Client: `FishingDirector`. Next: selling to a fish buyer in the
-> bazaar (step 2), then a tank for rare fish at home (step 3).
+> (`RodView`, relayed with your identity). Client: `FishingDirector`. **Step 2 is built too:** a **bag**
+> (gear menu, `BagPanel`) lists what you carry, and the **fishmonger** in the bazaar (a stall near where you
+> arrive, `"buys": "fish"`, `FishBuyerPanel`) buys common fish and odds and ends, Sell 1 or Sell all, never
+> rare fish (`Economy.sell`, the channel's `sell`). Next: a tank for rare fish at home (step 3).
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the

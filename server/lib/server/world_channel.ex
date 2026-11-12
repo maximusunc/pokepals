@@ -449,6 +449,44 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # Sell catches to the fish buyer (step 2). Honoured only while we stand at a stall that buys fish (the
+  # bazaar's fishmonger), for what it buys (common fish and materials, never rare fish), one or `"all"`.
+  # The sale is one ledgered transaction (Economy.sell); the answer is `sold` (what went, what it paid, the
+  # new balance) then the fresh `inventory`, or `sell_failed` with a reason.
+  def handle_in("sell", %{"item_def_id" => raw_id} = payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    quantity =
+      case Map.get(payload, "quantity") do
+        "all" -> :all
+        n when is_integer(n) and n > 0 -> n
+        _ -> :bad
+      end
+
+    result =
+      with {:ok, item_def_id} <- parse_item_def_id(raw_id),
+           true <- quantity != :bad || {:error, :bad_quantity},
+           true <- Fishing.at_fish_buyer?(core, pos) || {:error, :not_at_buyer} do
+        Economy.sell(user_id, item_def_id, quantity, categories: Fishing.buyer_categories())
+      else
+        :error -> {:error, :bad_item}
+        {:error, _} = err -> err
+      end
+
+    case result do
+      {:ok, sale} ->
+        push(socket, "sold", Map.put(sale, :currency, @shop_currency))
+        push(socket, "inventory", inventory_snapshot(user_id))
+
+      {:error, reason} ->
+        push(socket, "sell_failed", %{item_def_id: raw_id, reason: to_string(reason)})
+    end
+
+    {:noreply, socket}
+  end
+
   # Claim the reward for finishing the riverbank salamander hunt. The client reports how many of the
   # ten it found; the SERVER decides the payout (see @hunt_rewards), mints it, and confirms the new
   # balance — the same server-authoritative discipline as `buy`. The grant is honoured only in a world
@@ -818,6 +856,7 @@ defmodule Server.WorldChannel do
           category: row.category,
           key: Map.get(row.attributes, "key", ""),
           color: Map.get(row.attributes, "color"),
+          sell: Map.get(row.attributes, "sell"),
           quantity: row.quantity
         }
       end

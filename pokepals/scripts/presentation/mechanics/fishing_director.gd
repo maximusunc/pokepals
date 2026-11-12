@@ -238,7 +238,7 @@ func _on_fish_caught(item: Dictionary) -> void:
 		return
 	_catches += 1
 	var kind := String(item.get("kind", "fish"))
-	var color := _color_of(item.get("color"))
+	var color := color_of(item.get("color"))
 	_last_catch = { "k": String(item.get("key", "")), "r": kind, "c": [color.r, color.g, color.b] }
 	_phase = "caught"
 	_hold = RodView.POP_SECONDS
@@ -318,7 +318,7 @@ func _on_inventory(items: Array) -> void:
 			"key": String(d.get("key", "")),
 			"name": String(d.get("name", "")),
 			"kind": String(d.get("category", "")),
-			"color": _color_of(d.get("color")),
+			"color": color_of(d.get("color")),
 			"quantity": int(d.get("quantity", 0)),
 		}
 	_known = true
@@ -402,7 +402,7 @@ func _publish() -> void:
 	_presence.set_activity(held, fishing)
 
 
-static func _color_of(v: Variant) -> Color:
+static func color_of(v: Variant) -> Color:
 	if v is Array and (v as Array).size() >= 3:
 		return Color(float(v[0]), float(v[1]), float(v[2]))
 	return Color(0.8, 0.84, 0.88)

@@ -141,6 +141,9 @@ signal fish_hooked(wait_ms: int, window: float, speed: float)
 signal fish_caught(item: Dictionary)
 signal fish_escaped()
 signal fish_refused(reason: String)
+# Selling to the fish buyer: what went (how many, for how many coins) and the new balance, or why not.
+signal sold(item_def_id: int, quantity: int, coins: int, balance: int)
+signal sell_failed(reason: String)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -590,6 +593,14 @@ func reel(landed: bool) -> void:
 	_push_event("reel", { "landed": landed })
 
 
+## Sell `quantity` of an item to the fish buyer (0 = all of it). We must be at their stall; the server checks.
+## Answers sold or sell_failed (and a fresh inventory).
+func sell(item_def_id: int, quantity: int) -> void:
+	if not _can_send():
+		return
+	_push_event("sell", { "item_def_id": item_def_id, "quantity": "all" if quantity <= 0 else quantity })
+
+
 ## The world secret ids we've found so far (empty before our first join).
 func discoveries() -> Array:
 	return _discoveries
@@ -884,6 +895,10 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			fish_escaped.emit()
 		"fish_refused":
 			fish_refused.emit(String(payload.get("reason", "")))
+		"sold":
+			sold.emit(int(payload.get("item_def_id", 0)), int(payload.get("quantity", 0)), int(payload.get("coins", 0)), int(payload.get("balance", 0)))
+		"sell_failed":
+			sell_failed.emit(String(payload.get("reason", "")))
 		"bought":
 			purchase_succeeded.emit(int(payload.get("item_def_id", 0)), int(payload.get("balance", 0)))
 		"buy_failed":

@@ -30,33 +30,36 @@ defmodule Server.Fishing do
   # "rare_fish" (for the tank at home) or "material" (reeled-up things to trade, and later to craft with).
   # `ring` is the timing ring's difficulty (U-4): `window` is how wide the tap window is, as a share of
   # one pass of the ring, and `speed` how fast the ring closes (passes per 1.4 s). Rarer catches have a
-  # smaller window and a quicker ring. `sell` is what the fish buyer will pay (step 2; not used yet).
+  # smaller window and a quicker ring (tuned after the first play, 2026-11-12: it was too easy, so the
+  # windows narrowed and the rings quickened). `sell` is what the fish buyer in the bazaar pays (rare fish
+  # aren't for sale: they're for the tank at home).
   @catches [
     %{id: 200, key: "minnow", name: "Silver Minnow", kind: "fish", weight: 26, sell: 2,
-      color: [0.78, 0.82, 0.86], ring: %{window: 0.24, speed: 0.9}},
+      color: [0.78, 0.82, 0.86], ring: %{window: 0.15, speed: 1.0}},
     %{id: 201, key: "perch", name: "Speckled Perch", kind: "fish", weight: 20, sell: 3,
-      color: [0.62, 0.70, 0.36], ring: %{window: 0.22, speed: 1.0}},
-    %{id: 202, key: "loach", name: "Pebble Loach", kind: "fish", weight: 16, sell: 3,
-      color: [0.62, 0.54, 0.44], ring: %{window: 0.22, speed: 1.0}},
-    %{id: 203, key: "bream", name: "Reed Bream", kind: "fish", weight: 14, sell: 4,
-      color: [0.80, 0.70, 0.44], ring: %{window: 0.20, speed: 1.05}},
-    %{id: 204, key: "carp", name: "Mud Carp", kind: "fish", weight: 10, sell: 5,
-      color: [0.56, 0.46, 0.30], ring: %{window: 0.18, speed: 1.1}},
+      color: [0.62, 0.70, 0.36], ring: %{window: 0.14, speed: 1.1}},
+    %{id: 202, key: "loach", name: "Pebble Loach", kind: "fish", weight: 16, sell: 4,
+      color: [0.62, 0.54, 0.44], ring: %{window: 0.14, speed: 1.1}},
+    %{id: 203, key: "bream", name: "Reed Bream", kind: "fish", weight: 14, sell: 6,
+      color: [0.80, 0.70, 0.44], ring: %{window: 0.13, speed: 1.15}},
+    %{id: 204, key: "carp", name: "Mud Carp", kind: "fish", weight: 10, sell: 8,
+      color: [0.56, 0.46, 0.30], ring: %{window: 0.12, speed: 1.2}},
     %{id: 220, key: "koi", name: "Moonscale Koi", kind: "rare_fish", weight: 2.5, sell: nil,
-      color: [0.96, 0.94, 0.88], ring: %{window: 0.12, speed: 1.3}},
+      color: [0.96, 0.94, 0.88], ring: %{window: 0.10, speed: 1.4}},
     %{id: 221, key: "ember_trout", name: "Ember Trout", kind: "rare_fish", weight: 1.5, sell: nil,
-      color: [0.94, 0.48, 0.28], ring: %{window: 0.11, speed: 1.35}},
+      color: [0.94, 0.48, 0.28], ring: %{window: 0.095, speed: 1.45}},
     %{id: 222, key: "old_whiskers", name: "Old Whiskers", kind: "rare_fish", weight: 1.0, sell: nil,
-      color: [0.36, 0.40, 0.34], ring: %{window: 0.10, speed: 1.4}},
+      color: [0.36, 0.40, 0.34], ring: %{window: 0.09, speed: 1.5}},
     %{id: 240, key: "old_boot", name: "Old Boot", kind: "material", weight: 6, sell: 1,
-      color: [0.42, 0.30, 0.22], ring: %{window: 0.26, speed: 0.85}},
-    %{id: 241, key: "sea_glass", name: "Sea-glass", kind: "material", weight: 3, sell: 4,
-      color: [0.52, 0.80, 0.74], ring: %{window: 0.22, speed: 1.0}}
+      color: [0.42, 0.30, 0.22], ring: %{window: 0.16, speed: 0.95}},
+    %{id: 241, key: "sea_glass", name: "Sea-glass", kind: "material", weight: 3, sell: 5,
+      color: [0.52, 0.80, 0.74], ring: %{window: 0.13, speed: 1.1}}
   ]
 
-  # How long until a bite, from the cast (ms): a calm little wait, never the same twice.
-  @wait_min_ms 1_800
-  @wait_max_ms 5_200
+  # How long until a bite, from the cast (ms): a calm wait, never the same twice. (Was 1.8-5.2 s; bites
+  # came too quickly in the first play.)
+  @wait_min_ms 3_000
+  @wait_max_ms 8_000
 
   # The reel must come no sooner than this before the bite is due (network jitter)…
   @early_slack_ms 400
@@ -66,7 +69,7 @@ defmodule Server.Fishing do
   # At least this long between two casts, so a client can't spray casts at the server.
   @min_cast_gap_ms 1_000
 
-  # How near the rod's post you must stand to take the rod.
+  # How near the rod's post (or the fish buyer) you must stand to take the rod (or sell).
   @post_reach 90.0
 
   @doc "The starter rod's item definition id."
@@ -176,13 +179,25 @@ defmodule Server.Fishing do
   out a rod (`"gives": "rod"`). The starter rod's post in the Vale.
   """
   @spec at_rod_post?(map() | nil, list() | nil) :: boolean()
-  def at_rod_post?(core, [x, y]) when is_map(core) and is_number(x) and is_number(y) do
+  def at_rod_post?(core, pos), do: near_prop?(core, pos, "gives", "rod")
+
+  @doc """
+  Whether `pos` is at a stall that buys catches (`"buys": "fish"`): the fish buyer in the bazaar.
+  """
+  @spec at_fish_buyer?(map() | nil, list() | nil) :: boolean()
+  def at_fish_buyer?(core, pos), do: near_prop?(core, pos, "buys", "fish")
+
+  @doc "What the fish buyer buys: common fish and reeled-up materials (never rare fish, which are kept)."
+  def buyer_categories, do: ["fish", "material"]
+
+  # Whether `pos` is within reach of a prop whose `key` is `value`.
+  defp near_prop?(core, [x, y], key, value) when is_map(core) and is_number(x) and is_number(y) do
     props = Map.get(core, "props", [])
 
     is_list(props) and
       Enum.any?(props, fn p ->
         with true <- is_map(p),
-             "rod" <- Map.get(p, "gives"),
+             ^value <- Map.get(p, key),
              [px, py] when is_number(px) and is_number(py) <- Map.get(p, "position") do
           :math.sqrt((x - px) * (x - px) + (y - py) * (y - py)) <= @post_reach
         else
@@ -191,7 +206,7 @@ defmodule Server.Fishing do
       end)
   end
 
-  def at_rod_post?(_core, _pos), do: false
+  defp near_prop?(_core, _pos, _key, _value), do: false
 
   @doc "What the client needs to play the ring for a hook: the wait and the ring's difficulty."
   def hook_payload(haul, wait_ms) do

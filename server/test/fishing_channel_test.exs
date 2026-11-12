@@ -143,6 +143,38 @@ defmodule Server.FishingChannelTest do
     assert_push "fish_refused", %{reason: "too_soon"}
   end
 
+  test "selling at the fish buyer: one, all, and only there" do
+    w =
+      seed_world(%{
+        "props" => [%{"id" => "fish_buyer", "type" => "fish_buyer", "position" => [500.0, 50.0], "buys" => "fish", "interactive" => true}]
+      })
+
+    {socket, uid} = join_world(token(), w)
+    {:ok, _} = Economy.grant_stack(uid, 201, 3)
+    {:ok, _} = Economy.grant_stack(uid, 221, 1)
+    price = Enum.find(Fishing.catches(), &(&1.id == 201)).sell
+
+    stand_at(socket, w, uid, [100.0, 400.0])
+    push(socket, "sell", %{"item_def_id" => 201, "quantity" => 1})
+    assert_push "sell_failed", %{reason: "not_at_buyer"}
+
+    stand_at(socket, w, uid, [510.0, 60.0])
+    push(socket, "sell", %{"item_def_id" => 201, "quantity" => 1})
+    assert_push "sold", %{item_def_id: 201, quantity: 1, coins: ^price, left: 2, currency: "coins"}
+    assert_push "inventory", %{items: [_ | _] = items}
+    assert Enum.find(items, &(&1.item_def_id == 201)).quantity == 2
+    assert Enum.find(items, &(&1.item_def_id == 201)).sell == price
+
+    push(socket, "sell", %{"item_def_id" => 201, "quantity" => "all"})
+    assert_push "sold", %{item_def_id: 201, quantity: 2, left: 0}
+
+    push(socket, "sell", %{"item_def_id" => 221, "quantity" => "all"})
+    assert_push "sell_failed", %{reason: "not_bought_here"}
+    push(socket, "sell", %{"item_def_id" => 221, "quantity" => -3})
+    assert_push "sell_failed", %{reason: "bad_quantity"}
+    assert Economy.owned_quantity(uid, 221) == 1
+  end
+
   test "what we hold and our fishing are relayed with our identity, and junk is dropped" do
     w = seed_world()
     {socket, uid} = join_world(token(), w)

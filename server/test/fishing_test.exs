@@ -101,6 +101,55 @@ defmodule Server.FishingTest do
     end
   end
 
+  describe "selling" do
+    test "one, then all: the stack shrinks, the coins come in, both ledgered" do
+      uid = new_user()
+      start = Economy.balance(uid, "coins")
+      {:ok, _} = Economy.grant_stack(uid, 204, 3)
+      price = Enum.find(Fishing.catches(), &(&1.id == 204)).sell
+
+      {:ok, sale} = Economy.sell(uid, 204, 1, categories: Fishing.buyer_categories())
+      assert %{quantity: 1, coins: ^price, left: 2} = sale
+      assert Economy.balance(uid, "coins") == start + price
+
+      {:ok, sale} = Economy.sell(uid, 204, :all, categories: Fishing.buyer_categories())
+      assert sale.quantity == 2 and sale.coins == 2 * price and sale.left == 0
+      assert Economy.owned_quantity(uid, 204) == 0
+      assert Economy.inventory_summary(uid) == []
+      assert Economy.ledger_balance(uid, "coins") == Economy.balance(uid, "coins")
+    end
+
+    test "draws down across several stacks" do
+      uid = new_user()
+      {:ok, _} = Economy.grant_item(uid, 200, quantity: 2)
+      {:ok, _} = Economy.grant_item(uid, 200, quantity: 2)
+      {:ok, sale} = Economy.sell(uid, 200, 3)
+      assert sale.left == 1
+      assert Economy.owned_quantity(uid, 200) == 1
+    end
+
+    test "rare fish aren't bought, nor more than you hold, nor nothing" do
+      uid = new_user()
+      {:ok, _} = Economy.grant_stack(uid, 220)
+      {:ok, _} = Economy.grant_stack(uid, 200)
+      assert {:error, :not_bought_here} = Economy.sell(uid, 220, 1, categories: Fishing.buyer_categories())
+      assert {:error, :not_enough} = Economy.sell(uid, 200, 2)
+      assert {:error, :bad_quantity} = Economy.sell(uid, 200, 0)
+      assert {:error, :not_enough} = Economy.sell(uid, 201, :all)
+      assert {:error, :no_definition} = Economy.sell(uid, 999_999, 1)
+      # a stall only buys what it trades in
+      assert {:error, :not_bought_here} = Economy.sell(uid, 200, 1, categories: ["material"])
+      assert Economy.owned_quantity(uid, 220) == 1 and Economy.owned_quantity(uid, 200) == 1
+    end
+
+    test "the fish buyer is only at its stall" do
+      core = %{"props" => [%{"id" => "fish_buyer", "position" => [0, 0], "buys" => "fish"}]}
+      assert Fishing.at_fish_buyer?(core, [30.0, 20.0])
+      refute Fishing.at_fish_buyer?(core, [300.0, 20.0])
+      refute Fishing.at_rod_post?(core, [0.0, 0.0])
+    end
+  end
+
   describe "catches in the inventory" do
     test "pile up in one stack per kind, each grant ledgered" do
       uid = new_user()
