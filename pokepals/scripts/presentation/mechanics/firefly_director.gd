@@ -11,7 +11,7 @@ extends Node
 
 const FLIGHT := 1.5        # s for the firefly to drift down into the jar
 const GLOW := 1.0          # s the jar glows with it inside, before it's in your bag
-const JAR_TOP := Vector2(0, -16)   # where the jar's mouth is, from the table's spot
+const JAR_TOP := Vector2(0, -30)   # where the jar's mouth is, from the table's spot (world_art draws the jar)
 
 var _host: Node
 var _player: PlayerView
@@ -77,6 +77,7 @@ func examine_jar(entry: Dictionary) -> void:
 	_player.input_enabled = false
 	_player.look_toward(jar - _player.position)
 	_companion.glance_toward(jar)
+	_host.show_hint("One of the fireflies drifts down toward the jar...")
 	(glade["view"] as FireflyGlade).fly_one_into(jar + JAR_TOP, FLIGHT, GLOW)
 	Net.catch_firefly()
 
@@ -196,22 +197,30 @@ class FireflyGlade extends Node2D:
 			var a: float = _t * float(s["sp"]) + float(s["ph"])
 			var p: Vector2 = s["c"] + Vector2(cos(a), sin(a * 1.3) * 0.6) * float(s["r"]) + Vector2(0, -float(s["h"]))
 			var glow := 0.35 + 0.65 * maxf(0.0, sin(_t * float(s["pulse"]) + float(s["ph"])))
-			ItemIcon.draw_firefly(self, p, 0.45, glow)
+			ItemIcon.draw_firefly(self, p, 0.7, glow)
 		if _diver.is_empty():
 			return
 		var flight: float = _diver["flight"]
 		var to: Vector2 = _diver["to"]
 		var t: float = _diver["t"]
 		if t < flight:
-			# a slow, wandering descent: it eases in, loops a little, and settles at the jar's mouth
+			# a slow, wandering descent: it eases in, loops a little, and settles at the jar's mouth, leaving a
+			# short trail of light behind it so the eye can follow it down
+			for k in range(6, 0, -1):
+				var tu := ease(clampf((t - float(k) * 0.05) / flight, 0.0, 1.0), -1.6)
+				var tp: Vector2 = (_diver["from"] as Vector2).lerp(to, tu) + Vector2(sin(tu * TAU * 1.5) * 12.0 * (1.0 - tu), 0)
+				draw_circle(tp, 2.2 - float(k) * 0.25, Color(1.0, 0.93, 0.6, 0.35 - float(k) * 0.05))
 			var u := ease(t / flight, -1.6)
-			var p: Vector2 = (_diver["from"] as Vector2).lerp(to, u) + Vector2(sin(u * TAU * 1.5) * 10.0 * (1.0 - u), 0)
-			ItemIcon.draw_firefly(self, p, 0.55, 1.0)
+			var p: Vector2 = (_diver["from"] as Vector2).lerp(to, u) + Vector2(sin(u * TAU * 1.5) * 12.0 * (1.0 - u), 0)
+			ItemIcon.draw_firefly(self, p, 1.0, 1.0)
 		else:
-			# inside the jar: a warm glow that breathes, fading once it's in your bag
+			# inside the jar: the whole jar lights up warm and breathes, fading once it's in your bag
 			var a := 1.0
 			if bool(_diver.get("ending", false)):
 				a = clampf(_fade / 0.6, 0.0, 1.0)
-			var breathe := 0.7 + 0.3 * sin(_t * 4.0)
-			draw_circle(to + Vector2(0, 8), 13.0, Color(1.0, 0.9, 0.5, 0.25 * a * breathe))
-			ItemIcon.draw_firefly(self, to + Vector2(0, 8), 0.5, a)
+			var breathe := 0.75 + 0.25 * sin(_t * 4.0)
+			var inside := to + Vector2(0, 10)
+			draw_circle(inside, 26.0, Color(1.0, 0.88, 0.48, 0.16 * a * breathe))
+			draw_circle(inside, 14.0, Color(1.0, 0.90, 0.52, 0.30 * a * breathe))
+			draw_rect(Rect2(to + Vector2(-5, 2), Vector2(10, 15)), Color(1.0, 0.92, 0.6, 0.35 * a * breathe))
+			ItemIcon.draw_firefly(self, inside, 0.9, a)

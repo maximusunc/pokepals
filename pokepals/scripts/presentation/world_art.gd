@@ -2448,17 +2448,28 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			for s in [Vector2(-3, -3), Vector2(3, -1), Vector2(0, 2)]:
 				draw_circle(p + s, 1.6, color.darkened(0.28))
 		"firefly_jar_table":
-			# a little round table in a firefly glade, a glass jar on it with its lid set beside (FireflyGlade
-			# draws the firefly that comes down into it)
-			draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.08, 0.12, 0.22))
-			draw_line(p + Vector2(0, -4), p + Vector2(0, 5), Color(0.42, 0.32, 0.24), 2.0)
-			draw_line(p + Vector2(-5, 6), p + Vector2(5, 6), Color(0.42, 0.32, 0.24), 2.0)
-			draw_circle(p + Vector2(0, -5), 9.0, Color(0.56, 0.42, 0.30))
-			draw_arc(p + Vector2(0, -5), 9.0, 0.2, PI - 0.2, 10, Color(0.40, 0.30, 0.22), 1.2, true)
-			draw_rect(Rect2(p + Vector2(-4, -15), Vector2(8, 10)), Color(0.84, 0.94, 0.98, 0.45))
-			draw_rect(Rect2(p + Vector2(-4, -15), Vector2(8, 10)), Color(0.92, 0.97, 1.0, 0.85), false, 1.0)
-			draw_line(p + Vector2(-2, -13), p + Vector2(-2, -8), Color(1, 1, 1, 0.6), 0.8)
-			draw_rect(Rect2(p + Vector2(4, -8), Vector2(5, 2)), Color(0.56, 0.42, 0.28))   # the lid, set beside it
+			# a little round table in a firefly glade with a tall glass jar on it, its lid set down beside it
+			# (FireflyGlade draws the firefly that comes down into the jar, and the jar's glow)
+			var top_c := p + Vector2(0, -10)
+			var ellipse := PackedVector2Array()
+			for k in 20:
+				var ang := TAU * float(k) / 20.0
+				ellipse.append(top_c + Vector2(cos(ang) * 14.0, sin(ang) * 5.5))
+			draw_circle(p + Vector2(0, 4), 12.0, Color(0.08, 0.06, 0.10, 0.25))
+			for lx in [-8.0, 8.0]:
+				draw_line(top_c + Vector2(lx, 2), p + Vector2(lx * 1.1, 4), Color(0.36, 0.26, 0.18), 2.4)
+			draw_line(top_c + Vector2(0, 3), p + Vector2(0, 5), Color(0.32, 0.24, 0.16), 2.4)
+			draw_colored_polygon(ellipse, Color(0.62, 0.46, 0.32))
+			draw_polyline(ellipse + PackedVector2Array([ellipse[0]]), Color(0.42, 0.30, 0.20), 1.2, true)
+			# the jar: a tall glass body, a thick rim, a glint down one side
+			var jar := Rect2(top_c + Vector2(-6, -18), Vector2(12, 17))
+			draw_rect(jar, Color(0.84, 0.94, 0.98, 0.35))
+			draw_rect(jar, Color(0.94, 0.98, 1.0, 0.95), false, 1.2)
+			draw_rect(Rect2(jar.position + Vector2(-1, -2), Vector2(14, 3)), Color(0.90, 0.96, 1.0, 0.95))
+			draw_line(jar.position + Vector2(3, 3), jar.position + Vector2(3, 13), Color(1, 1, 1, 0.75), 1.2)
+			# its lid, set down on the table beside it
+			draw_rect(Rect2(top_c + Vector2(7, -3), Vector2(7, 3)), Color(0.56, 0.42, 0.28))
+			draw_rect(Rect2(top_c + Vector2(8, -5), Vector2(5, 2)), Color(0.66, 0.50, 0.34))
 		"tinker_stall":
 			# the tinker's stall (crafting): a workbench under a plum awning, tools on the board, a lantern hung
 			# from the awning's edge and a little vice at the corner

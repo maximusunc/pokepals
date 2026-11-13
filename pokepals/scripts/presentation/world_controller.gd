@@ -1017,7 +1017,8 @@ func _process(delta: float) -> void:
 	# in range. It just reads "Examine" — the thing's identity comes from how it looks and, once
 	# examined, from the hint line.
 	var nearest := _nearest_interactable()
-	if nearest >= 0:
+	# (no Examine bubble while the firefly cutscene plays: it would sit right over the jar)
+	if nearest >= 0 and not _firefly_dir.is_playing():
 		_examine_prompt.point_at(_interactables[nearest]["pos"])
 	else:
 		_examine_prompt.hide_prompt()
