@@ -74,17 +74,19 @@ defmodule Server.Seeds do
   # The shop's stock: COLOR cosmetics the bazaar shopkeeper sells. category "color" is what marks a def
   # purchasable (Economy.purchase refuses anything else); base_attributes carries the color_slot it
   # recolors, the named ramp, a display swatch [r,g,b], and the price (in "coins"). Buying grants the
-  # def into the player's wardrobe — the "stored choice". (The recolor render itself is still deferred.)
+  # def into the player's wardrobe — the "stored choice". Each (color_slot, ramp) must also be one of that
+  # color slot's `shop_ramps` in the client's data/cosmetics.json (with the same swatch): that's what lets
+  # the wardrobe offer it once owned, and every client render it.
   @item_defs [
     %{item_def_id: 1, name: "Straw Hat", category: "cosmetic", slot: "head", stackable: false},
     %{item_def_id: 2, name: "Woven Scarf", category: "cosmetic", slot: "neck", stackable: false},
     %{item_def_id: 3, name: "River Pebble", category: "trinket", slot: nil, stackable: true},
     %{item_def_id: 100, name: "Rose Blush", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "skin_tone", "ramp" => "rose", "swatch" => [0.96, 0.74, 0.74], "price" => 30, "currency" => "coins"}},
+      base_attributes: %{"color_slot" => "skin_tone", "ramp" => "blush", "swatch" => [0.96, 0.74, 0.74], "price" => 30, "currency" => "coins"}},
     %{item_def_id: 101, name: "River Teal", category: "color", slot: nil, stackable: false,
       base_attributes: %{"color_slot" => "hair_color", "ramp" => "teal", "swatch" => [0.30, 0.66, 0.66], "price" => 45, "currency" => "coins"}},
     %{item_def_id: 102, name: "Marigold", category: "color", slot: nil, stackable: false,
-      base_attributes: %{"color_slot" => "hair_color", "ramp" => "marigold", "swatch" => [0.96, 0.74, 0.30], "price" => 45, "currency" => "coins"}},
+      base_attributes: %{"color_slot" => "hair_color", "ramp" => "marigold", "swatch" => [0.91, 0.55, 0.13], "price" => 45, "currency" => "coins"}},
     %{item_def_id: 103, name: "Plum", category: "color", slot: nil, stackable: false,
       base_attributes: %{"color_slot" => "hair_color", "ramp" => "plum", "swatch" => [0.55, 0.35, 0.62], "price" => 60, "currency" => "coins"}},
     %{item_def_id: 104, name: "Slate", category: "color", slot: nil, stackable: false,

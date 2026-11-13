@@ -63,6 +63,24 @@ func color_slots() -> Array:
 	return _color_slots
 
 
+## The extra ramps for a color slot that are SOLD in the bazaar (its 'shop_ramps'), [] if none.
+## Valid for anyone to wear and render; the wardrobe only offers the ones you own.
+func shop_ramps(color_slot: String) -> Array:
+	for cs in _color_slots:
+		if String(cs.get("id", "")) == color_slot:
+			var r: Variant = cs.get("shop_ramps", [])
+			return (r as Array).duplicate() if r is Array else []
+	return []
+
+
+## Is this a real ramp for this color slot — a free one or a shop one?
+func has_ramp(color_slot: String, ramp: String) -> bool:
+	for cs in _color_slots:
+		if String(cs.get("id", "")) == color_slot:
+			return ramp in cs.get("ramps", []) or ramp in shop_ramps(color_slot)
+	return false
+
+
 ## The base [r,g,b] (0..1) for a color slot's ramp — the swatch the recolor maps a
 ## grayscale layer's luminance onto (see AvatarCompositor). Returns [] if the slot or
 ## ramp has no swatch declared, so the compositor can skip recoloring and draw natively.

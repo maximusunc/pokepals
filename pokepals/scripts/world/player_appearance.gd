@@ -85,15 +85,14 @@ func unequip(catalog: CosmeticsCatalog, slot: String) -> bool:
 
 
 ## Choose a color ramp for a color slot (e.g. skin_tone -> "deep"). Validated against the
-## slot's authored ramp choices; an unknown slot or ramp is refused.
+## slot's authored ramp choices (free 'ramps' or bazaar 'shop_ramps'); an unknown slot or ramp is
+## refused. Shop-ramp OWNERSHIP is the wardrobe's gate, not this one: a friend's saved look must load
+## with their bought dye intact, and that ownership lives server-side, not in this blob.
 func set_color(catalog: CosmeticsCatalog, color_slot: String, ramp: String) -> bool:
-	for cs in catalog.color_slots():
-		if String(cs["id"]) == color_slot:
-			if String(ramp) in cs.get("ramps", []):
-				colors[color_slot] = ramp
-				return true
-			return false
-	return false
+	if not catalog.has_ramp(color_slot, ramp):
+		return false
+	colors[color_slot] = ramp
+	return true
 
 
 ## RESOLVE the worn loadout into the ordered list of layers the compositor draws, back to

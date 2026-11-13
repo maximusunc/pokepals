@@ -24,6 +24,7 @@ static func run_all() -> int:
 	fails += _test_shipped_catalog_wardrobe_slots()
 	fails += _test_shipped_ramp_swatches()
 	fails += _test_shipped_wardrobe_round_trip()
+	fails += _test_shop_ramps()
 	return fails
 
 
@@ -265,4 +266,32 @@ static func _test_shipped_wardrobe_round_trip() -> int:
 	fails += _ok(String(body_layer.get("palette", "")) == "umber", "the body layer carries the chosen skin ramp")
 	var pc: Array = body_layer.get("palette_color", [])
 	fails += _ok(pc.size() == 3 and pc == catalog.ramp_color("skin_tone", "umber"), "the body layer carries the 'umber' swatch for recolor")
+	return fails
+
+
+# Bazaar dyes are the color slots' 'shop_ramps': real ramps anyone can wear and render (so a friend's
+# bought dye survives the load), each with a swatch, and never a duplicate of a free ramp.
+static func _test_shop_ramps() -> int:
+	var fails := 0
+	var synth := CosmeticsCatalog.from_data({
+		"color_slots": [{ "id": "hair_color", "default": "bark", "ramps": ["bark"], "shop_ramps": ["teal"],
+			"swatches": { "bark": [0.2, 0.2, 0.2], "teal": [0.3, 0.6, 0.6] } }],
+	})
+	fails += _ok(synth.shop_ramps("hair_color") == ["teal"], "a color slot lists its shop ramps")
+	fails += _ok(synth.shop_ramps("skin_tone").is_empty(), "an unknown color slot has no shop ramps")
+	fails += _ok(synth.has_ramp("hair_color", "teal") and synth.has_ramp("hair_color", "bark"), "free and shop ramps are both real ramps")
+	var a := PlayerAppearance.make_default(synth)
+	fails += _ok(a.set_color(synth, "hair_color", "teal"), "a shop ramp can be worn")
+	var r := PlayerAppearance.from_dict({ "colors": { "hair_color": "teal" } }, synth)
+	fails += _ok(String(r.colors.get("hair_color", "")) == "teal", "a saved shop ramp survives a load (a friend's bought dye renders)")
+
+	var catalog := CosmeticsCatalog.load_catalog("res://data/cosmetics.json")
+	var sold := { "skin_tone": ["blush", "slate"], "hair_color": ["teal", "marigold", "plum"] }
+	for slot_id in sold:
+		for ramp in sold[slot_id]:
+			fails += _ok(catalog.shop_ramps(slot_id).has(ramp), "the shipped catalog sells %s:%s" % [slot_id, ramp])
+			fails += _ok(catalog.ramp_color(slot_id, ramp).size() == 3, "%s:%s has a swatch to recolor with" % [slot_id, ramp])
+	for cs in catalog.color_slots():
+		for ramp in catalog.shop_ramps(String(cs["id"])):
+			fails += _ok(not (ramp in cs.get("ramps", [])), "shop ramp %s isn't also a free %s" % [ramp, cs["id"]])
 	return fails
