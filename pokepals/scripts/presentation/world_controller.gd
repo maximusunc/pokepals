@@ -86,7 +86,7 @@ var _encounter_dir: EncounterDirector
 var _fishing_dir: FishingDirector
 var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
 var _firefly_dir: FireflyDirector   # Dozewood's firefly glades (no-op elsewhere)
-var _lantern_radius := 130.0  # the pocket a carried lantern clears in a world's fog/dark (fog.lantern_radius)
+var _lantern_radius := 220.0  # the pocket a FRIEND's lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
 var _use_button: UseButton
 
@@ -892,20 +892,18 @@ func _setup_mist(data: Dictionary) -> void:
 		veil.name = "MistVeil"
 		add_child(veil)
 		move_child(veil, get_node("Vignette").get_index())
-		_lantern_radius = float((atmo["fog"] as Dictionary).get("lantern_radius", 130.0))
+		_lantern_radius = float((atmo["fog"] as Dictionary).get("lantern_radius", 220.0))
 		veil.setup(atmo["fog"], data, _player, _walkers, _mist_pockets)
 
 
 ## The moving pockets of clear air in a world's fog or dark, beyond each walker's own: whatever the secret
-## asks for (the bell's glint, the lead's light), and a big warm pocket round every lantern being carried,
-## ours and our friends' (usable items: the lantern lights the dark worlds).
+## asks for (the bell's glint, the lead's light), and a big warm pocket round every lantern a FRIEND carries.
+## (Our own lantern widens our own clear circle instead: MistVeil.set_lantern, kept current in _process.)
 func _mist_pockets() -> Array:
 	var out: Array = []
-	if _fishing_dir != null and _fishing_dir.held_key() == "lantern":
-		out.append({ "pos": _player.global_position + Vector2(0, -8), "radius": _lantern_radius, "warm": 1.0 })
 	if _presence_dir != null:
 		for p in _presence_dir.remote_lantern_positions():
-			out.append({ "pos": (p as Vector2) + Vector2(0, -8), "radius": _lantern_radius * 0.85, "warm": 1.0 })
+			out.append({ "pos": (p as Vector2) + Vector2(0, -8), "radius": _lantern_radius, "warm": 1.0 })
 	out.append_array(_secret_dir.mist_pockets())
 	return out
 
@@ -1075,6 +1073,10 @@ func _process(delta: float) -> void:
 	# Fishing: the line, the bite and the timing ring; and the hotbar / use button stay out of sight, like
 	# the radial, while the first-meeting search runs.
 	_fishing_dir.update(delta)
+	# Our lantern, carried in a world of fog or dark, pushes it back round us.
+	var veil := get_node_or_null("MistVeil") as MistVeil
+	if veil != null:
+		veil.set_lantern(_fishing_dir.held_key() == "lantern")
 	_tank_dir.update(delta)
 	_firefly_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()

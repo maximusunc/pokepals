@@ -218,6 +218,9 @@ var _inventory: Array = []
 var _hotbar: Array = []
 var _has_inventory := false
 var _recipes: Array = []
+## Which hotbar slot is selected. Kept here, not in the world, so it survives a world hop (the world scene, and
+## everything in it, is rebuilt on every portal).
+var hotbar_selected := 0
 # How far our wall clock is behind the server's (ms), from the "clock" push on each world join. A world that
 # runs on shared time (Ebbmere's tide) reads server_unix_ms() so a skewed device still sees the same water.
 var _clock_offset_ms := 0.0

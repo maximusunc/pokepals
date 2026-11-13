@@ -330,3 +330,19 @@ The empty-hand jar on the use button was **too hidden**. Changed, as the owner a
   `catch_firefly`; the client checks first so the cutscene never plays for nothing). Once it's in a lantern,
   another will come. This replaces the few-seconds cooldown.
 
+### The lantern's light, and the hotbar across portals (2026-11-13, after the first play)
+
+- **The lantern changed nothing you could see.** Its light was a moving "pocket" in the fog, and a pocket fades
+  from full at its centre to nothing at its edge, so even a 130 px one only thinned a small core. (Rendered
+  screenshots, Godot under Xvfb, showed a faint warm haze and the dark as close as ever.) Now **your own
+  lantern widens your own clear circle**: `MistVeil.set_lantern`, easing in over about half a second, takes it
+  from the world's `clear_radius` / `fade_radius` to `lantern_clear` / `lantern_fade` (defaults: max(130, 2.6 x
+  clear) and fade + 120; Underroot 52 -> 135 px clear, Steamhollow 40 -> 130), and the mist round you glows
+  lamp-gold (`lantern_color`, shader `lamp` / `lamp_color`). **Friends' lanterns** stay pockets, but bigger (220
+  px, `lantern_radius`).
+- **The hotbar selection reset on every portal** (the world, and the director that held the selection, are
+  rebuilt on every hop). The selected slot now lives in `Net.hotbar_selected` for the session, so the item in
+  your hand stays in your hand from world to world.
+- **Test:** `tests/smoke_lantern.gd` (Underroot: the dark pushed back and closing in again; the lantern still in
+  hand and lit after a world rebuild).
+
