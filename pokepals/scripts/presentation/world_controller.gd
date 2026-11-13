@@ -85,6 +85,8 @@ var _encounter_dir: EncounterDirector
 # HUD pieces are made once in _ready (they live in the UI layer, like the radial); the director per world.
 var _fishing_dir: FishingDirector
 var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
+var _firefly_dir: FireflyDirector   # Dozewood's firefly glades (no-op elsewhere)
+var _lantern_radius := 130.0  # the pocket a carried lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
 var _use_button: UseButton
 
@@ -229,6 +231,7 @@ func _build_world(cached: Dictionary) -> void:
 	# water comes and goes with the tide, so the tide adds its own test for where it covers right now.
 	_fishing_dir.configure(data)
 	_tank_dir.configure(data)
+	_firefly_dir.configure(data)
 	if data.has("tide"):
 		_fishing_dir.add_water(_tide_covers)
 	_apply_atmosphere(data.get("atmosphere", {}))
@@ -468,6 +471,11 @@ func _create_directors() -> void:
 	_fishing_dir = FishingDirector.new()
 	add_child(_fishing_dir)
 	_fishing_dir.setup(self, _player, _companion, _presence_dir, _scenery, _hotbar, _use_button)
+
+	# Firefly glades (Dozewood): examine the jar and a firefly comes down into it; the tinker makes lanterns with them.
+	_firefly_dir = FireflyDirector.new()
+	add_child(_firefly_dir)
+	_firefly_dir.setup(self, _player, _companion, _scenery)
 
 	# The fish tank at home, for rare fish (only a home has one).
 	_tank_dir = TankDirector.new()
@@ -727,6 +735,10 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			entry["buys"] = String(it["buys"])  # someone who buys things from you (the bazaar's fishmonger)
 		if bool(it.get("tank", false)):
 			entry["tank"] = true  # the fish tank at home
+		if bool(it.get("crafts", false)):
+			entry["crafts"] = true  # the tinker in the bazaar, who makes things from what you bring
+		if bool(it.get("firefly_jar", false)):
+			entry["firefly_jar"] = true  # a glass jar in a firefly glade (Dozewood)
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)
@@ -880,7 +892,22 @@ func _setup_mist(data: Dictionary) -> void:
 		veil.name = "MistVeil"
 		add_child(veil)
 		move_child(veil, get_node("Vignette").get_index())
-		veil.setup(atmo["fog"], data, _player, _walkers, Callable(_secret_dir, "mist_pockets"))
+		_lantern_radius = float((atmo["fog"] as Dictionary).get("lantern_radius", 130.0))
+		veil.setup(atmo["fog"], data, _player, _walkers, _mist_pockets)
+
+
+## The moving pockets of clear air in a world's fog or dark, beyond each walker's own: whatever the secret
+## asks for (the bell's glint, the lead's light), and a big warm pocket round every lantern being carried,
+## ours and our friends' (usable items: the lantern lights the dark worlds).
+func _mist_pockets() -> Array:
+	var out: Array = []
+	if _fishing_dir != null and _fishing_dir.held_key() == "lantern":
+		out.append({ "pos": _player.global_position + Vector2(0, -8), "radius": _lantern_radius, "warm": 1.0 })
+	if _presence_dir != null:
+		for p in _presence_dir.remote_lantern_positions():
+			out.append({ "pos": (p as Vector2) + Vector2(0, -8), "radius": _lantern_radius * 0.85, "warm": 1.0 })
+	out.append_array(_secret_dir.mist_pockets())
+	return out
 
 
 ## Stillglass's mirror: the reflection layer (above the water, under every character and tree), only for a world
@@ -1048,6 +1075,7 @@ func _process(delta: float) -> void:
 	# the radial, while the first-meeting search runs.
 	_fishing_dir.update(delta)
 	_tank_dir.update(delta)
+	_firefly_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()
 	_use_button.suppressed = _encounter_dir.is_searching()
 
@@ -1641,6 +1669,19 @@ func _try_interact() -> void:
 	# The fish tank at home: open its window.
 	if bool(entry.get("tank", false)):
 		_tank_dir.examine(entry)
+		return
+	# A firefly jar: a firefly drifts down into it (a short cutscene), and it's yours.
+	if bool(entry.get("firefly_jar", false)):
+		_world_art.pulse_interactable(int(entry["render_index"]))
+		_firefly_dir.examine_jar(entry)
+		return
+	# The tinker: open her window to craft.
+	if bool(entry.get("crafts", false)):
+		_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+		var tinker := CrafterPanel.new()
+		tinker.host = self
+		tinker.balance = _shop_dir.balance()
+		open_sheet(tinker)
 		return
 	# The fishmonger: open their window to sell what you've caught.
 	if String(entry.get("buys", "")) == "fish":

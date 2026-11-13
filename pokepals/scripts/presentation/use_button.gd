@@ -48,6 +48,8 @@ func attach_to(radial: CompanionRadial) -> void:
 
 ## The selected item ("" key = nothing selected: the button hides).
 func set_item(key: String, kind: String, color: Color) -> void:
+	if key == _key and kind == _kind and color == _color:
+		return
 	_key = key
 	_kind = kind
 	_color = color

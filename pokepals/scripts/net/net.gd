@@ -148,6 +148,13 @@ signal sell_failed(reason: String)
 # change was refused.
 signal tank_received(owner_id: String, fish: Array)
 signal tank_failed(reason: String)
+# Crafting at the tinker: what she can make (pushed on join; also kept, recipes()), a craft done (with the new
+# balance) or refused. Fireflies: one invited along in a glade (how many we now carry), or refused.
+signal recipes_received(recipes: Array)
+signal crafted(item: Dictionary)
+signal craft_failed(reason: String)
+signal firefly_caught(count: int)
+signal firefly_refused(reason: String)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -210,6 +217,7 @@ var _discoveries: Array = []
 var _inventory: Array = []
 var _hotbar: Array = []
 var _has_inventory := false
+var _recipes: Array = []
 # How far our wall clock is behind the server's (ms), from the "clock" push on each world join. A world that
 # runs on shared time (Ebbmere's tide) reads server_unix_ms() so a skewed device still sees the same water.
 var _clock_offset_ms := 0.0
@@ -620,6 +628,26 @@ func tank_take(index: int) -> void:
 	_push_event("tank_take", { "index": index })
 
 
+## What the tinker can make, as the server last told us: [{ id, fee, line, makes: {...}, needs: [{...}] }].
+func recipes() -> Array:
+	return _recipes
+
+
+## Ask the tinker to make `recipe_id` (we must be at her stall; the server checks and does the whole craft).
+## Answers crafted (then a fresh inventory and hotbar) or craft_failed.
+func craft(recipe_id: String) -> void:
+	if not _can_send():
+		return
+	_push_event("craft", { "recipe": recipe_id })
+
+
+## Invite a firefly along (we must be in a glade). Answers firefly_caught or firefly_refused.
+func catch_firefly() -> void:
+	if not _can_send():
+		return
+	_push_event("catch_firefly", {})
+
+
 ## The world secret ids we've found so far (empty before our first join).
 func discoveries() -> Array:
 	return _discoveries
@@ -923,6 +951,18 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			tank_received.emit(String(payload.get("owner", "")), tf if tf is Array else [])
 		"tank_failed":
 			tank_failed.emit(String(payload.get("reason", "")))
+		"recipes":
+			var rs: Variant = payload.get("recipes", [])
+			_recipes = (rs as Array).duplicate(true) if rs is Array else []
+			recipes_received.emit(_recipes)
+		"crafted":
+			crafted.emit(payload)
+		"craft_failed":
+			craft_failed.emit(String(payload.get("reason", "")))
+		"firefly_caught":
+			firefly_caught.emit(int(payload.get("count", 0)))
+		"firefly_refused":
+			firefly_refused.emit(String(payload.get("reason", "")))
 		"bought":
 			purchase_succeeded.emit(int(payload.get("item_def_id", 0)), int(payload.get("balance", 0)))
 		"buy_failed":

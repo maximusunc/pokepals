@@ -163,6 +163,8 @@ defmodule Server.WorldChannel do
     # hotbar's slots. Per-USER, the same in every world.
     push(socket, "inventory", inventory_snapshot(user_id))
     push(socket, "hotbar", %{slots: Hotbar.slots(user_id)})
+    # What the tinker in the bazaar can make (the same for everyone; small).
+    push(socket, "recipes", %{recipes: Server.Crafting.recipes_view()})
 
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
@@ -482,6 +484,55 @@ defmodule Server.WorldChannel do
 
       {:error, reason} ->
         push(socket, "sell_failed", %{item_def_id: raw_id, reason: to_string(reason)})
+    end
+
+    {:noreply, socket}
+  end
+
+  # CRAFT at the tinker (Server.Crafting). Honoured only while we stand at a stall that crafts; the craft
+  # is one ledgered transaction (materials consumed, fee paid, the item made and put on the hotbar). The
+  # answer is `crafted` (with the new balance), then the fresh `inventory` and `hotbar`; or `craft_failed`.
+  def handle_in("craft", %{"recipe" => recipe_id}, socket) when is_binary(recipe_id) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    if Server.Crafting.at_crafter?(core, pos) do
+      case Server.Crafting.craft(user_id, recipe_id) do
+        {:ok, made} ->
+          push(socket, "crafted", made)
+          push(socket, "inventory", inventory_snapshot(user_id))
+          push(socket, "hotbar", %{slots: Hotbar.slots(user_id)})
+
+        {:error, reason} ->
+          push(socket, "craft_failed", %{recipe: recipe_id, reason: to_string(reason)})
+      end
+    else
+      push(socket, "craft_failed", %{recipe: recipe_id, reason: "not_at_crafter"})
+    end
+
+    {:noreply, socket}
+  end
+
+  # A FIREFLY comes down into the jar (Dozewood's glades). Honoured only while we stand at a firefly jar in
+  # this world, and only if we aren't already carrying one (one at a time; it goes into a lantern, then
+  # another can come). Answers `firefly_caught` then the `inventory`, or `firefly_refused`.
+  def handle_in("catch_firefly", _payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+    cond do
+      not Server.Crafting.at_firefly_jar?(core, pos) ->
+        push(socket, "firefly_refused", %{reason: "no_jar"})
+
+      not Server.Crafting.firefly_room?(user_id) ->
+        push(socket, "firefly_refused", %{reason: "have_one"})
+
+      true ->
+        id = Server.Crafting.firefly_id()
+        {:ok, _} = Economy.grant_stack(user_id, id, 1, txn_type: "gather", context: %{"source" => "firefly_jar"})
+        push(socket, "firefly_caught", %{count: Economy.owned_quantity(user_id, id)})
+        push(socket, "inventory", inventory_snapshot(user_id))
     end
 
     {:noreply, socket}

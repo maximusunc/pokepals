@@ -12,6 +12,12 @@ static func draw(ci: CanvasItem, key: String, kind: String, c: Vector2, size: fl
 	var s := size / 24.0
 	if key == "rod":
 		_draw_rod(ci, c, s, alpha)
+	elif key == "lantern":
+		draw_lantern(ci, c, s, alpha)
+	elif key == "firefly":
+		draw_firefly(ci, c, s, alpha)
+	elif key == "driftwood":
+		draw_driftwood(ci, c, s, tint, alpha)
 	elif key == "old_boot":
 		_draw_boot(ci, c, s, tint, alpha)
 	elif key == "sea_glass":
@@ -59,6 +65,34 @@ static func _draw_boot(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha:
 	ci.draw_colored_polygon(pts, Color(tint, alpha))
 	ci.draw_line(c + Vector2(-5, 8) * s, c + Vector2(8, 8) * s, Color(tint.darkened(0.4), alpha), 1.6 * s)
 	ci.draw_line(c + Vector2(-5, -6) * s, c + Vector2(1, -6) * s, Color(tint.lightened(0.2), alpha), 1.0 * s)
+
+
+## A little lantern: a driftwood frame and handle round a sea-glass window, a firefly glowing inside.
+static func draw_lantern(ci: CanvasItem, c: Vector2, s: float, alpha := 1.0, glow := 1.0) -> void:
+	var wood := Color(0.56, 0.42, 0.28, alpha)
+	ci.draw_circle(c + Vector2(0, 1) * s, 9.0 * s, Color(1.0, 0.82, 0.42, 0.18 * alpha * glow))
+	ci.draw_arc(c + Vector2(0, -7) * s, 3.2 * s, PI, TAU, 8, wood, 1.4 * s, true)
+	ci.draw_rect(Rect2(c + Vector2(-5, -5) * s, Vector2(10, 12) * s), Color(0.52, 0.80, 0.74, 0.55 * alpha))
+	ci.draw_circle(c + Vector2(0, 1) * s, 2.6 * s, Color(1.0, 0.90, 0.52, alpha * (0.6 + 0.4 * glow)))
+	ci.draw_rect(Rect2(c + Vector2(-6, -6) * s, Vector2(12, 2) * s), wood)
+	ci.draw_rect(Rect2(c + Vector2(-6, 6) * s, Vector2(12, 2) * s), wood)
+	ci.draw_line(c + Vector2(-5, -5) * s, c + Vector2(-5, 6) * s, wood, 1.0 * s)
+	ci.draw_line(c + Vector2(5, -5) * s, c + Vector2(5, 6) * s, wood, 1.0 * s)
+
+
+## A firefly: a soft glow round a bright point, with a hint of wings.
+static func draw_firefly(ci: CanvasItem, c: Vector2, s: float, alpha := 1.0) -> void:
+	ci.draw_circle(c, 7.0 * s, Color(1.0, 0.92, 0.5, 0.22 * alpha))
+	ci.draw_circle(c, 3.5 * s, Color(1.0, 0.94, 0.6, 0.5 * alpha))
+	ci.draw_circle(c, 1.8 * s, Color(1.0, 1.0, 0.85, alpha))
+	ci.draw_line(c + Vector2(-1, -1.5) * s, c + Vector2(-4, -4) * s, Color(1, 1, 1, 0.5 * alpha), 0.8 * s, true)
+	ci.draw_line(c + Vector2(1, -1.5) * s, c + Vector2(4, -4) * s, Color(1, 1, 1, 0.5 * alpha), 0.8 * s, true)
+
+
+static func draw_driftwood(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha: float) -> void:
+	ci.draw_line(c + Vector2(-8, 4) * s, c + Vector2(8, -3) * s, Color(tint, alpha), 4.0 * s, true)
+	ci.draw_line(c + Vector2(2, -1) * s, c + Vector2(6, -7) * s, Color(tint.darkened(0.1), alpha), 2.0 * s, true)
+	ci.draw_line(c + Vector2(-7, 3) * s, c + Vector2(7, -3) * s, Color(tint.lightened(0.25), alpha), 1.0 * s, true)
 
 
 static func _draw_glass(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha: float) -> void:

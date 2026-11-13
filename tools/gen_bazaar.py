@@ -331,6 +331,21 @@ fish_buyer.update({"type": "fish_buyer", "label": "the fishmonger", "buys": "fis
                    "lore": "\"Fresh from the water? Let's see what you've got. Ordinary fish and odds and ends, I'll buy. "
                            "Anything rare, you keep: those deserve a tank, not a barrel.\""})
 
+# ── the tinker (crafting; docs/usable-items-design.md) ──────────────────────────────────────────────────
+# The lantern-maker's stall nearest the fishmonger becomes the tinker's: a workbench with tools and a lantern
+# hung from the awning, drawn by world_art as "tinker_stall". Its stallholder becomes the tinker ("crafts":
+# true): Examine her to make things from what you bring (a lantern from a sea-glass, a firefly and a piece
+# of driftwood). Converted after the layout is made, so nothing else in the lane moves.
+def _dist(a, b):
+    return math.hypot(a["position"][0] - b["position"][0], a["position"][1] - b["position"][1])
+tinker = min((h for h in holders if h["label"] == "a lantern-maker" and h is not fish_buyer),
+             key=lambda h: _dist(h, fish_buyer))
+tinker_stall = min(stalls, key=lambda st: _dist(st, tinker))
+tinker_stall.update({"type": "tinker_stall", "label": "the tinker's stall", "color": [0.56, 0.46, 0.62]})
+tinker.update({"type": "crafter", "label": "the tinker", "crafts": True, "interactive": True,
+               "lore": "\"Bring me the makings and I'll make you something. A lantern? Sea-glass for the window, driftwood "
+                       "for the frame, and a firefly who'd like to stay. Ten coins for my trouble.\""})
+
 # ── checks ────────────────────────────────────────────────────────────────────────────────────────────
 all_props = special + lanterns + stalls + holders + rugs + alley
 ids = [p["id"] for p in all_props]
@@ -461,6 +476,7 @@ text = "\n".join(out) + "\n"
 d = json.loads(text)
 assert any(i["type"] == "shopkeeper" for i in d["props"]), "no shopkeeper"
 assert sum(1 for i in d["props"] if i.get("buys") == "fish") == 1, "exactly one fish buyer"
+assert sum(1 for i in d["props"] if i.get("crafts")) == 1, "exactly one tinker"
 for i in d["props"]:
     want = bool(i.get("lore")) or i["type"] == "shopkeeper"
     assert bool(i.get("interactive", False)) == want, "interactive flag mismatch on %s" % i["id"]

@@ -21,8 +21,8 @@ defmodule Server.FishingTest do
     test "every roll lands on a real catch, from the first to the last" do
       assert Fishing.roll(0.0).key == "minnow"
       assert %{} = Fishing.roll(0.5)
-      assert Fishing.roll(0.999_999).key == "sea_glass"
-      assert Fishing.roll(1.0).key == "sea_glass"
+      assert Fishing.roll(0.999_999).key == "driftwood"
+      assert Fishing.roll(1.0).key == "driftwood"
     end
 
     test "rare fish are rare and commons are common" do
@@ -30,9 +30,9 @@ defmodule Server.FishingTest do
         for i <- 0..999, do: Fishing.roll(i / 1000).kind
 
       freq = Enum.frequencies(kinds)
-      assert freq["fish"] > 800
+      assert freq["fish"] > 750
       assert freq["rare_fish"] in 30..70
-      assert freq["material"] in 60..120
+      assert freq["material"] in 120..200
     end
 
     test "rarer catches ask more of you: a narrower window and a quicker ring" do

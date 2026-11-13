@@ -22,6 +22,7 @@ const WALK_OFF := 24.0        # px you can shuffle while fishing before the line
 const ESCAPED_HOLD := 0.9     # s the line lingers after a fish gets away, before it reels in
 const ANSWER_WAIT := 6.0      # s to wait for the server to answer a cast or a reel before giving up
 const ROD_KEY := "rod"
+const LANTERN_KEY := "lantern"
 
 var _host: Node
 var _player: PlayerView
@@ -39,6 +40,7 @@ var _selected := 0
 var _known := false           # whether the server has told us what we carry yet
 
 var _rod: RodView             # the rod in our own hand
+var _lantern: LanternView     # the lantern in our own hand (shown while it's the selected item)
 var _post_pos := Vector2.ZERO # the starter rod's post in this world (if it has one)
 var _rest: RodRest = null     # the rod resting on the post, while it's still there for us
 
@@ -66,6 +68,10 @@ func setup(host: Node, player: PlayerView, companion: CompanionView, presence: P
 	_rod = RodView.new()
 	_rod.name = "Rod"
 	_player.add_child(_rod)
+	_lantern = LanternView.new()
+	_lantern.name = "Lantern"
+	_lantern.visible = false
+	_player.add_child(_lantern)
 	_hotbar.slot_selected.connect(select_slot)
 	_use.used.connect(use_item)
 	Net.inventory_received.connect(_on_inventory)
@@ -94,6 +100,13 @@ func configure(data: Dictionary) -> void:
 			_rest.visible = false   # until we know whether the rod is still there for us
 			_scenery.add_child(_rest)
 	_refresh_rest()
+
+
+## What's in our hand right now: "rod", "lantern" or "" (the lantern's light in the dark worlds reads this).
+func held_key() -> String:
+	if _rod.is_held():
+		return ROD_KEY
+	return LANTERN_KEY if _lantern.visible else ""
 
 
 ## Water a world adds that isn't in its spec's shapes (Ebbmere: wherever the tide covers right now).
@@ -127,6 +140,9 @@ func select_slot(index: int) -> void:
 func use_item() -> void:
 	var item := _selected_item()
 	if item.is_empty():
+		return
+	if String(item.get("key", "")) == LANTERN_KEY:
+		_host.show_hint("Your lantern glows warm. The firefly inside seems content.")
 		return
 	if String(item.get("key", "")) != ROD_KEY:
 		return
@@ -348,8 +364,9 @@ func _refresh_bar() -> void:
 	_hotbar.set_selected(_selected)
 	var item := _selected_item()
 	_use.set_item(String(item.get("key", "")), String(item.get("kind", "")), item.get("color", Color(0.8, 0.84, 0.88)))
-	# The rod is in your hand while it's the selected item.
+	# The rod (or the lantern) is in your hand while it's the selected item.
 	_rod.set_held(String(item.get("key", "")) == ROD_KEY)
+	_lantern.visible = String(item.get("key", "")) == LANTERN_KEY
 	_publish()
 
 
@@ -361,6 +378,10 @@ func _refresh_rest() -> void:
 
 func _refresh_use() -> void:
 	var item := _selected_item()
+	if item.is_empty():
+		_use.set_item("", "", Color.WHITE)   # an empty hand: nothing to use
+		_use.set_ready(false)
+		return
 	if String(item.get("key", "")) != ROD_KEY:
 		_use.set_ready(not item.is_empty())
 		return
@@ -390,7 +411,7 @@ func _owns_rod() -> bool:
 func _publish() -> void:
 	if _presence == null:
 		return
-	var held := ROD_KEY if _rod.is_held() else ""
+	var held := held_key()
 	var fishing: Dictionary = {}
 	var ph := _phase
 	if ph == "reel":

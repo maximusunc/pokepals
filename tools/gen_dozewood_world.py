@@ -71,6 +71,16 @@ POND_STONES_CENTER = (1010, -780)
 LANTERN_LOG = (-1180, -760)
 TOAD_RING = (-1290, 160)
 SLEEPER = (1250, 560)
+# ── the firefly glades (usable items, crafting; docs/usable-items-design.md) ──────────────────────────────
+# Where fireflies gather: one a short walk from where you arrive, one over the ring of toadstools, one by the log
+# with the lamp inside. Each has a glass jar on a little table (a "firefly_jar" prop, added after the layout so
+# nothing else moves): examine it and a firefly drifts down into the jar for you (the tinker in the bazaar makes
+# lanterns with one). You carry one at a time. Drawn by the client (FireflyGlade); the server checks the jar.
+FIREFLY_GLADES = [
+    {"id": "glade_landing", "position": [300, 760], "radius": 70},
+    {"id": "glade_toadstools", "position": [TOAD_RING[0], TOAD_RING[1]], "radius": 70},
+    {"id": "glade_lantern_log", "position": [LANTERN_LOG[0] + 90, LANTERN_LOG[1] + 40], "radius": 70},
+]
 STONES = [(POND_STONES_CENTER[0] + 124 * math.cos(math.radians(a)), POND_STONES_CENTER[1] + 124 * math.sin(math.radians(a)))
           for a in (-150, -30, 90)]
 
@@ -203,6 +213,13 @@ for reg, n in [("lampwick_reach", 3), ("yawning_rise", 3), ("moss_hollows", 3)]:
 props("yawning_rise", 4, "dz_moss_stone", "a mossy stone", r=18, solid=True, radius=6)
 
 ALL_PROPS = SPECIAL + PROPS
+# The firefly jars, one on a little table in each glade (appended last, so nothing above moved).
+for g in FIREFLY_GLADES:
+    ALL_PROPS.append(prop("jar_" + g["id"], "firefly_jar_table", (g["position"][0] + 18, g["position"][1] + 24), WHITE,
+                          "a glass jar on a little table",
+                          "A glass jar on a little round table, its lid set beside it. The fireflies drift lower when you come near, as if one of them wanted to come along.",
+                          tags=["made", "light"], solid=True, radius=8))
+    ALL_PROPS[-1]["firefly_jar"] = True
 
 S = "res://assets/sprites/"
 
@@ -385,6 +402,8 @@ out.append('\t"paths": [],')
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
+out.append('\t"_firefly_glades_comment": %s,' % json.dumps("Where fireflies gather (usable items, crafting). Each glade has a glass jar on a little table (a 'firefly_jar' prop): examine it and a firefly drifts down into the jar for you. You carry one at a time; the tinker in the bazaar makes a lantern with one. The server honours a catch only at a jar."))
+out.append('\t"firefly_glades": [\n%s\n\t],' % block(FIREFLY_GLADES))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
 out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))

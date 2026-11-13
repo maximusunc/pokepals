@@ -52,8 +52,12 @@ defmodule Server.Fishing do
       color: [0.36, 0.40, 0.34], ring: %{window: 0.09, speed: 1.5}},
     %{id: 240, key: "old_boot", name: "Old Boot", kind: "material", weight: 6, sell: 1,
       color: [0.42, 0.30, 0.22], ring: %{window: 0.16, speed: 0.95}},
-    %{id: 241, key: "sea_glass", name: "Sea-glass", kind: "material", weight: 3, sell: 5,
-      color: [0.52, 0.80, 0.74], ring: %{window: 0.13, speed: 1.1}}
+    %{id: 241, key: "sea_glass", name: "Sea-glass", kind: "material", weight: 5, sell: 5,
+      color: [0.52, 0.80, 0.74], ring: %{window: 0.13, speed: 1.1}},
+    # Driftwood (2026-11-13): reeled up like the boot and the sea-glass, and wanted by the tinker in the
+    # bazaar, who makes lanterns from it (Server.Crafting). Sea-glass came up more often then too (3 -> 5).
+    %{id: 242, key: "driftwood", name: "Driftwood", kind: "material", weight: 6, sell: 2,
+      color: [0.62, 0.50, 0.36], ring: %{window: 0.15, speed: 1.0}}
   ]
 
   # How long until a bite, from the cast (ms): a calm wait, never the same twice. (Was 1.8-5.2 s; bites

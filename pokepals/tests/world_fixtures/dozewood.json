@@ -1377,7 +1377,16 @@
 		{"id": "yawning_rise_dz_moss_stone_0", "type": "dz_moss_stone", "position": [873, -541], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6},
 		{"id": "yawning_rise_dz_moss_stone_1", "type": "dz_moss_stone", "position": [380, -845], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6},
 		{"id": "yawning_rise_dz_moss_stone_2", "type": "dz_moss_stone", "position": [432, -522], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6},
-		{"id": "yawning_rise_dz_moss_stone_3", "type": "dz_moss_stone", "position": [448, -923], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6}
+		{"id": "yawning_rise_dz_moss_stone_3", "type": "dz_moss_stone", "position": [448, -923], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6},
+		{"id": "jar_glade_landing", "type": "firefly_jar_table", "position": [318, 784], "color": [1.0, 1.0, 1.0], "label": "a glass jar on a little table", "tags": ["made", "light"], "interactive": true, "lore": "A glass jar on a little round table, its lid set beside it. The fireflies drift lower when you come near, as if one of them wanted to come along.", "solid": true, "collision_radius": 8, "firefly_jar": true},
+		{"id": "jar_glade_toadstools", "type": "firefly_jar_table", "position": [-1272, 184], "color": [1.0, 1.0, 1.0], "label": "a glass jar on a little table", "tags": ["made", "light"], "interactive": true, "lore": "A glass jar on a little round table, its lid set beside it. The fireflies drift lower when you come near, as if one of them wanted to come along.", "solid": true, "collision_radius": 8, "firefly_jar": true},
+		{"id": "jar_glade_lantern_log", "type": "firefly_jar_table", "position": [-1072, -696], "color": [1.0, 1.0, 1.0], "label": "a glass jar on a little table", "tags": ["made", "light"], "interactive": true, "lore": "A glass jar on a little round table, its lid set beside it. The fireflies drift lower when you come near, as if one of them wanted to come along.", "solid": true, "collision_radius": 8, "firefly_jar": true}
+	],
+	"_firefly_glades_comment": "Where fireflies gather (usable items, crafting). Each glade has a glass jar on a little table (a 'firefly_jar' prop): examine it and a firefly drifts down into the jar for you. You carry one at a time; the tinker in the bazaar makes a lantern with one. The server honours a catch only at a jar.",
+	"firefly_glades": [
+		{"id": "glade_landing", "position": [300, 760], "radius": 70},
+		{"id": "glade_toadstools", "position": [-1290, 160], "radius": 70},
+		{"id": "glade_lantern_log", "position": [-1090, -720], "radius": 70}
 	],
 	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, 'Dozewood'). reveal.type 'dream': the companion only dozes off in one of reveal.spots (nap spots) when it feels safe (a welcomed pet, you still and close, a calm mood; DreamGate), dreams of the landmark at reveal.landmark_position (picture: reveal.picture), and when you and it walk there together the prop rises (DozeDirector / SecretDirector). The server honours a claim only here, within 'radius' of 'position'.",
 	"secret": {

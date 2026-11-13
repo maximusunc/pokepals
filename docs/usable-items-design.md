@@ -285,3 +285,48 @@ Decided 2026-11-12 (all as suggested): the tank stands **by the journal**; it ho
 With step 3 the **first build of fishing is complete**. Open next: **U-11** (materials and crafting: what
 the old boots and sea-glass are for) and **U-14** (the second usable item).
 
+### Crafting (U-11) and the second item, the lantern (U-14): built (2026-11-13)
+
+Decided 2026-11-13 (the owner's idea, details as suggested): you can **craft a lantern** at a **tinker** in the
+bazaar from **one sea-glass, one firefly and one piece of wood**.
+- **Fireflies** gather in **Dozewood** (a forest at a long dusk): three glades. Stand in one with an **empty
+  hand** and the use button becomes an open jar; tap it and a firefly comes along (gently: it chooses to stay).
+- **Wood** is **driftwood**, reeled up while fishing like the boot and the sea-glass, so crafting feeds back
+  into fishing. (Sea-glass came up more often too: weight 3 -> 5.)
+- **The tinker** is one of the bazaar's lantern-makers, at the stall across the lane from the fishmonger. Her
+  window lists what she can make, ticks off what you have of what it takes, and has a **Craft** button. She
+  charges **10 coins** on top of the materials.
+- **The lantern** goes on your hotbar. While it's selected you carry it lit: in **Underroot** and
+  **Steamhollow's fog** it clears a big warm pocket round you (130 px, against 40-50 px of clear view; a
+  world's fog can set `lantern_radius`); everywhere else it's a soft warm glow. Friends see it, and their
+  lanterns light the dark round them too. It never runs out, and it's never needed.
+- **You can craft more than one** (a spare to trade or give).
+
+Built:
+- **Server:** `Server.Crafting` (the recipe, the lantern (item 4, now a real `"tool"` with `"use": "light"`)
+  and the firefly (250); one transaction per craft: each material consumed, the fee sunk, the lantern
+  granted and put on the hotbar, all ledgered; `at_crafter?`, `at_firefly_glade?`). Driftwood (242) added to
+  `Server.Fishing`'s catches. The channel pushes `recipes` on join and answers `craft` (only at a stall with
+  `"crafts": true`) and `catch_firefly` (only in one of this world's `firefly_glades`, one every 4 s).
+- **Worlds:** `tools/gen_dozewood_world.py` adds `firefly_glades` (by the landing, over the toadstool ring, by
+  the lantern log); `tools/gen_bazaar.py` turns the lantern-maker across from the fishmonger into the tinker
+  (`crafter`, `"crafts": true`) and her stall into `tinker_stall`. Nothing else moved in either world.
+- **Client:** `CrafterPanel`, `FireflyDirector` (+ its `FireflyGlade` drift), `LanternView` (yours and
+  friends'), `ItemIcon` gains the lantern, firefly, driftwood and jar; `FishingDirector` handles the lantern
+  and the empty hand's jar; `world_controller._mist_pockets` adds the lanterns' light to the fog.
+- **Tests:** server `test/crafting_test.exs`, `test/crafting_channel_test.exs`; client
+  `tests/smoke_crafting.gd` (the tinker, a craft, carrying the lantern, its light, a friend's),
+  `tests/smoke_fireflies.gd` (the glades and the jar).
+
+### The firefly jar (2026-11-13, after the first play)
+
+The empty-hand jar on the use button was **too hidden**. Changed, as the owner asked:
+- Each glade has a **glass jar on a little table** (a `firefly_jar_table` prop, `"firefly_jar": true`, added in
+  `tools/gen_dozewood_world.py` after the layout so nothing else moved). **Examine it** and a short **cutscene**
+  plays: your steering rests a moment, a firefly drifts down out of the glade into the jar, the jar glows, and the
+  firefly is in your bag (`FireflyDirector.examine_jar`, `FireflyGlade.fly_one_into`). The use button no longer
+  does anything with an empty hand.
+- **One firefly at a time:** you can carry only one (`Crafting.firefly_room?/1`, checked by the server on
+  `catch_firefly`; the client checks first so the cutscene never plays for nothing). Once it's in a lantern,
+  another will come. This replaces the few-seconds cooldown.
+
