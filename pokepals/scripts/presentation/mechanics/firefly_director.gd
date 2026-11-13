@@ -1,7 +1,8 @@
 class_name FireflyDirector
 extends Node
 ## FIREFLY GLADES (usable items, crafting; docs/usable-items-design.md): in a world whose spec has
-## `firefly_glades` (Dozewood's three), a slow drift of fireflies hangs over each one (FireflyGlade), and a
+## `firefly_glades` (one beside the secret at the end of each dark world, Steamhollow and Underroot, so a lantern
+## is the reward for having found your way through once), a slow drift of fireflies hangs over each one (FireflyGlade), and a
 ## glass jar stands on a little table in each (a prop with `"firefly_jar": true`). EXAMINE the jar and a short
 ## cutscene plays: your steering rests a moment, a firefly drifts down out of the glade and into the jar, the
 ## jar glows, and the firefly is in your bag. The tinker in the bazaar makes a lantern with one.

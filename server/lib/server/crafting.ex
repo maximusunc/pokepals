@@ -5,7 +5,7 @@ defmodule Server.Crafting do
   The tinker in the bazaar makes things for you from what you bring, for a small fee. One recipe so far:
   a **lantern** from one sea-glass, one firefly and one piece of driftwood, plus 10 coins. Sea-glass and
   driftwood are reeled up while fishing (`Server.Fishing`); a firefly comes down into the glass jar on a
-  little table in each of Dozewood's firefly glades (`at_firefly_jar?/2`). You can carry only ONE firefly at
+  little table beside the secret at the end of each dark world, Steamhollow and Underroot (`at_firefly_jar?/2`). You can carry only ONE firefly at
   a time (`firefly_room?/1`): once it's gone into a lantern, another will come. A lantern goes on your hotbar; carried, it lights the dark
   worlds (Underroot, Steamhollow's fog) and glows softly everywhere else. It's never needed anywhere.
 
@@ -173,7 +173,7 @@ defmodule Server.Crafting do
 
   @doc """
   Whether `pos` is at one of this world's firefly jars (a prop with `"firefly_jar": true`: the glass jar on a
-  little table in each of Dozewood's firefly glades).
+  little table in a firefly glade, beside the secret in Steamhollow and in Underroot).
   """
   @spec at_firefly_jar?(map() | nil, list() | nil) :: boolean()
   def at_firefly_jar?(core, [x, y]) when is_map(core) and is_number(x) and is_number(y) do

@@ -628,7 +628,7 @@
 			]
 		}
 	},
-	"atmosphere": {"day_tint": [0.88, 0.86, 0.95], "vignette": {"strength": 0.36, "color": [0.08, 0.09, 0.16]}, "wind": {"strength": 0.7, "speed": 0.5}, "pollen": {"amount": 14, "color": [1.0, 0.94, 0.8]}, "region_tint_alpha": 0.06, "grass": {"max": 0}, "fog": {"clear_radius": 40, "fade_radius": 150, "color": [0.8, 0.82, 0.9], "warm": [1.0, 0.8, 0.52], "density": 0.93, "swirl": 0.35, "noise_scale": 0.011, "drift": [7, 3], "fade_in": 2.5, "light_clear": 0.9, "max_lights": 8, "companion_radius": 56, "friend_radius": 46, "lit": {"prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "x": 3.5, "y": -13.5}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -9}}, "buildings": {"radius": 40, "warm": 0.85, "x": 23, "y": -25}}}, "steam": {"color": [1.0, 0.98, 0.96], "alpha": 0.32, "rise": 38, "life": 4.5, "size": 16, "per_radius": 22, "vent_types": ["sh_steam_vent"], "vent_puffs": 3}},
+	"atmosphere": {"day_tint": [0.88, 0.86, 0.95], "vignette": {"strength": 0.36, "color": [0.08, 0.09, 0.16]}, "wind": {"strength": 0.7, "speed": 0.5}, "pollen": {"amount": 14, "color": [1.0, 0.94, 0.8]}, "region_tint_alpha": 0.06, "grass": {"max": 0}, "fog": {"clear_radius": 40, "fade_radius": 150, "color": [0.8, 0.82, 0.9], "warm": [1.0, 0.8, 0.52], "density": 0.93, "swirl": 0.35, "noise_scale": 0.011, "drift": [7, 3], "fade_in": 2.5, "light_clear": 0.9, "max_lights": 8, "companion_radius": 56, "friend_radius": 46, "lit": {"prop_types": {"firefly_jar_table": {"radius": 36, "warm": 1.0, "y": -24}, "sh_lantern": {"radius": 36, "warm": 1.0, "x": 3.5, "y": -13.5}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -9}}, "buildings": {"radius": 40, "warm": 0.85, "x": 23, "y": -25}}}, "steam": {"color": [1.0, 0.98, 0.96], "alpha": 0.32, "rise": 38, "life": 4.5, "size": 16, "per_radius": 22, "vent_types": ["sh_steam_vent"], "vent_puffs": 3}},
 	"player_spawn": [0, 900],
 	"companion_spawn": [-30, 930],
 	"ponds": [
@@ -1342,7 +1342,12 @@
 		{"id": "lantern_landing_sh_steam_vent_2", "type": "sh_steam_vent", "position": [-483, 601], "color": [1.0, 1.0, 1.0], "label": "a steam vent"},
 		{"id": "lantern_landing_sh_steam_vent_3", "type": "sh_steam_vent", "position": [1346, 1029], "color": [1.0, 1.0, 1.0], "label": "a steam vent"},
 		{"id": "lantern_landing_sh_steam_vent_4", "type": "sh_steam_vent", "position": [187, 649], "color": [1.0, 1.0, 1.0], "label": "a steam vent"},
-		{"id": "lantern_landing_sh_steam_vent_5", "type": "sh_steam_vent", "position": [257, 654], "color": [1.0, 1.0, 1.0], "label": "a steam vent"}
+		{"id": "lantern_landing_sh_steam_vent_5", "type": "sh_steam_vent", "position": [257, 654], "color": [1.0, 1.0, 1.0], "label": "a steam vent"},
+		{"id": "jar_glade_bell", "type": "firefly_jar_table", "position": [-1165, -846], "color": [1.0, 1.0, 1.0], "label": "a glass jar on a little table", "tags": ["made", "light"], "interactive": true, "lore": "A glass jar on a little table by the bell post, its lid set beside it. A few fireflies have found their way here through the fog and stayed, as if the bell were ringing for them too. They drift lower when you come near.", "solid": true, "collision_radius": 8, "firefly_jar": true}
+	],
+	"_firefly_glades_comment": "Where fireflies gather (usable items, crafting): beside the secret, at the end of the world. The glade has a glass jar on a little table (a 'firefly_jar' prop): examine it and a firefly drifts down into the jar for you. You carry one at a time; the tinker in the bazaar makes a lantern with one. The server honours a catch only at a jar.",
+	"firefly_glades": [
+		{"id": "glade_bell", "position": [-1183, -870], "radius": 44}
 	],
 	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, 'Steamhollow'). reveal.type 'listen': a bronze bell hangs in the fog, ringing too faintly to hear. When the companion is calm and settled beside the player (player still or slow, companion close and standing easy) and within hearing (range by bond), its gaze turns toward the bell and its ears prick (ListenGuide / ListenDirector); near the bell the tell sharpens and the bell shows in the mist. The server honours a claim only here, within 'radius' of 'position'.",
 	"secret": {
