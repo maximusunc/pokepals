@@ -4,8 +4,9 @@ defmodule Server.Crafting do
 
   The tinker in the bazaar makes things for you from what you bring, for a small fee. One recipe so far:
   a **lantern** from one sea-glass, one firefly and one piece of driftwood, plus 10 coins. Sea-glass and
-  driftwood are reeled up while fishing (`Server.Fishing`); fireflies are invited along from the firefly
-  glades in Dozewood (`at_firefly_glade?/2`). A lantern goes on your hotbar; carried, it lights the dark
+  driftwood are reeled up while fishing (`Server.Fishing`); a firefly comes down into the glass jar on a
+  little table in each of Dozewood's firefly glades (`at_firefly_jar?/2`). You can carry only ONE firefly at
+  a time (`firefly_room?/1`): once it's gone into a lantern, another will come. A lantern goes on your hotbar; carried, it lights the dark
   worlds (Underroot, Steamhollow's fog) and glows softly everywhere else. It's never needed anywhere.
 
   Each craft is ONE transaction through `Server.Economy`: every material consumed, the fee sunk, the made
@@ -30,16 +31,16 @@ defmodule Server.Crafting do
     }
   ]
 
-  # How near the tinker (or a firefly glade's edge) you must stand.
+  # How near the tinker (or a firefly jar) you must stand.
   @reach 90.0
-
-  # At least this long between two fireflies, so a client can't fill a jar in a second.
-  @firefly_gap_ms 4_000
 
   def lantern_id, do: @lantern_id
   def firefly_id, do: @firefly_id
   def recipes, do: @recipes
-  def firefly_gap_ms, do: @firefly_gap_ms
+
+  @doc "Whether a user has room for a firefly: you carry at most one at a time."
+  @spec firefly_room?(Ecto.UUID.t()) :: boolean()
+  def firefly_room?(user_id), do: Economy.owned_quantity(user_id, @firefly_id) < 1
 
   @doc "The lantern and the firefly (driftwood and sea-glass are catches, defined with Server.Fishing)."
   def item_defs do
@@ -171,26 +172,23 @@ defmodule Server.Crafting do
   def at_crafter?(_core, _pos), do: false
 
   @doc """
-  Whether `pos` is in one of this world's firefly glades (the spec's `firefly_glades`: `[{position, radius}]`,
-  Dozewood's).
+  Whether `pos` is at one of this world's firefly jars (a prop with `"firefly_jar": true`: the glass jar on a
+  little table in each of Dozewood's firefly glades).
   """
-  @spec at_firefly_glade?(map() | nil, list() | nil) :: boolean()
-  def at_firefly_glade?(core, [x, y]) when is_map(core) and is_number(x) and is_number(y) do
-    glades = Map.get(core, "firefly_glades", [])
+  @spec at_firefly_jar?(map() | nil, list() | nil) :: boolean()
+  def at_firefly_jar?(core, [x, y]) when is_map(core) and is_number(x) and is_number(y) do
+    props = Map.get(core, "props", [])
 
-    is_list(glades) and
-      Enum.any?(glades, fn g ->
-        is_map(g) and within?(Map.get(g, "position"), x, y, num(Map.get(g, "radius"), 0.0) + 30.0)
+    is_list(props) and
+      Enum.any?(props, fn p ->
+        is_map(p) and Map.get(p, "firefly_jar") == true and within?(Map.get(p, "position"), x, y, @reach)
       end)
   end
 
-  def at_firefly_glade?(_core, _pos), do: false
+  def at_firefly_jar?(_core, _pos), do: false
 
   defp within?([px, py], x, y, r) when is_number(px) and is_number(py),
     do: :math.sqrt((x - px) * (x - px) + (y - py) * (y - py)) <= r
 
   defp within?(_p, _x, _y, _r), do: false
-
-  defp num(v, _d) when is_number(v), do: v
-  defp num(_v, d), do: d
 end

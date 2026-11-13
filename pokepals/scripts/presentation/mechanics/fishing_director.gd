@@ -41,7 +41,6 @@ var _known := false           # whether the server has told us what we carry yet
 
 var _rod: RodView             # the rod in our own hand
 var _lantern: LanternView     # the lantern in our own hand (shown while it's the selected item)
-var _firefly: FireflyDirector = null   # a world's firefly glades, for an empty hand's use (set_firefly)
 var _post_pos := Vector2.ZERO # the starter rod's post in this world (if it has one)
 var _rest: RodRest = null     # the rod resting on the post, while it's still there for us
 
@@ -103,11 +102,6 @@ func configure(data: Dictionary) -> void:
 	_refresh_rest()
 
 
-## The world's firefly glades: with an empty hand in one, the use button invites a firefly along.
-func set_firefly(firefly: FireflyDirector) -> void:
-	_firefly = firefly
-
-
 ## What's in our hand right now: "rod", "lantern" or "" (the lantern's light in the dark worlds reads this).
 func held_key() -> String:
 	if _rod.is_held():
@@ -146,9 +140,6 @@ func select_slot(index: int) -> void:
 func use_item() -> void:
 	var item := _selected_item()
 	if item.is_empty():
-		# An empty hand in a firefly glade: invite one along.
-		if _firefly != null and _firefly.can_invite():
-			_firefly.invite()
 		return
 	if String(item.get("key", "")) == LANTERN_KEY:
 		_host.show_hint("Your lantern glows warm. The firefly inside seems content.")
@@ -387,11 +378,9 @@ func _refresh_rest() -> void:
 
 func _refresh_use() -> void:
 	var item := _selected_item()
-	# An empty hand: the use button only shows (as an open jar) where a firefly could be invited along.
 	if item.is_empty():
-		var jar := _firefly != null and _firefly.can_invite()
-		_use.set_item("jar" if jar else "", "", Color.WHITE)
-		_use.set_ready(jar)
+		_use.set_item("", "", Color.WHITE)   # an empty hand: nothing to use
+		_use.set_ready(false)
 		return
 	if String(item.get("key", "")) != ROD_KEY:
 		_use.set_ready(not item.is_empty())

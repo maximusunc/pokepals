@@ -87,7 +87,8 @@ not a blocker** — pick it up if/when a shared world wants it.
 > home holds 3 rare fish you choose (`Server.Tank`, `TankView`, `TankPanel`, `TankDirector`); they swim, friends
 > can look in, your companion wanders over to watch. **Crafting and the lantern are built:** the **tinker** in
 > the bazaar (`"crafts": true`, `CrafterPanel`, `Server.Crafting`) makes a **lantern** from a sea-glass, a
-> **firefly** (invited along with an empty hand in Dozewood's `firefly_glades`, `FireflyDirector`) and a piece
+> **firefly** (examine the glass jar in one of Dozewood's `firefly_glades` and one drifts down into it, a short
+> cutscene; one at a time, `FireflyDirector`) and a piece
 > of **driftwood** (a new fishing catch), plus 10 coins. Carried (`LanternView`), it clears a big warm pocket
 > in Underroot's dark and Steamhollow's fog (`world_controller._mist_pockets`) and glows everywhere else.
 

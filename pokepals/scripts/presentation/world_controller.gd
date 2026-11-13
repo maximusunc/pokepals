@@ -472,11 +472,10 @@ func _create_directors() -> void:
 	add_child(_fishing_dir)
 	_fishing_dir.setup(self, _player, _companion, _presence_dir, _scenery, _hotbar, _use_button)
 
-	# Firefly glades (Dozewood): with an empty hand, invite a firefly along; the tinker makes lanterns with them.
+	# Firefly glades (Dozewood): examine the jar and a firefly comes down into it; the tinker makes lanterns with them.
 	_firefly_dir = FireflyDirector.new()
 	add_child(_firefly_dir)
 	_firefly_dir.setup(self, _player, _companion, _scenery)
-	_fishing_dir.set_firefly(_firefly_dir)
 
 	# The fish tank at home, for rare fish (only a home has one).
 	_tank_dir = TankDirector.new()
@@ -738,6 +737,8 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 			entry["tank"] = true  # the fish tank at home
 		if bool(it.get("crafts", false)):
 			entry["crafts"] = true  # the tinker in the bazaar, who makes things from what you bring
+		if bool(it.get("firefly_jar", false)):
+			entry["firefly_jar"] = true  # a glass jar in a firefly glade (Dozewood)
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)
@@ -1668,6 +1669,11 @@ func _try_interact() -> void:
 	# The fish tank at home: open its window.
 	if bool(entry.get("tank", false)):
 		_tank_dir.examine(entry)
+		return
+	# A firefly jar: a firefly drifts down into it (a short cutscene), and it's yours.
+	if bool(entry.get("firefly_jar", false)):
+		_world_art.pulse_interactable(int(entry["render_index"]))
+		_firefly_dir.examine_jar(entry)
 		return
 	# The tinker: open her window to craft.
 	if bool(entry.get("crafts", false)):

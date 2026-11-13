@@ -1,22 +1,27 @@
 class_name FireflyDirector
 extends Node
 ## FIREFLY GLADES (usable items, crafting; docs/usable-items-design.md): in a world whose spec has
-## `firefly_glades` (Dozewood's three), a slow drift of fireflies hangs over each one (FireflyGlade). Stand
-## in a glade with an EMPTY hand (an empty hotbar slot selected) and the use button becomes an open jar; tap
-## it and a firefly comes along (the server checks you're in a glade, and allows one every few seconds). The
-## tinker in the bazaar makes a lantern with one. No-op in every other world.
+## `firefly_glades` (Dozewood's three), a slow drift of fireflies hangs over each one (FireflyGlade), and a
+## glass jar stands on a little table in each (a prop with `"firefly_jar": true`). EXAMINE the jar and a short
+## cutscene plays: your steering rests a moment, a firefly drifts down out of the glade and into the jar, the
+## jar glows, and the firefly is in your bag. The tinker in the bazaar makes a lantern with one.
 ##
-## FishingDirector (which owns the hotbar and the use button) asks `can_invite()` to show the jar, and calls
-## `invite()` when it's tapped.
+## You carry ONE firefly at a time (the server enforces it; we check first so the cutscene never plays for
+## nothing): once it has gone into a lantern, another will come. No-op in every other world.
+
+const FLIGHT := 1.5        # s for the firefly to drift down into the jar
+const GLOW := 1.0          # s the jar glows with it inside, before it's in your bag
+const JAR_TOP := Vector2(0, -16)   # where the jar's mouth is, from the table's spot
 
 var _host: Node
 var _player: PlayerView
 var _companion: CompanionView
 var _scenery: Node2D
 var _glades: Array = []     # [{ pos: Vector2, radius: float, view: FireflyGlade }]
-var _told := false          # the first time you walk into a glade, a hint says what to do
-var _waiting := false       # asked the server; waiting for its answer
-var _last_glade: Dictionary = {}
+var _told := false          # the first time you walk into a glade, a hint points at the jar
+
+# The cutscene in progress: { jar: Vector2, t: float, answered: bool, ok: bool } or {}.
+var _scene: Dictionary = {}
 
 
 func setup(host: Node, player: PlayerView, companion: CompanionView, scenery: Node2D) -> void:
@@ -45,65 +50,109 @@ func has_glades() -> bool:
 	return not _glades.is_empty()
 
 
-## The glade you're standing in, or {}.
-func _glade_here() -> Dictionary:
-	for g in _glades:
-		if _player.position.distance_to(g["pos"]) <= float(g["radius"]) + 20.0:
-			return g
-	return {}
+func is_playing() -> bool:
+	return not _scene.is_empty()
 
 
-## Whether a firefly could be invited right now (you're in a glade, not already asking).
-func can_invite() -> bool:
-	return not _waiting and not _glade_here().is_empty()
+## Whether we're already carrying a firefly (one at a time).
+static func carrying_one() -> bool:
+	for it in Net.inventory():
+		if it is Dictionary and String((it as Dictionary).get("key", "")) == "firefly" and int((it as Dictionary).get("quantity", 0)) > 0:
+			return true
+	return false
 
 
-## The use button was tapped with an empty hand in a glade: ask a firefly along.
-func invite() -> void:
-	var g := _glade_here()
-	if g.is_empty() or _waiting:
+## The jar was examined: if there's room for a firefly, ask the server and play the cutscene.
+func examine_jar(entry: Dictionary) -> void:
+	if is_playing():
 		return
-	_waiting = true
-	_last_glade = g
+	if carrying_one():
+		_host.show_hint("You already have a firefly with you. Once it's in a lantern, another will come.")
+		return
+	var jar: Vector2 = entry["pos"]
+	var glade := _nearest_glade(jar)
+	if glade.is_empty():
+		return
+	_scene = { "jar": jar, "glade": glade, "t": 0.0, "answered": false, "ok": false }
+	_player.input_enabled = false
+	_player.look_toward(jar - _player.position)
+	_companion.glance_toward(jar)
+	(glade["view"] as FireflyGlade).fly_one_into(jar + JAR_TOP, FLIGHT, GLOW)
 	Net.catch_firefly()
 
 
-func update(_delta: float) -> void:
+func _nearest_glade(p: Vector2) -> Dictionary:
+	var best: Dictionary = {}
+	var best_d := INF
+	for g in _glades:
+		var d := p.distance_to(g["pos"])
+		if d < best_d:
+			best = g
+			best_d = d
+	return best
+
+
+func update(delta: float) -> void:
 	if _glades.is_empty():
 		return
-	var g := _glade_here()
-	if not g.is_empty() and not _told:
-		_told = true
-		_host.show_hint("Fireflies! With an empty hand (pick an empty hotbar slot), tap Use to invite one along.")
-		_companion.glance_toward(g["pos"])
+	if not _told:
+		for g in _glades:
+			if _player.position.distance_to(g["pos"]) <= float(g["radius"]) + 20.0:
+				_told = true
+				_host.show_hint("Fireflies, and a glass jar on a little table. Examine the jar.")
+				_companion.glance_toward(g["pos"])
+				break
+	if _scene.is_empty():
+		return
+	_scene["t"] = float(_scene["t"]) + delta
+	# The scene ends once it has played through AND the server has answered (or, if the answer is lost, a
+	# little after: steering never stays away).
+	var played := float(_scene["t"]) >= FLIGHT + GLOW
+	if (played and bool(_scene["answered"])) or float(_scene["t"]) > FLIGHT + GLOW + 5.0:
+		_finish()
 
 
-func _on_caught(count: int) -> void:
-	_waiting = false
-	if not _last_glade.is_empty():
-		(_last_glade["view"] as FireflyGlade).send_one_to(_player)
-	_companion.delight_at(_player.position)
-	if count <= 1:
-		_host.show_hint("A firefly drifts into your jar. It seems happy to come along.")
-	else:
-		_host.show_hint("Another firefly comes along. (%d in your jar)" % count)
+func _finish() -> void:
+	var ok := bool(_scene.get("ok", false))
+	var glade: Dictionary = _scene.get("glade", {})
+	if not glade.is_empty():
+		(glade["view"] as FireflyGlade).end_jar(ok)
+	_scene = {}
+	_player.input_enabled = true
+	if ok:
+		_companion.delight_at(_player.position)
+		_host.show_hint("A firefly settles into the jar, glowing softly. It's in your bag now. The tinker in the bazaar could make a lantern with it.")
+
+
+func _on_caught(_count: int) -> void:
+	if not _scene.is_empty():
+		_scene["answered"] = true
+		_scene["ok"] = true
 
 
 func _on_refused(reason: String) -> void:
-	_waiting = false
-	if reason == "no_glade":
-		_host.show_hint("The fireflies are over there, in the glade.")
-	# too soon: nothing to say; it just doesn't go
+	if _scene.is_empty():
+		return
+	_scene["answered"] = true
+	_scene["ok"] = false
+	_finish()
+	match reason:
+		"have_one":
+			_host.show_hint("You already have a firefly with you. Once it's in a lantern, another will come.")
+		_:
+			_host.show_hint("The fireflies drift up again. Step up to the jar.")
 
 
-## A slow drift of fireflies over one glade: a dozen soft lights wandering on their own little loops, pulsing
-## in and out. When one comes along with you it flies from the glade to your hand.
+## A slow drift of fireflies over one glade: a dozen soft lights wandering on their own little loops, pulsing in
+## and out. In the cutscene one leaves the drift, floats down into the jar, and glows there.
 class FireflyGlade extends Node2D:
 	const COUNT := 12
 	var radius := 70.0
 	var _t := 0.0
 	var _seeds: Array = []
-	var _flights: Array = []   # [{ from: Vector2 (local), to: Node2D, t: float }]
+	# The firefly coming down to the jar: { from: Vector2, to: Vector2 (both local), t, flight, glow } or {}.
+	var _diver: Dictionary = {}
+	var _fade := 0.0           # the jar's glow fading after the firefly is in your bag
 
 	func _ready() -> void:
 		z_index = 2
@@ -119,15 +168,27 @@ class FireflyGlade extends Node2D:
 				"h": rng.randf_range(10.0, 26.0),
 			})
 
-	func send_one_to(target: Node2D) -> void:
+	## One firefly drifts down from the glade into the jar (world point `jar_mouth`).
+	func fly_one_into(jar_mouth: Vector2, flight: float, glow: float) -> void:
 		var s: Dictionary = _seeds[randi() % _seeds.size()]
-		_flights.append({ "from": s["c"] + Vector2(0, -float(s["h"])), "to": target, "t": 0.0 })
+		_diver = { "from": s["c"] + Vector2(0, -float(s["h"]) - 20.0), "to": to_local(jar_mouth), "t": 0.0,
+			"flight": flight, "glow": glow }
+
+	## The scene's over: the firefly has gone into your bag (its glow fades), or it drifted back up.
+	func end_jar(_ok: bool) -> void:
+		if not _diver.is_empty():
+			_fade = 0.6
+			_diver["t"] = float(_diver["flight"]) + float(_diver["glow"])
+			_diver["ending"] = true
 
 	func _process(delta: float) -> void:
 		_t += delta
-		for f in _flights:
-			f["t"] = float(f["t"]) + delta / 0.9
-		_flights = _flights.filter(func(f: Dictionary) -> bool: return float(f["t"]) < 1.0 and is_instance_valid(f["to"]))
+		if not _diver.is_empty():
+			_diver["t"] = float(_diver["t"]) + delta
+			if bool(_diver.get("ending", false)):
+				_fade -= delta
+				if _fade <= 0.0:
+					_diver = {}
 		queue_redraw()
 
 	func _draw() -> void:
@@ -136,8 +197,21 @@ class FireflyGlade extends Node2D:
 			var p: Vector2 = s["c"] + Vector2(cos(a), sin(a * 1.3) * 0.6) * float(s["r"]) + Vector2(0, -float(s["h"]))
 			var glow := 0.35 + 0.65 * maxf(0.0, sin(_t * float(s["pulse"]) + float(s["ph"])))
 			ItemIcon.draw_firefly(self, p, 0.45, glow)
-		for f in _flights:
-			var to := to_local((f["to"] as Node2D).global_position + Vector2(6, -14))
-			var u := ease(float(f["t"]), -2.0)
-			var p: Vector2 = (f["from"] as Vector2).lerp(to, u) + Vector2(0, -18.0 * sin(PI * u))
-			ItemIcon.draw_firefly(self, p, 0.5, 1.0)
+		if _diver.is_empty():
+			return
+		var flight: float = _diver["flight"]
+		var to: Vector2 = _diver["to"]
+		var t: float = _diver["t"]
+		if t < flight:
+			# a slow, wandering descent: it eases in, loops a little, and settles at the jar's mouth
+			var u := ease(t / flight, -1.6)
+			var p: Vector2 = (_diver["from"] as Vector2).lerp(to, u) + Vector2(sin(u * TAU * 1.5) * 10.0 * (1.0 - u), 0)
+			ItemIcon.draw_firefly(self, p, 0.55, 1.0)
+		else:
+			# inside the jar: a warm glow that breathes, fading once it's in your bag
+			var a := 1.0
+			if bool(_diver.get("ending", false)):
+				a = clampf(_fade / 0.6, 0.0, 1.0)
+			var breathe := 0.7 + 0.3 * sin(_t * 4.0)
+			draw_circle(to + Vector2(0, 8), 13.0, Color(1.0, 0.9, 0.5, 0.25 * a * breathe))
+			ItemIcon.draw_firefly(self, to + Vector2(0, 8), 0.5, a)

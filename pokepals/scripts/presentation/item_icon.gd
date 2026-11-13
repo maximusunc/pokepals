@@ -16,8 +16,6 @@ static func draw(ci: CanvasItem, key: String, kind: String, c: Vector2, size: fl
 		draw_lantern(ci, c, s, alpha)
 	elif key == "firefly":
 		draw_firefly(ci, c, s, alpha)
-	elif key == "jar":
-		_draw_jar(ci, c, s, alpha)
 	elif key == "driftwood":
 		draw_driftwood(ci, c, s, tint, alpha)
 	elif key == "old_boot":
@@ -89,14 +87,6 @@ static func draw_firefly(ci: CanvasItem, c: Vector2, s: float, alpha := 1.0) -> 
 	ci.draw_circle(c, 1.8 * s, Color(1.0, 1.0, 0.85, alpha))
 	ci.draw_line(c + Vector2(-1, -1.5) * s, c + Vector2(-4, -4) * s, Color(1, 1, 1, 0.5 * alpha), 0.8 * s, true)
 	ci.draw_line(c + Vector2(1, -1.5) * s, c + Vector2(4, -4) * s, Color(1, 1, 1, 0.5 * alpha), 0.8 * s, true)
-
-
-## An open jar (inviting a firefly along).
-static func _draw_jar(ci: CanvasItem, c: Vector2, s: float, alpha: float) -> void:
-	ci.draw_rect(Rect2(c + Vector2(-5, -5) * s, Vector2(10, 12) * s), Color(0.80, 0.92, 0.96, 0.45 * alpha))
-	ci.draw_rect(Rect2(c + Vector2(-5, -5) * s, Vector2(10, 12) * s), Color(0.9, 0.96, 1.0, 0.9 * alpha), false, 1.0 * s)
-	ci.draw_rect(Rect2(c + Vector2(-4, -8) * s, Vector2(8, 3) * s), Color(0.56, 0.42, 0.28, alpha))
-	ci.draw_circle(c + Vector2(6, -9) * s, 1.4 * s, Color(1.0, 0.94, 0.6, alpha))
 
 
 static func draw_driftwood(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha: float) -> void:

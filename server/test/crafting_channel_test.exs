@@ -65,19 +65,19 @@ defmodule Server.CraftingChannelTest do
     assert_push "craft_failed", %{reason: "not_enough"}
   end
 
-  test "fireflies come along in a glade, one every few seconds" do
-    w = seed_world(%{"firefly_glades" => [%{"position" => [200.0, 200.0], "radius" => 70}]})
+  test "a firefly comes into the jar, and only one at a time" do
+    w = seed_world(%{"props" => [%{"id" => "jar", "position" => [200.0, 200.0], "firefly_jar" => true, "interactive" => true}]})
     {socket, uid} = join_world(w)
 
     stand_at(socket, w, uid, [700.0, 700.0])
     push(socket, "catch_firefly", %{})
-    assert_push "firefly_refused", %{reason: "no_glade"}
+    assert_push "firefly_refused", %{reason: "no_jar"}
 
     stand_at(socket, w, uid, [210.0, 220.0])
     push(socket, "catch_firefly", %{})
     assert_push "firefly_caught", %{count: 1}
     push(socket, "catch_firefly", %{})
-    assert_push "firefly_refused", %{reason: "too_soon"}
+    assert_push "firefly_refused", %{reason: "have_one"}
     assert Economy.owned_quantity(uid, Crafting.firefly_id()) == 1
   end
 end

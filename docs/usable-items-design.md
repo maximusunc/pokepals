@@ -318,3 +318,15 @@ Built:
   `tests/smoke_crafting.gd` (the tinker, a craft, carrying the lantern, its light, a friend's),
   `tests/smoke_fireflies.gd` (the glades and the jar).
 
+### The firefly jar (2026-11-13, after the first play)
+
+The empty-hand jar on the use button was **too hidden**. Changed, as the owner asked:
+- Each glade has a **glass jar on a little table** (a `firefly_jar_table` prop, `"firefly_jar": true`, added in
+  `tools/gen_dozewood_world.py` after the layout so nothing else moved). **Examine it** and a short **cutscene**
+  plays: your steering rests a moment, a firefly drifts down out of the glade into the jar, the jar glows, and the
+  firefly is in your bag (`FireflyDirector.examine_jar`, `FireflyGlade.fly_one_into`). The use button no longer
+  does anything with an empty hand.
+- **One firefly at a time:** you can carry only one (`Crafting.firefly_room?/1`, checked by the server on
+  `catch_firefly`; the client checks first so the cutscene never plays for nothing). Once it's in a lantern,
+  another will come. This replaces the few-seconds cooldown.
+

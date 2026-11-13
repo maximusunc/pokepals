@@ -514,31 +514,28 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
-  # Invite a FIREFLY along (Dozewood's glades). Honoured only while we stand in a glade of this world, and
-  # at most one every few seconds. Answers `firefly_caught` (how many we now carry) then the `inventory`.
+  # A FIREFLY comes down into the jar (Dozewood's glades). Honoured only while we stand at a firefly jar in
+  # this world, and only if we aren't already carrying one (one at a time; it goes into a lantern, then
+  # another can come). Answers `firefly_caught` then the `inventory`, or `firefly_refused`.
   def handle_in("catch_firefly", _payload, socket) do
     %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
     core = get_in(definition.spec, ["core"]) || %{}
     pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
-    now = System.monotonic_time(:millisecond)
-    last = Map.get(socket.assigns, :last_firefly)
-
     cond do
-      not Server.Crafting.at_firefly_glade?(core, pos) ->
-        push(socket, "firefly_refused", %{reason: "no_glade"})
-        {:noreply, socket}
+      not Server.Crafting.at_firefly_jar?(core, pos) ->
+        push(socket, "firefly_refused", %{reason: "no_jar"})
 
-      last != nil and now - last < Server.Crafting.firefly_gap_ms() ->
-        push(socket, "firefly_refused", %{reason: "too_soon"})
-        {:noreply, socket}
+      not Server.Crafting.firefly_room?(user_id) ->
+        push(socket, "firefly_refused", %{reason: "have_one"})
 
       true ->
         id = Server.Crafting.firefly_id()
-        {:ok, _} = Economy.grant_stack(user_id, id, 1, txn_type: "gather", context: %{"source" => "firefly_glade"})
+        {:ok, _} = Economy.grant_stack(user_id, id, 1, txn_type: "gather", context: %{"source" => "firefly_jar"})
         push(socket, "firefly_caught", %{count: Economy.owned_quantity(user_id, id)})
         push(socket, "inventory", inventory_snapshot(user_id))
-        {:noreply, assign(socket, :last_firefly, now)}
     end
+
+    {:noreply, socket}
   end
 
   # The fish TANK at home (step 3; Server.Tank). Only the owner, standing in their own home, changes it:

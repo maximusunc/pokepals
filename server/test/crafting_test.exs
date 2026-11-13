@@ -59,16 +59,29 @@ defmodule Server.CraftingTest do
     assert Enum.map(needs, & &1.key) == ["sea_glass", "firefly", "driftwood"]
   end
 
-  test "the tinker and the firefly glades are only where they are" do
+  test "the tinker and the firefly jars are only where they are" do
     core = %{
-      "props" => [%{"id" => "tinker", "position" => [0, 0], "crafts" => true}],
-      "firefly_glades" => [%{"position" => [500, 500], "radius" => 70}]
+      "props" => [
+        %{"id" => "tinker", "position" => [0, 0], "crafts" => true},
+        %{"id" => "jar", "position" => [500, 500], "firefly_jar" => true}
+      ]
     }
 
     assert Crafting.at_crafter?(core, [20.0, 30.0])
     refute Crafting.at_crafter?(core, [300.0, 30.0])
-    assert Crafting.at_firefly_glade?(core, [560.0, 540.0])
-    refute Crafting.at_firefly_glade?(core, [700.0, 700.0])
-    refute Crafting.at_firefly_glade?(%{}, [0.0, 0.0])
+    assert Crafting.at_firefly_jar?(core, [540.0, 530.0])
+    refute Crafting.at_firefly_jar?(core, [700.0, 700.0])
+    refute Crafting.at_firefly_jar?(core, [0.0, 0.0])
+    refute Crafting.at_firefly_jar?(%{}, [0.0, 0.0])
+  end
+
+  test "one firefly at a time: room for one, none while you carry it, room again once it's in a lantern", %{uid: uid} do
+    assert Crafting.firefly_room?(uid)
+    {:ok, _} = Economy.grant_stack(uid, 250)
+    refute Crafting.firefly_room?(uid)
+    {:ok, _} = Economy.grant_stack(uid, 241)
+    {:ok, _} = Economy.grant_stack(uid, 242)
+    {:ok, _} = Crafting.craft(uid, "lantern")
+    assert Crafting.firefly_room?(uid)
   end
 end
