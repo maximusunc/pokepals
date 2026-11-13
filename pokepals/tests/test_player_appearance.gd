@@ -294,4 +294,11 @@ static func _test_shop_ramps() -> int:
 	for cs in catalog.color_slots():
 		for ramp in catalog.shop_ramps(String(cs["id"])):
 			fails += _ok(not (ramp in cs.get("ramps", [])), "shop ramp %s isn't also a free %s" % [ramp, cs["id"]])
+			fails += _ok(catalog.ramp_color(String(cs["id"]), ramp).size() == 3, "shop ramp %s has a swatch on %s" % [ramp, cs["id"]])
+	# One dye, any garment: the clothing slots take the hair dyes, and every hair dye is offered there.
+	for slot_id in ["top_color", "legwear_color", "footwear_color", "headwear_color"]:
+		fails += _ok(catalog.dye_source(slot_id) == "hair_color", "%s takes its dyes from hair_color" % slot_id)
+		for ramp in catalog.shop_ramps("hair_color"):
+			fails += _ok(catalog.shop_ramps(slot_id).has(ramp), "hair dye %s can colour %s" % [ramp, slot_id])
+	fails += _ok(catalog.dye_source("skin_tone") == "", "skin tones stay skin-only")
 	return fails

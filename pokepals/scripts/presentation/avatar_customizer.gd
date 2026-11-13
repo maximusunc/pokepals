@@ -670,7 +670,7 @@ func _swatch_row(cs: Dictionary) -> Control:
 		sw.color = Color(float(rgb[0]), float(rgb[1]), float(rgb[2]))
 		sw.active = ramp_name == current
 		var shop: bool = (ramp_name in _catalog.shop_ramps(slot_id)) and not (ramp_name in cs.get("ramps", []))
-		if shop and not _owned_dyes.has(slot_id + ":" + ramp_name) and not sw.active:
+		if shop and not _owns_dye(slot_id, ramp_name) and not sw.active:
 			sw.locked = true
 			sw.mouse_default_cursor_shape = Control.CURSOR_ARROW
 			any_locked = true
@@ -686,6 +686,15 @@ func _swatch_row(cs: Dictionary) -> Control:
 	note.autowrap_mode = TextServer.AUTOWRAP_WORD
 	col.add_child(note)
 	return col
+
+
+## Do we own this bazaar dye for this slot — bought for it, or for the slot it takes its dyes from
+## (a hair dye colours clothing too)?
+func _owns_dye(slot_id: String, ramp: String) -> bool:
+	if _owned_dyes.has(slot_id + ":" + ramp):
+		return true
+	var source := _catalog.dye_source(slot_id)
+	return source != "" and _owned_dyes.has(source + ":" + ramp)
 
 
 func _pick_dye(slot_id: String, ramp: String) -> void:
