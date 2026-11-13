@@ -137,10 +137,10 @@ func _process(_delta: float) -> bool:
 			fish.select_slot(1)
 			_ok(fish.held_key() == "lantern" and _world._player.get_node("Lantern").visible, "select it: the lantern is in your hand")
 			_ok(_world._presence_dir._held == "lantern", "friends are told you carry a lantern")
-			var pockets: Array = _world._mist_pockets()
-			_ok(pockets.size() == 1 and float(pockets[0]["radius"]) >= 100.0, "a carried lantern clears a big warm pocket in the dark")
+			# (our own lantern's light widens our own clear circle in a dark world: smoke_lantern.gd)
+			_ok(_world._mist_pockets().is_empty(), "our own lantern adds no pocket (it widens our own light)")
 			fish.select_slot(0)
-			_ok(fish.held_key() == "rod" and not _world._player.get_node("Lantern").visible and _world._mist_pockets().is_empty(), "the rod again: the lantern is put away")
+			_ok(fish.held_key() == "rod" and not _world._player.get_node("Lantern").visible, "the rod again: the lantern is put away")
 			# A friend with a lantern.
 			_net.emit_signal("peer_joined", "friend")
 			_net.emit_signal("identity_received", "friend", { "held": "lantern" })
@@ -149,7 +149,8 @@ func _process(_delta: float) -> bool:
 			var pair: Dictionary = _world._presence_dir._remote_pairs.get("friend", {})
 			var lantern = pair.get("lantern")
 			_ok(lantern != null and lantern.visible, "a friend's lantern is drawn")
-			_ok(_world._mist_pockets().size() == 1, "and it lights the dark round them too")
+			var pockets: Array = _world._mist_pockets()
+			_ok(pockets.size() == 1 and float(pockets[0]["radius"]) >= 200.0, "and it lights a big pocket of the dark round them")
 			_step = 9
 		9:
 			print("")

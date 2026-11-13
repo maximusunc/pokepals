@@ -27,6 +27,9 @@ extends CanvasLayer
 ##   light_clear    0.9             how much a lit pocket thins the mist at its heart
 ##   max_lights     8               MOVING pockets at once (the shader's loop): companion, friends, extras
 ##   companion_radius 56  friend_radius 46   the pockets round your companion and everyone else present
+##   lantern_clear  max(130, 2.6 x clear_radius)   your clear view while you carry a lit lantern (set_lantern)...
+##   lantern_fade   fade_radius + 120               ...and where the mist reaches full density then
+##   lantern_color  [1.0, 0.82, 0.5]                 the lamp-light the mist round you glows
 ##   lit            { "prop_types": { type: { radius, warm, x, y } }, "buildings": { radius, warm, x, y } }
 ##                  what shines through the mist: lantern props (x, y: where the flame sits from the prop's
 ##                  position), and the lantern by each building's door (from the middle of its front). These never
@@ -62,6 +65,13 @@ var _fade_in := 2.5
 var _max_lights := HARD_MAX_LIGHTS
 var _companion_radius := 56.0
 var _friend_radius := 46.0
+# The player's lantern (set_lantern): the clear circle eases from (_clear, _fade) to (_lantern_clear, _lantern_fade).
+var _clear := 60.0
+var _fade := 210.0
+var _lantern_clear := 156.0
+var _lantern_fade := 330.0
+var _lamp := 0.0
+var _lamp_target := 0.0
 var _enabled := true
 
 
@@ -111,8 +121,13 @@ func setup(cfg: Dictionary, data: Dictionary, player: Node2D, walkers: Callable,
 	blend.blend_mode = CanvasItemMaterial.BLEND_MODE_PREMULT_ALPHA
 	_rect.material = blend
 	add_child(_rect)
-	_mat.set_shader_parameter("clear_r", float(cfg.get("clear_radius", 60.0)))
-	_mat.set_shader_parameter("fade_r", float(cfg.get("fade_radius", 210.0)))
+	_clear = float(cfg.get("clear_radius", 60.0))
+	_fade = float(cfg.get("fade_radius", 210.0))
+	_lantern_clear = float(cfg.get("lantern_clear", maxf(130.0, _clear * 2.6)))
+	_lantern_fade = float(cfg.get("lantern_fade", _fade + 120.0))
+	_mat.set_shader_parameter("clear_r", _clear)
+	_mat.set_shader_parameter("fade_r", _fade)
+	_mat.set_shader_parameter("lamp_color", WorldData.to_color(cfg.get("lantern_color", [1.0, 0.82, 0.5])))
 	_mat.set_shader_parameter("fog_color", WorldData.to_color(cfg.get("color", [0.84, 0.84, 0.91])))
 	_mat.set_shader_parameter("warm_color", WorldData.to_color(cfg.get("warm", [1.0, 0.80, 0.52])))
 	_mat.set_shader_parameter("density", float(cfg.get("density", 0.92)))
@@ -185,6 +200,17 @@ func _bake_mask(data: Dictionary) -> void:
 	_mat.set_shader_parameter("mask_size", Vector2(w, h) * MASK_TEXEL)
 
 
+## Whether the player is carrying a lit lantern: it pushes the mist (or the dark) back round them to a much
+## wider clear circle and lights it lamp-gold, easing in and out over about half a second.
+func set_lantern(on: bool) -> void:
+	_lamp_target = 1.0 if on else 0.0
+
+
+## How far the lantern's light has come in, 0..1.
+func lamp() -> float:
+	return _lamp
+
+
 func static_light_count() -> int:
 	return _static.size()
 
@@ -216,6 +242,12 @@ func _process(delta: float) -> void:
 	_mat.set_shader_parameter("rect_origin", origin)
 	_mat.set_shader_parameter("rect_size", cover)
 	_mat.set_shader_parameter("center", _player.global_position)
+	if _lamp != _lamp_target:
+		_lamp = move_toward(_lamp, _lamp_target, delta * 2.0)
+		var e := smoothstep(0.0, 1.0, _lamp)
+		_mat.set_shader_parameter("clear_r", lerpf(_clear, _lantern_clear, e))
+		_mat.set_shader_parameter("fade_r", lerpf(_fade, _lantern_fade, e))
+		_mat.set_shader_parameter("lamp", e)
 	_mat.set_shader_parameter("drift", _drift)
 	_mat.set_shader_parameter("time", _time)
 	if _fade_in > 0.0:

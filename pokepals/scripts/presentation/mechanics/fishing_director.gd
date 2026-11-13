@@ -82,6 +82,8 @@ func setup(host: Node, player: PlayerView, companion: CompanionView, presence: P
 	Net.fish_escaped.connect(_on_fish_escaped)
 	Net.fish_refused.connect(_on_fish_refused)
 	# What the server already told us before this world was built (a world hop), so the bar shows at once.
+	# The slot we had selected before this world was built (a portal rebuilds the world; the hand doesn't change).
+	_selected = clampi(Net.hotbar_selected, 0, SLOTS - 1)
 	if Net.has_inventory():
 		_on_inventory(Net.inventory())
 	_on_hotbar(Net.hotbar_slots())
@@ -131,6 +133,7 @@ func select_slot(index: int) -> void:
 	if index != _selected and _phase != "":
 		_reel_in_quietly()
 	_selected = index
+	Net.hotbar_selected = index
 	# The selection decides what's in your hand and what the use button shows, so redo all of it.
 	_refresh_bar()
 	_refresh_use()

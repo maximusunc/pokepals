@@ -89,8 +89,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 > the bazaar (`"crafts": true`, `CrafterPanel`, `Server.Crafting`) makes a **lantern** from a sea-glass, a
 > **firefly** (examine the glass jar in one of Dozewood's `firefly_glades` and one drifts down into it, a short
 > cutscene; one at a time, `FireflyDirector`) and a piece
-> of **driftwood** (a new fishing catch), plus 10 coins. Carried (`LanternView`), it clears a big warm pocket
-> in Underroot's dark and Steamhollow's fog (`world_controller._mist_pockets`) and glows everywhere else.
+> of **driftwood** (a new fishing catch), plus 10 coins. Carried (`LanternView`), it pushes Underroot's dark and
+> Steamhollow's fog back round you (`MistVeil.set_lantern` widens your clear circle; friends' lanterns are big
+> pockets, `world_controller._mist_pockets`) and glows everywhere else. The hotbar's selected slot survives
+> portals (`Net.hotbar_selected`).
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
