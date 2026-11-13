@@ -73,6 +73,15 @@ func shop_ramps(color_slot: String) -> Array:
 	return []
 
 
+## The color slot whose bought dyes also unlock this one's shop ramps ('dyes_from'), or "" if
+## only its own. The clothing slots share the hair dyes: one dye, any garment.
+func dye_source(color_slot: String) -> String:
+	for cs in _color_slots:
+		if String(cs.get("id", "")) == color_slot:
+			return String(cs.get("dyes_from", ""))
+	return ""
+
+
 ## Is this a real ramp for this color slot — a free one or a shop one?
 func has_ramp(color_slot: String, ramp: String) -> bool:
 	for cs in _color_slots:
