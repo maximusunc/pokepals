@@ -163,6 +163,8 @@ defmodule Server.WorldChannel do
     # hotbar's slots. Per-USER, the same in every world.
     push(socket, "inventory", inventory_snapshot(user_id))
     push(socket, "hotbar", %{slots: Hotbar.slots(user_id)})
+    # What the tinker in the bazaar can make (the same for everyone; small).
+    push(socket, "recipes", %{recipes: Server.Crafting.recipes_view()})
 
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
@@ -485,6 +487,58 @@ defmodule Server.WorldChannel do
     end
 
     {:noreply, socket}
+  end
+
+  # CRAFT at the tinker (Server.Crafting). Honoured only while we stand at a stall that crafts; the craft
+  # is one ledgered transaction (materials consumed, fee paid, the item made and put on the hotbar). The
+  # answer is `crafted` (with the new balance), then the fresh `inventory` and `hotbar`; or `craft_failed`.
+  def handle_in("craft", %{"recipe" => recipe_id}, socket) when is_binary(recipe_id) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    if Server.Crafting.at_crafter?(core, pos) do
+      case Server.Crafting.craft(user_id, recipe_id) do
+        {:ok, made} ->
+          push(socket, "crafted", made)
+          push(socket, "inventory", inventory_snapshot(user_id))
+          push(socket, "hotbar", %{slots: Hotbar.slots(user_id)})
+
+        {:error, reason} ->
+          push(socket, "craft_failed", %{recipe: recipe_id, reason: to_string(reason)})
+      end
+    else
+      push(socket, "craft_failed", %{recipe: recipe_id, reason: "not_at_crafter"})
+    end
+
+    {:noreply, socket}
+  end
+
+  # Invite a FIREFLY along (Dozewood's glades). Honoured only while we stand in a glade of this world, and
+  # at most one every few seconds. Answers `firefly_caught` (how many we now carry) then the `inventory`.
+  def handle_in("catch_firefly", _payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+    now = System.monotonic_time(:millisecond)
+    last = Map.get(socket.assigns, :last_firefly)
+
+    cond do
+      not Server.Crafting.at_firefly_glade?(core, pos) ->
+        push(socket, "firefly_refused", %{reason: "no_glade"})
+        {:noreply, socket}
+
+      last != nil and now - last < Server.Crafting.firefly_gap_ms() ->
+        push(socket, "firefly_refused", %{reason: "too_soon"})
+        {:noreply, socket}
+
+      true ->
+        id = Server.Crafting.firefly_id()
+        {:ok, _} = Economy.grant_stack(user_id, id, 1, txn_type: "gather", context: %{"source" => "firefly_glade"})
+        push(socket, "firefly_caught", %{count: Economy.owned_quantity(user_id, id)})
+        push(socket, "inventory", inventory_snapshot(user_id))
+        {:noreply, assign(socket, :last_firefly, now)}
+    end
   end
 
   # The fish TANK at home (step 3; Server.Tank). Only the owner, standing in their own home, changes it:

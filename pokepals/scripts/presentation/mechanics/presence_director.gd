@@ -226,6 +226,17 @@ func remote_player_positions() -> Array:
 	return out
 
 
+## Where every friend carrying a lit lantern stands (the dark worlds clear a warm pocket round each).
+func remote_lantern_positions() -> Array:
+	var out: Array = []
+	for pair in _remote_pairs.values():
+		var lantern: Variant = pair.get("lantern")
+		var rp: Variant = pair.get("player")
+		if lantern != null and is_instance_valid(lantern) and (lantern as Node2D).visible and is_instance_valid(rp):
+			out.append((rp as Node2D).position)
+	return out
+
+
 ## A peer's name, or "a wanderer" if their identity hasn't arrived yet.
 func peer_name(peer_id: String) -> String:
 	return String(_peer_names.get(peer_id, "a wanderer"))
@@ -320,6 +331,15 @@ func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
 		pair["rod"] = rod
 	if rod != null:
 		rod.apply_remote(held, payload.get("fishing"))
+	# A friend carrying a lantern: drawn in their hand, and it lights the dark worlds round them too.
+	var lantern: LanternView = pair.get("lantern")
+	if lantern == null and held == "lantern":
+		lantern = LanternView.new()
+		lantern.name = "Lantern"
+		(pair["player"] as Node).add_child(lantern)
+		pair["lantern"] = lantern
+	if lantern != null:
+		lantern.visible = held == "lantern"
 
 
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped

@@ -2447,6 +2447,26 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, -1), 10.0, color.lightened(0.06))
 			for s in [Vector2(-3, -3), Vector2(3, -1), Vector2(0, 2)]:
 				draw_circle(p + s, 1.6, color.darkened(0.28))
+		"tinker_stall":
+			# the tinker's stall (crafting): a workbench under a plum awning, tools on the board, a lantern hung
+			# from the awning's edge and a little vice at the corner
+			var ts_awning := color
+			var ts_alt := color.lightened(0.25)
+			draw_rect(Rect2(p + Vector2(-20, -8), Vector2(3, 24)), Color(0.34, 0.26, 0.18))
+			draw_rect(Rect2(p + Vector2(17, -8), Vector2(3, 24)), Color(0.34, 0.26, 0.18))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 10)), Color(0.48, 0.36, 0.24))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 3)), Color(0.58, 0.45, 0.30))
+			draw_line(p + Vector2(-16, 5), p + Vector2(-8, 2), Color(0.66, 0.66, 0.70), 1.6)   # a little hammer
+			draw_rect(Rect2(p + Vector2(-9, 1), Vector2(3, 3)), Color(0.40, 0.40, 0.44))
+			draw_line(p + Vector2(-2, 5), p + Vector2(5, 4), Color(0.70, 0.70, 0.74), 1.0)    # a file
+			ItemIcon.draw_driftwood(self, p + Vector2(12, 3), 0.45, Color(0.62, 0.50, 0.36), 1.0)
+			for stripe in 4:
+				var tx0 := -22.0 + float(stripe) * 11.0
+				draw_colored_polygon(PackedVector2Array([p + Vector2(tx0, -10), p + Vector2(tx0 + 11.0, -10),
+					p + Vector2(tx0 + 11.0, -22), p + Vector2(tx0, -22)]), ts_awning if stripe % 2 == 0 else ts_alt)
+			draw_line(p + Vector2(-22, -10), p + Vector2(22, -10), color.darkened(0.3), 1.5)
+			draw_line(p + Vector2(16, -10), p + Vector2(16, -5), Color(0.36, 0.28, 0.20), 1.0)
+			ItemIcon.draw_lantern(self, p + Vector2(16, 0), 0.5, 1.0, 0.6 + 0.4 * sin(_time * 2.0))
 		"fish_stall":
 			# the fishmonger's stall (the bazaar's fish buyer): a counter under a weathered, sun-faded awning,
 			# a row of fish laid out on it, and a barrel of ice at its side with more fish poking out

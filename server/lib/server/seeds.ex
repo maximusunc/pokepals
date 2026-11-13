@@ -79,7 +79,6 @@ defmodule Server.Seeds do
     %{item_def_id: 1, name: "Straw Hat", category: "cosmetic", slot: "head", stackable: false},
     %{item_def_id: 2, name: "Woven Scarf", category: "cosmetic", slot: "neck", stackable: false},
     %{item_def_id: 3, name: "River Pebble", category: "trinket", slot: nil, stackable: true},
-    %{item_def_id: 4, name: "Lantern", category: "tool", slot: "hand", stackable: false},
     %{item_def_id: 100, name: "Rose Blush", category: "color", slot: nil, stackable: false,
       base_attributes: %{"color_slot" => "skin_tone", "ramp" => "rose", "swatch" => [0.96, 0.74, 0.74], "price" => 30, "currency" => "coins"}},
     %{item_def_id: 101, name: "River Teal", category: "color", slot: nil, stackable: false,
@@ -99,7 +98,7 @@ defmodule Server.Seeds do
     seed_worlds()
 
     summary =
-      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
+      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs()) + length(Server.Crafting.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
 
     summary
   end
@@ -107,6 +106,8 @@ defmodule Server.Seeds do
   defp seed_item_definitions do
     # The fishing rod and everything it can catch live with the fishing rules (Server.Fishing).
     Server.Fishing.seed_definitions()
+    # The lantern (item 4) and the firefly live with the crafting rules (Server.Crafting).
+    Server.Crafting.seed_definitions()
 
     for attrs <- @item_defs do
       %ItemDefinition{}

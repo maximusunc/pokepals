@@ -85,8 +85,11 @@ not a blocker** — pick it up if/when a shared world wants it.
 > arrive, `"buys": "fish"`, `FishBuyerPanel`) buys common fish and odds and ends, Sell 1 or Sell all, never
 > rare fish (`Economy.sell`, the channel's `sell`). **Step 3 is built:** a glass **tank** by the journal at
 > home holds 3 rare fish you choose (`Server.Tank`, `TankView`, `TankPanel`, `TankDirector`); they swim, friends
-> can look in, your companion wanders over to watch. The first fishing build is complete; next are crafting
-> (U-11) and the second usable item (U-14).
+> can look in, your companion wanders over to watch. **Crafting and the lantern are built:** the **tinker** in
+> the bazaar (`"crafts": true`, `CrafterPanel`, `Server.Crafting`) makes a **lantern** from a sea-glass, a
+> **firefly** (invited along with an empty hand in Dozewood's `firefly_glades`, `FireflyDirector`) and a piece
+> of **driftwood** (a new fishing catch), plus 10 coins. Carried (`LanternView`), it clears a big warm pocket
+> in Underroot's dark and Steamhollow's fog (`world_controller._mist_pockets`) and glows everywhere else.
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the

@@ -1379,6 +1379,12 @@
 		{"id": "yawning_rise_dz_moss_stone_2", "type": "dz_moss_stone", "position": [432, -522], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6},
 		{"id": "yawning_rise_dz_moss_stone_3", "type": "dz_moss_stone", "position": [448, -923], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 6}
 	],
+	"_firefly_glades_comment": "Where fireflies gather (usable items, crafting): stand in a glade with an empty hand and tap Use to invite one along. The tinker in the bazaar makes a lantern with one. The server honours a catch only inside a glade.",
+	"firefly_glades": [
+		{"id": "glade_landing", "position": [300, 760], "radius": 70},
+		{"id": "glade_toadstools", "position": [-1290, 160], "radius": 70},
+		{"id": "glade_lantern_log", "position": [-1090, -720], "radius": 70}
+	],
 	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, 'Dozewood'). reveal.type 'dream': the companion only dozes off in one of reveal.spots (nap spots) when it feels safe (a welcomed pet, you still and close, a calm mood; DreamGate), dreams of the landmark at reveal.landmark_position (picture: reveal.picture), and when you and it walk there together the prop rises (DozeDirector / SecretDirector). The server honours a claim only here, within 'radius' of 'position'.",
 	"secret": {
 		"id": "dream_lantern",

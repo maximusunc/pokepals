@@ -71,6 +71,15 @@ POND_STONES_CENTER = (1010, -780)
 LANTERN_LOG = (-1180, -760)
 TOAD_RING = (-1290, 160)
 SLEEPER = (1250, 560)
+# ── the firefly glades (usable items, crafting; docs/usable-items-design.md) ──────────────────────────────
+# Where fireflies gather: one a short walk from where you arrive, one over the ring of toadstools, one by the log
+# with the lamp inside. Stand in one with an empty hand and tap Use, and a firefly comes along (the tinker in the
+# bazaar makes lanterns with one). Drawn by the client (FireflyGlade); the server checks you're in one.
+FIREFLY_GLADES = [
+    {"id": "glade_landing", "position": [300, 760], "radius": 70},
+    {"id": "glade_toadstools", "position": [TOAD_RING[0], TOAD_RING[1]], "radius": 70},
+    {"id": "glade_lantern_log", "position": [LANTERN_LOG[0] + 90, LANTERN_LOG[1] + 40], "radius": 70},
+]
 STONES = [(POND_STONES_CENTER[0] + 124 * math.cos(math.radians(a)), POND_STONES_CENTER[1] + 124 * math.sin(math.radians(a)))
           for a in (-150, -30, 90)]
 
@@ -385,6 +394,8 @@ out.append('\t"paths": [],')
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
+out.append('\t"_firefly_glades_comment": %s,' % json.dumps("Where fireflies gather (usable items, crafting): stand in a glade with an empty hand and tap Use to invite one along. The tinker in the bazaar makes a lantern with one. The server honours a catch only inside a glade."))
+out.append('\t"firefly_glades": [\n%s\n\t],' % block(FIREFLY_GLADES))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
 out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))
