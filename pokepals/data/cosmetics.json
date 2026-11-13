@@ -11,17 +11,19 @@
 		{ "id": "headwear", "z": 60 },
 		{ "id": "held", "z": 70 }
 	],
-	"_color_slots_comment": "COLOR slots are the 'palette' half of paper-doll + palette: cheap personalization that recolors a GRAYSCALE layer without new art. 'applies_to' names the paper-doll slot the recolor targets; 'ramps' are the named choices; 'default' is what a fresh player gets; 'swatches' gives each ramp a base [r,g,b] (0..1) that AvatarCompositor maps the layer's luminance onto (dark outline preserved, mid/light -> shadow/highlight of the swatch). Every layer except glasses is dyeable now — the swatch bases come from tools/pixelart's hand-tuned SKIN/HAIR/CLOTH ramps (their middle 'base' shade). Adding a color is a data edit — no new art.",
+	"_color_slots_comment": "COLOR slots are the 'palette' half of paper-doll + palette: cheap personalization that recolors a GRAYSCALE layer without new art. 'applies_to' names the paper-doll slot the recolor targets; 'ramps' are the named choices; 'default' is what a fresh player gets; 'swatches' gives each ramp a base [r,g,b] (0..1) that AvatarCompositor maps the layer's luminance onto (dark outline preserved, mid/light -> shadow/highlight of the swatch). Every layer except glasses is dyeable now — the swatch bases come from tools/pixelart's hand-tuned SKIN/HAIR/CLOTH ramps (their middle 'base' shade). Adding a color is a data edit — no new art. 'shop_ramps' are extra choices SOLD by the dye-maker in the bazaar: every client knows them (so a friend's bought dye renders for you), but the wardrobe only lets you pick one you own. Ownership is server-side (a category 'color' item def whose base_attributes name this color_slot + ramp, Server.Seeds), so a shop ramp's id here must match its def's 'ramp' and its swatch should match the def's 'swatch' (what the shop shows is what you get).",
 	"color_slots": [
 		{
 			"id": "skin_tone", "applies_to": "body", "default": "golden",
 			"ramps": ["golden", "umber", "rose", "fair"],
-			"swatches": { "golden": [0.776, 0.525, 0.259], "umber": [0.553, 0.333, 0.141], "rose": [0.898, 0.698, 0.565], "fair": [0.980, 0.804, 0.659] }
+			"shop_ramps": ["blush", "slate"],
+			"swatches": { "golden": [0.776, 0.525, 0.259], "umber": [0.553, 0.333, 0.141], "rose": [0.898, 0.698, 0.565], "fair": [0.980, 0.804, 0.659], "blush": [0.96, 0.74, 0.74], "slate": [0.55, 0.60, 0.66] }
 		},
 		{
 			"id": "hair_color", "applies_to": "hair", "default": "bark",
 			"ramps": ["bark", "chestnut", "wheat", "slate", "ember"],
-			"swatches": { "bark": [0.235, 0.188, 0.141], "chestnut": [0.667, 0.431, 0.157], "wheat": [0.843, 0.706, 0.314], "slate": [0.275, 0.275, 0.373], "ember": [0.706, 0.196, 0.196] }
+			"shop_ramps": ["teal", "marigold", "plum"],
+			"swatches": { "bark": [0.235, 0.188, 0.141], "chestnut": [0.667, 0.431, 0.157], "wheat": [0.843, 0.706, 0.314], "slate": [0.275, 0.275, 0.373], "ember": [0.706, 0.196, 0.196], "teal": [0.30, 0.66, 0.66], "marigold": [0.91, 0.55, 0.13], "plum": [0.55, 0.35, 0.62] }
 		},
 		{
 			"id": "top_color", "applies_to": "outfit", "default": "river",

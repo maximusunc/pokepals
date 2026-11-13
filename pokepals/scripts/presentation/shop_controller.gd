@@ -6,9 +6,8 @@ extends Control
 ## purchase is server-authoritative (Economy.purchase: sink + grant, atomic, ledgered). The world
 ## controller wires this panel's signals to Net and feeds it the economy snapshot.
 ##
-## A bought color is recorded as OWNED (the persisted "choice"); making the color actually appear
-## on the avatar is a deliberately deferred next step (the recolor shader), so a purchased swatch
-## reads here as "Owned" rather than changing how you look — yet.
+## A bought color is recorded as OWNED server-side; the wardrobe's Dyes view then offers it (each
+## color is one of a color slot's 'shop_ramps' in data/cosmetics.json, see ShopDirector.owned_dyes).
 
 ## The player tapped Buy on a color. The world controller relays this to Net.buy_color(id).
 signal buy_requested(item_def_id: int)

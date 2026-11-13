@@ -72,6 +72,7 @@ var _catalog: CosmeticsCatalog
 var _appearance: PlayerAppearance   # a working copy; the live one is untouched until Equip look
 var _mode := "wardrobe"
 var _balance := 0
+var _owned_dyes: Dictionary = {}   # "color_slot:ramp" -> true, the bazaar dyes the server says we own
 var _tab := ""            # active category (paper-doll slot id)
 var _dye_mode := false    # Items ⇄ Dyes
 var _built := false
@@ -93,10 +94,13 @@ var _equip_btn: Button
 
 ## Seed the overlay. Pass the shared catalog, the appearance to start from (a working copy is
 ## taken), the mode ("create" | "wardrobe"), and the wallet balance for the coin badge.
-func setup(catalog: CosmeticsCatalog, appearance: PlayerAppearance, mode: String, balance := 0) -> void:
+## owned_dyes: the bazaar-bought dyes we own, as "color_slot:ramp" keys (ShopDirector.owned_dyes()).
+## They join that color slot's swatches; the shop's other dyes show dimmed and can't be picked.
+func setup(catalog: CosmeticsCatalog, appearance: PlayerAppearance, mode: String, balance := 0, owned_dyes: Dictionary = {}) -> void:
 	_catalog = catalog
 	_mode = mode
 	_balance = balance
+	_owned_dyes = owned_dyes
 	_appearance = PlayerAppearance.from_dict(appearance.to_dict(), catalog)
 	if not _built:
 		_build_ui()
@@ -653,17 +657,35 @@ func _swatch_row(cs: Dictionary) -> Control:
 	row.add_theme_constant_override("v_separation", 8)
 	var slot_id := String(cs["id"])
 	var current := String(_appearance.colors.get(slot_id, cs.get("default", "")))
-	for ramp in cs.get("ramps", []):
+	var any_locked := false
+	# The free shades, then the bazaar's: the ones we've bought are ours like any other; the rest
+	# show dimmed with a little lock, so the wardrobe hints where more colours come from.
+	var choices: Array = (cs.get("ramps", []) as Array) + _catalog.shop_ramps(slot_id)
+	for ramp in choices:
 		var rgb := _catalog.ramp_color(slot_id, String(ramp))
 		if rgb.size() < 3:
 			continue
+		var ramp_name := String(ramp)
 		var sw := DyeSwatch.new()
 		sw.color = Color(float(rgb[0]), float(rgb[1]), float(rgb[2]))
-		sw.active = String(ramp) == current
-		var ramp_name := String(ramp)
-		sw.picked.connect(func() -> void: _pick_dye(slot_id, ramp_name))
+		sw.active = ramp_name == current
+		var shop: bool = (ramp_name in _catalog.shop_ramps(slot_id)) and not (ramp_name in cs.get("ramps", []))
+		if shop and not _owned_dyes.has(slot_id + ":" + ramp_name) and not sw.active:
+			sw.locked = true
+			sw.mouse_default_cursor_shape = Control.CURSOR_ARROW
+			any_locked = true
+		else:
+			sw.picked.connect(func() -> void: _pick_dye(slot_id, ramp_name))
 		row.add_child(sw)
-	return row
+	if not any_locked:
+		return row
+	var col := VBoxContainer.new()
+	col.add_theme_constant_override("separation", 5)
+	col.add_child(row)
+	var note := _label("More shades from the dye-maker in the bazaar.", 8, MUTED_2)
+	note.autowrap_mode = TextServer.AUTOWRAP_WORD
+	col.add_child(note)
+	return col
 
 
 func _pick_dye(slot_id: String, ramp: String) -> void:
@@ -902,18 +924,29 @@ class DyeSwatch extends Control:
 	signal picked
 	var color := Color.WHITE
 	var active := false
+	var locked := false   # a bazaar dye we don't own yet: dimmed, a tiny lock, not pickable
 
 	func _init() -> void:
 		custom_minimum_size = Vector2(22, 22)
 		mouse_default_cursor_shape = Control.CURSOR_POINTING_HAND
 
 	func _gui_input(event: InputEvent) -> void:
+		if locked:
+			return
 		if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT and event.pressed:
 			picked.emit()
 
 	func _draw() -> void:
 		var c := size * 0.5
 		var r := minf(size.x, size.y) * 0.5
+		if locked:
+			draw_circle(c, r - 1.0, Color(color, 0.35))
+			draw_arc(c, r - 1.2, 0, TAU, 24, Color(0, 0, 0, 0.18), 1.0)
+			# A tiny padlock in the middle: shackle arc over a body.
+			var ink := Color(AvatarCustomizer.INK, 0.7)
+			draw_arc(c + Vector2(0, -1.0), 2.4, PI, TAU, 10, ink, 1.2)
+			draw_rect(Rect2(c.x - 3.5, c.y - 1.0, 7.0, 5.0), ink)
+			return
 		if active:
 			draw_circle(c, r - 2.0, color)
 			draw_arc(c, r - 2.5, 0, TAU, 24, Color.WHITE, 2.0)

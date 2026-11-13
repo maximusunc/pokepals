@@ -1271,7 +1271,9 @@ func _open_customizer(mode: String) -> void:
 	var start := PlayerAppearance.from_dict(_player.appearance_dict(), _cosmetics)
 	_customizer = AvatarCustomizer.new()
 	_customizer.process_mode = Node.PROCESS_MODE_ALWAYS   # still works if the lobby gate pauses the tree
-	_customizer.setup(_cosmetics, start, mode, _shop_dir.balance() if _shop_dir != null else 0)
+	_customizer.setup(_cosmetics, start, mode,
+		_shop_dir.balance() if _shop_dir != null else 0,
+		_shop_dir.owned_dyes() if _shop_dir != null else {})
 	_customizer.confirmed.connect(func(look: Dictionary) -> void:
 		_presence_dir.apply_local_look(look)
 		_close_customizer()

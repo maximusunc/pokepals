@@ -52,6 +52,17 @@ func balance() -> int:
 	return _shop_balance
 
 
+## The dyes we own, as "color_slot:ramp" keys — what the wardrobe unlocks among the catalog's shop
+## ramps. Read from the cached stock (server-authoritative ownership), so a colour bought this session
+## shows up in the wardrobe straight away.
+func owned_dyes() -> Dictionary:
+	var out := {}
+	for c in _shop_colors:
+		if c is Dictionary and bool(c.get("owned", false)):
+			out[String(c.get("color_slot", "")) + ":" + String(c.get("ramp", ""))] = true
+	return out
+
+
 ## Spawn the merchant's bonded companion as a STATIONARY puppet beside them: a CompanionView flagged
 ## remote (no brain, no save, never moves), parented into the y-sorted Scenery so it depth-sorts with
 ## everything else, and given its resting-look from the world data. We pin its target transform to its
@@ -95,7 +106,7 @@ func _on_shop_buy(item_def_id: int) -> void:
 
 ## The shop closed — clear the greeting so the world reads clean again.
 func _on_shop_closed() -> void:
-	if _host.hint_text().begins_with("You greet ") or _host.hint_text() == "A new colour for your wardrobe!":
+	if _host.hint_text().begins_with("You greet ") or _host.hint_text() == "A new colour for your wardrobe! Find it under Dyes.":
 		_host.set_hint_text("")
 
 
@@ -111,8 +122,8 @@ func _on_economy_loaded(currency: String, balance: int, colors: Array) -> void:
 
 
 ## A purchase succeeded: mark the color owned in our cached stock, adopt the new balance, reflect it
-## in the open shop, and celebrate. The color is now stored to the wardrobe (server-side); making it
-## show on the avatar is the deferred recolor step.
+## in the open shop, and celebrate. The color is now stored to the wardrobe (server-side), and the
+## wardrobe's Dyes view offers it from now on (owned_dyes).
 func _on_purchase_succeeded(item_def_id: int, balance: int) -> void:
 	_shop_balance = balance
 	for c in _shop_colors:
@@ -121,7 +132,7 @@ func _on_purchase_succeeded(item_def_id: int, balance: int) -> void:
 			break
 	if _shop != null:
 		_shop.apply_purchase(item_def_id, balance)
-	_host.show_hint("A new colour for your wardrobe!")
+	_host.show_hint("A new colour for your wardrobe! Find it under Dyes.")
 
 
 ## A purchase was refused: let the shop re-enable the row and surface a gentle reason.
