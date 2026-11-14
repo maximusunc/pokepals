@@ -32,7 +32,8 @@ const CACHE_MAX := 96
 const INK_LUM := 30.0           # luminance (0-255) under which a near-grey texel is the sheet's dark outline
 const INK_CHROMA := 12          # ...and how far from grey it may be (a dark but coloured body isn't outline)
 const PRINT_MAX := 40           # an interior run of outline this small or smaller (eyes, a mouth, glasses) is printed on
-const STUD := 1.12              # the lit stud texel in each brick's top-left corner
+const STUD := 1.18              # the lit stud texel in each brick's top-left corner
+const SHADOW := 0.88             # the shaded texel in each small brick's bottom-right corner
 const SEAM := 0.80              # bricks of 3+ texels also get a shaded seam along the bottom and right
 const RIM := 0.42               # the silhouette's edge texels, darkened into an outline
 const EMPTY := -2               # brick grid: no brick here
@@ -315,6 +316,8 @@ static func _frame(opaque: PackedByteArray, ink: PackedByteArray, col: PackedInt
 						f = SEAM
 					elif lx == 0 and ly == 0:
 						f = STUD
+					elif lx == cell - 1 and ly == cell - 1:
+						f = SHADOW
 					if (open_l and lx == 0) or (open_r and (lx == cell - 1 or x == fw - 1)) \
 							or (open_u and (ly == 0 or y == 0)) or (open_d and (ly == cell - 1 or y == fh - 1)):
 						f = RIM
