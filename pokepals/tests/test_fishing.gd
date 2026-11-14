@@ -18,6 +18,7 @@ static func run_all() -> int:
 	fails += _test_a_cast_finds_water_beside_you()
 	fails += _test_no_water_in_reach_means_no_cast()
 	fails += _test_water_a_world_adds_counts()
+	fails += _test_far_water_is_skipped_but_near_water_found()
 	return fails
 
 
@@ -105,3 +106,17 @@ static func _test_water_a_world_adds_counts() -> int:
 	w.set_extra(func(p: Vector2) -> bool: return p.y > 100.0)
 	var p: Variant = w.cast_point(Vector2(0, 60), Vector2.DOWN)
 	return _ok(w.has_water() and p is Vector2 and (p as Vector2).y > 100.0, "water a world adds (the tide) can be fished too")
+
+
+static func _test_far_water_is_skipped_but_near_water_found() -> int:
+	# Many ponds far away and one in reach: the cast still finds the near one (the reach prefilter keeps it),
+	# and standing far from all of them there's nowhere to cast.
+	var ponds: Array = [{ "center": [0, 0], "radius": 50 }]
+	for k in 30:
+		ponds.append({ "center": [2000 + k * 200, 2000], "radius": 80 })
+	var w := FishingWater.from_world({ "ponds": ponds, "river": { "rect": [5000, 0, 300, 100] } })
+	var near: Variant = w.cast_point(Vector2(0, -110), Vector2.DOWN)
+	var river: Variant = w.cast_point(Vector2(4950, 50), Vector2.RIGHT)
+	var dry: Variant = w.cast_point(Vector2(1000, 1000), Vector2.DOWN)
+	return _ok(near is Vector2 and w.is_water(near) and river is Vector2 and w.is_water(river) and dry == null,
+		"a cast only looks at water in reach, and still finds it at the far edge of reach")

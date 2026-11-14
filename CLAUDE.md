@@ -524,7 +524,22 @@ presence and mood, not on adding features.
    shared logic onto a server later. Don’t build for 3D/VR now; just don’t actively wall
    it out.
 
-Why both matter: this same separation is what later lets the core move onto an
+1. **Performance is always a consideration.** Every feature is layered onto worlds that already
+   do a lot each frame, and the web build (GDScript in wasm) runs several times slower than desktop,
+   so a cost that looks free on desktop can drop frames there. Things add up across features, so:
+   - Don't do work every frame that only needs doing when something changes. Cache the answer and
+     redo it on change (moved, turned, item switched) or on a slow timer. Example: the use button's
+     "would a cast land?" check (`FishingDirector._refresh_use`).
+   - Cull before searching. Narrow to what's within reach before scanning a world's ponds, props or
+     pals (`FishingWater._near`).
+   - Don't `queue_redraw()` every frame unless the drawing actually animates, and don't keep hidden
+     nodes processing.
+   - Prefer a shader or a baked texture over many per-frame `draw_*` calls.
+   - When adding something that runs every frame, or that holds over every world (like the hotbar
+     selection surviving portals), think about its cost in the worst world on the web build. If in
+     doubt, measure it headless with `Time.get_ticks_usec()` around the call.
+
+Why the first two matter: this same separation is what later lets the core move onto an
 authoritative server, lets the game run on mobile/desktop/web, and keeps the door cracked
 for 3D/VR worlds — all without a rewrite.
 

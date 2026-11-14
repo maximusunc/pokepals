@@ -33,6 +33,12 @@ var _use: UseButton
 var _scenery: Node2D
 
 var _water: FishingWater
+# The use button's last "would a cast land here?" answer and where it was asked (_refresh_use).
+const READY_MOVE := 4.0       # px you move before it's asked again
+const READY_RECHECK := 0.5    # s before it's asked again regardless
+var _ready_pos := Vector2.INF
+var _ready_face := Vector2.ZERO
+var _ready_age := INF
 var _allowed := true          # this world lets you fish (a spec opts out with "fishing": false)
 var _items: Dictionary = {}   # item_def_id -> { key, name, category, color, quantity }
 var _slots: Array = []        # item def id or null, per slot
@@ -92,6 +98,7 @@ func setup(host: Node, player: PlayerView, companion: CompanionView, presence: P
 ## Read this world's water and whether it allows fishing, and find the starter rod's post (if any).
 func configure(data: Dictionary) -> void:
 	_water = FishingWater.from_world(data)
+	_invalidate_ready()
 	_allowed = data.get("fishing", true) != false
 	for it in data.get("props", []):
 		if it is Dictionary and String((it as Dictionary).get("gives", "")) == ROD_KEY:
@@ -115,6 +122,7 @@ func held_key() -> String:
 func add_water(is_water_at: Callable) -> void:
 	if _water != null:
 		_water.set_extra(is_water_at)
+	_invalidate_ready()
 
 
 ## Examining the rod's post: take the rod if it's still there for us, else read the post.
@@ -168,6 +176,7 @@ func has_items() -> bool:
 
 
 func update(delta: float) -> void:
+	_ready_age += delta
 	_refresh_use()
 	match _phase:
 		"cast", "reel":
@@ -384,14 +393,32 @@ func _refresh_use() -> void:
 	if item.is_empty():
 		_use.set_item("", "", Color.WHITE)   # an empty hand: nothing to use
 		_use.set_ready(false)
+		_invalidate_ready()
 		return
 	if String(item.get("key", "")) != ROD_KEY:
 		_use.set_ready(not item.is_empty())
+		_invalidate_ready()
 		return
 	if _phase != "":
 		_use.set_ready(_phase in ["wait", "bite", "cast"])
+		_invalidate_ready()
 		return
-	_use.set_ready(_allowed and _water != null and _water.cast_point(_player.position, _player.facing()) != null)
+	# Whether a cast would land is a line search, so it isn't redone every frame: only once you've moved or
+	# turned a little, or every READY_RECHECK seconds anyway (Ebbmere's tide comes and goes under you).
+	var pos := _player.position
+	var face := _player.facing()
+	if _ready_age < READY_RECHECK and pos.distance_squared_to(_ready_pos) < READY_MOVE * READY_MOVE \
+			and face.is_equal_approx(_ready_face):
+		return
+	_ready_pos = pos
+	_ready_face = face
+	_ready_age = 0.0
+	_use.set_ready(_allowed and _water != null and _water.cast_point(pos, face) != null)
+
+
+## Forget the last "would a cast land?" answer, so the next _refresh_use asks again.
+func _invalidate_ready() -> void:
+	_ready_age = INF
 
 
 func _selected_item() -> Dictionary:

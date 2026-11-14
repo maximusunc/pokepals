@@ -68,28 +68,63 @@ func is_water(p: Vector2) -> bool:
 ## Where a cast from `origin` would land, or null if there's no water in reach. It goes the way you face
 ## first; if there's no water that way it looks all around and takes the nearest water within reach, so on
 ## a phone you needn't line up exactly. The bobber settles a little way into the water, not on its edge.
+##
+## Performance: this runs often (the use button asks whether a cast would land while the rod is in hand), so
+## it first keeps only the ponds and rivers that could be within REACH_MAX of you. With none, and no extra
+## water, it answers at once; otherwise the line search tests just those few shapes.
 func cast_point(origin: Vector2, facing: Vector2) -> Variant:
+	var near := _near(origin)
+	if near.is_empty() and not _extra.is_valid():
+		return null
 	var ahead := facing.normalized() if facing.length() > 0.01 else Vector2.DOWN
-	var hit: Variant = _first_water_along(origin, ahead)
+	var hit: Variant = _first_water_along(origin, ahead, near)
 	if hit != null:
 		return hit
 	var best: Variant = null
 	var best_d := INF
 	for i in SWEEP_DIRS:
 		var dir := Vector2.RIGHT.rotated(TAU * float(i) / float(SWEEP_DIRS))
-		var p: Variant = _first_water_along(origin, dir)
+		var p: Variant = _first_water_along(origin, dir, near)
 		if p != null and origin.distance_to(p) < best_d:
 			best = p
 			best_d = origin.distance_to(p)
 	return best
 
 
-func _first_water_along(origin: Vector2, dir: Vector2) -> Variant:
+## The water shapes a cast from `origin` could reach: [circles, rects] (each possibly empty), or [] if none.
+func _near(origin: Vector2) -> Array:
+	var circles: Array = []
+	var rects: Array = []
+	for c in _circles:
+		var r := float(c["r"]) + REACH_MAX
+		if origin.distance_squared_to(c["c"]) <= r * r:
+			circles.append(c)
+	for rect: Rect2 in _rects:
+		if rect.grow(REACH_MAX).has_point(origin):
+			rects.append(rect)
+	if circles.is_empty() and rects.is_empty():
+		return []
+	return [circles, rects]
+
+
+## is_water, but only against the shapes `_near` kept (plus any extra water).
+func _is_water_near(p: Vector2, near: Array) -> bool:
+	if not near.is_empty():
+		for c in near[0]:
+			if p.distance_squared_to(c["c"]) <= float(c["r"]) * float(c["r"]):
+				return true
+		for r: Rect2 in near[1]:
+			if r.has_point(p):
+				return true
+	return _extra.is_valid() and bool(_extra.call(p))
+
+
+func _first_water_along(origin: Vector2, dir: Vector2, near: Array) -> Variant:
 	var d := REACH_MIN
 	while d <= REACH_MAX:
 		var p := origin + dir * d
-		if is_water(p):
+		if _is_water_near(p, near):
 			var settled := origin + dir * minf(d + SETTLE, REACH_MAX)
-			return settled if is_water(settled) else p
+			return settled if _is_water_near(settled, near) else p
 		d += STEP
 	return null
