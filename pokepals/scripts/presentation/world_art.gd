@@ -198,7 +198,7 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 				circle.append(pd["center"] + Vector2(cos(a), sin(a)) * float(pd["radius"]))
 			pd["ring"] = circle
 		else:
-			pd["ring"] = _organic_ring(pd["center"], pd["radius"], _phase_for(pd["center"]))
+			pd["ring"] = _organic_ring(pd["center"], pd["radius"], PondShape.seed_for(pd["center"]))
 	for i in _ponds.size():
 		_ponds[i]["shore"] = _shore_runs(i)
 		_ponds[i]["shallows"] = _inset_runs(_ponds[i], SHALLOWS_INSET)
@@ -511,7 +511,7 @@ func _build_pixel_ground(data: Dictionary) -> void:
 		dirt_paths.append(p["pts"])
 	var ponds: Array = []
 	for pd in _ponds:
-		ponds.append({ "center": pd["center"], "radius": pd["radius"], "seed": _phase_for(pd["center"]) })
+		ponds.append({ "center": pd["center"], "radius": pd["radius"], "seed": PondShape.seed_for(pd["center"]) })
 	var river := {}
 	if not _river.is_empty():
 		var rr: Rect2 = _river["rect"]
@@ -626,7 +626,7 @@ func _open_ground(p: Vector2, path_clear: float) -> bool:
 		return false
 	for pd in _ponds:
 		var off: Vector2 = p - (pd["center"] as Vector2)
-		if off.length() < organic_radius(off.angle(), float(pd["radius"]), _phase_for(pd["center"])) + 4.0:
+		if off.length() < organic_radius(off.angle(), float(pd["radius"]), PondShape.seed_for(pd["center"])) + 4.0:
 			return false
 	if not _river.is_empty() and (_river["rect"] as Rect2).grow(6.0).has_point(p):
 		return false
@@ -798,7 +798,7 @@ func _scatter_shores(rng: RandomNumberGenerator, density: float, reeds: Array, l
 	for pd in _ponds:
 		var c: Vector2 = pd["center"]
 		var radius := float(pd["radius"])
-		var seed := _phase_for(c)
+		var seed := PondShape.seed_for(c)
 		var clumps := int(radius * TAU / 55.0 * density)
 		for _i in clumps:
 			var a := rng.randf() * TAU
@@ -1452,11 +1452,11 @@ func _organic_ring(center: Vector2, radius: float, seed: float, segments := 56) 
 	return pts
 
 
-## The organic shoreline's distance from its centre at angle `a` — the one formula both the drawn ring
-## and the pixel ground's sandy shore band (GroundLayer) read, so the sand hugs the water exactly.
+## The organic shoreline's distance from its centre at angle `a`: PondShape's formula, the one the drawn
+## ring, the pixel ground's sandy shore band (GroundLayer) AND collision (Solids) all read, so the sand
+## hugs the water and you stop where the water is drawn.
 static func organic_radius(a: float, radius: float, seed: float) -> float:
-	var wobble := 0.11 * sin(3.0 * a + seed) + 0.06 * sin(5.0 * a - seed * 1.7) + 0.035 * sin(8.0 * a + seed * 2.3)
-	return radius * (1.0 + wobble)
+	return PondShape.radius_at(a, radius, seed)
 
 
 ## Trace a closed outline (an organic shoreline) as a thin line — the waterline where the

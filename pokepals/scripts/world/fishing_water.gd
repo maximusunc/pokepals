@@ -5,17 +5,17 @@ extends RefCounted
 ## Riverbank's `river` band) and answers "is this point water?" and "where would a cast from here land?".
 ## Water that changes with time (Ebbmere's tide) is added through `set_extra`, a test the world supplies.
 ##
-## A pond's drawn outline wobbles a little around its radius, so a point only counts as water a little way
-## inside it (`POND_INSET`): a bobber never lands on the bank.
+## A pond is water inside its drawn bank (PondShape, the same wobbly outline WorldArt draws and Solids
+## collides with), and only a little way inside it (`POND_INSET`): a bobber never lands on the bank.
 
-const POND_INSET := 0.86    # a pond is water within this share of its radius
+const POND_INSET := 0.92    # a pond is water within this share of the bank's distance from its centre
 const REACH_MIN := 18.0     # the nearest a cast lands from your feet
 const REACH_MAX := 96.0     # the farthest
 const STEP := 6.0           # how finely a cast's line is searched
 const SETTLE := 12.0        # how much further in the bobber settles past the first water it finds
 const SWEEP_DIRS := 16      # directions tried when there's no water straight ahead
 
-var _circles: Array = []    # [{ "c": Vector2, "r": float }]
+var _circles: Array = []    # [{ "c": Vector2, "r": float (nominal radius), "seed": float (NAN: truly round) }]
 var _rects: Array = []      # [Rect2]
 var _extra := Callable()    # optional (Vector2) -> bool, for water that comes and goes
 
@@ -23,11 +23,12 @@ var _extra := Callable()    # optional (Vector2) -> bool, for water that comes a
 ## The water in a world spec's core (its `pond`, `ponds` and `river`).
 static func from_world(data: Dictionary) -> FishingWater:
 	var w := FishingWater.new()
+	var organic := PondShape.organic_in(data)
 	if data.get("pond") is Dictionary:
-		w._add_pond(data["pond"])
+		w._add_pond(data["pond"], organic)
 	for pd in data.get("ponds", []):
 		if pd is Dictionary:
-			w._add_pond(pd)
+			w._add_pond(pd, organic)
 	var river: Variant = data.get("river")
 	if river is Dictionary and (river as Dictionary).get("rect") is Array and ((river as Dictionary)["rect"] as Array).size() == 4:
 		var r: Array = (river as Dictionary)["rect"]
@@ -35,11 +36,25 @@ static func from_world(data: Dictionary) -> FishingWater:
 	return w
 
 
-func _add_pond(pd: Dictionary) -> void:
+func _add_pond(pd: Dictionary, organic: bool) -> void:
 	var c: Variant = pd.get("center")
 	if not (c is Array) or (c as Array).size() != 2:
 		return
-	_circles.append({ "c": Vector2(float(c[0]), float(c[1])), "r": float(pd.get("radius", 0.0)) * POND_INSET })
+	var center := Vector2(float(c[0]), float(c[1]))
+	_circles.append({ "c": center, "r": float(pd.get("radius", 0.0)), "seed": PondShape.seed_for(center) if organic else NAN })
+
+
+## Whether `p` is inside pond `c`'s water (inside its bank, by POND_INSET).
+static func _in_pond(p: Vector2, c: Dictionary) -> bool:
+	var center: Vector2 = c["c"]
+	var r := float(c["r"])
+	var outer := PondShape.max_radius(r) * POND_INSET
+	var d2 := p.distance_squared_to(center)
+	if d2 > outer * outer:
+		return false
+	var seed := float(c["seed"])
+	var bank := r if is_nan(seed) else PondShape.radius_toward(p, center, r, seed)
+	return d2 <= bank * bank * POND_INSET * POND_INSET
 
 
 ## Add a test for water that isn't in the spec's shapes (Ebbmere: wherever the tide covers right now).
@@ -55,7 +70,7 @@ func has_water() -> bool:
 ## Whether a point is water.
 func is_water(p: Vector2) -> bool:
 	for c in _circles:
-		if p.distance_squared_to(c["c"]) <= float(c["r"]) * float(c["r"]):
+		if _in_pond(p, c):
 			return true
 	for r: Rect2 in _rects:
 		if r.has_point(p):
@@ -96,7 +111,7 @@ func _near(origin: Vector2) -> Array:
 	var circles: Array = []
 	var rects: Array = []
 	for c in _circles:
-		var r := float(c["r"]) + REACH_MAX
+		var r := PondShape.max_radius(float(c["r"])) + REACH_MAX
 		if origin.distance_squared_to(c["c"]) <= r * r:
 			circles.append(c)
 	for rect: Rect2 in _rects:
@@ -111,7 +126,7 @@ func _near(origin: Vector2) -> Array:
 func _is_water_near(p: Vector2, near: Array) -> bool:
 	if not near.is_empty():
 		for c in near[0]:
-			if p.distance_squared_to(c["c"]) <= float(c["r"]) * float(c["r"]):
+			if _in_pond(p, c):
 				return true
 		for r: Rect2 in near[1]:
 			if r.has_point(p):

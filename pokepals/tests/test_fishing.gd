@@ -14,6 +14,7 @@ static func run_all() -> int:
 	fails += _test_the_ring_meets_the_target_at_the_window()
 	fails += _test_a_quicker_ring_is_quicker()
 	fails += _test_ponds_and_rivers_are_water()
+	fails += _test_pond_water_follows_its_bank()
 	fails += _test_a_cast_lands_in_the_water_ahead()
 	fails += _test_a_cast_finds_water_beside_you()
 	fails += _test_no_water_in_reach_means_no_cast()
@@ -85,6 +86,15 @@ static func _test_ponds_and_rivers_are_water() -> int:
 	var ok := w.is_water(Vector2(10, 10)) and w.is_water(Vector2(500, 50)) and not w.is_water(Vector2(48, 0)) \
 		and not w.is_water(Vector2(200, 200)) and w.has_water() and not FishingWater.from_world({}).has_water()
 	return _ok(ok, "ponds (a little inside their edge) and rivers are water; the bank and the meadow are not")
+
+
+# The pond at (300, 200), radius 100 bulges to ~119 px at angle ~2.076 and dips to ~85 px at ~5.379
+# (see test_solids.gd): water follows the drawn bank, not the nominal circle.
+static func _test_pond_water_follows_its_bank() -> int:
+	var w := FishingWater.from_world({ "ponds": [{ "center": [300, 200], "radius": 100 }] })
+	var c := Vector2(300, 200)
+	var ok := w.is_water(c + Vector2.from_angle(2.0758) * 105.0) and not w.is_water(c + Vector2.from_angle(5.3789) * 82.0)
+	return _ok(ok, "a pond's water bulges and dips with its drawn bank")
 
 
 static func _test_a_cast_lands_in_the_water_ahead() -> int:

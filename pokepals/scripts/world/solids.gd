@@ -31,6 +31,7 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	var tree_r := float(cfg.get("tree_radius", 7.0))
 	var great_r := float(cfg.get("great_tree_radius", 16.0))
 	var pond_blocks := bool(cfg.get("pond_blocks", true))
+	var organic := PondShape.organic_in(world_data)
 
 	for t in world_data.get("trees", []):
 		solids.append({ "center": WorldData.to_vec2(t), "radius": tree_r })
@@ -46,9 +47,9 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 		solids.append({ "center": WorldData.to_vec2(it["position"]), "radius": r })
 	if pond_blocks:
 		if world_data.has("pond"):
-			solids.append(_pond_solid(world_data["pond"]))
+			solids.append(_pond_solid(world_data["pond"], organic))
 		for pd in world_data.get("ponds", []):
-			solids.append(_pond_solid(pd))
+			solids.append(_pond_solid(pd, organic))
 	# Hedge walls (the maze): each is a SEGMENT solid — a line from "from" to "to" with a
 	# half-thickness radius (a capsule). resolve() pushes bodies off the nearest point of the
 	# segment, so one entry blocks a whole long hedge run rather than a string of circles.
@@ -98,8 +99,28 @@ static func rect_solids(rect: Array) -> Array:
 	return out
 
 
-static func _pond_solid(pond: Dictionary) -> Dictionary:
-	return { "center": WorldData.to_vec2(pond["center"]), "radius": float(pond["radius"]) }
+## A pond blocks along its drawn bank, not a circle: the solid carries the bank's `shore_seed` (see
+## PondShape), and reach() reads its radius in the direction of whoever is pushing against it. A soft
+## world's water is truly round, so its ponds stay plain circles.
+static func _pond_solid(pond: Dictionary, organic: bool) -> Dictionary:
+	var c := WorldData.to_vec2(pond["center"])
+	var s := { "center": c, "radius": float(pond["radius"]) }
+	if organic:
+		s["shore_seed"] = PondShape.seed_for(c)
+	return s
+
+
+## How far solid `s` reaches out from its nearest point toward `p`: its radius, except for a pond, whose
+## wobbly bank is nearer or farther from its centre depending on the direction you come at it from.
+static func reach(s: Dictionary, p: Vector2) -> float:
+	if s.has("shore_seed"):
+		return PondShape.radius_toward(p, s["center"], float(s["radius"]), float(s["shore_seed"]))
+	return float(s["radius"])
+
+
+## The most solid `s` ever reaches from its nearest point (for bounding boxes).
+static func max_reach(s: Dictionary) -> float:
+	return PondShape.max_radius(float(s["radius"])) if s.has("shore_seed") else float(s["radius"])
 
 
 ## The point of solid `s` nearest to `p` — the blocking point a body is pushed away from.
@@ -122,7 +143,7 @@ static func resolve(pos: Vector2, radius: float, solids: Array, bounds: Rect2, m
 	for _pass in 2:
 		for s in solids:
 			var center := nearest_point(s, p)
-			var min_dist := r + float(s["radius"])
+			var min_dist := r + reach(s, p)
 			var d := p - center
 			var dist := d.length()
 			if dist < min_dist:

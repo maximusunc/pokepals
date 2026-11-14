@@ -16,7 +16,7 @@ defmodule Server.AmbientPals do
   Pals avoid the world's solids: they never aim a wander target into one, slide around any they graze,
   and start clear of one their home sits on. This is the Elixir port of the client's `Solids` — it
   builds the SAME circle obstacles from the spec (hand-placed `trees`, great-tree `landmarks`, the tall
-  `props`, and blocking `ponds`) and resolves with the same clamp-to-bounds + push-out-of-circles pass,
+  `props`, and blocking `ponds`, each along its wobbly drawn bank as the client's `PondShape` has it) and resolves with the same clamp-to-bounds + push-out-of-circles pass,
   using a pal body radius of `collision.body_radius + collision.margin`.
 
   The border-ring treeline is generated server-side now (`Server.WorldBorder`) and baked into the spec as
@@ -193,6 +193,7 @@ defmodule Server.AmbientPals do
     tree_r = num(Map.get(cfg, "tree_radius", 7.0))
     great_r = num(Map.get(cfg, "great_tree_radius", 16.0))
     pond_blocks = Map.get(cfg, "pond_blocks", true) == true
+    organic = organic_ponds?(core)
 
     trees = for t <- list(Map.get(core, "trees")), do: %{c: vec(t), r: tree_r}
     # The server-generated border treeline (baked into the spec as `border_trees`), each a tree circle.
@@ -208,11 +209,11 @@ defmodule Server.AmbientPals do
     ponds =
       if pond_blocks do
         single = case Map.get(core, "pond") do
-          p when is_map(p) -> [pond_solid(p)]
+          p when is_map(p) -> [pond_solid(p, organic)]
           _ -> []
         end
 
-        single ++ Enum.map(list(Map.get(core, "ponds")), &pond_solid/1)
+        single ++ Enum.map(list(Map.get(core, "ponds")), &pond_solid(&1, organic))
       else
         []
       end
@@ -238,7 +239,52 @@ defmodule Server.AmbientPals do
 
   defp solid?(it, type), do: Map.get(it, "solid", Map.has_key?(@solid_types, type)) == true
   defp prop_radius(it, type), do: num(Map.get(it, "collision_radius", Map.get(@solid_types, type, 8.0)))
-  defp pond_solid(p), do: %{c: vec(Map.get(p, "center", [0, 0])), r: num(Map.get(p, "radius", 0.0))}
+  # A pond blocks along its drawn, wobbly bank (the client's PondShape): it carries the bank's seed and
+  # reach/2 reads its radius toward whoever pushes on it. A soft world's (Bobbledown's) water is round.
+  defp pond_solid(p, organic) do
+    {cx, cy} = c = vec(Map.get(p, "center", [0, 0]))
+    base = %{c: c, r: num(Map.get(p, "radius", 0.0))}
+    if organic, do: Map.put(base, :seed, pond_seed(cx, cy)), else: base
+  end
+
+  # Every world draws wobbly ponds except one whose art renders its ground "soft".
+  defp organic_ponds?(core) do
+    get_in_map(core, ["art", "entities", "ground", "render"]) != "soft"
+  end
+
+  defp get_in_map(m, []), do: m
+  defp get_in_map(m, [k | rest]) when is_map(m), do: get_in_map(Map.get(m, k), rest)
+  defp get_in_map(_, _), do: nil
+
+  # --- the bank of a pond: the Elixir twin of the client's PondShape (keep the two in step) ---
+
+  @tau 2 * :math.pi()
+
+  # A pond's seed from its centre: fposmod(x * 0.013 + y * 0.021, TAU).
+  defp pond_seed(x, y) do
+    v = x * 0.013 + y * 0.021
+    v - @tau * Float.floor(v / @tau)
+  end
+
+  # The bank's distance from the centre at angle `a`.
+  @doc false
+  def bank_radius(a, radius, seed) do
+    wobble =
+      0.11 * :math.sin(3.0 * a + seed) + 0.06 * :math.sin(5.0 * a - seed * 1.7) +
+        0.035 * :math.sin(8.0 * a + seed * 2.3)
+
+    radius * (1.0 + wobble)
+  end
+
+  # How far an obstacle reaches from its nearest point toward (x, y): its radius, except for a pond,
+  # whose bank is nearer or farther depending on the direction (the client's Solids.reach).
+  defp reach(%{c: {cx, cy}, r: r, seed: seed}, {x, y}) do
+    dx = x - cx
+    dy = y - cy
+    if dx * dx + dy * dy < 1.0e-6, do: r * (1.0 - 0.205), else: bank_radius(:math.atan2(dy, dx), r, seed)
+  end
+
+  defp reach(%{r: r}, _p), do: r
 
   defp build_bounds(core) do
     case Map.get(core, "bounds") do
@@ -267,12 +313,12 @@ defmodule Server.AmbientPals do
   end
 
   defp push_out(point, obs, r) do
-    Enum.reduce(obs, point, fn %{r: orr} = o, {x, y} ->
+    Enum.reduce(obs, point, fn o, {x, y} ->
       {cx, cy} = nearest_point(o, {x, y})
       dx = x - cx
       dy = y - cy
       dist = :math.sqrt(dx * dx + dy * dy)
-      min_dist = r + orr
+      min_dist = r + reach(o, {x, y})
 
       if dist < min_dist do
         {dx, dy, dist} = if dist < 0.0001, do: {0.0, -1.0, 0.0001}, else: {dx, dy, dist}
@@ -285,10 +331,11 @@ defmodule Server.AmbientPals do
 
   # Whether a point lies inside any solid (used to reject wander targets before committing to them).
   defp blocked?({x, y}, %__MODULE__{obstacles: obs, radius: r}) do
-    Enum.any?(obs, fn %{r: orr} = o ->
+    Enum.any?(obs, fn o ->
       {cx, cy} = nearest_point(o, {x, y})
       dx = x - cx
       dy = y - cy
+      orr = reach(o, {x, y})
       dx * dx + dy * dy < (r + orr) * (r + orr)
     end)
   end
