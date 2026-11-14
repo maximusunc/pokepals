@@ -101,5 +101,28 @@ static func has_drawable(loaded: Array) -> bool:
 ## layer so the whole avatar faces and walks as one. Any recolor was already baked into each
 ## layer's texture by load_layers (dye layers), so drawing is a plain per-layer blit.
 static func draw(ci: CanvasItem, loaded: Array, params: Dictionary) -> void:
+	if ci.has_meta("brick_cell") and not loaded.is_empty():
+		_draw_bricks(ci, loaded, params)
+		return
 	for layer in loaded:
+		SpriteActor.draw(ci, layer["tex"], params, layer["cfg"])
+
+
+## A brick world (Clickton): the layers are flattened into ONE picture and rebuilt out of bricks as one
+## figure (BrickLook.for_stack), so the outfit doesn't become several brick figures stacked on top of each
+## other. Only layers laid out like the first (same sheet size and frame) can be flattened; any other is
+## drawn over the top, bricked on its own.
+static func _draw_bricks(ci: CanvasItem, loaded: Array, params: Dictionary) -> void:
+	var base: Dictionary = loaded[0]
+	var size: Vector2 = (base["tex"] as Texture2D).get_size()
+	var frame: Array = base["cfg"].get("frame", [32, 32])
+	var stack: Array = []
+	var rest: Array = []
+	for layer in loaded:
+		if (layer["tex"] as Texture2D).get_size() == size and layer["cfg"].get("frame", [32, 32]) == frame:
+			stack.append(layer["tex"])
+		else:
+			rest.append(layer)
+	SpriteActor.draw(ci, BrickLook.for_stack(ci, stack, frame), params, base["cfg"], true)
+	for layer in rest:
 		SpriteActor.draw(ci, layer["tex"], params, layer["cfg"])

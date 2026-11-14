@@ -471,7 +471,7 @@ ART = {
         {"t": 0.0, "tint": [1.0, 1.0, 1.0], "vignette": [0.30, 0.26, 0.40], "vstrength": 0.10},
         {"t": 1.0, "tint": [1.0, 0.99, 0.96], "vignette": [0.30, 0.26, 0.40], "vstrength": 0.12}]},
     # you are a visitor made of bricks, too
-    "actor_look": {"brick": {"cell": 4, "quantize": 0.45}},
+    "actor_look": {"brick": {"cell": 2, "quantize": 0.3}},
 }
 ATMOSPHERE = {
     "day_tint": [1.0, 1.0, 1.0], "vignette": {"strength": 0.12, "color": [0.30, 0.26, 0.40]}, "wind": {"strength": 0.0, "speed": 0.0},

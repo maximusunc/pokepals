@@ -217,8 +217,11 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   grid understands them with no change).
 > - **Everyone is bricks:** an `actor_look.brick` marks every player and companion (`OtherworldLook`) so
 >   their sheets are drawn rebuilt out of studded bricks (`BrickLook`, cached CPU work in the sheet
->   drawers), whatever they wear: each 4x4 texel cell becomes one brick in the nearest stock colour. No
->   new per-animal art.
+>   drawers), whatever they wear: a worn outfit is flattened into one picture first, then each 2x2 texel
+>   cell becomes one brick in its texels' majority colour (each source colour nudged toward a stock brick
+>   colour once). The grid rides each frame's top row, so the walk's bob carries the bricks rather than
+>   re-cutting them; the outline becomes a darkened rim, and eyes/glasses stay printed on. No new
+>   per-animal art.
 > - **Dense and tall:** a 2000x1520 packed city of narrow lanes, like the Bazaar. Each block is a TALL
 >   front row facing the lane to its south and a LOW back row behind it, because a building hides the
 >   lane just north of it (so buildings south of a lane stay low). One small square holds the fountain.

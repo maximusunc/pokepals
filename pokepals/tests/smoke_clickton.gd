@@ -88,14 +88,26 @@ func _process(_delta: float) -> bool:
 			creatures += 1
 	fails += _check(creatures == 0, "no creatures to examine")
 
-	# The brick rebuild itself: a 32x32 test sheet comes out as 4x4-texel bricks, transparent where it was empty.
-	var img := Image.create(32, 32, false, Image.FORMAT_RGBA8)
-	for y in range(8, 28):
-		for x in range(8, 24):
-			img.set_pixel(x, y, Color(0.8, 0.2, 0.2, 1.0))
-	var bricks := BrickLook.brickify(ImageTexture.create_from_image(img), 4).get_image()
-	fails += _check(bricks.get_pixel(1, 1).a == 0.0 and bricks.get_pixel(10, 10).a == 1.0, "the brick rebuild keeps the silhouette, in whole bricks")
-	fails += _check(bricks.get_pixel(8, 8) != bricks.get_pixel(11, 11), "a brick's lit edge differs from its seam")
+	# The brick rebuild itself: a two-frame test sheet (a red figure with two dark eyes; the second frame is the
+	# first bobbed down a texel) comes out as 2x2-texel bricks, transparent where it was empty.
+	var img := Image.create(64, 32, false, Image.FORMAT_RGBA8)
+	for f in 2:
+		for y in range(8, 28):
+			for x in range(8, 24):
+				img.set_pixel(f * 32 + x, y + f, Color(0.8, 0.2, 0.2, 1.0))
+		for eye in [Vector2i(12, 12), Vector2i(18, 12)]:
+			img.set_pixel(f * 32 + eye.x, eye.y + f, Color(0.05, 0.05, 0.05, 1.0))
+	var bricks := BrickLook.brickify(ImageTexture.create_from_image(img), 2, 0.3, Vector2i(32, 32)).get_image()
+	fails += _check(bricks.get_pixel(1, 1).a == 0.0 and bricks.get_pixel(14, 14).a == 1.0, "the brick rebuild keeps the silhouette, in whole bricks")
+	fails += _check(bricks.get_pixel(14, 14) != bricks.get_pixel(15, 15), "a brick's stud differs from the rest of its face")
+	fails += _check(bricks.get_pixel(8, 14) != bricks.get_pixel(15, 15), "the silhouette is rimmed darker")
+	fails += _check(bricks.get_pixel(12, 12).r < 0.2 and bricks.get_pixel(18, 12).r < 0.2, "the eyes are printed on")
+	var steady := true
+	for y in 31:
+		for x in 32:
+			if bricks.get_pixel(x, y) != bricks.get_pixel(32 + x, y + 1):
+				steady = false
+	fails += _check(steady, "a one-texel bob carries the bricks along instead of re-cutting them")
 
 	# Barriers: a building blocks its whole footprint, and so does the water.
 	var solids := Solids.build(data, [], data.get("collision", {}))
