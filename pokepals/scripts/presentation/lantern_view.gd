@@ -8,15 +8,13 @@ extends Node2D
 ## In the dark worlds (Underroot, Steamhollow's fog) the real light is a pocket of clear air in the mist
 ## (world_controller hands MistVeil a big warm pocket round each lantern); this draws the lantern and its
 ## glow everywhere.
+##
+## It sits at the avatar's own depth (z 0, y-sorted with it), so a tree you walk behind hides the lantern too.
 
 const GLOW_RADIUS := 46.0
 
 var _t := 0.0
 var _swing := 0.0
-
-
-func _ready() -> void:
-	z_index = 1
 
 
 func _process(delta: float) -> void:
