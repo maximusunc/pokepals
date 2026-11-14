@@ -313,6 +313,21 @@ props("lantern_landing", 6, "sh_steam_vent", "a steam vent", r=14)
 
 ALL_PROPS = SPECIAL + LANTERNS + PROPS
 
+# ── the firefly glade (usable items, crafting; docs/usable-items-design.md) ─────────────────────────────
+# Fireflies gather only at the END of the two dark worlds (here and Underroot), beside the secret, so the
+# lantern they make (the tinker in the bazaar) is a reward for having found your way through once, and makes the
+# second pass easier. A glass jar on a little table (a "firefly_jar" prop, appended after the layout so nothing
+# else moves): examine it and a firefly drifts down into it for you. One at a time. Its faint glow thins the dark
+# a little (atmosphere.fog.lit). Drawn by the client (FireflyGlade); the server checks the jar.
+FIREFLY_GLADES = [{"id": "glade_bell", "position": [BELL[0] - 3, BELL[1] - 80], "radius": 44}]
+for g in FIREFLY_GLADES:
+    ALL_PROPS.append(prop("jar_" + g["id"], "firefly_jar_table", (g["position"][0] + 18, g["position"][1] + 24), WHITE,
+                          "a glass jar on a little table",
+                          'A glass jar on a little table by the bell post, its lid set beside it. A few fireflies have found their way here through the fog and stayed, as if the bell were ringing for them too. They drift lower when you come near.',
+                          tags=["made", "light"], solid=True, radius=8))
+    ALL_PROPS[-1]["firefly_jar"] = True
+
+
 # ── walkability: flood-fill the ground from the spawn and prove it reaches everything that matters ───
 CELL = 12
 BODY = 15   # the avatars' body radius plus margin, generously
@@ -465,7 +480,7 @@ ATMOSPHERE = {
         "density": 0.93, "swirl": 0.35, "noise_scale": 0.011, "drift": [7, 3], "fade_in": 2.5,
         "light_clear": 0.9, "max_lights": 8, "companion_radius": 56, "friend_radius": 46,
         "lit": {
-            "prop_types": {"sh_lantern": {"radius": 36, "warm": 1.0, "x": 3.5, "y": -13.5}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -9}},
+            "prop_types": {"firefly_jar_table": {"radius": 36, "warm": 1.0, "y": -24}, "sh_lantern": {"radius": 36, "warm": 1.0, "x": 3.5, "y": -13.5}, "sh_stone_lantern": {"radius": 28, "warm": 0.9, "y": -9}},
             "buildings": {"radius": 40, "warm": 0.85, "x": 23, "y": -25},
         },
     },
@@ -551,6 +566,8 @@ out.append('\t"buildings": [\n%s\n\t],' % block(BUILDINGS))
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
+out.append('\t"_firefly_glades_comment": %s,' % json.dumps("Where fireflies gather (usable items, crafting): beside the secret, at the end of the world. The glade has a glass jar on a little table (a 'firefly_jar' prop): examine it and a firefly drifts down into the jar for you. You carry one at a time; the tinker in the bazaar makes a lantern with one. The server honours a catch only at a jar."))
+out.append('\t"firefly_glades": [\n%s\n\t],' % block(FIREFLY_GLADES))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
 out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))

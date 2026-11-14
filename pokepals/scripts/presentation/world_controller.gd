@@ -85,7 +85,7 @@ var _encounter_dir: EncounterDirector
 # HUD pieces are made once in _ready (they live in the UI layer, like the radial); the director per world.
 var _fishing_dir: FishingDirector
 var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
-var _firefly_dir: FireflyDirector   # Dozewood's firefly glades (no-op elsewhere)
+var _firefly_dir: FireflyDirector   # the firefly glades by Steamhollow's and Underroot's secrets (no-op elsewhere)
 var _lantern_radius := 220.0  # the pocket a FRIEND's lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
 var _use_button: UseButton
@@ -472,7 +472,7 @@ func _create_directors() -> void:
 	add_child(_fishing_dir)
 	_fishing_dir.setup(self, _player, _companion, _presence_dir, _scenery, _hotbar, _use_button)
 
-	# Firefly glades (Dozewood): examine the jar and a firefly comes down into it; the tinker makes lanterns with them.
+	# Firefly glades (beside the secret in Steamhollow and Underroot): examine the jar and a firefly comes down into it; the tinker makes lanterns with them.
 	_firefly_dir = FireflyDirector.new()
 	add_child(_firefly_dir)
 	_firefly_dir.setup(self, _player, _companion, _scenery)
@@ -738,7 +738,7 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		if bool(it.get("crafts", false)):
 			entry["crafts"] = true  # the tinker in the bazaar, who makes things from what you bring
 		if bool(it.get("firefly_jar", false)):
-			entry["firefly_jar"] = true  # a glass jar in a firefly glade (Dozewood)
+			entry["firefly_jar"] = true  # a glass jar in a firefly glade (Steamhollow, Underroot)
 		if kind == "secret":
 			entry["secret"] = it["secret"]
 			_secret_dir.adopt_entry(entry)

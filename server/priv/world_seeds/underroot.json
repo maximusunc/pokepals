@@ -573,7 +573,7 @@
 			]
 		}
 	},
-	"atmosphere": {"day_tint": [0.84, 0.88, 0.96], "vignette": {"strength": 0.4, "color": [0.02, 0.03, 0.06]}, "wind": {"strength": 0.2, "speed": 0.3}, "pollen": {"amount": 8, "color": [0.7, 1.0, 0.86]}, "region_tint_alpha": 0.05, "grass": {"max": 0}, "fog": {"clear_radius": 52, "fade_radius": 175, "color": [0.015, 0.02, 0.04], "warm": [0.5, 0.95, 0.72], "density": 0.97, "swirl": 0.06, "noise_scale": 0.016, "drift": [1.5, 0.7], "fade_in": 2.5, "light_clear": 0.93, "max_lights": 8, "companion_radius": 76, "friend_radius": 60, "lit": {"prop_types": {"ur_glowmoss": {"radius": 64, "warm": 0.95, "x": 0, "y": 3}, "ur_glowcap": {"radius": 54, "warm": 0.9, "x": 0, "y": -3}, "ur_sprout": {"radius": 30, "warm": 0.8, "x": 0, "y": -4}}}}},
+	"atmosphere": {"day_tint": [0.84, 0.88, 0.96], "vignette": {"strength": 0.4, "color": [0.02, 0.03, 0.06]}, "wind": {"strength": 0.2, "speed": 0.3}, "pollen": {"amount": 8, "color": [0.7, 1.0, 0.86]}, "region_tint_alpha": 0.05, "grass": {"max": 0}, "fog": {"clear_radius": 52, "fade_radius": 175, "color": [0.015, 0.02, 0.04], "warm": [0.5, 0.95, 0.72], "density": 0.97, "swirl": 0.06, "noise_scale": 0.016, "drift": [1.5, 0.7], "fade_in": 2.5, "light_clear": 0.93, "max_lights": 8, "companion_radius": 76, "friend_radius": 60, "lit": {"prop_types": {"ur_glowmoss": {"radius": 64, "warm": 0.95, "x": 0, "y": 3}, "firefly_jar_table": {"radius": 36, "warm": 1.0, "x": 0, "y": -24}, "ur_glowcap": {"radius": 54, "warm": 0.9, "x": 0, "y": -3}, "ur_sprout": {"radius": 30, "warm": 0.8, "x": 0, "y": -4}}}}},
 	"player_spawn": [0, 840],
 	"companion_spawn": [-30, 868],
 	"ponds": [
@@ -880,7 +880,12 @@
 		{"id": "moss_115", "type": "ur_glowmoss", "position": [1192, -95], "color": [1.0, 0.82, 0.46], "label": "a patch of glow-moss"},
 		{"id": "moss_116", "type": "ur_glowmoss", "position": [1203, 230], "color": [0.46, 0.96, 0.78], "label": "a patch of glow-moss"},
 		{"id": "stone_117", "type": "ur_stone", "position": [1230, 270], "color": [1.0, 1.0, 1.0], "label": "a mossy stone", "solid": true, "collision_radius": 8},
-		{"id": "moss_118", "type": "ur_glowmoss", "position": [1196, 827], "color": [0.46, 0.96, 0.78], "label": "a patch of glow-moss"}
+		{"id": "moss_118", "type": "ur_glowmoss", "position": [1196, 827], "color": [0.46, 0.96, 0.78], "label": "a patch of glow-moss"},
+		{"id": "jar_glade_heartwood", "type": "firefly_jar_table", "position": [-992, -536], "color": [1.0, 1.0, 1.0], "label": "a glass jar on a little table", "tags": ["made", "light"], "interactive": true, "lore": "A glass jar on a little round table at the edge of the Heartwood, its lid set beside it. Fireflies drift here in the warm dark by the root-heart, the only ones in all the caves. They drift lower when you come near, as if one of them wanted to come along.", "solid": true, "collision_radius": 8, "firefly_jar": true}
+	],
+	"_firefly_glades_comment": "Where fireflies gather (usable items, crafting): beside the secret, at the end of the world. The glade has a glass jar on a little table (a 'firefly_jar' prop): examine it and a firefly drifts down into the jar for you. You carry one at a time; the tinker in the bazaar makes a lantern with one. The server honours a catch only at a jar.",
+	"firefly_glades": [
+		{"id": "glade_heartwood", "position": [-1010, -560], "radius": 44}
 	],
 	"_secret_comment": "This world's one SECRET (docs/home-world-and-secrets-design.md, 'Underroot'). reveal.type 'follow': a seed glowing deep in the tangle of tunnels. You ask your companion to Go look and FOLLOW its light (FollowGuide / FollowDirector): it leads along a route planned through the tunnels at a pace that grows with bond, waits when you fall behind, holds back (then lets go) if you push ahead of it, and loses the scent after 'reach' px if the bond is young (ask again). When you and it have both arrived (arrive_*), the heart rises. The server honours a claim only here, within 'radius' of 'position'.",
 	"secret": {

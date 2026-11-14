@@ -346,3 +346,16 @@ The empty-hand jar on the use button was **too hidden**. Changed, as the owner a
 - **Test:** `tests/smoke_lantern.gd` (Underroot: the dark pushed back and closing in again; the lantern still in
   hand and lit after a world rebuild).
 
+
+### The fireflies move to the end of the dark worlds (2026-11-13)
+
+Decided by the owner: fireflies (and so lanterns) are a **reward for getting through a dark world once**, making
+the second pass easier. Dozewood's three glades are **gone**. There is now **one glade, with its jar, beside the
+secret** at the end of each of the two dark worlds:
+- **Steamhollow:** just north of the bronze bell, across from the bellkeeper's stool (`tools/gen_steamhollow_world.py`).
+- **Underroot:** at the edge of the Heartwood, by the root-heart (`tools/gen_underroot_world.py`).
+
+Gating is **placement only**: anyone who reaches the jar can take a firefly (a friend who leads you there gets you
+one too, but you're then standing at the secret and can claim it). The jar gives a **faint** pocket of light in the
+fog / dark (`atmosphere.fog.lit.prop_types.firefly_jar_table`, radius 36, about a lantern's), so it glows a little
+once you're close. Nothing else changed: the server still honours a catch only at a jar, one at a time.

@@ -1,13 +1,14 @@
 extends SceneTree
 ## Headless smoke test for the FIREFLY JARS (usable items, crafting; docs/usable-items-design.md): loads the
-## real World scene in Dozewood and plays the server's side by hand through Net. Each of the three glades has its
-## fireflies and a glass jar on a little table; walking into a glade points at the jar; examining the jar plays a
+## real World scene in Steamhollow and plays the server's side by hand through Net. Fireflies gather only at the end
+## of the two dark worlds, beside the secret (Steamhollow's bell, Underroot's root-heart; none in Dozewood any more):
+## each has one glade with its fireflies and a glass jar on a little table; walking into the glade points at the jar; examining the jar plays a
 ## short cutscene (your steering rests, a firefly drifts down into it) and asks the server; when the server
 ## says yes the firefly is yours and steering comes back; carrying one already, the jar says so and no cutscene
 ## plays (one at a time). Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_fireflies.gd
 
-const DOZEWOOD_ID := "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb"
+const STEAMHOLLOW_ID := "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa"
 
 var _world: Node
 var _net: Node
@@ -27,12 +28,12 @@ func _ok(cond: bool, label: String) -> void:
 func _build() -> void:
 	var router := root.get_node("/root/WorldRouter")
 	_net = root.get_node("/root/Net")
-	_net.prime_world_spec(DOZEWOOD_ID, WorldData.load_json("res://tests/world_fixtures/dozewood.json"))
-	router.current_world = DOZEWOOD_ID
+	_net.prime_world_spec(STEAMHOLLOW_ID, WorldData.load_json("res://tests/world_fixtures/steamhollow.json"))
+	router.current_world = STEAMHOLLOW_ID
 	router.arrival_portal_id = ""
 	_world = (load("res://scenes/world.tscn") as PackedScene).instantiate()
 	root.add_child(_world)
-	_net.emit_signal("world_spec_unchanged", DOZEWOOD_ID)
+	_net.emit_signal("world_spec_unchanged", STEAMHOLLOW_ID)
 	paused = false
 
 
@@ -65,8 +66,23 @@ func _process(_delta: float) -> bool:
 			for e in _world._interactables:
 				if bool(e.get("firefly_jar", false)):
 					jars.append(e)
-			_ok(glades == 3 and jars.size() == 3, "three glades, each with a jar to examine")
+			_ok(glades == 1 and jars.size() == 1, "one glade, with a jar to examine")
 			_jar = jars[0] if not jars.is_empty() else {}
+			# the jars stand at the END of the two dark worlds, beside the secret, and nowhere else
+			for w in ["steamhollow", "underroot", "dozewood"]:
+				var spec: Dictionary = WorldData.load_json("res://tests/world_fixtures/%s.json" % w)
+				var secret_at := WorldData.to_vec2(spec.get("secret", {}).get("position", [0, 0]))
+				var near := 0
+				var total := 0
+				for p in spec.get("props", []):
+					if bool(p.get("firefly_jar", false)):
+						total += 1
+						if WorldData.to_vec2(p["position"]).distance_to(secret_at) <= 120.0:
+							near += 1
+				if w == "dozewood":
+					_ok(total == 0 and spec.get("firefly_glades", []).is_empty(), "no fireflies in Dozewood any more")
+				else:
+					_ok(total == 1 and near == 1, "%s: one jar, beside the secret" % w)
 			_net._dispatch("inventory", { "items": [] })
 			player.set_process(false)
 			player.position = _jar["pos"] + Vector2(0, 20)

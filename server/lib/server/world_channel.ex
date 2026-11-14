@@ -514,7 +514,7 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
-  # A FIREFLY comes down into the jar (Dozewood's glades). Honoured only while we stand at a firefly jar in
+  # A FIREFLY comes down into the jar (the glades by Steamhollow's and Underroot's secrets). Honoured only while we stand at a firefly jar in
   # this world, and only if we aren't already carrying one (one at a time; it goes into a lantern, then
   # another can come). Answers `firefly_caught` then the `inventory`, or `firefly_refused`.
   def handle_in("catch_firefly", _payload, socket) do

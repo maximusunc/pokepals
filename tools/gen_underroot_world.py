@@ -365,6 +365,21 @@ for (i, j), n in sorted(OPEN.items()):
 
 ALL_PROPS = SPECIAL + PROPS
 
+# ── the firefly glade (usable items, crafting; docs/usable-items-design.md) ─────────────────────────────
+# Fireflies gather only at the END of the two dark worlds (here and Steamhollow), beside the secret, so the
+# lantern they make (the tinker in the bazaar) is a reward for having found your way through once, and makes the
+# second pass easier. A glass jar on a little table (a "firefly_jar" prop, appended after the layout so nothing
+# else moves): examine it and a firefly drifts down into it for you. One at a time. Its faint glow thins the dark
+# a little (atmosphere.fog.lit). Drawn by the client (FireflyGlade); the server checks the jar.
+FIREFLY_GLADES = [{"id": "glade_heartwood", "position": [round(HEART[0]) - 50, round(HEART[1]) + 40], "radius": 44}]
+for g in FIREFLY_GLADES:
+    ALL_PROPS.append(prop("jar_" + g["id"], "firefly_jar_table", (g["position"][0] + 18, g["position"][1] + 24), WHITE,
+                          "a glass jar on a little table",
+                          'A glass jar on a little round table at the edge of the Heartwood, its lid set beside it. Fireflies drift here in the warm dark by the root-heart, the only ones in all the caves. They drift lower when you come near, as if one of them wanted to come along.',
+                          tags=["made", "light"], solid=True, radius=8))
+    ALL_PROPS[-1]["firefly_jar"] = True
+
+
 # ── checks: nothing solid may block a tunnel (leave at least ~56 px of the 90 clear) ──────────────────
 def solid_discs():
     out = [(t[0], t[1], 7) for t in TREES]
@@ -483,6 +498,7 @@ ATMOSPHERE = {
         "lit": {
             "prop_types": {
                 "ur_glowmoss": {"radius": 64, "warm": 0.95, "x": 0, "y": 3},
+                "firefly_jar_table": {"radius": 36, "warm": 1.0, "x": 0, "y": -24},
                 "ur_glowcap": {"radius": 54, "warm": 0.9, "x": 0, "y": -3},
                 "ur_sprout": {"radius": 30, "warm": 0.8, "x": 0, "y": -4},
             },
@@ -593,6 +609,8 @@ out.append('\t"hedges": [\n%s\n\t],' % block(HEDGES))
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
+out.append('\t"_firefly_glades_comment": %s,' % json.dumps("Where fireflies gather (usable items, crafting): beside the secret, at the end of the world. The glade has a glass jar on a little table (a 'firefly_jar' prop): examine it and a firefly drifts down into the jar for you. You carry one at a time; the tinker in the bazaar makes a lantern with one. The server honours a catch only at a jar."))
+out.append('\t"firefly_glades": [\n%s\n\t],' % block(FIREFLY_GLADES))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
 out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))
