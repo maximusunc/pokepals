@@ -145,4 +145,40 @@ defmodule Server.AmbientPalsTest do
       assert py >= 15 + 8 - 0.5, "crossed into the wall (y = #{py})"
     end
   end
+
+  # The pond at (300, 200), radius 100: its drawn bank bulges to ~119 px at angle ~2.076 and dips to
+  # ~85 px at ~5.379. The same vectors pin the client's PondShape (pokepals/tests/test_solids.gd).
+  test "the pond bank twin matches the client's PondShape" do
+    seed = 300 * 0.013 + 200 * 0.021 - 2 * :math.pi()
+    assert_in_delta AmbientPals.bank_radius(1.0, 100.0, seed), 93.3920, 0.01
+    assert_in_delta AmbientPals.bank_radius(2.0, 100.0, seed), 117.9170, 0.01
+    assert_in_delta AmbientPals.bank_radius(3.0, 100.0, seed), 85.8548, 0.01
+  end
+
+  test "pals keep out of a pond along its drawn bank, not a circle" do
+    at = fn a, d -> [300 + d * :math.cos(a), 200 + d * :math.sin(a)] end
+
+    extra = %{
+      "ambient_pals" => [
+        %{"id" => "wet", "home" => at.(2.0758, 110), "roam_radius" => 0, "look" => %{}},
+        %{"id" => "dry", "home" => at.(5.3789, 97), "roam_radius" => 0, "look" => %{}}
+      ],
+      "ponds" => [%{"center" => [300, 200], "radius" => 100}]
+    }
+
+    [wet, dry] = AmbientPals.new(core(extra)) |> AmbientPals.to_list()
+    [wx, wy] = wet.p
+    # homed in the bulging water: pushed out to the bank (~119) plus the body (8)
+    assert :math.sqrt(:math.pow(wx - 300, 2) + :math.pow(wy - 200, 2)) >= 119.14 + 8 - 0.5
+    # homed on the dry ground of a dent (bank ~85): left where it is
+    [hx, hy] = at.(5.3789, 97)
+    assert_in_delta Enum.at(dry.p, 0), hx, 0.5
+    assert_in_delta Enum.at(dry.p, 1), hy, 0.5
+
+    # a soft world's water is round: the same dry spot is inside its circle, so that pal is pushed
+    soft = Map.put(extra, "art", %{"entities" => %{"ground" => %{"render" => "soft"}}})
+    [_, dry_soft] = AmbientPals.new(core(soft)) |> AmbientPals.to_list()
+    [sx, sy] = dry_soft.p
+    assert :math.sqrt(:math.pow(sx - 300, 2) + :math.pow(sy - 200, 2)) >= 100 + 8 - 0.5
+  end
 end

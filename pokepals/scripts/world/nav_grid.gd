@@ -63,7 +63,8 @@ static func build(solids: Array, bounds: Rect2, body_radius: float, margin: floa
 	# cell(s) it sits in; the exact line_clear test still uses the true radii.
 	var min_raster_r := g._cell_size * 0.7072  # half diagonal, a hair over sqrt(2)/2
 	for s in solids:
-		var r := maxf(float(s["radius"]) + g._inflate, min_raster_r)
+		var r := maxf(Solids.max_reach(s) + g._inflate, min_raster_r)
+		var shaped: bool = s.has("shore_seed")  # a pond: its reach depends on the direction (Solids.reach)
 		var lo: Vector2
 		var hi: Vector2
 		if s.has("a"):
@@ -86,7 +87,8 @@ static func build(solids: Array, bounds: Rect2, body_radius: float, margin: floa
 				if g._walk[idx] == 0:
 					continue
 				var center := g.center_of(Vector2i(col, row))
-				if center.distance_to(Solids.nearest_point(s, center)) < r:
+				var cell_r := maxf(Solids.reach(s, center) + g._inflate, min_raster_r) if shaped else r
+				if center.distance_to(Solids.nearest_point(s, center)) < cell_r:
 					g._walk[idx] = 0
 	return g
 
@@ -151,7 +153,10 @@ func line_clear(a: Vector2, b: Vector2) -> bool:
 			continue
 		var s: Dictionary = _solids[i]
 		var min_dist := float(s["radius"]) + _inflate
-		if s.has("a"):
+		if s.has("shore_seed"):
+			if not _clear_of_bank(a, b, s):
+				return false
+		elif s.has("a"):
 			var pts := Geometry2D.get_closest_points_between_segments(a, b, s["a"], s["b"])
 			if pts[0].distance_to(pts[1]) < min_dist:
 				return false
@@ -159,6 +164,26 @@ func line_clear(a: Vector2, b: Vector2) -> bool:
 			var near := Geometry2D.get_closest_point_to_segment(s["center"], a, b)
 			if near.distance_to(s["center"]) < min_dist:
 				return false
+	return true
+
+
+## line_clear against a pond's wobbly bank: cheap reject on the bank's widest reach, then walk the part
+## of the segment that comes within it, a few px at a time, testing each point against the bank's reach in
+## its own direction.
+const BANK_STEP := 4.0
+
+func _clear_of_bank(a: Vector2, b: Vector2, s: Dictionary) -> bool:
+	var c: Vector2 = s["center"]
+	var outer := Solids.max_reach(s) + _inflate
+	if Geometry2D.get_closest_point_to_segment(c, a, b).distance_to(c) >= outer:
+		return true
+	var length := a.distance_to(b)
+	var steps := maxi(1, ceili(length / BANK_STEP))
+	for k in steps + 1:
+		var q := a.lerp(b, float(k) / float(steps))
+		var d := q.distance_to(c)
+		if d < outer and d < Solids.reach(s, q) + _inflate:
+			return false
 	return true
 
 

@@ -12,7 +12,55 @@ static func run_all() -> int:
 	fails += _test_leaves_a_clear_point_untouched()
 	fails += _test_build_includes_the_right_categories()
 	fails += _test_buildings_block_their_whole_footprint()
+	fails += _test_a_pond_blocks_along_its_drawn_bank()
+	fails += _test_a_soft_worlds_pond_is_round()
 	return fails
+
+
+# The pond at (300, 200), radius 100: its bank bulges out to ~119 px at angle ~2.076 and dips in to
+# ~85 px at angle ~5.379 (PondShape; the same vectors pin the server's twin in ambient_pals_test.exs).
+const POND_C := Vector2(300, 200)
+const BULGE_A := 2.0758
+const DENT_A := 5.3789
+
+static func _pond_world(extra := {}) -> Dictionary:
+	var w := { "ponds": [{ "center": [300, 200], "radius": 100 }] }
+	w.merge(extra)
+	return w
+
+
+static func _test_a_pond_blocks_along_its_drawn_bank() -> int:
+	var fails := 0
+	fails += _check("the bank formula matches its pinned vectors",
+		absf(PondShape.radius_at(1.0, 100.0, PondShape.seed_for(POND_C)) - 93.3920) < 0.01
+		and absf(PondShape.radius_at(2.0, 100.0, PondShape.seed_for(POND_C)) - 117.9170) < 0.01
+		and absf(WorldArt.organic_radius(3.0, 100.0, PondShape.seed_for(POND_C)) - 85.8548) < 0.01)
+	var solids := Solids.build(_pond_world(), [], {})
+	var bank_bulge := PondShape.radius_at(BULGE_A, 100.0, PondShape.seed_for(POND_C))
+	# standing where the bank bulges out (outside the old circle, but in the drawn water): pushed out to the bank
+	var wet := POND_C + Vector2.from_angle(BULGE_A) * 110.0
+	var p := Solids.resolve(wet, 6.0, solids, _big_bounds(), 2.0)
+	fails += _check("a body in the bulging water is pushed out to the drawn bank (%.1f >= %.1f)" % [p.distance_to(POND_C), bank_bulge + 8.0],
+		p.distance_to(POND_C) >= bank_bulge + 7.9)
+	# standing where the bank dips in (inside the old circle, but on dry ground): left alone
+	var dry := POND_C + Vector2.from_angle(DENT_A) * 97.0
+	fails += _check("a body on the dry ground of a dent in the bank is not pushed",
+		Solids.resolve(dry, 6.0, solids, _big_bounds(), 2.0).is_equal_approx(dry))
+	# the nav grid agrees: a line across the bulge is blocked, one skirting the dent is clear
+	var grid := NavGrid.build(solids, _big_bounds(), 6.0, 2.0, 16.0)
+	var t := Vector2.from_angle(BULGE_A).orthogonal() * 60.0
+	var across_bulge := POND_C + Vector2.from_angle(BULGE_A) * 112.0
+	fails += _check("routing sees the bulge", not grid.line_clear(across_bulge - t, across_bulge + t))
+	var u := Vector2.from_angle(DENT_A).orthogonal() * 10.0
+	fails += _check("routing walks the dent", grid.line_clear(dry - u, dry + u))
+	return fails
+
+
+static func _test_a_soft_worlds_pond_is_round() -> int:
+	var soft := _pond_world({ "art": { "entities": { "ground": { "render": "soft" } } } })
+	var solids := Solids.build(soft, [], {})
+	var p := Solids.resolve(POND_C + Vector2.from_angle(DENT_A) * 97.0, 6.0, solids, _big_bounds(), 2.0)
+	return _check("a soft world's round pond blocks as a plain circle", p.distance_to(POND_C) >= 107.9)
 
 
 static func _test_buildings_block_their_whole_footprint() -> int:
