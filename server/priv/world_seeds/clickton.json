@@ -483,8 +483,8 @@
 		},
 		"actor_look": {
 			"brick": {
-				"cell": 4,
-				"quantize": 0.45
+				"cell": 2,
+				"quantize": 0.3
 			}
 		}
 	},

@@ -36,8 +36,8 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	# and changes nothing else.
 	if look.has("brick"):
 		var bcfg: Dictionary = look["brick"]
-		actor.set_meta("brick_cell", int(bcfg.get("cell", 4)))
-		actor.set_meta("brick_quantize", float(bcfg.get("quantize", 0.6)))
+		actor.set_meta("brick_cell", int(bcfg.get("cell", 2)))
+		actor.set_meta("brick_quantize", float(bcfg.get("quantize", 0.3)))
 		actor.queue_redraw()
 		return
 	var mat := ShaderMaterial.new()
