@@ -189,30 +189,34 @@ func _draw_fx() -> void:
 		_draw_pop(_fx)
 
 
-## The rod slung low across the middle of your back, a gentle slant from one hip to the other side of the
-## waist, so its ends poke out either side of you. From the front (and the side) it's behind you; from
-## behind it lies across your back on a sash. Coordinates match the avatar sheet (feet at 0, shoulders
-## at about -10, the head's top at about -23).
+## The rod slung corner to corner across your back at its first slant (the grip by one side, the tip up past
+## the other shoulder), sitting low so it crosses the middle of the back. From the front (and the side) it's
+## behind you, peeking out; from behind it lies across your back on a sash. Coordinates match the avatar
+## sheet (feet at 0, shoulders at about -10, the head's top at about -23).
+const BACK_DROP := 9.0
+
 func _draw_on_back() -> void:
-	var butt := Vector2(-15, -2)
-	var tip := Vector2(15, -10)
+	var butt := Vector2(-12, -3)
+	var tip := Vector2(11, -31)
 	match _pose:
 		1:  # facing away: we see the back it's slung on
-			butt = Vector2(15, -2)
-			tip = Vector2(-15, -10)
-		2:  # facing right: the back is to the left; the rod runs into the screen, so it's short and steep
-			butt = Vector2(-3, -1)
-			tip = Vector2(-12, -12)
+			butt = Vector2(12, -3)
+			tip = Vector2(-11, -31)
+		2:  # facing right: the back is to the left, the rod leans back over it
+			butt = Vector2(-3, -3)
+			tip = Vector2(-13, -31)
 		3:
-			butt = Vector2(3, -1)
-			tip = Vector2(12, -12)
+			butt = Vector2(3, -3)
+			tip = Vector2(13, -31)
+	butt.y += BACK_DROP
+	tip.y += BACK_DROP
 	var grip := butt.lerp(tip, 0.25)
 	draw_line(butt, tip, Color(0.46, 0.32, 0.18), 1.6, true)
 	draw_line(butt, grip, Color(0.30, 0.20, 0.12), 2.2, true)
 	draw_circle(butt.lerp(tip, 0.18) + (tip - butt).orthogonal().normalized() * 1.6, 1.3, Color(0.72, 0.74, 0.78))
 	if _pose == 1:
 		# the sash from one shoulder down to the rod, holding it on
-		draw_line(Vector2(-6, -10), butt.lerp(tip, 0.3), Color(0.36, 0.26, 0.18), 1.0, true)
+		draw_line(Vector2(6, -10), butt.lerp(tip, 0.3), Color(0.36, 0.26, 0.18), 1.0, true)
 
 
 func _draw_rod_and_line() -> void:
