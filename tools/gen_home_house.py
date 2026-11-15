@@ -3,9 +3,10 @@
 
 Writes the `house` block of the home template (server/priv/home/home.json), and marks the home as a place
 where no axe works (`base.chopping: false`). Server.HomeWorld places the house once the carpenter has been
-paid: it widens the glade to the north by `extend_north` and stands the house `from_north` below the new north
-edge, centred, translating everything here (all LOCAL: x, y from the footprint's top-left corner) into world
-coordinates. The client draws it (HouseView, HouseFurniture; WorldArt draws the floors and display shelves as
+paid: it stands the house centred on x = 0 (in line with the way in), its front door `door_from_pond` north of the
+glade's pond's top edge, wherever the glade has grown to; the glade's north edge reaches at least `from_north` past the
+house's back, for its treeline. It translates everything here (all LOCAL: x, y from the footprint's top-left
+corner) into world coordinates. The client draws it (HouseView, HouseFurniture; WorldArt draws the floors and display shelves as
 plates) and walls it in (the building's `solid_rects`).
 
 A cosy cottage, three rooms side by side so every wall between them runs north-south (so a cutaway view reads
@@ -187,11 +188,13 @@ front_windows = [[52, 96], [118, 160], [204, 240], [320, 356], [400, 440], [480,
 house = {
     "_comment": "The HOUSE (home building; tools/gen_home_house.py writes this, re-run it after editing). Placed by "
                 "Server.HomeWorld once the carpenter in the bazaar has been paid (Server.House): the glade widens to "
-                "the north by 'extend_north' and the house stands centred, 'from_north' below the new north edge. "
+                "the north only as far as it must: the house stands centred on x = 0 (in line with the way in), its front door "
+                "'door_from_pond' px north of the pond's top edge, with 'from_north' px behind it for the treeline. "
                 "Everything below is LOCAL (from the footprint's top-left). While it's being built you see a timber "
                 "frame on its floor, and the carpenter at work; once built, the furniture, rugs and display shelves "
                 "go in and your finds move inside: keepsakes on 'display_spots', every other find on 'curio_spots'.",
-    "extend_north": 440,
+    # 140 px is about 10 yards (a person is about 26 px tall)
+    "door_from_pond": 140,
     "from_north": 150,
     "size": [W, D],
     "wall_h": WALL_H,

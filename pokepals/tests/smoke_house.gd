@@ -128,7 +128,14 @@ func _process(_delta: float) -> bool:
 			_ok(hd.is_active() and view != null, "the home has a house")
 			_ok(view != null and not view.built, "it's being built")
 			var fp: Rect2 = view.footprint()
-			_ok(fp.end.y < -330.0 and fp.size.x >= 500.0, "a big house, north of the glade as it was (%s)" % fp)
+			# Its front door is a little north of the pond's top edge, straight up from the portal home.
+			var pond: Dictionary = (_world._world_data.get("ponds", []) as Array)[0]
+			var pond_top: float = float(pond["center"][1]) - float(pond["radius"])
+			var door_x: float = (float(view.house["door"][0]) + float(view.house["door"][1])) * 0.5
+			var portal_x: float = float((_world._world_data.get("portals", []) as Array)[0]["position"][0])
+			_ok(fp.size.x >= 500.0 and fp.end.y < pond_top - 100.0 and fp.end.y > pond_top - 180.0,
+				"a big house, its door a little north of the pond (%s, pond top %.0f)" % [fp, pond_top])
+			_ok(absf(door_x - portal_x) < 1.0, "its door in line with the portal home")
 			_ok(_world.get_node_or_null("Scenery/Carpenter") != null, "the carpenter is here, at work")
 			_ok(_world.get_node_or_null("Scenery/HouseBackWall") != null, "the frame's back wall stands")
 			_ok(_count("curio") == 0, "nothing has moved in yet")

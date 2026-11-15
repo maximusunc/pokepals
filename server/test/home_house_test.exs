@@ -51,17 +51,27 @@ defmodule Server.HomeHouseTest do
     assert house(c) == nil
   end
 
-  test "being built: the glade widens north and the house stands there, walled, with its floor down" do
+  # Where the house's front door stands: `door_from_pond` north of the pond's top edge (the template's first pond).
+  defp door_y do
+    t = template()
+    [_x, cy] = hd(t["base"]["ponds"])["center"]
+    cy - hd(t["base"]["ponds"])["radius"] - t["house"]["door_from_pond"]
+  end
+
+  test "being built: the house stands by the pond, in line with the way in, walled, with its floor down" do
     c = core(:building)
     t = template()["house"]
-    assert c["bounds"] == %{"min" => [-400, -330 - t["extend_north"]], "max" => [400, 330]}
-    assert Enum.all?(c["regions"], &(&1["min"] == [-400, -330 - t["extend_north"]]))
     h = house(c)
     [x, y, w, d] = h["rect"]
     assert w == 560 and d == 220 and x == -280.0
-    assert y == -330 - t["extend_north"] + t["from_north"]
-    # entirely north of the old glade, and inside the new bounds
-    assert y + d < -330 and y > -330 - t["extend_north"]
+    # its front door: door_from_pond north of the pond's top edge, centred on x = 0 like the portal home
+    assert y + d == door_y()
+    assert Enum.sum(t["door"]) / 2 + x == 0
+    assert [px, _] = hd(c["portals"])["position"]
+    assert px == 0
+    # the glade reaches north just far enough for the house and its treeline
+    assert c["bounds"] == %{"min" => [-400, y - t["from_north"]], "max" => [400, 330]}
+    assert Enum.all?(c["regions"], &(&1["min"] == [-400, y - t["from_north"]]))
     assert h["house"]["state"] == "building"
     assert h["house"]["started_at"] == @t0
     # walls only: the furniture comes in once it's built
@@ -69,6 +79,20 @@ defmodule Server.HomeHouseTest do
     assert length(c["plates"]) == length(t["floors"])
     # a path up to the door
     assert Enum.any?(c["paths"], fn p -> p["to"] == [0.0, y + d + 12] end)
+  end
+
+  test "nothing in the glade stands where the house does, whatever the bond and finds" do
+    cards = for q <- ~w(glowing watery green old warm wild quiet odd), i <- 1..3, do: {"#{q}#{i}", put_in(@card, ["qualities"], [q])}
+    c = core(:building, spots: 7, keepsakes: Enum.map(Enum.take(cards, 7), &elem(&1, 0)), cards: cards)
+    [x, y, w, d] = house(c)["rect"]
+    inside = fn [px, py] -> px > x - 10 and px < x + w + 10 and py > y - 10 and py < y + d + 16 end
+    things =
+      Enum.map(c["props"], &{&1["id"], &1["position"]}) ++
+        Enum.map(c["trees"] || [], &{"tree", &1}) ++
+        Enum.map(c["landmarks"] || [], &{"landmark", &1["position"]}) ++
+        Enum.map(c["ponds"] || [], &{"pond", &1["center"]})
+
+    for {id, [px, py | _]} <- things, do: refute(inside.([px, py]), "#{id} stands where the house does")
   end
 
   test "being built: keepsakes stay in the glade, no curios" do
@@ -100,12 +124,11 @@ defmodule Server.HomeHouseTest do
     assert Enum.all?(curios, &(&1["interactive"] and &1["lore"] == "Ours."))
   end
 
-  test "built in a big glade: the house follows the north edge out" do
+  test "built in a big glade: the house stays by the pond, and the glade already holds it" do
     c = core(:built, spots: 7)
-    t = template()["house"]
-    [_x, y, _w, _d] = house(c)["rect"]
-    assert c["bounds"]["min"] == [-760, -610 - t["extend_north"]]
-    assert y == -610 - t["extend_north"] + t["from_north"]
+    [_x, y, _w, d] = house(c)["rect"]
+    assert y + d == door_y()
+    assert c["bounds"]["min"] == [-760, min(-610, y - template()["house"]["from_north"])]
     assert Enum.all?(c["home"]["spot_positions"], fn [_px, py] -> py > y and py < y + 220 end)
   end
 

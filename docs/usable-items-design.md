@@ -529,3 +529,12 @@ show every find:
 - `Server.HomeWorld` picks the shelves' finds (newest first, not keepsakes); `HouseDirector` makes the same choice when
   a house finishes in front of you. Tested in `home_house_test.exs` and `tests/smoke_house.gd` (17 finds: 15 on show,
   all 17 in the cabinet).
+
+### Where the house stands (2026-11-15)
+
+Asked for by the owner: the house was too far north (it stood from the glade's north edge, which moves out as the bond
+opens keepsake spots, so a well-bonded home put it a long way off). It now stands **by the pond, in line with the way
+in**: its front door `door_from_pond` (140 px, about 10 yards) north of the pond's top edge, centred on x = 0 like the
+portal home, and it doesn't move as the glade grows. The glade reaches north only as far as the house needs (its back
+plus `from_north` for the treeline). The seventh keepsake spot in the glade (used only before a house is finished)
+moved out of its way, and `home_house_test.exs` checks nothing in the glade stands where the house does, at any bond.
