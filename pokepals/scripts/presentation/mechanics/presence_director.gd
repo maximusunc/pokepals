@@ -340,6 +340,15 @@ func _apply_remote_identity(peer_id: String, payload: Dictionary) -> void:
 		pair["lantern"] = lantern
 	if lantern != null:
 		lantern.visible = held == "lantern"
+	# A friend carrying an axe (home building): over their shoulder.
+	var axe: AxeView = pair.get("axe")
+	if axe == null and held == "axe":
+		axe = AxeView.new()
+		axe.name = "Axe"
+		(pair["player"] as Node).add_child(axe)
+		pair["axe"] = axe
+	if axe != null:
+		axe.visible = held == "axe"
 
 
 ## A peer's live transforms arrived (~20 Hz). Treat every field as UNTRUSTED: positions are clamped

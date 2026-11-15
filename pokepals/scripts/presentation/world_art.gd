@@ -353,8 +353,20 @@ func _parse_plates(data: Dictionary) -> void:
 		_plates.append({
 			"rect": Rect2(float(r[0]), float(r[1]), float(r[2]), float(r[3])),
 			"kind": kind, "color": WorldData.to_color(pl.get("color", [0.7, 0.7, 0.7])), "tex": tex,
-			"raised": kind != "mark", "shimmer": bool(pl.get("shimmer", false)),
+			"raised": kind != "mark" and not HOUSE_PLATES.has(kind), "shimmer": bool(pl.get("shimmer", false)),
 		})
+
+
+## The plate kinds a HOUSE is laid with (home building; HouseView draws the rest of it): floorboards, kitchen
+## tiles, the low walls seen from inside, rugs, and the plinths, chest and shelves your finds stand on. Drawn
+## here, under the props, so the finds displayed on them draw on top.
+const HOUSE_PLATES := ["planks", "tiles", "wall", "rug", "plinth", "chest", "shelf"]
+
+
+## Re-read the plates (a house finished while you were there: its rugs and display shelves go down).
+func refresh_plates(data: Dictionary) -> void:
+	_parse_plates(data)
+	queue_redraw()
 
 
 func _draw_plates(vis: Rect2, cull: bool) -> void:
@@ -363,6 +375,9 @@ func _draw_plates(vis: Rect2, cull: bool) -> void:
 		if cull and not vis.intersects(r.grow(4.0)):
 			continue
 		var col: Color = pl["color"]
+		if HOUSE_PLATES.has(String(pl["kind"])):
+			_draw_house_plate(String(pl["kind"]), r, col)
+			continue
 		if bool(pl["shimmer"]):
 			var k := 1.0 + 0.05 * sin(_time * 1.3 + r.position.x * 0.013 + r.position.y * 0.007)
 			col = Color(col.r * k, col.g * k, col.b * k, col.a)
@@ -375,6 +390,80 @@ func _draw_plates(vis: Rect2, cull: bool) -> void:
 			# the plate's thickness: a dark edge below it and a lit rim along its top
 			draw_rect(Rect2(r.position.x, r.end.y, r.size.x, 2.0), col.darkened(0.45))
 			draw_rect(Rect2(r.position.x, r.position.y, r.size.x, 1.0), col.lightened(0.25))
+
+
+## One of a house's plates (see HOUSE_PLATES), in the game's oblique view: flat things are flat, the low
+## things (a wall's top, a plinth, a chest, a shelf) show their top face and a strip of front face below it.
+func _draw_house_plate(kind: String, r: Rect2, col: Color) -> void:
+	match kind:
+		"planks":
+			draw_rect(r, col)
+			var row := 0
+			var y := r.position.y
+			while y < r.end.y:
+				var h := minf(6.0, r.end.y - y)
+				draw_rect(Rect2(r.position.x, y + h - 1.0, r.size.x, 1.0), col.darkened(0.16))
+				var x := r.position.x + (14.0 if row % 2 == 1 else 0.0) + 22.0
+				while x < r.end.x:
+					draw_rect(Rect2(x, y, 1.0, h - 1.0), col.darkened(0.12))
+					x += 44.0
+				if row % 3 == 0:
+					draw_rect(Rect2(r.position.x, y, r.size.x, 1.0), col.lightened(0.06))
+				y += 6.0
+				row += 1
+		"tiles":
+			draw_rect(r, col)
+			var alt := col.darkened(0.08)
+			var ty := r.position.y
+			var tr := 0
+			while ty < r.end.y:
+				var tx := r.position.x + (0.0 if tr % 2 == 0 else 8.0)
+				var tc := 0
+				while tx < r.end.x:
+					if tc % 2 == 0:
+						draw_rect(Rect2(tx, ty, minf(8.0, r.end.x - tx), minf(8.0, r.end.y - ty)), alt)
+					tx += 8.0
+					tc += 1
+				ty += 8.0
+				tr += 1
+			draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), col.darkened(0.25))
+		"wall":
+			# a wall seen from above, cut low: its top, and a shade where it meets the floor
+			draw_rect(r, col)
+			draw_rect(Rect2(r.position, Vector2(r.size.x, 2)), col.lightened(0.12))
+			draw_rect(Rect2(r.position.x, r.end.y - 2.0, r.size.x, 2.0), col.darkened(0.2))
+			draw_rect(Rect2(r.position.x - 1.0, r.position.y, 1.0, r.size.y), Color(0, 0, 0, 0.18))
+			draw_rect(Rect2(r.end.x, r.position.y, 1.0, r.size.y), Color(0, 0, 0, 0.18))
+		"rug":
+			draw_rect(r.grow(1.0), col.darkened(0.35))
+			draw_rect(r, col)
+			draw_rect(r.grow(-4.0), col.lightened(0.12))
+			draw_rect(r.grow(-7.0), col)
+			var mid := r.get_center()
+			draw_colored_polygon(PackedVector2Array([mid + Vector2(-10, 0), mid + Vector2(0, -6), mid + Vector2(10, 0), mid + Vector2(0, 6)]), col.lightened(0.28))
+			for fx in range(int(r.position.x) + 2, int(r.end.x) - 1, 4):   # fringe
+				draw_rect(Rect2(float(fx), r.position.y - 3.0, 1.0, 2.0), Color(0.94, 0.88, 0.74))
+				draw_rect(Rect2(float(fx), r.end.y + 1.0, 1.0, 2.0), Color(0.94, 0.88, 0.74))
+		"plinth", "chest", "shelf":
+			var front := 5.0
+			var top := Rect2(r.position, Vector2(r.size.x, r.size.y - front))
+			draw_rect(Rect2(r.position.x + 2.0, r.end.y, r.size.x, 2.0), Color(0, 0, 0, 0.18))   # its shadow
+			draw_rect(Rect2(r.position.x, r.end.y - front, r.size.x, front), col.darkened(0.3))   # the front face
+			draw_rect(top, col)                                                               # the top
+			draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), col.lightened(0.25))
+			draw_rect(Rect2(r.position.x, r.position.y, 1, top.size.y), col.lightened(0.15))
+			if kind == "chest":
+				draw_rect(Rect2(r.position.x, r.position.y + top.size.y * 0.5, r.size.x, 1), col.darkened(0.25))   # the lid's seam
+				draw_rect(Rect2(r.get_center().x - 2.0, r.end.y - front + 1.0, 4.0, 3.0), Color(0.86, 0.72, 0.34))   # the clasp
+			elif kind == "shelf":
+				# small doors along its front
+				var step := 12.0
+				var sx := r.position.x + step
+				while sx < r.end.x - 2.0:
+					draw_rect(Rect2(sx, r.end.y - front, 1.0, front), col.darkened(0.45))
+					sx += step
+			else:
+				draw_rect(Rect2(r.position.x + 2.0, r.end.y - front + 2.0, r.size.x - 4.0, 1.0), col.darkened(0.1))
 
 
 ## A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.
@@ -632,6 +721,8 @@ func _open_ground(p: Vector2, path_clear: float) -> bool:
 		return false
 	if not _vein.is_empty() and (_vein["rect"] as Rect2).has_point(p):
 		return false
+	if _on_plate(p):
+		return false   # a house's floor (nothing grows indoors)
 	return _ground.path_value(p) < path_clear
 
 
@@ -884,6 +975,13 @@ func _build_ground_noise(cfg: Dictionary) -> void:
 
 ## Scatter little grass tufts across the ground for texture. Seeded so the layout is
 ## identical every run; each tuft gets its own wind phase.
+func _on_plate(p: Vector2) -> bool:
+	for pl in _plates:
+		if (pl["rect"] as Rect2).grow(4.0).has_point(p):
+			return true
+	return false
+
+
 func _scatter_grass() -> void:
 	_grass.clear()
 	var rng := RandomNumberGenerator.new()
@@ -897,6 +995,8 @@ func _scatter_grass() -> void:
 			_bounds.position.x + rng.randf() * _bounds.size.x,
 			_bounds.position.y + rng.randf() * _bounds.size.y)
 		var shade := rng.randf_range(-0.05, 0.06)
+		if _on_plate(pos):
+			continue   # no grass growing through a floor
 		_grass.append({
 			"pos": pos,
 			"len": rng.randf_range(4.0, 8.0),
@@ -2490,6 +2590,31 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_line(p + Vector2(-22, -10), p + Vector2(22, -10), color.darkened(0.3), 1.5)
 			draw_line(p + Vector2(16, -10), p + Vector2(16, -5), Color(0.36, 0.28, 0.20), 1.0)
 			ItemIcon.draw_lantern(self, p + Vector2(16, 0), 0.5, 1.0, 0.6 + 0.4 * sin(_time * 2.0))
+		"carpenter_stall":
+			# the carpenter's stall (home building): a sturdy bench under a canvas awning, planks stacked on it, a saw
+			# hung from the awning's edge and a little house frame she's made as a sample
+			var cs_awning := color
+			var cs_alt := color.lightened(0.3)
+			draw_rect(Rect2(p + Vector2(-20, -8), Vector2(3, 24)), Color(0.36, 0.26, 0.16))
+			draw_rect(Rect2(p + Vector2(17, -8), Vector2(3, 24)), Color(0.36, 0.26, 0.16))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 10)), Color(0.54, 0.38, 0.22))
+			draw_rect(Rect2(p + Vector2(-22, 6), Vector2(44, 3)), Color(0.66, 0.48, 0.30))
+			for k in 3:   # a stack of planks
+				draw_rect(Rect2(p + Vector2(-18, 3 - float(k) * 2.0), Vector2(18, 2)), Color(0.78, 0.60, 0.38).darkened(0.08 * float(k)))
+			# a sample house frame: a square of posts under a little roof
+			var hf := p + Vector2(10, 5)
+			draw_rect(Rect2(hf + Vector2(-6, -7), Vector2(12, 7)), Color(0.86, 0.80, 0.68))
+			draw_colored_polygon(PackedVector2Array([hf + Vector2(-8, -7), hf + Vector2(8, -7), hf + Vector2(0, -13)]), Color(0.62, 0.30, 0.22))
+			draw_rect(Rect2(hf + Vector2(-1, -4), Vector2(3, 4)), Color(0.44, 0.58, 0.40))
+			for stripe in 4:
+				var cx0 := -22.0 + float(stripe) * 11.0
+				draw_colored_polygon(PackedVector2Array([p + Vector2(cx0, -10), p + Vector2(cx0 + 11.0, -10),
+					p + Vector2(cx0 + 11.0, -22), p + Vector2(cx0, -22)]), cs_awning if stripe % 2 == 0 else cs_alt)
+			draw_line(p + Vector2(-22, -10), p + Vector2(22, -10), color.darkened(0.3), 1.5)
+			# a saw hanging from the awning
+			draw_line(p + Vector2(-14, -10), p + Vector2(-14, -6), Color(0.36, 0.28, 0.20), 1.0)
+			draw_colored_polygon(PackedVector2Array([p + Vector2(-19, -6), p + Vector2(-8, -6), p + Vector2(-8, -3), p + Vector2(-19, -1)]), Color(0.74, 0.76, 0.80))
+			draw_rect(Rect2(p + Vector2(-8, -7), Vector2(4, 5)), Color(0.56, 0.38, 0.22))
 		"fish_stall":
 			# the fishmonger's stall (the bazaar's fish buyer): a counter under a weathered, sun-faded awning,
 			# a row of fish laid out on it, and a barrel of ice at its side with more fish poking out

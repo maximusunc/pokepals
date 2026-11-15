@@ -16,6 +16,12 @@ static func draw(ci: CanvasItem, key: String, kind: String, c: Vector2, size: fl
 		draw_lantern(ci, c, s, alpha)
 	elif key == "firefly":
 		draw_firefly(ci, c, s, alpha)
+	elif key == "axe":
+		draw_axe(ci, c, s, alpha)
+	elif key == "stone":
+		draw_stone(ci, c, s, tint, alpha)
+	elif key == "wood":
+		draw_wood(ci, c, s, tint, alpha)
 	elif key == "driftwood":
 		draw_driftwood(ci, c, s, tint, alpha)
 	elif key == "old_boot":
@@ -101,3 +107,36 @@ static func _draw_glass(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha
 		c + Vector2(-2, 6) * s])
 	ci.draw_colored_polygon(pts, Color(tint, 0.85 * alpha))
 	ci.draw_line(c + Vector2(-3, -3) * s, c + Vector2(1, -5) * s, Color(1, 1, 1, 0.7 * alpha), 1.2 * s)
+
+
+## An axe laid corner to corner: a driftwood haft, a knapped river-stone head lashed on near the top.
+static func draw_axe(ci: CanvasItem, c: Vector2, s: float, alpha := 1.0) -> void:
+	var butt := c + Vector2(-7, 9) * s
+	var top := c + Vector2(6, -8) * s
+	ci.draw_line(butt, top, Color(0.56, 0.42, 0.28, alpha), 2.8 * s, true)
+	ci.draw_line(butt, butt.lerp(top, 0.3), Color(0.44, 0.32, 0.20, alpha), 3.2 * s, true)
+	var head := PackedVector2Array([
+		c + Vector2(1, -9) * s, c + Vector2(9, -11) * s, c + Vector2(11, -5) * s, c + Vector2(8, 0) * s, c + Vector2(2, -3) * s])
+	ci.draw_colored_polygon(head, Color(0.62, 0.64, 0.68, alpha))
+	ci.draw_line(c + Vector2(9, -11) * s, c + Vector2(11, -5) * s, Color(0.88, 0.90, 0.94, alpha), 1.2 * s, true)   # the edge
+	ci.draw_line(c + Vector2(2, -9) * s, c + Vector2(5, -4) * s, Color(0.78, 0.66, 0.44, alpha), 1.4 * s, true)    # the lashing
+
+
+## A smooth river stone, lit from the upper left.
+static func draw_stone(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha := 1.0) -> void:
+	var pts := PackedVector2Array()
+	for k in 14:
+		var a := TAU * float(k) / 14.0
+		pts.append(c + Vector2(cos(a) * 8.0, sin(a) * 5.6 + 1.0) * s)
+	ci.draw_colored_polygon(pts, Color(tint.darkened(0.15), alpha))
+	ci.draw_circle(c + Vector2(-1, 0) * s, 5.2 * s, Color(tint, alpha))
+	ci.draw_circle(c + Vector2(-3, -2) * s, 1.8 * s, Color(tint.lightened(0.35), alpha))
+
+
+## A split log: bark round the outside, pale rings on its cut end.
+static func draw_wood(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha := 1.0) -> void:
+	ci.draw_rect(Rect2(c + Vector2(-9, -4) * s, Vector2(14, 9) * s), Color(tint.darkened(0.2), alpha))
+	ci.draw_rect(Rect2(c + Vector2(-9, -4) * s, Vector2(14, 2) * s), Color(tint.lightened(0.1), alpha))
+	ci.draw_circle(c + Vector2(5, 0.5) * s, 4.8 * s, Color(tint.darkened(0.3), alpha))
+	ci.draw_circle(c + Vector2(5, 0.5) * s, 4.0 * s, Color(0.90, 0.76, 0.54, alpha))
+	ci.draw_arc(c + Vector2(5, 0.5) * s, 2.2 * s, 0.0, TAU, 10, Color(0.70, 0.52, 0.32, alpha), 0.8 * s, true)

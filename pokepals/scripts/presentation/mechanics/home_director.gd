@@ -167,12 +167,36 @@ func _swap(interactables: Array, out_id: String, new_find: Dictionary) -> void:
 
 func _place(interactables: Array, find: Dictionary, pos: Vector2) -> void:
 	var id := String(find.get("id", ""))
+	# In a built house every find not on show sits on a curio shelf; one chosen as a keepsake leaves its shelf.
+	for e in interactables:
+		if String(e.get("curio", "")) == id and not bool(e.get("_taken", false)):
+			e["_taken"] = true
+			_world_art.take_interactable(int(e["render_index"]))
 	var render_index := _world_art.add_interactable(pos, WorldData.to_color(find.get("color", [0.7, 0.7, 0.7])), String(find.get("type", "chime_stone")))
 	interactables.append({
 		"pos": pos, "label": String(find.get("label", "a keepsake")), "id": "keepsake_" + id, "tags": ["keepsake"],
 		"kind": "prop", "render_index": render_index, "lore": String(find.get("line", "")), "affordances": {},
 		"keepsake": id,
 	})
+
+
+## The house was just finished (HouseDirector): each keepsake moves from its spot in the glade to the house's
+## display spot of the same number (the favourite by the fire), and new keepsakes settle inside from now on.
+func move_into_house(display_spots: Array) -> void:
+	var outdoor: Array = _home.get("spot_positions", [])
+	var inside: Array = []
+	for i in mini(outdoor.size(), display_spots.size()):
+		inside.append(display_spots[i])
+	for e in _interactables_ref:
+		if String(e.get("keepsake", "")) == "" or bool(e.get("_taken", false)):
+			continue
+		for i in inside.size():
+			if (e["pos"] as Vector2).distance_to(WorldData.to_vec2(outdoor[i])) < 4.0:
+				var to := WorldData.to_vec2(inside[i])
+				e["pos"] = to
+				_world_art.move_interactable(int(e["render_index"]), to)
+				break
+	_home["spot_positions"] = inside
 
 
 ## The companion goes and settles by its favourite keepsake (a moment after arriving, or after a swap).
