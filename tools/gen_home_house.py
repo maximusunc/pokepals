@@ -79,15 +79,15 @@ for w in walls[1:]:
 
 # ── display: plinths for the keepsakes, low shelves for every other find ──────────────────────────────────────
 display_plinths = [
-    rect(212, 10, 26, 16),    # living room, left of the fire (the favourite)
-    rect(312, 10, 22, 16),    # living room, right of the fire
+    rect(312, 10, 22, 16),    # living room, right of the fire (the favourite)
+    rect(338, 54, 24, 16),    # living room, by the armchair, under the bookshelf
     rect(164, 10, 20, 16),    # kitchen, by the stove
     rect(378, 10, 22, 16),    # bedroom, by the door
     rect(198, 188, 18, 14),   # a side table in the living room's front corner
     rect(344, 188, 18, 14),   # and its pair (both well clear of the front door)
 ]
 CHEST = rect(440, 100, 40, 16)   # the chest at the bed's foot
-TANK = (350, 62)                 # the fish tank's spot (its feet), in the living room by the armchair
+TANK = (230, 28)                 # the fish tank's spot (its feet): in the living room, left of the fireplace
 
 
 def top_spot(r):
@@ -150,7 +150,7 @@ furniture = [
     piece("chair_n", [92, 154], 14),
     piece("plant", [176, 204], 14),
     # living room
-    piece("lamp", [242, 52], 12),
+    piece("lamp", [236, 142], 12),   # a reading lamp by the couch
     # the curio cabinet: glass doors, and every find you've ever made inside (examine it; HouseDirector)
     piece("cabinet", [205, 78], 18, rect(196, 60, 18, 18)),
     piece("fireplace", [280, 28], 52, rect(254, 8, 52, 20)),
@@ -213,8 +213,8 @@ house = {
     # so new finds rotate in. Every find is in the curio cabinet, whatever is on show.
     "curio_shown": 8,
     "cabinet": [205, 78],
-    # where the fish tank moves to once the house is built (from beside the journal in the glade): the living room's
-    # east side, by the armchair. Its collision is the tank prop's own (a circle, radius 14).
+    # where the fish tank moves to once the house is built (from beside the journal in the glade): the living room,
+    # against the back wall left of the fireplace. Its collision is the tank prop's own (a circle, radius 14).
     "tank": list(TANK),
     "decor": decor,
     "front_windows": front_windows,

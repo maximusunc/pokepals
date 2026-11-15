@@ -542,8 +542,10 @@ moved out of its way, and `home_house_test.exs` checks nothing in the glade stan
 ### The fish tank moves in (2026-11-15)
 
 Asked for by the owner: once the house is built, the fish tank (which stood by the journal in the glade) stands in
-the **living room**, on its east side by the armchair and the bookshelf (the template's `house.tank`, with its
-collision the tank prop's own). `Server.HomeWorld` moves the tank prop there for a built house; `HouseDirector` moves
+the **living room**, against the back wall **left of the fireplace** (the template's `house.tank`, with its
+collision the tank prop's own; moved there at the owner's ask from a first spot by the armchair). The display plinth
+that stood there moved to the tank's first spot, by the armchair under the bookshelf; the favourite keepsake now stands
+right of the fire; the floor lamp became a reading lamp by the couch. `Server.HomeWorld` moves the tank prop there for a built house; `HouseDirector` moves
 it (view, examine spot, collision) when the house finishes in front of you. Like the finds inside, it isn't drawn while
 you're outside the house. Your companion still wanders over to watch the fish. Checked by the layout's flood fill,
 `home_house_test.exs` and `tests/smoke_house.gd`.

@@ -478,9 +478,9 @@
             ],
             "kind": "plinth",
             "rect": [
-              -68.0,
+              32.0,
               -532,
-              26,
+              22,
               16
             ]
           },
@@ -492,9 +492,9 @@
             ],
             "kind": "plinth",
             "rect": [
-              32.0,
-              -532,
-              22,
+              58.0,
+              -488,
+              24,
               16
             ]
           },
@@ -843,12 +843,12 @@
         ],
         "display_spots": [
           [
-            -55.0,
+            43.0,
             -533.5
           ],
           [
-            43.0,
-            -533.5
+            70.0,
+            -489.5
           ],
           [
             -106.0,
@@ -986,8 +986,8 @@
           },
           {
             "at": [
-              -38.0,
-              -490
+              -44.0,
+              -400
             ],
             "kind": "lamp",
             "w": 12
@@ -1267,15 +1267,15 @@
             12
           ],
           [
-            -68.0,
-            -532,
-            26,
-            16
-          ],
-          [
             32.0,
             -532,
             22,
+            16
+          ],
+          [
+            58.0,
+            -488,
+            24,
             16
           ],
           [
@@ -1320,11 +1320,11 @@
             "x1": 272.0
           }
         ],
-        "started_at": 1794753014569,
+        "started_at": 1794753457470,
         "state": "built",
         "tank": [
-          70.0,
-          -480
+          -50.0,
+          -514
         ],
         "wall_h": 64,
         "wall_t": 8
@@ -1500,15 +1500,15 @@
           12
         ],
         [
-          -68.0,
-          -532,
-          26,
-          16
-        ],
-        [
           32.0,
           -532,
           22,
+          16
+        ],
+        [
+          58.0,
+          -488,
+          24,
           16
         ],
         [
@@ -1947,12 +1947,12 @@
     "owner_name": "Tester",
     "spot_positions": [
       [
-        -55.0,
+        43.0,
         -533.5
       ],
       [
-        43.0,
-        -533.5
+        70.0,
+        -489.5
       ],
       [
         -106.0,
@@ -2245,9 +2245,9 @@
       ],
       "kind": "plinth",
       "rect": [
-        -68.0,
+        32.0,
         -532,
-        26,
+        22,
         16
       ]
     },
@@ -2259,9 +2259,9 @@
       ],
       "kind": "plinth",
       "rect": [
-        32.0,
-        -532,
-        22,
+        58.0,
+        -488,
+        24,
         16
       ]
     },
@@ -2558,8 +2558,8 @@
       "label": "your fish tank",
       "lore": "A glass tank of clear water, with room for three fish.",
       "position": [
-        70.0,
-        -480
+        -50.0,
+        -514
       ],
       "solid": true,
       "tags": [
@@ -2583,7 +2583,7 @@
       "label": "a drop of river-glass",
       "lore": "The drop of river-glass from the Bazaar. Your companion likes to sit where the light from it falls.",
       "position": [
-        -55.0,
+        43.0,
         -533.5
       ],
       "tags": [
@@ -2604,8 +2604,8 @@
       "label": "the first breath, in a cup",
       "lore": "Your companion nudges the bubble with its nose. It wobbles, and doesn't pop. It never will.",
       "position": [
-        43.0,
-        -533.5
+        70.0,
+        -489.5
       ],
       "tags": [
         "keepsake"
