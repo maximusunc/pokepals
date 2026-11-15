@@ -39,7 +39,7 @@ static var view_yaw := 0.0
 # INSIDE: lower, with a nearer eye; and where lingering takes it.
 @export var inside := { "k": 0.24, "z0": 220.0, "focus_y": 105.0, "s_far": 0.15 }
 @export var inside_linger := { "k": 0.17, "z0": 210.0, "focus_y": 75.0, "s_far": 0.12 }
-@export var swing_rate := 0.8       # how quickly the INSIDE camera comes round behind you (per second, at full speed)
+@export var swing_rate := 2.0       # how quickly the INSIDE camera comes round behind you (per second, at full speed)
 @export var swing_sideways := 0.25  # ...as a share of that when walking straight across the screen (so holding a side doesn't spin you round)
 @export var swing_max_deg := 115.0  # walking back toward the camera (more than this off its facing) doesn't swing it
 @export var linger_after := 2.5     # seconds standing still before the camera starts to settle lower
