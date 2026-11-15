@@ -41,6 +41,9 @@ var _spot := 0
 var _work := 0.0                # seconds of hammering left at this spot
 var _swing := 0.0
 var _leaving := false
+# Where she's walking to right now: moved at walking pace and handed to her body as its target, so the body eases
+# after it and its walk cycle plays (setting her position directly would leave her gliding, unanimated).
+var _walk := Vector2.ZERO
 
 
 func setup(host: Node, player: PlayerView, companion: CompanionView, world_art: WorldArt, scenery: Node2D, style: ArtStyle, home_dir: HomeDirector) -> void:
@@ -179,6 +182,7 @@ func _spawn_carpenter() -> void:
 	_scenery.add_child(_carpenter)
 	_carpenter.apply_identity(cfg.get("appearance", {}))
 	_carpenter.position = _spots[0]
+	_walk = _spots[0]
 	_carpenter.set_remote_state(_spots[0], Vector2.UP)
 	_hammer = AxeView.new()
 	_hammer.tool = "hammer"
@@ -196,25 +200,24 @@ func _update_carpenter(delta: float) -> void:
 	if _carpenter == null or not is_instance_valid(_carpenter):
 		return
 	if _leaving:
-		# She waves her hammer, then walks off down the path and is gone.
+		# She heads off down the path and is gone.
 		var away := _view.position + Vector2(0, 160)
-		var pos := _carpenter.position.move_toward(away, WALK_SPEED * delta)
-		_carpenter.set_remote_state(pos, away - _carpenter.position)
-		_carpenter.position = pos
-		_entry["pos"] = pos
-		_carpenter.modulate.a = clampf(pos.distance_to(away) / 80.0, 0.0, 1.0)
-		if pos.distance_to(away) < 2.0:
+		var before := _walk
+		_walk = _walk.move_toward(away, WALK_SPEED * delta)
+		_carpenter.set_remote_state(_walk, _walk - before)
+		_entry["pos"] = _carpenter.position
+		_carpenter.modulate.a = clampf(_carpenter.position.distance_to(away) / 80.0, 0.0, 1.0)
+		if _carpenter.position.distance_to(away) < 3.0:
 			_entry["_taken"] = true
 			_carpenter.queue_free()
 			_carpenter = null
 		return
 	var target: Vector2 = _spots[_spot]
-	var at := _carpenter.position.distance_to(target) < 2.0
-	if not at:
-		var pos := _carpenter.position.move_toward(target, WALK_SPEED * delta)
-		_carpenter.set_remote_state(pos, target - _carpenter.position)
-		_carpenter.position = pos
-	else:
+	if _walk.distance_to(target) > 0.5:
+		var before := _walk
+		_walk = _walk.move_toward(target, WALK_SPEED * delta)
+		_carpenter.set_remote_state(_walk, _walk - before)
+	elif _carpenter.position.distance_to(target) < 2.0:
 		# Hammering, facing the house.
 		_carpenter.set_remote_state(target, (_view.position + Vector2(0, -_view.depth * 0.5)) - target)
 		_swing -= delta

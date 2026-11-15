@@ -343,11 +343,19 @@ func _draw_frame(ci: CanvasItem) -> void:
 	var p := progress
 	var post_h := wall_h * clampf(p / 0.35, 0.15, 1.0)
 	# posts along the front and down both sides (the back's are HouseBackWall's, so they sort right)
+	var door: Array = house.get("door", [-24, 24])
+	var dx0 := lx(float(door[0]))
+	var dx1 := lx(float(door[1]))
 	var x := -hw
 	while x <= hw - 4.0:
-		ci.draw_rect(Rect2(x, -post_h, 4.0, post_h), timber)
-		ci.draw_rect(Rect2(x + 3.0, -post_h, 1.0, post_h), dark)
+		# no post in the doorway, so it's plain you can walk in; one either side frames it instead
+		if x + 4.0 <= dx0 or x >= dx1:
+			ci.draw_rect(Rect2(x, -post_h, 4.0, post_h), timber)
+			ci.draw_rect(Rect2(x + 3.0, -post_h, 1.0, post_h), dark)
 		x += 40.0
+	for fx in [dx0 - 4.0, dx1]:
+		ci.draw_rect(Rect2(fx, -post_h, 4.0, post_h), timber)
+		ci.draw_rect(Rect2(fx + 3.0, -post_h, 1.0, post_h), dark)
 	for side in [-hw, hw - 4.0]:
 		var y := -depth * 0.5
 		ci.draw_rect(Rect2(side, y - post_h, 4.0, post_h), timber)
@@ -359,9 +367,6 @@ func _draw_frame(ci: CanvasItem) -> void:
 	if p > 0.5:
 		# boards climbing the front wall, a row at a time
 		var rows := int(clampf((p - 0.5) / 0.4, 0.0, 1.0) * (wall_h - 10.0) / 6.0)
-		var door: Array = house.get("door", [-24, 24])
-		var dx0 := lx(float(door[0]))
-		var dx1 := lx(float(door[1]))
 		for k in rows:
 			var by := -6.0 - float(k) * 6.0
 			ci.draw_rect(Rect2(-hw, by, dx0 + hw, 5.0), Color(0.82, 0.66, 0.44).darkened(0.04 * float(k % 2)))
@@ -380,7 +385,8 @@ func _draw_frame(ci: CanvasItem) -> void:
 	var pole := Color(0.58, 0.48, 0.36)
 	for px in [-hw - 10.0, -hw * 0.3, hw * 0.3, hw + 6.0]:
 		ci.draw_rect(Rect2(px, -wall_h - 8.0, 3.0, wall_h + 14.0), pole)
-	ci.draw_rect(Rect2(-hw - 12.0, -wall_h * 0.55, hw * 2.0 + 22.0, 3.0), Color(0.76, 0.62, 0.42))
+	for seg in [[-hw - 12.0, dx0 - 6.0], [dx1 + 6.0, hw + 10.0]]:
+		ci.draw_rect(Rect2(float(seg[0]), -wall_h * 0.55, float(seg[1]) - float(seg[0]), 3.0), Color(0.76, 0.62, 0.42))
 	var lad := Vector2(hw * 0.62, 6.0)
 	ci.draw_rect(Rect2(lad + Vector2(-6, -wall_h * 0.55 - 6.0), Vector2(2, wall_h * 0.55 + 6.0)), pole)
 	ci.draw_rect(Rect2(lad + Vector2(5, -wall_h * 0.55 - 6.0), Vector2(2, wall_h * 0.55 + 6.0)), pole)

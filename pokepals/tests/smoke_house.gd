@@ -115,6 +115,21 @@ func _process(_delta: float) -> bool:
 						inside += 1
 			_ok(inside == 5, "every find has moved inside (%d of 5)" % inside)
 			_ok(_world.hint_text().contains("finished"), "a hint says it's finished")
+			# Walk in and out for real, through the walls' and furniture's collision (once it trapped you inside).
+			var pl = _world._player
+			var door_x: float = (float(view.house["door"][0]) + float(view.house["door"][1])) * 0.5
+			var walk := func(from: Vector2, dir: Vector2, steps: int) -> Vector2:
+				var q := from
+				for k in steps:
+					q = Solids.resolve(q + dir * 2.0, pl._body_radius, pl._solids, pl._bounds, pl._margin)
+				return q
+			var got_in: Vector2 = walk.call(Vector2(door_x, fp.end.y + 30.0), Vector2.UP, 40)
+			_ok(got_in.y < fp.end.y - 40.0, "you can walk in through the door (reached %s)" % got_in)
+			var side: Vector2 = walk.call(got_in, Vector2.LEFT, 20)
+			var room: Vector2 = walk.call(side, Vector2.UP, 50)
+			_ok(room.y < fp.end.y - 120.0, "and round the couch, deep into the living room (reached %s)" % room)
+			var back: Vector2 = walk.call(walk.call(walk.call(room, Vector2.DOWN, 50), Vector2.RIGHT, 20), Vector2.DOWN, 40)
+			_ok(back.y > fp.end.y + 10.0, "and back out again (reached %s)" % back)
 			# Walk in through the door.
 			var door: Array = view.house["door"]
 			_world._player.position = Vector2((float(door[0]) + float(door[1])) * 0.5, fp.end.y - 30.0)
