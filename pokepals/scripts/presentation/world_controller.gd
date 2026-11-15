@@ -410,13 +410,16 @@ func _build_world(cached: Dictionary) -> void:
 	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
 	# up yet — those callbacks early-return, so they never touch half-built state.
 	_world_built = true
-	# SPIKE (Horizon): view this world in fake-3D perspective. P toggles it; `-- --perspective` starts with it on.
+	# SPIKE (Horizon): view this world in fake-3D perspective. The gear menu (or P) cycles top-down -> shoulder ->
+	# inside; `-- --perspective` or `-- --inside` starts in one.
 	_perspective = PerspectiveView.new()
 	_perspective.name = "Perspective"
 	add_child(_perspective)
-	_perspective.setup(self, _world_art, _scenery, _camera)
+	_perspective.setup(self, _world_art, _scenery, _camera, _player, _companion)
 	if OS.get_cmdline_user_args().has("--perspective"):
-		_perspective.set_on(true)
+		_perspective.set_mode(PerspectiveView.Mode.SHOULDER)
+	elif OS.get_cmdline_user_args().has("--inside"):
+		_perspective.set_mode(PerspectiveView.Mode.INSIDE)
 
 
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
@@ -1145,7 +1148,7 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "leave", "label": "Leave game" })
 	# SPIKE (Horizon): the perspective view, for phones (P on a keyboard does the same).
 	if _perspective != null:
-		items.append({ "id": "perspective", "label": "Top-down view (test)" if _perspective.is_on() else "Perspective view (test)" })
+		items.append({ "id": "perspective", "label": _perspective.next_label() })
 	items.append({ "id": "dbg", "label": "DBG" })
 	return items
 
@@ -1188,7 +1191,7 @@ func _on_gear_item(id: String) -> void:
 		"welcome": _open_cards([], false)
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
-		"perspective": _perspective.set_on(not _perspective.is_on())
+		"perspective": _perspective.cycle()
 
 
 # ============================================================================================
@@ -1429,7 +1432,7 @@ func _unhandled_input(event: InputEvent) -> void:
 		elif event.physical_keycode == KEY_F:
 			_fishing_dir.use_item()
 		elif event.physical_keycode == KEY_P and _perspective != null:
-			_perspective.set_on(not _perspective.is_on())
+			_perspective.cycle()
 		elif event.physical_keycode >= KEY_1 and event.physical_keycode <= KEY_5:
 			_fishing_dir.select_slot(int(event.physical_keycode - KEY_1))
 

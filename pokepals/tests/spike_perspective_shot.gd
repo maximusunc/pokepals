@@ -1,18 +1,18 @@
 extends SceneTree
-## SPIKE (Horizon): screenshot a world top-down, then in perspective, and time the projection.
+## SPIKE (Horizon): screenshot a world top-down, then in a perspective view, and time the projection.
 ## Needs a real renderer (not --headless), e.g.:
 ##   xvfb-run -s "-screen 0 1280x720x24" godot --path pokepals --resolution 1280x720 \
-##     --script res://tests/spike_perspective_shot.gd -- <fixture> <out_dir>
+##     --script res://tests/spike_perspective_shot.gd -- <fixture> <out_dir> [shoulder|inside]
+## Shoulder: walks north a little, then shoots. Inside: walks north, then holds "right" (so the camera swings
+## round), shoots mid-walk, then stands still long enough to linger and shoots again.
 
 var _world: Node
 var _frames := 0
 var _fixture := "vale"
 var _out := "user://"
+var _mode := "shoulder"
 var _samples: Array = []
-var _frame_usec: Array = []
-var _last_t := 0
-var _flat_usec: Array = []
-var _tag := ""
+var _quit_at := -1
 
 
 func _process(_delta: float) -> bool:
@@ -23,6 +23,8 @@ func _process(_delta: float) -> bool:
 			_fixture = args[0]
 		if args.size() > 1:
 			_out = args[1]
+		if args.size() > 2:
+			_mode = args[2]
 		var router := root.get_node("/root/WorldRouter")
 		var net := root.get_node("/root/Net")
 		var id: String = router.VALE_ID
@@ -35,46 +37,44 @@ func _process(_delta: float) -> bool:
 		paused = false
 		return false
 	paused = false
-	if _frames > 120 and _frames < 200:
-		var t := Time.get_ticks_usec()
-		if _last_t > 0:
-			_flat_usec.append(t - _last_t)
-		_last_t = t
+	if _frames == _quit_at:
+		quit(0)
+		return true
+	var pv: PerspectiveView = _world._perspective
 	if _frames == 200:
-		_last_t = 0
 		_hide_ui()
 		_shot("flat")
+		# a bonded companion keeps close, so it's in the shots
+		_world._companion._brain.get_self().bond = 1.0
 	if _frames == 203:
-		var a := OS.get_cmdline_user_args()
-		var pv: PerspectiveView = _world._perspective
-		if a.size() > 4:  # optional camera: k z0 focus_y s_far
-			pv.k = float(a[2])
-			pv.z0 = float(a[3])
-			pv.focus = Vector2(0, float(a[4]))
-		if a.size() > 5:
-			pv.s_far = float(a[5])
-		_tag = "_".join(a.slice(2)) if a.size() > 2 else ""
-		pv.set_on(true)
-	if _frames > 210 and _frames <= 330:
-		_samples.append(_world._perspective.last_project_usec)
-		var now := Time.get_ticks_usec()
-		if _last_t > 0:
-			_frame_usec.append(now - _last_t)
-		_last_t = now
-		# walk north so the shot has motion and the companion follows
-		var p: Node2D = _world.get_node("Scenery/Player")
-		p.position += Vector2(0, -1.2)
-	if _frames == 331:
-		_shot("perspective" + ("_" + _tag if _tag != "" else ""))
-		_samples.sort()
-		_frame_usec.sort()
-		print("SPIKE project pass usec: median %d, p95 %d" % [_samples[_samples.size() / 2], _samples[int(_samples.size() * 0.95)]])
-		print("SPIKE frame usec (llvmpipe, not representative of a GPU): median %d" % _frame_usec[_frame_usec.size() / 2])
-		_flat_usec.sort()
-		print("SPIKE flat frame usec: median %d" % _flat_usec[_flat_usec.size() / 2])
-		print("SPIKE scenery children: %d" % _world._scenery.get_child_count())
-		quit(0)
+		pv.set_mode(PerspectiveView.Mode.INSIDE if _mode == "inside" else PerspectiveView.Mode.SHOULDER)
+	if _frames > 210:
+		_samples.append(pv.last_project_usec)
+	if _frames == 210:
+		Input.action_press("ui_up")
+	if _mode == "shoulder" and _frames == 330:
+		Input.action_release("ui_up")
+		_shot("shoulder")
+		_finish()
+	if _mode == "inside":
+		if _frames == 260:
+			Input.action_release("ui_up")
+			Input.action_press("ui_right")
+		if _frames == 400:
+			print("SPIKE yaw after turning: %.0f deg" % rad_to_deg(PerspectiveView.view_yaw))
+			_shot("inside_walking")
+		if _frames == 420:
+			Input.action_release("ui_right")
+		if _frames == 900:
+			_shot("inside_linger")
+			_finish()
 	return false
+
+
+func _finish() -> void:
+	_samples.sort()
+	print("SPIKE project pass usec: median %d, p95 %d" % [_samples[_samples.size() / 2], _samples[int(_samples.size() * 0.95)]])
+	_quit_at = _frames + 5
 
 
 func _hide_ui() -> void:
