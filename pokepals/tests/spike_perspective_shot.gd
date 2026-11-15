@@ -12,6 +12,7 @@ var _samples: Array = []
 var _frame_usec: Array = []
 var _last_t := 0
 var _flat_usec: Array = []
+var _tag := ""
 
 
 func _process(_delta: float) -> bool:
@@ -44,7 +45,16 @@ func _process(_delta: float) -> bool:
 		_hide_ui()
 		_shot("flat")
 	if _frames == 203:
-		_world._perspective.set_on(true)
+		var a := OS.get_cmdline_user_args()
+		var pv: PerspectiveView = _world._perspective
+		if a.size() > 4:  # optional camera: k z0 focus_y s_far
+			pv.k = float(a[2])
+			pv.z0 = float(a[3])
+			pv.focus = Vector2(0, float(a[4]))
+		if a.size() > 5:
+			pv.s_far = float(a[5])
+		_tag = "_".join(a.slice(2)) if a.size() > 2 else ""
+		pv.set_on(true)
 	if _frames > 210 and _frames <= 330:
 		_samples.append(_world._perspective.last_project_usec)
 		var now := Time.get_ticks_usec()
@@ -55,7 +65,7 @@ func _process(_delta: float) -> bool:
 		var p: Node2D = _world.get_node("Scenery/Player")
 		p.position += Vector2(0, -1.2)
 	if _frames == 331:
-		_shot("perspective")
+		_shot("perspective" + ("_" + _tag if _tag != "" else ""))
 		_samples.sort()
 		_frame_usec.sort()
 		print("SPIKE project pass usec: median %d, p95 %d" % [_samples[_samples.size() / 2], _samples[int(_samples.size() * 0.95)]])
