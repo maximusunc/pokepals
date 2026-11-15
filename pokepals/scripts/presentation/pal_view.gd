@@ -32,7 +32,8 @@ var _fly_row := -1
 var _idle_cols := 0
 var _idle_fps := 5.0
 var _rows: Dictionary = {}
-var _scale := 1.0  # 0.5 for a smooth @2x sheet (see _sheet_path)
+var _scale := 1.0  # draw scale: the species' size, halved for a smooth @2x sheet (see _frame_of)
+var _smooth := false  # a smooth @2x sheet: linearly filtered (pixel art stays crisp at any size)
 
 var _target_pos := Vector2.ZERO
 var _look := Vector2.DOWN
@@ -78,12 +79,28 @@ static func _sheet_path(reg: Dictionary, species: String, variant: int) -> Strin
 	return "res://assets/pals/%s_%d%s.png" % [species, clampi(variant, 0, n - 1), suffix]
 
 
-## The cell size and draw scale of a species' sheet: [frame: Array, scale: float].
+## The cell size and draw scale of a species' sheet: [frame: Array, scale: float]. The scale is the
+## species' real-world "size" (data/pals.json: a wolf over a fox over a cat, down to a little bird),
+## halved again for a smooth @2x sheet whose cells are twice the world size.
 static func _frame_of(reg: Dictionary, species: String) -> Array:
 	var frame: Array = reg.get("frame", [32, 32])
-	if bool((reg.get("species", {}) as Dictionary).get(species, {}).get("hd", false)):
-		return [[int(frame[0]) * 2, int(frame[1]) * 2], 0.5]
-	return [frame, 1.0]
+	var size := _size_in(reg, species)
+	if _is_hd(reg, species):
+		return [[int(frame[0]) * 2, int(frame[1]) * 2], 0.5 * size]
+	return [frame, size]
+
+
+static func _is_hd(reg: Dictionary, species: String) -> bool:
+	return bool((reg.get("species", {}) as Dictionary).get(species, {}).get("hd", false))
+
+
+static func _size_in(reg: Dictionary, species: String) -> float:
+	return clampf(float((reg.get("species", {}) as Dictionary).get(species, {}).get("size", 1.0)), 0.1, 4.0)
+
+
+## How big a species is drawn relative to its sheet (its "size" in data/pals.json, 1.0 if unset).
+static func size_of(species: String) -> float:
+	return _size_in(registry(), species)
 
 
 ## Everything needed to DRAW a species as pal art: its sheet texture, the (registry-clamped) coat
@@ -101,6 +118,7 @@ static func sheet_info(species: String, variant: int) -> Dictionary:
 		"sheet": {
 			"frame": _frame_of(reg, species)[0],
 			"scale": _frame_of(reg, species)[1],
+			"size": _size_in(reg, species),
 			"fps": float(reg.get("fps", 10.0)),
 			"cols": int(reg.get("move_frames", 8)),
 			"rows": reg.get("rows", {}),
@@ -136,7 +154,7 @@ var _seeded := false
 
 func _ready() -> void:
 	# pixel art stays crisp; a smooth @2x sheet (set up before we entered the tree) stays linear
-	texture_filter = TEXTURE_FILTER_NEAREST if _scale == 1.0 else TEXTURE_FILTER_LINEAR
+	texture_filter = TEXTURE_FILTER_LINEAR if _smooth else TEXTURE_FILTER_NEAREST
 	_target_pos = position
 
 
@@ -152,8 +170,9 @@ func setup_species(species: String, variant: int) -> bool:
 	_fw = int(frame[0])
 	_fh = int(frame[1])
 	_scale = float(fr[1])
+	_smooth = _is_hd(reg, species)
 	# smooth art stays linearly filtered (it's drawn at half size); pixel art stays crisp
-	texture_filter = TEXTURE_FILTER_LINEAR if _scale != 1.0 else TEXTURE_FILTER_NEAREST
+	texture_filter = TEXTURE_FILTER_LINEAR if _smooth else TEXTURE_FILTER_NEAREST
 	_fps = float(reg.get("fps", 10.0))
 	_cols = int(reg.get("move_frames", 8))
 	_rows = reg.get("rows", {})

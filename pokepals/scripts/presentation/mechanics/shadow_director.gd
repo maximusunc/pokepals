@@ -64,7 +64,7 @@ func configure(secret: Dictionary, found: bool = false) -> void:
 	_reveal = secret.get("reveal", {})
 	_lines = _reveal.get("lines", {})
 	_guide = MuralGuide.new(_reveal)
-	_guide.set_masks(_build_masks())
+	_guide.set_masks(_build_masks(), _mask_sizes())
 	_said = {}
 	_found = found
 	_posing = false
@@ -113,6 +113,15 @@ func _build_masks() -> Dictionary:
 		var m := _mask_of(species)
 		if m != null:
 			out[species] = m
+	return out
+
+
+## How big each animal is drawn relative to its sheet (data/pals.json "size"), so the guide compares shadows
+## at the sizes they are really cast at.
+func _mask_sizes() -> Dictionary:
+	var out := {}
+	for f in PalView.available_forms():
+		out[String(f["species"])] = PalView.size_of(String(f["species"]))
 	return out
 
 

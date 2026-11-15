@@ -106,7 +106,7 @@ func _process(_delta: float) -> bool:
 		log.append_array(r["events"])
 	fails += _check(guide.is_done() and log.has("complete"), "the bird on the spot fills the gap")
 	var wolf_guide := MuralGuide.new(reveal)
-	wolf_guide.set_masks(guide._masks)
+	wolf_guide.set_masks(guide._masks, guide._sizes)
 	for _i in 600:
 		wolf_guide.update(0.1, "wolf", spot, 0.0, spot, 1.0)
 	fails += _check(not wolf_guide.is_done(), "a wolf on the spot never does")
