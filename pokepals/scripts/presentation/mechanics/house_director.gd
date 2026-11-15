@@ -41,6 +41,15 @@ var _spot := 0
 var _work := 0.0                # seconds of hammering left at this spot
 var _swing := 0.0
 var _leaving := false
+# Where she's walking to right now: moved at walking pace and handed to her body as its target, so the body eases
+# after it and its walk cycle plays (setting her position directly would leave her gliding, unanimated).
+var _walk := Vector2.ZERO
+# Whether the finds on show inside are being drawn (only while you're inside: from outside the roof hides them,
+# and drawing 17 of them for nobody cost as much as the rest of the house), and how many things they were
+# worked out over (a find placed later is caught on the next change).
+var _cabinet_added := false
+var _interior_shown := true
+var _interior_count := -1
 
 
 func setup(host: Node, player: PlayerView, companion: CompanionView, world_art: WorldArt, scenery: Node2D, style: ArtStyle, home_dir: HomeDirector) -> void:
@@ -74,6 +83,8 @@ func begin(data: Dictionary, interactables: Array, building_views: Array) -> voi
 		return
 	var home: Dictionary = data.get("home", {})
 	_mine = String(home.get("owner_id", "")) == Net.local_id() and Net.local_id() != ""
+	if _view.built:
+		_add_cabinet()
 	if not _view.built:
 		if _view.build_progress() >= 1.0:
 			# It finished while we were away (or on the way here): finish it now, quietly.
@@ -91,6 +102,21 @@ func update(delta: float) -> void:
 	if not _view.built and _view.build_progress() >= 1.0:
 		_finish(true)
 	_update_carpenter(delta)
+	_sync_interior()
+
+
+## Show the finds inside the house only while you're inside it (they're drawn by WorldArt, under the roof).
+func _sync_interior() -> void:
+	var show: bool = _view.built and _view._inside > 0.01
+	if show == _interior_shown and _interactables.size() == _interior_count:
+		return
+	_interior_shown = show
+	_interior_count = _interactables.size()
+	var fp := _view.footprint()
+	for e in _interactables:
+		var ri := int(e.get("render_index", -1))
+		if ri >= 0 and fp.has_point(e["pos"]):
+			_world_art.set_interactable_hidden(ri, not show)
 
 
 ## Examining the carpenter while she works: how long is left.
@@ -102,7 +128,7 @@ func examine_builder() -> void:
 	var mins := int(ceil(left / 60.0))
 	var line := "\"Nearly there, a minute or so.\"" if mins <= 1 else "\"Coming along nicely. About %d minutes more.\"" % mins
 	if _view.progress < 0.3:
-		line = "\"Just getting the frame up. About %d minutes, and you'll have a roof over your head.\"" % mins
+		line = "\"Just getting the frame up. About %d minute%s, and you'll have a roof over your head.\"" % [mins, "" if mins == 1 else "s"]
 	_companion.notify_interaction(_entry.get("pos", _player.position), "carpenter", ["person"])
 	_host.show_hint(line)
 
@@ -148,11 +174,16 @@ func _move_finds_inside(house: Dictionary) -> void:
 			shown[String(e["keepsake"])] = true
 		if String(e.get("curio", "")) != "":
 			shown[String(e["curio"])] = true
+	# The shelves take the NEWEST finds not already keepsakes (finds come oldest first), up to `curio_shown`: the
+	# same choice Server.HomeWorld makes, so next visit it's the same. Every find is in the cabinet.
 	var curio_spots: Array = house.get("curio_spots", [])
+	var room := mini(int(house.get("curio_shown", curio_spots.size())), curio_spots.size())
+	var finds: Array = (_data.get("home", {}) as Dictionary).get("finds", []).duplicate()
+	finds.reverse()
 	var k := 0
-	for f in (_data.get("home", {}) as Dictionary).get("finds", []):
+	for f in finds:
 		var id := String(f.get("id", ""))
-		if shown.has(id) or k >= curio_spots.size():
+		if shown.has(id) or k >= room:
 			continue
 		var pos := WorldData.to_vec2(curio_spots[k])
 		k += 1
@@ -161,7 +192,40 @@ func _move_finds_inside(house: Dictionary) -> void:
 			"pos": pos, "label": String(f.get("label", "something you found")), "id": "curio_" + id, "tags": ["keepsake"],
 			"kind": "prop", "render_index": ri, "lore": String(f.get("line", "")), "affordances": {}, "curio": id,
 		})
+	_add_cabinet()
 	_host.secret_taken()   # (the examine scan's cache is stale)
+
+
+# ── the curio cabinet: every find, whatever's on show ──
+
+func _add_cabinet() -> void:
+	var at: Variant = _view.house.get("cabinet")
+	if not (at is Array) or _cabinet_added:
+		return
+	_cabinet_added = true
+	_interactables.append({
+		"pos": WorldData.to_vec2(at), "label": "the curio cabinet", "id": "house_cabinet", "tags": ["made", "keepsake"],
+		"kind": "prop", "render_index": -1, "lore": "", "affordances": {}, "house_cabinet": true,
+	})
+
+
+## Examining the cabinet: everything this home's owner has found, and which are on show.
+func open_cabinet() -> void:
+	var home: Dictionary = _data.get("home", {})
+	var on_show := {}
+	for e in _interactables:
+		if bool(e.get("_taken", false)):
+			continue
+		if String(e.get("keepsake", "")) != "":
+			on_show[String(e["keepsake"])] = "keepsake"
+		elif String(e.get("curio", "")) != "":
+			on_show[String(e["curio"])] = "shelf"
+	var panel := CabinetPanel.new()
+	panel.finds = home.get("finds", [])
+	panel.on_show = on_show
+	panel.owner_name = "" if _mine else String(home.get("owner_name", ""))
+	_companion.notify_interaction(WorldData.to_vec2(_view.house.get("cabinet", [0, 0])), "house_cabinet", ["keepsake"])
+	_host.open_sheet(panel)
 
 
 # ── the carpenter ──
@@ -179,6 +243,7 @@ func _spawn_carpenter() -> void:
 	_scenery.add_child(_carpenter)
 	_carpenter.apply_identity(cfg.get("appearance", {}))
 	_carpenter.position = _spots[0]
+	_walk = _spots[0]
 	_carpenter.set_remote_state(_spots[0], Vector2.UP)
 	_hammer = AxeView.new()
 	_hammer.tool = "hammer"
@@ -196,25 +261,24 @@ func _update_carpenter(delta: float) -> void:
 	if _carpenter == null or not is_instance_valid(_carpenter):
 		return
 	if _leaving:
-		# She waves her hammer, then walks off down the path and is gone.
+		# She heads off down the path and is gone.
 		var away := _view.position + Vector2(0, 160)
-		var pos := _carpenter.position.move_toward(away, WALK_SPEED * delta)
-		_carpenter.set_remote_state(pos, away - _carpenter.position)
-		_carpenter.position = pos
-		_entry["pos"] = pos
-		_carpenter.modulate.a = clampf(pos.distance_to(away) / 80.0, 0.0, 1.0)
-		if pos.distance_to(away) < 2.0:
+		var before := _walk
+		_walk = _walk.move_toward(away, WALK_SPEED * delta)
+		_carpenter.set_remote_state(_walk, _walk - before)
+		_entry["pos"] = _carpenter.position
+		_carpenter.modulate.a = clampf(_carpenter.position.distance_to(away) / 80.0, 0.0, 1.0)
+		if _carpenter.position.distance_to(away) < 3.0:
 			_entry["_taken"] = true
 			_carpenter.queue_free()
 			_carpenter = null
 		return
 	var target: Vector2 = _spots[_spot]
-	var at := _carpenter.position.distance_to(target) < 2.0
-	if not at:
-		var pos := _carpenter.position.move_toward(target, WALK_SPEED * delta)
-		_carpenter.set_remote_state(pos, target - _carpenter.position)
-		_carpenter.position = pos
-	else:
+	if _walk.distance_to(target) > 0.5:
+		var before := _walk
+		_walk = _walk.move_toward(target, WALK_SPEED * delta)
+		_carpenter.set_remote_state(_walk, _walk - before)
+	elif _carpenter.position.distance_to(target) < 2.0:
 		# Hammering, facing the house.
 		_carpenter.set_remote_state(target, (_view.position + Vector2(0, -_view.depth * 0.5)) - target)
 		_swing -= delta

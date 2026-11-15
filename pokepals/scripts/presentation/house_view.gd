@@ -30,7 +30,12 @@ var progress := 0.0         # 0..1 through the build (while being built)
 
 var _inside := 0.0          # 0 outside .. 1 inside (the cutaway's blend)
 var _shell: Painter
+var _shell_fx: Painter      # the shell's live bits (chimney smoke, the door lamp's glow), over its baked picture
+var _shell_tex: Texture2D = null   # the built house's outside, baked once (PaintBake); live drawing until then
 var _strip: Painter
+var _frame_step := -1       # the build's progress in 1/200ths, last drawn (the frame redraws only as it grows)
+var _yard_key := -1         # what the yard last showed (planks left, minutes left)
+var _shadow_a := -1.0
 var _back: HouseBackWall
 var _furniture: Array = []
 var _celebrate := -1.0      # seconds since it was finished, for a little moment of dust and sparkle
@@ -53,6 +58,9 @@ func setup(s: Dictionary, style: ArtStyle) -> void:
 	_shell = Painter.new(_draw_shell)
 	_shell.name = "Shell"
 	add_child(_shell)
+	_shell_fx = Painter.new(_draw_shell_fx)
+	_shell_fx.name = "ShellFx"
+	_shell.add_child(_shell_fx)
 	_back = HouseBackWall.new()
 	_back.house_view = self
 	_back.position = Vector2(position.x, position.y - depth)
@@ -77,6 +85,27 @@ func _ready() -> void:
 		parent.add_child.call_deferred(_back)
 		for fv in _furniture:
 			parent.add_child.call_deferred(fv)
+	if built:
+		_bake.call_deferred()
+
+
+## The rect (local) the built house's outside covers, roof, chimney and all.
+func _shell_rect() -> Rect2:
+	return Rect2(-hw - 12.0, -wall_h - depth - 12.0, hw * 2.0 + 24.0, wall_h + depth + 18.0)
+
+
+## Bake the built house's still parts (its outside, its back wall) into textures, so they're one quad each
+## instead of hundreds of shapes. Only once built: while it's going up the frame changes as it grows.
+func _bake() -> void:
+	if not is_inside_tree():
+		return
+	var r := _shell_rect()
+	PaintBake.bake(self, r, _draw_shell_static, func(tex: Texture2D) -> void:
+		_shell_tex = tex
+		_shell.material = PaintBake.premult_material()
+		_shell.queue_redraw())
+	if _back != null:
+		_back.bake()
 
 
 ## The footprint, in world space.
@@ -127,6 +156,10 @@ func finish() -> void:
 	house["state"] = "built"
 	_celebrate = 0.0
 	_sync_parts()
+	_shell.queue_redraw()
+	_back.queue_redraw()
+	queue_redraw()
+	_bake()
 
 
 func _sync_parts() -> void:
@@ -152,20 +185,37 @@ func tick(delta: float, t: float, want_fade: bool) -> void:
 		(cam as CameraRig).keep_top_in_view = (position.y - depth - wall_h - 4.0) if want_inside else INF
 	if (before > 0.01) != (_inside > 0.01):
 		_sync_parts()
+	# Only what changed is redrawn: a still house costs no drawing at all from frame to frame (its pictures are
+	# kept by the renderer), except the smoke and the lamp outside, and the fire and lamps inside.
 	_shell.modulate.a = (1.0 - _inside) * (0.5 if want_fade and _inside < 0.01 else 1.0)
+	_shell.visible = _shell.modulate.a > 0.01
 	_strip.modulate.a = _inside
+	_strip.visible = _inside > 0.01
 	for fv in _furniture:
 		(fv as Node2D).modulate.a = _inside
 	if _back != null:
 		_back.modulate.a = _inside if built else 1.0
-		_back.queue_redraw()
+	if built:
+		if _shell.visible:
+			_shell_fx.queue_redraw()
+		var sa := snappedf(1.0 - _inside, 0.05)
+		if sa != _shadow_a or _celebrate >= 0.0:
+			_shadow_a = sa
+			queue_redraw()
+	else:
+		var step := int(progress * 200.0)
+		if step != _frame_step:
+			_frame_step = step
+			_shell.queue_redraw()
+			_back.queue_redraw()
+		var key := maxi(1, int(round(5.0 * (1.0 - progress)))) * 1000 + int(ceil(seconds_left() / 60.0))
+		if key != _yard_key:
+			_yard_key = key
+			queue_redraw()
 	if _celebrate >= 0.0:
 		_celebrate += delta
 		if _celebrate > 3.0:
 			_celebrate = -1.0
-	queue_redraw()
-	_shell.queue_redraw()
-	_strip.queue_redraw()
 	for fv in _furniture:
 		if (fv as HouseFurniture).animated and (fv as Node2D).visible:
 			(fv as Node2D).queue_redraw()
@@ -237,6 +287,30 @@ func _draw_shell(ci: CanvasItem) -> void:
 	if not built:
 		_draw_frame(ci)
 		return
+	if _shell_tex != null:
+		ci.draw_texture(_shell_tex, _shell_rect().position)
+		return
+	_draw_shell_static(ci)
+
+
+## The outside's live bits, drawn every frame over its picture: the door lamp's glow and the chimney's smoke.
+func _draw_shell_fx(ci: CanvasItem) -> void:
+	if not built:
+		return
+	var door: Array = house.get("door", [-24, 24])
+	var dmid := (lx(float(door[0])) + lx(float(door[1]))) * 0.5
+	SoftGlow.draw(ci, Vector2(dmid + 24.0, -31.0), 22.0, Color(1.0, 0.80, 0.42, 0.22 + 0.06 * sin(_time * 2.0)), 0.6)
+	var cx := lx(float(house.get("chimney_x", position.x)))
+	var cbase := -wall_h - depth * 0.62 - depth * 0.12
+	for k in 4:
+		var ph := fposmod(_time * 0.25 + float(k) / 4.0, 1.0)
+		var r := 3.0 + ph * 7.0
+		var q := Vector2(cx + sin(ph * 5.0 + float(k)) * 4.0 + ph * 10.0, cbase - 40.0 - ph * 46.0)
+		ci.draw_circle(q, r, Color(0.94, 0.94, 0.96, 0.55 * (1.0 - ph)))
+
+
+## The built house's outside, all of it that stands still (baked once; see _bake).
+func _draw_shell_static(ci: CanvasItem) -> void:
 	var plaster := _col("plaster", Color(0.93, 0.88, 0.78))
 	var timber := _col("timber", Color(0.42, 0.28, 0.18))
 	var roof := _col("roof", Color(0.58, 0.30, 0.22))
@@ -277,7 +351,6 @@ func _draw_shell(ci: CanvasItem) -> void:
 	var lamp := Vector2(dmid + 24.0, -34.0)
 	ci.draw_rect(Rect2(lamp + Vector2(-4, -2), Vector2(8, 10)), Color(0.22, 0.20, 0.18))
 	ci.draw_rect(Rect2(lamp + Vector2(-3, -1), Vector2(6, 8)), Color(1.0, 0.86, 0.52))
-	SoftGlow.draw(ci, lamp + Vector2(0, 3), 22.0, Color(1.0, 0.80, 0.42, 0.22 + 0.06 * sin(_time * 2.0)), 0.6)
 	# the roof: a shingled slope from the eaves up to the ridge, then the far side, darker
 	var eave := -wall_h
 	var top := -wall_h - depth
@@ -309,11 +382,6 @@ func _draw_shell(ci: CanvasItem) -> void:
 	ci.draw_rect(Rect2(cx - 9.0, cbase - 30.0, 18.0, 34.0), stone)
 	ci.draw_rect(Rect2(cx - 9.0, cbase - 30.0, 4.0, 34.0), stone.lightened(0.15))
 	ci.draw_rect(Rect2(cx - 11.0, cbase - 34.0, 22.0, 5.0), stone.darkened(0.2))
-	for k in 4:
-		var ph := fposmod(_time * 0.25 + float(k) / 4.0, 1.0)
-		var r := 3.0 + ph * 7.0
-		var q := Vector2(cx + sin(ph * 5.0 + float(k)) * 4.0 + ph * 10.0, cbase - 40.0 - ph * 46.0)
-		ci.draw_circle(q, r, Color(0.94, 0.94, 0.96, 0.55 * (1.0 - ph)))
 
 
 func _draw_front_window(ci: CanvasItem, r: Rect2, timber: Color) -> void:
@@ -343,11 +411,19 @@ func _draw_frame(ci: CanvasItem) -> void:
 	var p := progress
 	var post_h := wall_h * clampf(p / 0.35, 0.15, 1.0)
 	# posts along the front and down both sides (the back's are HouseBackWall's, so they sort right)
+	var door: Array = house.get("door", [-24, 24])
+	var dx0 := lx(float(door[0]))
+	var dx1 := lx(float(door[1]))
 	var x := -hw
 	while x <= hw - 4.0:
-		ci.draw_rect(Rect2(x, -post_h, 4.0, post_h), timber)
-		ci.draw_rect(Rect2(x + 3.0, -post_h, 1.0, post_h), dark)
+		# no post in the doorway, so it's plain you can walk in; one either side frames it instead
+		if x + 4.0 <= dx0 or x >= dx1:
+			ci.draw_rect(Rect2(x, -post_h, 4.0, post_h), timber)
+			ci.draw_rect(Rect2(x + 3.0, -post_h, 1.0, post_h), dark)
 		x += 40.0
+	for fx in [dx0 - 4.0, dx1]:
+		ci.draw_rect(Rect2(fx, -post_h, 4.0, post_h), timber)
+		ci.draw_rect(Rect2(fx + 3.0, -post_h, 1.0, post_h), dark)
 	for side in [-hw, hw - 4.0]:
 		var y := -depth * 0.5
 		ci.draw_rect(Rect2(side, y - post_h, 4.0, post_h), timber)
@@ -359,9 +435,6 @@ func _draw_frame(ci: CanvasItem) -> void:
 	if p > 0.5:
 		# boards climbing the front wall, a row at a time
 		var rows := int(clampf((p - 0.5) / 0.4, 0.0, 1.0) * (wall_h - 10.0) / 6.0)
-		var door: Array = house.get("door", [-24, 24])
-		var dx0 := lx(float(door[0]))
-		var dx1 := lx(float(door[1]))
 		for k in rows:
 			var by := -6.0 - float(k) * 6.0
 			ci.draw_rect(Rect2(-hw, by, dx0 + hw, 5.0), Color(0.82, 0.66, 0.44).darkened(0.04 * float(k % 2)))
@@ -380,7 +453,8 @@ func _draw_frame(ci: CanvasItem) -> void:
 	var pole := Color(0.58, 0.48, 0.36)
 	for px in [-hw - 10.0, -hw * 0.3, hw * 0.3, hw + 6.0]:
 		ci.draw_rect(Rect2(px, -wall_h - 8.0, 3.0, wall_h + 14.0), pole)
-	ci.draw_rect(Rect2(-hw - 12.0, -wall_h * 0.55, hw * 2.0 + 22.0, 3.0), Color(0.76, 0.62, 0.42))
+	for seg in [[-hw - 12.0, dx0 - 6.0], [dx1 + 6.0, hw + 10.0]]:
+		ci.draw_rect(Rect2(float(seg[0]), -wall_h * 0.55, float(seg[1]) - float(seg[0]), 3.0), Color(0.76, 0.62, 0.42))
 	var lad := Vector2(hw * 0.62, 6.0)
 	ci.draw_rect(Rect2(lad + Vector2(-6, -wall_h * 0.55 - 6.0), Vector2(2, wall_h * 0.55 + 6.0)), pole)
 	ci.draw_rect(Rect2(lad + Vector2(5, -wall_h * 0.55 - 6.0), Vector2(2, wall_h * 0.55 + 6.0)), pole)

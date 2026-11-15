@@ -82,8 +82,8 @@ display_plinths = [
     rect(312, 10, 22, 16),    # living room, right of the fire
     rect(164, 10, 20, 16),    # kitchen, by the stove
     rect(378, 10, 22, 16),    # bedroom, by the door
-    rect(218, 166, 18, 14),   # a side table by the couch
-    rect(324, 166, 18, 14),   # and its pair
+    rect(198, 188, 18, 14),   # a side table in the living room's front corner
+    rect(344, 188, 18, 14),   # and its pair (both well clear of the front door)
 ]
 CHEST = rect(440, 100, 40, 16)   # the chest at the bed's foot
 
@@ -100,8 +100,8 @@ display_spots = [top_spot(r) for r in display_plinths] + [top_spot(CHEST)]
 shelves = [
     {"rect": rect(8, 62, 18, 140), "spots": [[17, f] for f in (72, 94, 116, 138, 160, 182)]},     # kitchen, west wall
     {"rect": rect(534, 40, 18, 150), "spots": [[543, f] for f in (52, 76, 100, 124, 148, 172)]},  # bedroom, east wall
-    {"rect": rect(200, 196, 48, 12), "spots": [[212, 201], [236, 201]]},                           # living room, front
-    {"rect": rect(312, 196, 48, 12), "spots": [[324, 201], [348, 201]]},
+    {"rect": rect(110, 196, 48, 12), "spots": [[122, 201], [146, 201]]},                           # kitchen, front
+    {"rect": rect(400, 196, 48, 12), "spots": [[412, 201], [436, 201]]},                           # bedroom, front
 ]
 # Spread the finds round the house: one from each shelf in turn (so the first few land in different rooms),
 # and along each shelf every other spot first (so a few finds don't crowd together).
@@ -118,7 +118,7 @@ while any(queues):
             curio_spots.append([fx, fy - 8.0])
 
 built_plates = [
-    {"rect": rect(226, 82, 108, 60), "kind": "rug", "color": [0.66, 0.24, 0.20]},
+    {"rect": rect(226, 64, 108, 56), "kind": "rug", "color": [0.66, 0.24, 0.20]},
     {"rect": rect(432, 112, 76, 54), "kind": "rug", "color": [0.30, 0.42, 0.62]},
     {"rect": rect(44, 100, 96, 56), "kind": "rug", "color": [0.52, 0.60, 0.40]},
 ]
@@ -148,20 +148,23 @@ furniture = [
     piece("chair_n", [92, 154], 14),
     piece("plant", [176, 204], 14),
     # living room
-    piece("lamp", [202, 46], 12),
+    piece("lamp", [242, 52], 12),
+    # the curio cabinet: glass doors, and every find you've ever made inside (examine it; HouseDirector)
+    piece("cabinet", [205, 78], 18, rect(196, 60, 18, 18)),
     piece("fireplace", [280, 28], 52, rect(254, 8, 52, 20)),
     piece("bookshelf", [351, 22], 26, rect(338, 8, 26, 14)),
-    piece("armchair_e", [214, 122], 24, rect(203, 108, 22, 14)),
-    piece("armchair_w", [346, 122], 24, rect(335, 108, 22, 14)),
-    piece("coffee_table", [280, 120], 34),
-    piece("couch", [280, 186], 76, rect(242, 170, 76, 16)),
-    piece("plant", [358, 196], 14),
+    # (the couch stands well back from the front door, with room to walk round it either side)
+    piece("armchair_e", [214, 106], 24, rect(203, 92, 22, 14)),
+    piece("armchair_w", [346, 106], 24, rect(335, 92, 22, 14)),
+    piece("coffee_table", [280, 104], 34),
+    piece("couch", [280, 152], 60, rect(250, 136, 60, 16)),
+    piece("plant", [358, 150], 14),
     # bedroom
     piece("nightstand", [413, 26], 18, rect(404, 10, 18, 16)),
     piece("bed", [456, 86], 64, rect(424, 8, 64, 76)),
     piece("nightstand", [499, 26], 18, rect(490, 10, 18, 16)),
     piece("wardrobe", [530, 24], 36, rect(512, 8, 36, 16)),
-    piece("plant", [386, 200], 14),
+    piece("plant", [510, 204], 14),
 ]
 # the chest and the shelves block too (they're plates, drawn on the floor, but you don't walk through them)
 furniture_solids = [p["solid"] for p in furniture if "solid" in p] + [CHEST] + [sh["rect"] for sh in shelves] \
@@ -202,6 +205,10 @@ house = {
     "furniture_solids": furniture_solids,
     "display_spots": display_spots,
     "curio_spots": curio_spots,
+    # How many finds stand on the shelves (besides the keepsakes): the newest ones not already chosen as keepsakes,
+    # so new finds rotate in. Every find is in the curio cabinet, whatever is on show.
+    "curio_shown": 8,
+    "cabinet": [205, 78],
     "decor": decor,
     "front_windows": front_windows,
     "chimney_x": 280,
@@ -213,6 +220,40 @@ house = {
                   "work_spots": [[120, 246], [280, 238], [280, 120], [280, 238], [440, 246], [586, 246], [586, 110],
                                  [586, 246], [280, 250], [-26, 246], [-26, 110], [-26, 246]]},
 }
+
+# ── check: from outside the front door you can walk into every room and up to every place a find stands ──────
+# (a body needs ~8 px clear all round: Solids' body radius 6 plus its margin 2). A flood fill over a 4 px grid.
+CLEAR = 9.0
+STEP = 4
+blockers = walls + furniture_solids
+
+
+def blocked(x, y):
+    for bx, by, bw, bh in blockers:
+        nx = min(max(x, bx), bx + bw)
+        ny = min(max(y, by), by + bh)
+        if (x - nx) ** 2 + (y - ny) ** 2 < CLEAR * CLEAR:
+            return True
+    return False
+
+
+cells = {(gx, gy) for gx in range(-40, W + 41, STEP) for gy in range(-40, D + 41, STEP) if not blocked(gx, gy)}
+start = (280, D + 32)
+assert start in cells, "the doorstep is blocked"
+seen = {start}
+todo = [start]
+while todo:
+    cx, cy = todo.pop()
+    for n in ((cx + STEP, cy), (cx - STEP, cy), (cx, cy + STEP), (cx, cy - STEP)):
+        if n in cells and n not in seen:
+            seen.add(n)
+            todo.append(n)
+for room in ROOMS:
+    inside = [c for c in seen if room["x0"] < c[0] < room["x1"] and 8 < c[1] < D - 8]
+    assert len(inside) > 200, "room %s can't be walked into (%d cells)" % (room["id"], len(inside))
+for sx, sy in display_spots + curio_spots + [[205, 70]]:
+    fx, fy = sx, sy + 8.0
+    assert any((c[0] - fx) ** 2 + (c[1] - fy) ** 2 <= 26 * 26 for c in seen), "can't reach the find at %s" % [fx, fy]
 
 with open(TEMPLATE) as f:
     tpl = json.load(f)

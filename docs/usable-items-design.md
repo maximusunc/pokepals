@@ -403,7 +403,7 @@ Asked for by the owner (issue #141, then "go ahead and build this", 2026-11-15).
    - **Bedroom:** a big bed with a patchwork quilt; two nightstands with candles; a wardrobe; a chest at the bed's foot;
      a blue rug; a clock with a swinging pendulum.
    - **Your finds:** the keepsakes your companion chose stand on **display plinths** (the favourite by the fire, one
-     either side of it, one in the kitchen, one in the bedroom, side tables by the couch, the chest), and **every other
+     either side of it, one in the kitchen, one in the bedroom, side tables in the living room's front corners, the chest), and **every other
      find** sits on **curio shelves** along the walls, spread from room to room. A find your companion later picks as a
      keepsake leaves its shelf for a plinth. The journal holds them all, as before.
    Friends see the same house (and the same build) when they visit.
@@ -485,3 +485,47 @@ bite) and the server honours the chop only that long after you started on that v
   fixed by the template.
 - **The cutaway** follows your own feet: friends inside look hidden under the roof from outside (as anyone behind a
   building is).
+
+### After the first play (2026-11-15)
+
+- **The doorway while it's being built** had a frame post (and the scaffold plank) right across it, so it looked
+  blocked though it wasn't. No post or plank crosses the doorway now; a post stands either side of it instead.
+- **The carpenter glided.** Her body was moved directly, so its walk cycle never played. Now she walks: a point is
+  moved at walking pace and her body eases after it, like a friend's puppet.
+- **You could get stuck inside.** The couch, two side tables and two low shelves sat just inside the front door with
+  no gap a body fits through, so once the house finished (and the furniture walled in) you couldn't get in or out.
+  The couch now stands further back, the side tables are in the living room's front corners, and the two shelves by
+  the door moved to the kitchen's and the bedroom's front walls. `tools/gen_home_house.py` now checks, before it
+  writes anything, that from outside the door you can walk into every room and up to every place a find stands (a
+  flood fill with a body's clearance), and `tests/smoke_house.gd` walks in, round the couch and back out through the
+  real collision. The server builds homes from the template on every visit, so houses already built get the new
+  layout straight away.
+- **Tests now run with a full house.** The house fixtures are made by `server/test/fixtures/gen_home_house_fixtures.exs`
+  (the real `Server.HomeWorld`) for a player who has found every world's secret, with 7 keepsakes chosen: so every
+  display plinth and curio shelf is taken. `tests/smoke_house.gd` checks all 17 move in, the keepsakes onto the
+  plinths, and flood-fills from the doorstep through the real collision to check each one can be walked up to; the
+  server's `home_house_test.exs` checks each stands inside, in a place of its own, and none in the doorway. Both fail
+  on the old layout.
+
+### Performance, and how the finds scale (2026-11-15)
+
+**Performance.** The house drew everything live, every frame (thousands of little shapes for its shell, back wall
+and floors), drew its outside while faded away, and drew the finds inside while you were outside. Its still parts are
+now baked once into textures (`PaintBake`, a SubViewport rendered once, like `StaticBake`): the outside, the back
+wall, the floors and rugs (in `WorldArt`), and every still piece of furniture. Only the smoke, the door lamp, the fire,
+the stove, the lamp and the clock's pendulum stay live. The finds inside are hidden while you're outside. Measured
+(software renderer, so only the comparisons mean anything): outside the house 512 -> 37 draw calls; inside 529 -> about
+400 with a full showcase, about 20 per find on show (each is drawn shape by shape by `WorldArt`, as every keepsake
+is). Baking each keepsake type into a sprite would cut that further; not done yet.
+
+**How the finds scale** (decided by the owner, 2026-11-15: options 2 and 3 of those offered). The house never tries to
+show every find:
+- **A curated showcase:** the companion's **keepsakes** stand on the display plinths (up to 7, by bond, as before), and
+  the **newest** of the other finds stand on the shelves, up to `curio_shown` (**8**, in the template's `house` block;
+  the 8 was the suggested number), so new finds rotate in and older ones rotate out. At most 15 on show.
+- **The curio cabinet:** a glass-fronted cabinet by the living room's west wall. Examine it (`CabinetPanel`) for every
+  find you've ever made, newest first, each with its line and where it is ("On show: a keepsake", "On show: on a shelf",
+  "In the cabinet"). A friend can look in yours.
+- `Server.HomeWorld` picks the shelves' finds (newest first, not keepsakes); `HouseDirector` makes the same choice when
+  a house finishes in front of you. Tested in `home_house_test.exs` and `tests/smoke_house.gd` (17 finds: 15 on show,
+  all 17 in the cabinet).

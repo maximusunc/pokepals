@@ -1,10 +1,12 @@
 extends SceneTree
 ## Headless smoke test for YOUR HOUSE (home building; docs/usable-items-design.md "Home building"): loads the
 ## real World scene in a home whose house is being built (tests/world_fixtures/home_house_building.json, from
-## Server.HomeWorld; its start time is set here so the build ends a few seconds in). Checks the house stands in
+## Server.HomeWorld via server/test/fixtures/gen_home_house_fixtures.exs: a home that has found every world's
+## secret, 17 finds, with 7 keepsakes chosen; its start time is set here so the build ends a few seconds in). Checks the house stands in
 ## the north of the glade as a frame, walled in, with its floor down; the carpenter is at work and examinable;
 ## no axe works at home; when the time is up it's finished in front of you: the rugs and shelves go down, the
-## furniture walls in, and every find moves inside; walking in through the door lifts the roof away (the
+## furniture walls in, and every find moves inside (the keepsakes onto the display plinths, the rest onto the
+## shelves), every one of them somewhere you can walk up to from the front door; walking in through the door lifts the roof away (the
 ## cutaway) and walking out puts it back. Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_house.gd
 
@@ -54,6 +56,57 @@ func _count(key: String) -> int:
 		if String(e.get(key, "")) != "" and not bool(e.get("_taken", false)):
 			n += 1
 	return n
+
+
+## A flood fill over a 4 px grid from just outside the front door, through the player's real solids (a cell is
+## open when Solids.resolve leaves a body standing there alone). Returns the labels of every find on show with no
+## open cell within reach of it (26 px), so nothing you've found is ever out of reach, nor walls you in.
+func _unreachable_finds(fp: Rect2) -> Array:
+	var pl = _world._player
+	var area := fp.grow(36.0)
+	var open := func(p: Vector2) -> bool:
+		return area.has_point(p) and Solids.resolve(p, pl._body_radius, pl._solids, pl._bounds, pl._margin).distance_to(p) < 0.5
+	var door_x: float = (float(_world._house_dir.view().house["door"][0]) + float(_world._house_dir.view().house["door"][1])) * 0.5
+	var start := Vector2(roundf(door_x / 4.0) * 4.0, roundf((fp.end.y + 24.0) / 4.0) * 4.0)
+	var seen := { start: true }
+	var todo: Array = [start]
+	while not todo.is_empty():
+		var c: Vector2 = todo.pop_back()
+		for d in [Vector2(4, 0), Vector2(-4, 0), Vector2(0, 4), Vector2(0, -4)]:
+			var n: Vector2 = c + d
+			if not seen.has(n) and open.call(n):
+				seen[n] = true
+				todo.append(n)
+	var out: Array = []
+	for e in _world._interactables:
+		if (String(e.get("curio", "")) == "" and String(e.get("keepsake", "")) == "") or bool(e.get("_taken", false)):
+			continue
+		var feet: Vector2 = e["pos"] + Vector2(0, 8)
+		var near := false
+		for c in seen:
+			if (c as Vector2).distance_to(feet) <= 26.0:
+				near = true
+				break
+		if not near:
+			out.append(String(e["label"]))
+	return out
+
+
+func _panel(script_file: String) -> Node:
+	var found: Node = null
+	for c in _world.get_node("UI").get_children():
+		var sc: Variant = c.get_script()
+		if sc != null and String((sc as Script).resource_path).ends_with(script_file):
+			found = c
+	return found
+
+
+func _labels(n: Node, out: Array = []) -> Array:
+	for c in n.get_children():
+		if c is Label:
+			out.append((c as Label).text)
+		_labels(c, out)
+	return out
 
 
 func _process(_delta: float) -> bool:
@@ -113,8 +166,77 @@ func _process(_delta: float) -> bool:
 				if (String(e.get("curio", "")) != "" or String(e.get("keepsake", "")) != "") and not bool(e.get("_taken", false)):
 					if fp.has_point(e["pos"]):
 						inside += 1
-			_ok(inside == 5, "every find has moved inside (%d of 5)" % inside)
+			var finds: int = (_world._world_data.get("home", {}) as Dictionary).get("finds", []).size()
+			# A showcase, not every find: the 7 keepsakes, and the newest of the rest on the shelves (curio_shown).
+			var shelf_room: int = int(view.house.get("curio_shown", 0))
+			_ok(finds == 17 and shelf_room == 8 and inside == 7 + shelf_room, "a showcase moves in: 7 keepsakes and the %d newest finds (%d of %d on show)" % [shelf_room, inside, finds])
+			var all_finds: Array = (_world._world_data.get("home", {}) as Dictionary).get("finds", [])
+			var keeps := {}
+			for e in _world._interactables:
+				if String(e.get("keepsake", "")) != "" and not bool(e.get("_taken", false)):
+					keeps[String(e["keepsake"])] = true
+			var want: Array = []
+			for i in range(all_finds.size() - 1, -1, -1):
+				var fid := String(all_finds[i]["id"])
+				if not keeps.has(fid) and want.size() < shelf_room:
+					want.append(fid)
+			var got: Array = []
+			for e in _world._interactables:
+				if String(e.get("curio", "")) != "" and not bool(e.get("_taken", false)):
+					got.append(String(e["curio"]))
+			_ok(got == want, "the shelves hold the newest finds, newest first")
+			# The keepsakes stand on the display plinths, in order (the favourite by the fire).
+			var display: Array = view.house["display_spots"]
+			var on_plinths := 0
+			for e in _world._interactables:
+				if String(e.get("keepsake", "")) != "" and not bool(e.get("_taken", false)):
+					for d in display:
+						if (e["pos"] as Vector2).distance_to(WorldData.to_vec2(d)) < 1.0:
+							on_plinths += 1
+			_ok(on_plinths == 7, "the 7 keepsakes stand on the display plinths (%d)" % on_plinths)
+			# Every secret on show can be walked up to from the doorstep, through the real collision (secrets on
+			# shelves by the door once boxed the way in).
+			var unreachable := _unreachable_finds(fp)
+			_ok(unreachable.is_empty(), "every secret on show can be walked up to from the front door (unreachable: %s)" % [unreachable])
 			_ok(_world.hint_text().contains("finished"), "a hint says it's finished")
+			# The curio cabinet holds every find, on show or not.
+			var cab: Dictionary = {}
+			for e in _world._interactables:
+				if bool(e.get("house_cabinet", false)):
+					cab = e
+			_ok(not cab.is_empty() and fp.has_point(cab["pos"]), "there's a curio cabinet inside")
+			if not cab.is_empty():
+				_world._player.position = cab["pos"] + Vector2(16, 6)
+				_world._invalidate_nearest()
+				_world._try_interact()
+				var panel := _panel("cabinet_panel.gd")
+				_ok(panel != null, "examining it opens it")
+				if panel != null:
+					var shown := _labels(panel)
+					var rows := 0
+					var cabinet_only := 0
+					for t in shown:
+						if t.begins_with("On show") or t == "In the cabinet":
+							rows += 1
+						if t == "In the cabinet":
+							cabinet_only += 1
+					_ok(rows == 17 and cabinet_only == 2, "it lists all 17 finds, the 2 not on show among them (%d, %d)" % [rows, cabinet_only])
+					panel.close()
+			# Walk in and out for real, through the walls' and furniture's collision (once it trapped you inside).
+			var pl = _world._player
+			var door_x: float = (float(view.house["door"][0]) + float(view.house["door"][1])) * 0.5
+			var walk := func(from: Vector2, dir: Vector2, steps: int) -> Vector2:
+				var q := from
+				for k in steps:
+					q = Solids.resolve(q + dir * 2.0, pl._body_radius, pl._solids, pl._bounds, pl._margin)
+				return q
+			var got_in: Vector2 = walk.call(Vector2(door_x, fp.end.y + 30.0), Vector2.UP, 40)
+			_ok(got_in.y < fp.end.y - 40.0, "you can walk in through the door (reached %s)" % got_in)
+			var side: Vector2 = walk.call(got_in, Vector2.LEFT, 20)
+			var room: Vector2 = walk.call(side, Vector2.UP, 50)
+			_ok(room.y < fp.end.y - 120.0, "and round the couch, deep into the living room (reached %s)" % room)
+			var back: Vector2 = walk.call(walk.call(walk.call(room, Vector2.DOWN, 50), Vector2.RIGHT, 20), Vector2.DOWN, 40)
+			_ok(back.y > fp.end.y + 10.0, "and back out again (reached %s)" % back)
 			# Walk in through the door.
 			var door: Array = view.house["door"]
 			_world._player.position = Vector2((float(door[0]) + float(door[1])) * 0.5, fp.end.y - 30.0)
