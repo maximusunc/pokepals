@@ -1143,6 +1143,9 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
 		items.append({ "id": "welcome", "label": "Welcome" })
 		items.append({ "id": "leave", "label": "Leave game" })
+	# SPIKE (Horizon): the perspective view, for phones (P on a keyboard does the same).
+	if _perspective != null:
+		items.append({ "id": "perspective", "label": "Top-down view (test)" if _perspective.is_on() else "Perspective view (test)" })
 	items.append({ "id": "dbg", "label": "DBG" })
 	return items
 
@@ -1185,6 +1188,7 @@ func _on_gear_item(id: String) -> void:
 		"welcome": _open_cards([], false)
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
+		"perspective": _perspective.set_on(not _perspective.is_on())
 
 
 # ============================================================================================
