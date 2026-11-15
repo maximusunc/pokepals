@@ -22,6 +22,7 @@ const SHY_BACKOFF := 16.0
 const REACT_RATE := 5.0
 
 static var _registry: Dictionary = {}
+static var _head_tops: Dictionary = {}   # species -> top row of the animal in its standing cell (see head_top)
 
 var _tex: Texture2D
 var _fw := 32
@@ -98,6 +99,29 @@ static func _size_in(reg: Dictionary, species: String) -> float:
 	return clampf(float((reg.get("species", {}) as Dictionary).get(species, {}).get("size", 1.0)), 0.1, 4.0)
 
 
+## The top of the animal in its sheet's standing front cell (row 0, col 0), in world px from the cell's top at
+## draw size 1: about 3 for a wolf, 17 for a little bird, since each animal is drawn at its own size in the art.
+## Read off the sheet once per species, so whatever sits over its head (an emote) sits just over it.
+static func head_top(species: String, variant: int = 0) -> float:
+	if _head_tops.has(species):
+		return float(_head_tops[species])
+	var reg := registry()
+	var top := 3.0
+	if supported(species, variant):
+		var tex: Texture2D = load(_sheet_path(reg, species, variant))
+		var img: Image = tex.get_image() if tex != null else null
+		if img != null:
+			if img.is_compressed():
+				img.decompress()
+			var fr := _frame_of(reg, species)
+			var frame: Array = fr[0]
+			var used := img.get_region(Rect2i(0, 0, int(frame[0]), int(frame[1]))).get_used_rect()
+			if used.size.y > 0:
+				top = float(used.position.y) * (0.5 if _is_hd(reg, species) else 1.0)
+	_head_tops[species] = top
+	return top
+
+
 ## How big a species is drawn relative to its sheet (its "size" in data/pals.json, 1.0 if unset).
 static func size_of(species: String) -> float:
 	return _size_in(registry(), species)
@@ -119,6 +143,7 @@ static func sheet_info(species: String, variant: int) -> Dictionary:
 			"frame": _frame_of(reg, species)[0],
 			"scale": _frame_of(reg, species)[1],
 			"size": _size_in(reg, species),
+			"head_top": head_top(species, variant),
 			"fps": float(reg.get("fps", 10.0)),
 			"cols": int(reg.get("move_frames", 8)),
 			"rows": reg.get("rows", {}),

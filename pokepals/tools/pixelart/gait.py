@@ -170,19 +170,19 @@ def shear(grid, region, amp):
 # Only tails that stand clear of the body sway (a tail fused into the rump
 # would tear a seam). Rabbit ears blow back on the hop instead.
 TAILS = {
-    "cat": {"right": ('v', 13, 15, 3, 4, 16),
-            "down_right": ('v', 6, 11, 2, 4, 12),
-            "up_right": ('v', 7, 13, 2, 4, 14)},
-    "fox": {"right": ('h', 13, 18, 0, 6, 7),
-            "down_right": ('v', 9, 11, 0, 4, 12)},
+    "cat": {"right": ('v', 15, 17, 5, 6, 18),
+            "down_right": ('v', 9, 12, 3, 5, 13),
+            "up_right": ('v', 12, 16, 5, 7, 17)},
+    "fox": {"right": ('h', 14, 19, 0, 6, 7),
+            "down_right": ('v', 12, 14, 0, 5, 15)},
     "wolf": {"right": ('v', 16, 19, 0, 3, 15),
              "down_right": ('v', 12, 15, 0, 2, 11)},
     "rabbit": {},
 }
 EARS = {
-    "rabbit": {"right": ('v', 3, 8, 13, 22, 9),
-               "down_right": ('v', 5, 11, 17, 23, 12),
-               "up_right": ('v', 2, 8, 17, 23, 9)},
+    "rabbit": {"right": ('v', 9, 12, 13, 22, 13),
+               "down_right": ('v', 9, 12, 15, 22, 13),
+               "up_right": ('v', 8, 11, 16, 23, 12)},
 }
 
 
