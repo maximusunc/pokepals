@@ -538,3 +538,12 @@ in**: its front door `door_from_pond` (140 px, about 10 yards) north of the pond
 portal home, and it doesn't move as the glade grows. The glade reaches north only as far as the house needs (its back
 plus `from_north` for the treeline). The seventh keepsake spot in the glade (used only before a house is finished)
 moved out of its way, and `home_house_test.exs` checks nothing in the glade stands where the house does, at any bond.
+
+### The fish tank moves in (2026-11-15)
+
+Asked for by the owner: once the house is built, the fish tank (which stood by the journal in the glade) stands in
+the **living room**, on its east side by the armchair and the bookshelf (the template's `house.tank`, with its
+collision the tank prop's own). `Server.HomeWorld` moves the tank prop there for a built house; `HouseDirector` moves
+it (view, examine spot, collision) when the house finishes in front of you. Like the finds inside, it isn't drawn while
+you're outside the house. Your companion still wanders over to watch the fish. Checked by the layout's flood fill,
+`home_house_test.exs` and `tests/smoke_house.gd`.

@@ -1320,8 +1320,12 @@
             "x1": 272.0
           }
         ],
-        "started_at": 1794752668822,
+        "started_at": 1794753014569,
         "state": "built",
+        "tank": [
+          70.0,
+          -480
+        ],
         "wall_h": 64,
         "wall_t": 8
       },
@@ -2554,8 +2558,8 @@
       "label": "your fish tank",
       "lore": "A glass tank of clear water, with room for three fish.",
       "position": [
-        182,
-        168
+        70.0,
+        -480
       ],
       "solid": true,
       "tags": [

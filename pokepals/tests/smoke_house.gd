@@ -79,12 +79,15 @@ func _unreachable_finds(fp: Rect2) -> Array:
 				todo.append(n)
 	var out: Array = []
 	for e in _world._interactables:
-		if (String(e.get("curio", "")) == "" and String(e.get("keepsake", "")) == "") or bool(e.get("_taken", false)):
+		var is_tank := bool(e.get("tank", false))
+		if (String(e.get("curio", "")) == "" and String(e.get("keepsake", "")) == "" and not is_tank) or bool(e.get("_taken", false)):
 			continue
-		var feet: Vector2 = e["pos"] + Vector2(0, 8)
+		# a find: up to it; the tank (bigger, and examined from further off): to its side
+		var feet: Vector2 = e["pos"] + (Vector2.ZERO if is_tank else Vector2(0, 8))
+		var reach := 34.0 if is_tank else 26.0
 		var near := false
 		for c in seen:
-			if (c as Vector2).distance_to(feet) <= 26.0:
+			if (c as Vector2).distance_to(feet) <= reach:
 				near = true
 				break
 		if not near:
@@ -204,7 +207,15 @@ func _process(_delta: float) -> bool:
 			# Every secret on show can be walked up to from the doorstep, through the real collision (secrets on
 			# shelves by the door once boxed the way in).
 			var unreachable := _unreachable_finds(fp)
-			_ok(unreachable.is_empty(), "every secret on show can be walked up to from the front door (unreachable: %s)" % [unreachable])
+			_ok(unreachable.is_empty(), "every secret on show, and the fish tank, can be walked up to from the front door (unreachable: %s)" % [unreachable])
+			# The fish tank moved in, fish and all, and you can examine it there.
+			var tank_at: Vector2 = _world._tank_dir.position()
+			_ok(fp.has_point(tank_at) and tank_at == WorldData.to_vec2(view.house["tank"]), "the fish tank has moved into the house (%s)" % tank_at)
+			var tank_entry: Dictionary = {}
+			for e in _world._interactables:
+				if bool(e.get("tank", false)):
+					tank_entry = e
+			_ok(not tank_entry.is_empty() and (tank_entry["pos"] as Vector2) == tank_at, "and is examined there")
 			_ok(_world.hint_text().contains("finished"), "a hint says it's finished")
 			# The curio cabinet holds every find, on show or not.
 			var cab: Dictionary = {}

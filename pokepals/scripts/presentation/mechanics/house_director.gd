@@ -26,6 +26,8 @@ var _world_art: WorldArt
 var _scenery: Node2D
 var _style: ArtStyle
 var _home_dir: HomeDirector
+## The fish tank's director (its tank moves into the house when the house is finished). Set by world_controller.
+var _tank_dir: TankDirector
 
 var _active := false
 var _data: Dictionary = {}
@@ -117,6 +119,8 @@ func _sync_interior() -> void:
 		var ri := int(e.get("render_index", -1))
 		if ri >= 0 and fp.has_point(e["pos"]):
 			_world_art.set_interactable_hidden(ri, not show)
+	if _tank_dir != null and fp.has_point(_tank_dir.position()):
+		_tank_dir.set_shown(show)
 
 
 ## Examining the carpenter while she works: how long is left.
@@ -144,6 +148,20 @@ func _finish(seen: bool) -> void:
 		plates.append(p)
 	_data["plates"] = plates
 	_world_art.refresh_plates(_data)
+	# The fish tank moves in (before the solids are rebuilt: its collision is its prop's).
+	var tank_at: Variant = house.get("tank")
+	if tank_at is Array:
+		var to := WorldData.to_vec2(tank_at)
+		for it in _data.get("props", []):
+			if it is Dictionary and bool((it as Dictionary).get("tank", false)):
+				it["position"] = tank_at
+		for e in _interactables:
+			if bool(e.get("tank", false)):
+				e["pos"] = to
+				if int(e.get("render_index", -1)) >= 0:
+					_world_art.move_interactable(int(e["render_index"]), to)
+		if _tank_dir != null:
+			_tank_dir.move_to(to)
 	# The furniture walls in.
 	for b in _data.get("buildings", []):
 		if String(b.get("view", "")) == "house":

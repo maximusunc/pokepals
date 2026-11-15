@@ -229,6 +229,7 @@ defmodule Server.HomeWorld do
         "curio_spots" => Enum.map(t["curio_spots"], abs),
         "curio_shown" => Map.get(t, "curio_shown", length(t["curio_spots"])),
         "cabinet" => if(t["cabinet"], do: abs.(t["cabinet"])),
+        "tank" => if(t["tank"], do: abs.(t["tank"])),
         "decor" =>
           Enum.map(t["decor"], fn dd -> %{dd | "x0" => ox + dd["x0"], "x1" => ox + dd["x1"]} end),
         "front_windows" => Enum.map(t["front_windows"], fn [a, b] -> [ox + a, ox + b] end),
@@ -260,7 +261,18 @@ defmodule Server.HomeWorld do
       "color" => [0.62, 0.56, 0.42]
     }
 
+    # Once it's built the fish tank moves in (it stood by the journal in the glade).
+    props =
+      if built and t["tank"] do
+        Enum.map(Map.get(core, "props", []), fn p ->
+          if p["tank"] == true, do: Map.put(p, "position", abs.(t["tank"])), else: p
+        end)
+      else
+        Map.get(core, "props", [])
+      end
+
     core
+    |> Map.put("props", props)
     |> Map.put("bounds", bounds)
     |> Map.put("regions", regions)
     |> Map.update("buildings", [building], &(&1 ++ [building]))

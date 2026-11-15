@@ -87,6 +87,7 @@ display_plinths = [
     rect(344, 188, 18, 14),   # and its pair (both well clear of the front door)
 ]
 CHEST = rect(440, 100, 40, 16)   # the chest at the bed's foot
+TANK = (350, 62)                 # the fish tank's spot (its feet), in the living room by the armchair
 
 
 def top_spot(r):
@@ -212,6 +213,9 @@ house = {
     # so new finds rotate in. Every find is in the curio cabinet, whatever is on show.
     "curio_shown": 8,
     "cabinet": [205, 78],
+    # where the fish tank moves to once the house is built (from beside the journal in the glade): the living room's
+    # east side, by the armchair. Its collision is the tank prop's own (a circle, radius 14).
+    "tank": list(TANK),
     "decor": decor,
     "front_windows": front_windows,
     "chimney_x": 280,
@@ -228,7 +232,7 @@ house = {
 # (a body needs ~8 px clear all round: Solids' body radius 6 plus its margin 2). A flood fill over a 4 px grid.
 CLEAR = 9.0
 STEP = 4
-blockers = walls + furniture_solids
+blockers = walls + furniture_solids + [rect(TANK[0] - 14, TANK[1] - 14, 28, 28)]   # the tank: a circle, boxed
 
 
 def blocked(x, y):
@@ -257,6 +261,8 @@ for room in ROOMS:
 for sx, sy in display_spots + curio_spots + [[205, 70]]:
     fx, fy = sx, sy + 8.0
     assert any((c[0] - fx) ** 2 + (c[1] - fy) ** 2 <= 26 * 26 for c in seen), "can't reach the find at %s" % [fx, fy]
+# the tank is bigger (and is examined from further off), so reaching its side is enough
+assert any((c[0] - TANK[0]) ** 2 + (c[1] - TANK[1]) ** 2 <= 34 * 34 for c in seen), "can't reach the fish tank"
 
 with open(TEMPLATE) as f:
     tpl = json.load(f)

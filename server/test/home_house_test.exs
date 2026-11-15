@@ -95,8 +95,10 @@ defmodule Server.HomeHouseTest do
     for {id, [px, py | _]} <- things, do: refute(inside.([px, py]), "#{id} stands where the house does")
   end
 
-  test "being built: keepsakes stay in the glade, no curios" do
+  test "being built: keepsakes stay in the glade, no curios, the tank by the journal" do
     c = core(:building, keepsakes: ["a"], cards: [{"a", @card}, {"b", @card}])
+    tank = Enum.find(c["props"], &(&1["tank"] == true))
+    assert tank["position"] == Enum.find(template()["base"]["props"], &(&1["tank"] == true))["position"]
     [k] = Enum.filter(c["props"], &Map.has_key?(&1, "keepsake"))
     assert k["position"] == hd(template()["keepsake_spots"])
     refute Enum.any?(c["props"], &Map.has_key?(&1, "curio"))
@@ -117,6 +119,10 @@ defmodule Server.HomeHouseTest do
     assert k["keepsake"] == "b"
     assert inside.(k["position"])
     assert k["position"] == hd(c["home"]["spot_positions"])
+    # the fish tank has moved in
+    tank = Enum.find(c["props"], &(&1["tank"] == true))
+    assert inside.(tank["position"])
+    assert tank["position"] == house(c)["house"]["tank"]
     curios = Enum.filter(c["props"], &Map.has_key?(&1, "curio"))
     # newest first (cards come oldest first)
     assert Enum.map(curios, & &1["curio"]) == ["c", "a"]

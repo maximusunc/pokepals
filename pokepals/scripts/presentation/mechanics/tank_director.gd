@@ -56,6 +56,26 @@ func configure(data: Dictionary) -> void:
 	_view.set_fish(_fish)
 
 
+## Where the tank stands (Vector2.INF without one).
+func position() -> Vector2:
+	return _pos if _view != null else Vector2.INF
+
+
+## Show or hide the tank (in your house it's only drawn while you're inside; the roof hides it otherwise, and its
+## fish swim every frame).
+func set_shown(shown: bool) -> void:
+	if _view != null:
+		_view.visible = shown
+		_view.set_process(shown)
+
+
+## Move the tank (your house was just finished, and it moved in).
+func move_to(pos: Vector2) -> void:
+	_pos = pos
+	if _view != null:
+		_view.position = pos
+
+
 func has_tank() -> bool:
 	return _view != null
 
