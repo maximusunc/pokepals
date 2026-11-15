@@ -403,7 +403,7 @@ Asked for by the owner (issue #141, then "go ahead and build this", 2026-11-15).
    - **Bedroom:** a big bed with a patchwork quilt; two nightstands with candles; a wardrobe; a chest at the bed's foot;
      a blue rug; a clock with a swinging pendulum.
    - **Your finds:** the keepsakes your companion chose stand on **display plinths** (the favourite by the fire, one
-     either side of it, one in the kitchen, one in the bedroom, side tables by the couch, the chest), and **every other
+     either side of it, one in the kitchen, one in the bedroom, side tables in the living room's front corners, the chest), and **every other
      find** sits on **curio shelves** along the walls, spread from room to room. A find your companion later picks as a
      keepsake leaves its shelf for a plinth. The journal holds them all, as before.
    Friends see the same house (and the same build) when they visit.
@@ -485,3 +485,18 @@ bite) and the server honours the chop only that long after you started on that v
   fixed by the template.
 - **The cutaway** follows your own feet: friends inside look hidden under the roof from outside (as anyone behind a
   building is).
+
+### After the first play (2026-11-15)
+
+- **The doorway while it's being built** had a frame post (and the scaffold plank) right across it, so it looked
+  blocked though it wasn't. No post or plank crosses the doorway now; a post stands either side of it instead.
+- **The carpenter glided.** Her body was moved directly, so its walk cycle never played. Now she walks: a point is
+  moved at walking pace and her body eases after it, like a friend's puppet.
+- **You could get stuck inside.** The couch, two side tables and two low shelves sat just inside the front door with
+  no gap a body fits through, so once the house finished (and the furniture walled in) you couldn't get in or out.
+  The couch now stands further back, the side tables are in the living room's front corners, and the two shelves by
+  the door moved to the kitchen's and the bedroom's front walls. `tools/gen_home_house.py` now checks, before it
+  writes anything, that from outside the door you can walk into every room and up to every place a find stands (a
+  flood fill with a body's clearance), and `tests/smoke_house.gd` walks in, round the couch and back out through the
+  real collision. The server builds homes from the template on every visit, so houses already built get the new
+  layout straight away.
