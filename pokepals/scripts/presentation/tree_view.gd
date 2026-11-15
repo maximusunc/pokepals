@@ -37,6 +37,18 @@ var tex_scale := 1.0
 
 var _time := 0.0
 
+# Home building: a tree can be chopped down (HarvestDirector). It topples, a puff of leaves, and leaves a
+# stump, until it grows back up out of it. `felled` is the shared truth (the server's); the rest is animation,
+# timed on this tree's own clock (set_time).
+const FALL_TIME := 0.55
+const POOF_TIME := 0.35
+const GROW_TIME := 1.4
+var felled := false
+var _fell_at := -100.0      # when it began to topple (in _time)
+var _grow_at := -100.0      # when it began to grow back
+var _shake_at := -100.0     # an axe's last bite (while a chop takes time)
+var _fall_dir := 1.0
+
 
 ## The grove no longer self-animates: with hundreds of trees in a large world (the Ruin's
 ## border ring alone is several hundred), one `_process` + `queue_redraw` per tree every
@@ -55,11 +67,92 @@ func _sway(gain: float) -> float:
 	return sin(_time * wind_speed + phase) * wind_strength * gain
 
 
+## Chopped down: it topples away from you (`away` is the side, -1 left / 1 right), then a stump.
+func fell(away := 1.0) -> void:
+	felled = true
+	_fall_dir = 1.0 if away >= 0.0 else -1.0
+	_fell_at = _time
+	queue_redraw()
+
+
+## Already down when we arrived: just the stump, no toppling.
+func set_felled_now() -> void:
+	felled = true
+	_fell_at = -100.0
+	queue_redraw()
+
+
+## It grows back up out of its stump.
+func regrow() -> void:
+	felled = false
+	_grow_at = _time
+	queue_redraw()
+
+
+## An axe bites (while a chop takes several swings): a shiver through the crown.
+func shake() -> void:
+	_shake_at = _time
+
+
 func _draw() -> void:
 	if is_great:
 		_draw_great()
-	else:
+		return
+	if felled:
+		_draw_stump()
+		var t := _time - _fell_at
+		if t < FALL_TIME:
+			var k := t / FALL_TIME
+			draw_set_transform(Vector2.ZERO, _fall_dir * 1.45 * k * k, Vector2.ONE)
+			_draw_normal()
+			draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		elif t < FALL_TIME + POOF_TIME:
+			_draw_poof((t - FALL_TIME) / POOF_TIME)
+		return
+	var g := _time - _grow_at
+	if g < GROW_TIME:
+		var k := clampf(g / GROW_TIME, 0.0, 1.0)
+		k = 1.0 - pow(1.0 - k, 3.0)
+		_draw_stump()
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2(0.25 + 0.75 * k, 0.15 + 0.85 * k))
 		_draw_normal()
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	var sh := _time - _shake_at
+	if sh < 0.3:
+		draw_set_transform(Vector2(sin(sh * 60.0) * 1.5 * (1.0 - sh / 0.3), 0.0), 0.0, Vector2.ONE)
+		_draw_normal()
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		return
+	_draw_normal()
+
+
+## What's left of a felled tree: a short trunk with its cut face up, rings and all.
+func _draw_stump() -> void:
+	var bark := style.color("bark") if style != null else Color(0.42, 0.30, 0.20)
+	draw_set_transform(Vector2(0, 4), 0.0, Vector2(1.0, 0.42))
+	draw_circle(Vector2.ZERO, 11.0, Color(0, 0, 0, 0.16))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	draw_rect(Rect2(-6, -6, 12, 9), bark)
+	draw_rect(Rect2(-6, -6, 3, 9), bark.lightened(0.14))
+	draw_rect(Rect2(3, -6, 3, 9), bark.darkened(0.18))
+	draw_rect(Rect2(-8, 1, 3, 2), bark.darkened(0.1))     # a root either side
+	draw_rect(Rect2(5, 1, 3, 2), bark.darkened(0.1))
+	draw_set_transform(Vector2(0, -6), 0.0, Vector2(1.0, 0.45))
+	draw_circle(Vector2.ZERO, 6.0, Color(0.86, 0.72, 0.50))
+	draw_arc(Vector2.ZERO, 3.8, 0.0, TAU, 12, Color(0.72, 0.56, 0.36), 1.0)
+	draw_arc(Vector2.ZERO, 1.8, 0.0, TAU, 8, Color(0.72, 0.56, 0.36), 1.0)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+
+
+## The crown hits the ground in a soft puff of leaves.
+func _draw_poof(k: float) -> void:
+	var f := style.color("foliage_mid") if style != null else Color(0.36, 0.56, 0.30)
+	var base := Vector2(_fall_dir * 22.0, -6.0)
+	for i in 9:
+		var a := TAU * float(i) / 9.0 + phase
+		var r := 4.0 + 18.0 * k
+		draw_circle(base + Vector2(cos(a), sin(a) * 0.6) * r, 4.0 * (1.0 - k) + 1.0, Color(f.r, f.g, f.b, 1.0 - k))
 
 
 func _draw_normal() -> void:

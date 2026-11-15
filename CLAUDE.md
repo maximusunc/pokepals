@@ -95,6 +95,23 @@ not a blocker** — pick it up if/when a shared world wants it.
 > pockets, `world_controller._mist_pockets`) and glows everywhere else. The hotbar's selected slot survives
 > portals (`Net.hotbar_selected`).
 
+> **Home building (2026-11):** chop wood, then have a house built at home (docs/usable-items-design.md, "Home
+> building"; issue #141). **Pick up** river stones and driftwood on the Riverbank (the spec's `pickups`; examine one).
+> The tinker makes an **axe** from 3 driftwood + 2 stones. With it selected, **Use** beside a tree fells it: +2 **wood**,
+> and a stump everyone in that world sees until it grows back (5 min). Not in the Vale or homes (`"chopping": false`),
+> and only trees that are wood. Chopping is instant for now (`chop_ms`). The **carpenter** in the bazaar (`"builds":
+> "house"`, `CarpenterPanel`) builds you a **house** for 100 wood + 300 coins. At home the glade widens north and she
+> works on it, a frame rising for 10 min (`build_ms`), then it's finished in front of you. Walk in and the roof lifts
+> away (a cutaway): a kitchen, a living room with a fire and a couch, a bedroom. Your keepsakes stand on display plinths
+> and every other find on curio shelves. Every number is server config, overridable from the environment at boot
+> (`CHOP_SECONDS`, `TREE_REGROW_SECONDS`, `HOUSE_BUILD_SECONDS`, ...).
+> - **Server:** `Server.Harvest` (items, rules, the shared felled state in ETS); `Server.House` (`homes.house`);
+>   `Server.HomeWorld` (places the house, its walls, floors, furniture solids and your finds); channel `chop` /
+>   `gather` / `commission_house`, pushes `harvest` and `house` on join.
+> - **Client:** `HarvestDirector`, `AxeView`, `TreeView` (fell / stump / regrow), `HouseView` (a `BuildingView`,
+>   `"view": "house"`), `HouseBackWall`, `HouseFurniture`, `HouseDirector`, and the house's floor plates in `WorldArt`.
+> - **Layout:** `tools/gen_home_house.py` writes the template's `house` block; `tools/gen_bazaar.py` makes the carpenter.
+
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
 > server's *first* bit of world *simulation* (a per-world `Server.AmbientPals` sim ticked by

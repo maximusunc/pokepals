@@ -2,7 +2,8 @@ defmodule Server.Crafting do
   @moduledoc """
   CRAFTING, and the second usable item, the LANTERN (docs/usable-items-design.md, U-11 and U-14).
 
-  The tinker in the bazaar makes things for you from what you bring, for a small fee. One recipe so far:
+  The tinker in the bazaar makes things for you from what you bring, for a small fee. Two recipes: an
+  **axe** from three pieces of driftwood and two river stones (home building; `Server.Harvest`), and
   a **lantern** from one sea-glass, one firefly and one piece of driftwood, plus 10 coins. Sea-glass and
   driftwood are reeled up while fishing (`Server.Fishing`); a firefly comes down into the glass jar on a
   little table beside the secret at the end of each dark world, Steamhollow and Underroot (`at_firefly_jar?/2`). You can carry only ONE firefly at
@@ -28,6 +29,16 @@ defmodule Server.Crafting do
       needs: [{@sea_glass_id, 1}, {@firefly_id, 1}, {@driftwood_id, 1}],
       fee: 10,
       line: "A driftwood frame, a sea-glass window, and a firefly who'd like to stay."
+    },
+    # The AXE (home building): three pieces of driftwood and two river stones, both lying about on the
+    # Riverbank (Server.Harvest's pickups; driftwood also comes up while fishing). No fee.
+    %{
+      id: "axe",
+      makes: 11,
+      needs: [{@driftwood_id, 3}, {243, 2}],
+      fee: 0,
+      line:
+        "A river stone knocked to an edge, lashed to a driftwood haft. It'll fell a tree in one good swing."
     }
   ]
 
@@ -83,7 +94,11 @@ defmodule Server.Crafting do
   Built from the item definitions in code, so it needs no database.
   """
   def recipes_view do
-    defs = Map.new(Fishing.item_defs() ++ item_defs(), &{&1.item_def_id, &1})
+    defs =
+      Map.new(
+        Fishing.item_defs() ++ item_defs() ++ Server.Harvest.item_defs(),
+        &{&1.item_def_id, &1}
+      )
 
     for r <- @recipes do
       %{

@@ -32,5 +32,25 @@ config :mime, :types, %{
   "application/octet-stream" => ["pck"]
 }
 
+# HOME BUILDING (docs/usable-items-design.md "Home building"). Every number here can also be set when the
+# server boots, without a rebuild, from the environment (runtime.exs): CHOP_SECONDS, TREE_REGROW_SECONDS,
+# PICKUP_REGROW_SECONDS, WOOD_PER_TREE, HOUSE_BUILD_SECONDS, HOUSE_WOOD, HOUSE_COINS.
+#   chop_ms          how long a chop takes (0 = a tree falls in one swing)
+#   tree_regrow_ms   how long a felled tree takes to grow back (shared by everyone in that world)
+#   pickup_regrow_ms how long a picked-up stone or piece of driftwood takes to come back
+#   wood_per_tree    how much wood one tree gives
+config :server, Server.Harvest,
+  chop_ms: 0,
+  tree_regrow_ms: 300_000,
+  pickup_regrow_ms: 180_000,
+  wood_per_tree: 2
+
+#   build_ms   how long the carpenter takes to build a house
+#   wood/coins what she asks for it
+config :server, Server.House,
+  build_ms: 600_000,
+  wood: 100,
+  coins: 300
+
 # Per-environment overrides (dev/test/prod). Runtime secrets live in runtime.exs.
 import_config "#{config_env()}.exs"

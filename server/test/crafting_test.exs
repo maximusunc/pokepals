@@ -55,7 +55,7 @@ defmodule Server.CraftingTest do
   end
 
   test "the recipe the client shows" do
-    assert [%{id: "lantern", fee: 10, makes: %{key: "lantern"}, needs: needs}] = Crafting.recipes_view()
+    assert [%{id: "lantern", fee: 10, makes: %{key: "lantern"}, needs: needs}, %{id: "axe"}] = Crafting.recipes_view()
     assert Enum.map(needs, & &1.key) == ["sea_glass", "firefly", "driftwood"]
   end
 

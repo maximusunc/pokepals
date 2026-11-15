@@ -45,7 +45,9 @@ defmodule Server.HomeWorld do
       keepsakes: home.keepsakes,
       cards: Discoveries.cards(owner_id, Map.get(template, "legacy_cards", %{})),
       resident: if(viewer_id != owner_id, do: home.resident, else: %{}),
-      tank: Server.Tank.view(owner_id)
+      tank: Server.Tank.view(owner_id),
+      house: home.house,
+      now: Server.House.now()
     }
 
     %WorldDefinition{
@@ -72,10 +74,29 @@ defmodule Server.HomeWorld do
     cards = Map.get(state, :cards, [])
     card_map = Map.new(cards)
 
+    # The house (once the carpenter's been paid): where it stands, and whether it's done yet. A built house
+    # takes your finds in: the keepsakes onto its display spots, every other find onto its curio shelves.
+    house = house_state(Map.get(state, :house), Map.get(state, :now, Server.House.now()))
+    grown = grow(base, spots, template)
+    # The glade's north edge before the house widens it: the house is placed from it.
+    y0 = grown |> get_in(["bounds", "min"]) |> Enum.at(1)
+    origin = if house, do: house_origin(template["house"], y0)
+
+    template =
+      if house && house.state == "built",
+        do:
+          Map.put(
+            template,
+            "keepsake_spots",
+            local_to_world(template["house"]["display_spots"], origin)
+          ),
+        else: template
+
     core =
-      base
-      |> grow(spots, template)
+      grown
+      |> place_house(house, template, origin)
       |> place_keepsakes(Map.get(state, :keepsakes, []), card_map, spots, template)
+      |> place_curios(house, Map.get(state, :keepsakes, []), cards, spots, template, origin)
       |> apply_qualities(qualities_of(cards), length(cards), template)
 
     home = %{
@@ -144,6 +165,137 @@ defmodule Server.HomeWorld do
 
     Map.update(core, "props", props, &(&1 ++ props))
   end
+
+  # ── the house ──
+
+  # The stored house record as a state at `now`: nil (none), or %{state, started_at, build_ms}.
+  defp house_state(record, now) when is_map(record) do
+    case Server.House.state(record, now) do
+      "none" -> nil
+      st -> %{state: st, started_at: record["started_at"], build_ms: Server.House.build_ms()}
+    end
+  end
+
+  defp house_state(_record, _now), do: nil
+
+  # Where the house stands: its footprint's top-left, once the glade has widened north for it. The glade's
+  # north edge before widening is `y0`.
+  defp house_origin(t, y0) do
+    [w, _d] = t["size"]
+    {-w / 2, y0 - t["extend_north"] + t["from_north"]}
+  end
+
+  defp local_to_world(points, {ox, oy}), do: Enum.map(points, fn [x, y] -> [ox + x, oy + y] end)
+
+  defp place_house(core, nil, _template, _origin), do: core
+
+  defp place_house(core, house, template, {ox, oy}) do
+    t = template["house"]
+    %{"min" => [x0, y0 | _], "max" => max} = core["bounds"]
+    [w, d] = t["size"]
+    abs = fn [x, y] -> [ox + x, oy + y] end
+    abs_rect = fn [x, y, rw, rh] -> [ox + x, oy + y, rw, rh] end
+    built = house.state == "built"
+
+    bounds = %{"min" => [x0, y0 - t["extend_north"]], "max" => max}
+    regions = Enum.map(Map.get(core, "regions", []), &Map.merge(&1, bounds))
+
+    plate = fn p -> Map.put(p, "rect", abs_rect.(p["rect"])) end
+    floors = Enum.map(t["floors"], plate)
+    furnished = Enum.map(t["built_plates"], plate)
+
+    view =
+      %{
+        "state" => house.state,
+        "started_at" => house.started_at,
+        "build_ms" => house.build_ms,
+        "wall_h" => t["wall_h"],
+        "wall_t" => t["wall_t"],
+        "door" => Enum.map(t["door"], &(ox + &1)),
+        "rooms" =>
+          Enum.map(t["rooms"], fn r -> %{r | "x0" => ox + r["x0"], "x1" => ox + r["x1"]} end),
+        "furniture" =>
+          Enum.map(t["furniture"], fn f ->
+            f
+            |> Map.put("at", abs.(f["at"]))
+            |> then(&if(&1["solid"], do: Map.put(&1, "solid", abs_rect.(&1["solid"])), else: &1))
+          end),
+        "furniture_solids" => Enum.map(t["furniture_solids"], abs_rect),
+        "built_plates" => furnished,
+        "display_spots" => Enum.map(t["display_spots"], abs),
+        "curio_spots" => Enum.map(t["curio_spots"], abs),
+        "decor" =>
+          Enum.map(t["decor"], fn dd -> %{dd | "x0" => ox + dd["x0"], "x1" => ox + dd["x1"]} end),
+        "front_windows" => Enum.map(t["front_windows"], fn [a, b] -> [ox + a, ox + b] end),
+        "chimney_x" => ox + t["chimney_x"],
+        "colors" => t["colors"],
+        "carpenter" => %{
+          "appearance" => get_in(t, ["carpenter", "appearance"]),
+          "work_spots" => Enum.map(get_in(t, ["carpenter", "work_spots"]), abs)
+        }
+      }
+
+    solids = Enum.map(t["walls"], abs_rect) ++ if(built, do: view["furniture_solids"], else: [])
+
+    building = %{
+      "id" => "home_house",
+      "view" => "house",
+      "rect" => [ox, oy, w, d],
+      "h" => t["wall_h"],
+      "solid_rects" => solids,
+      "house" => view
+    }
+
+    # A path from the glade up to the front door.
+    door_x = ox + Enum.sum(t["door"]) / 2
+
+    path = %{
+      "from" => [door_x, y0 + 40],
+      "to" => [door_x, oy + d + 12],
+      "color" => [0.62, 0.56, 0.42]
+    }
+
+    core
+    |> Map.put("bounds", bounds)
+    |> Map.put("regions", regions)
+    |> Map.update("buildings", [building], &(&1 ++ [building]))
+    |> Map.update(
+      "plates",
+      floors ++ if(built, do: furnished, else: []),
+      &(&1 ++ floors ++ if(built, do: furnished, else: []))
+    )
+    |> Map.update("paths", [path], &(&1 ++ [path]))
+  end
+
+  # Every find that isn't one of the keepsakes on show sits on the house's curio shelves (a built house only).
+  defp place_curios(core, %{state: "built"}, keepsakes, cards, spots, template, {ox, oy}) do
+    shown = keepsakes |> Enum.take(spots) |> MapSet.new()
+    t = template["house"]
+
+    props =
+      cards
+      |> Enum.reject(fn {id, _} -> MapSet.member?(shown, id) end)
+      |> Enum.zip(t["curio_spots"])
+      |> Enum.map(fn {{id, card}, [x, y]} ->
+        k = Map.get(card, "keepsake", %{})
+
+        %{
+          "id" => "curio_" <> id,
+          "type" => Map.get(k, "type", "chime_stone"),
+          "position" => [ox + x, oy + y],
+          "color" => Map.get(k, "color", [0.7, 0.7, 0.7]),
+          "label" => Map.get(k, "label", "something you found"),
+          "lore" => Map.get(k, "line", ""),
+          "tags" => ["keepsake"],
+          "interactive" => true,
+          "curio" => id
+        }
+      end)
+
+    Map.update(core, "props", props, &(&1 ++ props))
+  end
+
+  defp place_curios(core, _house, _keepsakes, _cards, _spots, _template, _origin), do: core
 
   @doc "How many of the finds carry each quality: `%{quality => count}`."
   @spec qualities_of([{String.t(), map()}]) :: %{String.t() => non_neg_integer()}

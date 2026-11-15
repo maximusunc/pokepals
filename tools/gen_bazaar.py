@@ -346,6 +346,26 @@ tinker.update({"type": "crafter", "label": "the tinker", "crafts": True, "intera
                "lore": "\"Bring me the makings and I'll make you something. A lantern? Sea-glass for the window, driftwood "
                        "for the frame, and a firefly who'd like to stay. Ten coins for my trouble.\""})
 
+# ── the carpenter (home building; docs/usable-items-design.md "Home building") ─────────────────────────────
+# The stallholder nearest the tinker becomes the carpenter, and her stall the carpenter's: a workbench stacked
+# with planks and a saw, drawn by world_art as "carpenter_stall". She "builds": "house": bring her 100 wood and
+# 300 coins and she'll build you a house at home (Server.House). She wears a fixed look, the same one she wears
+# when she turns up at your home to work on it (priv/home/home.json's house.carpenter, tools/gen_home_house.py).
+# Converted after the layout is made, so nothing else in the lane moves.
+CARPENTER_LOOK = {"equipped": {"body": "base:body", "legwear": "base:pants", "outfit": "base:tee",
+                               "footwear": "base:shoes", "hair": "base:hair_long", "headwear": "base:headband"},
+                  "colors": {"skin_tone": "umber", "hair_color": "chestnut", "top_color": "clay",
+                             "legwear_color": "stone", "footwear_color": "clay", "headwear_color": "gold"}}
+_with_stall = [h for h in holders if h is not fish_buyer and h is not tinker
+               and any(_dist(h, st) <= 31 for st in stalls)]
+carpenter = min(_with_stall, key=lambda h: _dist(h, tinker))
+carpenter_stall = min(stalls, key=lambda st: _dist(st, carpenter))
+carpenter_stall.update({"type": "carpenter_stall", "label": "the carpenter's stall", "color": [0.62, 0.44, 0.26]})
+carpenter.update({"type": "carpenter", "label": "the carpenter", "builds": "house", "interactive": True,
+                  "person": {"appearance": CARPENTER_LOOK},
+                  "lore": "\"A house of your own? Bring me a hundred pieces of wood and three hundred coins, and I'll "
+                          "build you one at home. Wood you'll have to chop yourself: the tinker can make you an axe.\""})
+
 # ── checks ────────────────────────────────────────────────────────────────────────────────────────────
 all_props = special + lanterns + stalls + holders + rugs + alley
 ids = [p["id"] for p in all_props]
@@ -477,6 +497,7 @@ d = json.loads(text)
 assert any(i["type"] == "shopkeeper" for i in d["props"]), "no shopkeeper"
 assert sum(1 for i in d["props"] if i.get("buys") == "fish") == 1, "exactly one fish buyer"
 assert sum(1 for i in d["props"] if i.get("crafts")) == 1, "exactly one tinker"
+assert sum(1 for i in d["props"] if i.get("builds") == "house") == 1, "exactly one carpenter"
 for i in d["props"]:
     want = bool(i.get("lore")) or i["type"] == "shopkeeper"
     assert bool(i.get("interactive", False)) == want, "interactive flag mismatch on %s" % i["id"]

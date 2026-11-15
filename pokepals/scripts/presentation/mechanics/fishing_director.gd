@@ -23,6 +23,10 @@ const ESCAPED_HOLD := 0.9     # s the line lingers after a fish gets away, befor
 const ANSWER_WAIT := 6.0      # s to wait for the server to answer a cast or a reel before giving up
 const ROD_KEY := "rod"
 const LANTERN_KEY := "lantern"
+const AXE_KEY := "axe"
+
+## Chopping with the axe (home building) is the HarvestDirector's; we hand it the axe when it's selected.
+var harvest: HarvestDirector = null
 
 var _host: Node
 var _player: PlayerView
@@ -111,11 +115,13 @@ func configure(data: Dictionary) -> void:
 	_refresh_rest()
 
 
-## What's in our hand right now: "rod", "lantern" or "" (the lantern's light in the dark worlds reads this).
+## What's in our hand right now: "rod", "lantern", "axe" or "" (the lantern's light in the dark worlds reads this).
 func held_key() -> String:
 	if _rod.is_held():
 		return ROD_KEY
-	return LANTERN_KEY if _lantern.visible else ""
+	if _lantern.visible:
+		return LANTERN_KEY
+	return AXE_KEY if String(_selected_item().get("key", "")) == AXE_KEY else ""
 
 
 ## Water a world adds that isn't in its spec's shapes (Ebbmere: wherever the tide covers right now).
@@ -154,6 +160,10 @@ func use_item() -> void:
 		return
 	if String(item.get("key", "")) == LANTERN_KEY:
 		_host.show_hint("Your lantern glows warm. The firefly inside seems content.")
+		return
+	if String(item.get("key", "")) == AXE_KEY:
+		if harvest != null:
+			harvest.use_axe()
 		return
 	if String(item.get("key", "")) != ROD_KEY:
 		return
@@ -379,6 +389,8 @@ func _refresh_bar() -> void:
 	# The rod (or the lantern) is in your hand while it's the selected item.
 	_rod.set_held(String(item.get("key", "")) == ROD_KEY)
 	_lantern.visible = String(item.get("key", "")) == LANTERN_KEY
+	if harvest != null:
+		harvest.set_held(String(item.get("key", "")) == AXE_KEY)
 	_publish()
 
 
@@ -393,6 +405,10 @@ func _refresh_use() -> void:
 	if item.is_empty():
 		_use.set_item("", "", Color.WHITE)   # an empty hand: nothing to use
 		_use.set_ready(false)
+		_invalidate_ready()
+		return
+	if String(item.get("key", "")) == AXE_KEY:
+		_use.set_ready(harvest != null and harvest.can_chop())
 		_invalidate_ready()
 		return
 	if String(item.get("key", "")) != ROD_KEY:

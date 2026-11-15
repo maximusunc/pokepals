@@ -26,6 +26,9 @@ var _player: Node2D
 var _companion: Node2D
 var _lead := Vector2.ZERO  # smoothed look-ahead offset
 var _cinematic := false     # a glide (a little cutscene) has the camera; the follow stands down
+## Keep this world y in view at the TOP of the frame (INF = no such wish). Inside your house (HouseView) it's the
+## top of the back wall, so the room you're in is always seen whole, walls and all.
+var keep_top_in_view := INF
 
 
 func _ready() -> void:
@@ -111,4 +114,7 @@ func _process(delta: float) -> void:
 	if _companion != null:
 		anchor = _player.global_position.lerp(_companion.global_position, companion_weight)
 	var target := anchor + _lead
+	if keep_top_in_view < INF:
+		var half_h := get_viewport_rect().size.y / zoom.y * 0.5
+		target.y = minf(target.y, keep_top_in_view + half_h - 6.0)
 	global_position = global_position.lerp(target, 1.0 - exp(-follow_speed * delta))

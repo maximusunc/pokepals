@@ -86,6 +86,8 @@ var _encounter_dir: EncounterDirector
 var _fishing_dir: FishingDirector
 var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
 var _firefly_dir: FireflyDirector   # the firefly glades by Steamhollow's and Underroot's secrets (no-op elsewhere)
+var _harvest_dir: HarvestDirector   # chopping trees with an axe, picking up stones and driftwood (home building)
+var _house_dir: HouseDirector       # your house at home: being built, then finished (home building; no-op elsewhere)
 var _lantern_radius := 220.0  # the pocket a FRIEND's lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
 var _use_button: UseButton
@@ -265,7 +267,10 @@ func _build_world(cached: Dictionary) -> void:
 	_scenery.populate(data, border_pts, _style)
 	_scenery.add_understory(_world_art.understory_spots(), _style)
 	# Clickton's brick buildings, depth-sorted like trees; the one holding the secret gets its brick bound.
-	_bind_inlays(_scenery.add_buildings(data.get("buildings", []), _style))
+	var building_views := _scenery.add_buildings(data.get("buildings", []), _style)
+	_bind_inlays(building_views)
+	# Home building: this world's trees can be chopped (unless it says not), and its stones and driftwood picked up.
+	_harvest_dir.configure(data, _interactables)
 	# Every doorway (each world's portal home, the Vale's Gateway) stands in the same depth-sorted
 	# layer as a PortalView, so you walk in front of it or behind it; WorldArt draws only its light.
 	for p in _portals:
@@ -397,6 +402,8 @@ func _build_world(cached: Dictionary) -> void:
 	# After the greeting above, so a home's own words take its place, and after _setup_net, so it's our
 	# REAL companion that chooses (the fresh scene's placeholder isn't "met", and chose nothing).
 	_home_dir.begin(data, _interactables)
+	# Your house, if this home has one: the carpenter at work, or everything already moved in.
+	_house_dir.begin(data, _interactables, building_views)
 
 	# The world is now fully assembled: let the per-frame logic (_process / _unhandled_input) run. Until
 	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
@@ -476,6 +483,15 @@ func _create_directors() -> void:
 	_firefly_dir = FireflyDirector.new()
 	add_child(_firefly_dir)
 	_firefly_dir.setup(self, _player, _companion, _scenery)
+
+	# Home building: the axe (chopping trees) and things to pick up; the hotbar hands it the axe.
+	_harvest_dir = HarvestDirector.new()
+	add_child(_harvest_dir)
+	_harvest_dir.setup(self, _player, _companion, _scenery)
+	_fishing_dir.harvest = _harvest_dir
+	_house_dir = HouseDirector.new()
+	add_child(_house_dir)
+	_house_dir.setup(self, _player, _companion, _world_art, _scenery, _style, _home_dir)
 
 	# The fish tank at home, for rare fish (only a home has one).
 	_tank_dir = TankDirector.new()
@@ -642,6 +658,14 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(data_copy.get("sky", {})))
 
 
+## Rebuild the barriers from the world's data as it stands now (your house was just finished: its furniture
+## walls in). The companion's walkability grid is rebuilt with them.
+func rebuild_world_solids() -> void:
+	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
+	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(_world_data.get("sky", {})))
+
+
 ## Loftreach: a hidden bridge is down. Rebuild the barriers and the companion's walkability grid with it open
 ## (SkyRealm), so it can be walked, and remember it for the rest of the visit.
 func reveal_sky_bridge(bridge_id: String) -> void:
@@ -729,6 +753,10 @@ func _setup_contents(data: Dictionary, arrival_id: String) -> void:
 		}
 		if it.has("keepsake"):
 			entry["keepsake"] = String(it["keepsake"])  # a keepsake the companion chose (HomeDirector)
+		if it.has("curio"):
+			entry["curio"] = String(it["curio"])  # a find on a curio shelf in your house (HouseDirector)
+		if String(it.get("builds", "")) == "house":
+			entry["builds"] = "house"  # the carpenter in the bazaar, who builds you a house
 		if it.has("gives"):
 			entry["gives"] = String(it["gives"])  # a prop that hands you an item (the starter rod's post)
 		if it.has("buys"):
@@ -1079,6 +1107,8 @@ func _process(delta: float) -> void:
 		veil.set_lantern(_fishing_dir.held_key() == "lantern")
 	_tank_dir.update(delta)
 	_firefly_dir.update(delta)
+	_harvest_dir.update(delta)
+	_house_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()
 	_use_button.suppressed = _encounter_dir.is_searching()
 
@@ -1679,6 +1709,22 @@ func _try_interact() -> void:
 	if bool(entry.get("firefly_jar", false)):
 		_world_art.pulse_interactable(int(entry["render_index"]))
 		_firefly_dir.examine_jar(entry)
+		return
+	# A stone or a piece of driftwood lying about: pick it up.
+	if String(entry["kind"]) == "pickup":
+		_harvest_dir.examine_pickup(entry)
+		return
+	# The carpenter at work on your house: how long is left.
+	if bool(entry.get("house_builder", false)):
+		_house_dir.examine_builder()
+		return
+	# The carpenter in the bazaar: open her window to have a house built.
+	if String(entry.get("builds", "")) == "house":
+		_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
+		var carpenter := CarpenterPanel.new()
+		carpenter.host = self
+		carpenter.balance = _shop_dir.balance()
+		open_sheet(carpenter)
 		return
 	# The tinker: open her window to craft.
 	if bool(entry.get("crafts", false)):

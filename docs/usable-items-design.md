@@ -359,3 +359,129 @@ Gating is **placement only**: anyone who reaches the jar can take a firefly (a f
 one too, but you're then standing at the secret and can claim it). The jar gives a **faint** pocket of light in the
 fog / dark (`atmosphere.fog.lit.prop_types.firefly_jar_table`, radius 36, about a lantern's), so it glows a little
 once you're close. Nothing else changed: the server still honours a catch only at a jar, one at a time.
+
+---
+
+## Home building: the axe, wood, and your house (built 2026-11-15)
+
+Asked for by the owner (issue #141, then "go ahead and build this", 2026-11-15). What the owner decided:
+- **The axe** takes **3 driftwood and 2 stones**, both picked up on **the Riverbank**. The tinker in the bazaar makes it.
+- With the axe you can **chop trees in every world except the Vale**. Chopping is **instant for now, configurable**.
+- A tree gives **2 wood** and **grows back after 5 minutes**.
+- **The carpenter** in the bazaar builds your house for **100 wood and 300 coins**. Once paid, she shows up at your
+  home working on a house in progress. It takes **10 minutes, configurable**.
+- The house is **fairly large**, in the **north of your home**, and **you can go inside**. It's homey (a kitchen, a
+  couch, a fireplace, a living room...), and **the secrets you've found move in**, on display in different places.
+
+### How it plays
+
+1. **Stones and driftwood.** Six little heaps of river stones and five pieces of driftwood lie on the Riverbank, at
+   the water's edge (the spec's `pickups`). Examine one and it's yours. It's gone **for everyone there** until it
+   washes back (3 minutes). Driftwood still comes up while fishing too.
+2. **The axe.** The tinker's window now lists it under the lantern: 3 driftwood + 2 river stones, **no fee**. It goes on
+   your hotbar. Selected, you carry it over your shoulder (friends see it).
+3. **Chopping.** Stand beside a tree and tap **Use** (or F): you turn to it and swing, and it topples with a puff of
+   leaves, leaving a stump; **+2 wood**. The stump is shared: everyone in that world sees it, until the tree grows back
+   up out of it 5 minutes later. The use button dims when there's no tree in reach. **Not in the Vale or any home**
+   (`"chopping": false`), and only trees that are wood: not Thimblewick's fence pickets (its secret's gaps) or flower
+   stalks, not crystal spires, glow-flowers, sweets, stone pillars or giant mushrooms.
+4. **The carpenter.** The stallholder next to the tinker became the carpenter (a stall with planks, a saw and a little
+   sample house). Her window shows the wood and coins she asks for against what you have, a **Build my house** button
+   once you have it all, and tells you where wood comes from. Once paid, it says how the build is going.
+5. **Being built.** At home, the glade has **widened north** and the house is going up there: the floor is down and a
+   timber frame rises over the 10 minutes (posts, then beams, boards climbing the walls, rafters), with scaffolding, a
+   stack of planks that shrinks, sawhorses, and a sign with the minutes left. **The carpenter is there** (dressed as in
+   the bazaar), walking round the frame and hammering; examine her for how long is left. If you're there when the time
+   is up, it's **finished in front of you**.
+6. **The house.** A big cottage (560 x 220 px): plaster and timber, a stone plinth, six windows with shutters and
+   flower boxes, a green door with a lamp, a shingled roof, a chimney that smokes. Walk in through the door and the
+   roof and front wall lift away (a **cutaway**, like a doll's house; the camera keeps the whole room in view):
+   - **Kitchen:** a tiled floor; a counter with a sink, bread and fruit; an iron stove with a pot steaming; a table
+     with four chairs, flowers and plates; jars on shelves, pans on a rail, a window with curtains.
+   - **Living room:** a fireplace with a crackling fire and candles on the mantel; a red rug; two armchairs; a coffee
+     table with a teapot; a couch facing the fire with a knitted throw; a bookshelf; a floor lamp; paintings.
+   - **Bedroom:** a big bed with a patchwork quilt; two nightstands with candles; a wardrobe; a chest at the bed's foot;
+     a blue rug; a clock with a swinging pendulum.
+   - **Your finds:** the keepsakes your companion chose stand on **display plinths** (the favourite by the fire, one
+     either side of it, one in the kitchen, one in the bedroom, side tables by the couch, the chest), and **every other
+     find** sits on **curio shelves** along the walls, spread from room to room. A find your companion later picks as a
+     keepsake leaves its shelf for a plinth. The journal holds them all, as before.
+   Friends see the same house (and the same build) when they visit.
+
+### Tunables (all configurable without a client build)
+
+Server config (`server/config/config.exs`), each also settable when the server boots, in seconds, from the
+environment (`server/config/runtime.exs`):
+
+| Setting | Default | Env var |
+|---|---|---|
+| How long a chop takes (`Server.Harvest` `chop_ms`; 0 = one swing) | 0 | `CHOP_SECONDS` |
+| A felled tree grows back (`tree_regrow_ms`) | 5 min | `TREE_REGROW_SECONDS` |
+| A stone / driftwood comes back (`pickup_regrow_ms`) | 3 min | `PICKUP_REGROW_SECONDS` |
+| Wood per tree (`wood_per_tree`) | 2 | `WOOD_PER_TREE` |
+| The house's build time (`Server.House` `build_ms`) | 10 min | `HOUSE_BUILD_SECONDS` |
+| What the carpenter asks (`wood`, `coins`) | 100, 300 | `HOUSE_WOOD`, `HOUSE_COINS` |
+
+A house's state is worked out from when she started and the **current** build time, so changing it applies at once,
+even to a house already going up. With `chop_ms` above 0 the client swings for that long (the crown shivers at each
+bite) and the server honours the chop only that long after you started on that very tree.
+
+### Built
+
+**Server** (`server/lib/server/`):
+- `harvest.ex` (`Server.Harvest`): the axe (item 11, a `"tool"`, `"use": "chop"`), River Stone (243) and Wood (244),
+  materials; the rules (`check_tree/3`, `check_pickup/3`, `chopping_allowed?/1`, `wood_kind?/1`, `chop_ripe?/3`); and
+  the shared felled / taken state: an ETS table owned by this process (`{world_id, node} => regrow_at`), so it outlives
+  a world process; `take/3` is a call, so two players can't both have one tree. Forgotten on a restart (everything has
+  grown back). A tree's node is `"t<index>"` in its spec's `trees`; a pickup's is its id.
+- `house.ex` (`Server.House`): `commission/1` (one transaction: 100 wood consumed, 300 coins sunk, the house started,
+  ledgered), `status/1`, `state/2`, `at_carpenter?/2`. Stored as `homes.house` (`%{"started_at" => unix_ms}`;
+  migration `add_house_to_homes`, `Homes.set_house/2`).
+- `crafting.ex`: the axe recipe. `home_world.ex`: once a house exists, the glade widens north by `extend_north`
+  and the house stands there as a building (`"view": "house"`) whose `solid_rects` are its walls (and, once built, its
+  furniture), its floors as `plates` (and, once built, its rugs, plinths and shelves), a path to the door; a built
+  house's keepsake spots are its display spots and every other find goes on its curio spots (`curio` props).
+- `world_channel.ex`: pushes `harvest` (what's down here, how long until each grows back, `chop_ms`) and `house`
+  (your house's status and price) on every join; handles `chop` (and `chop_start`), `gather` and `commission_house`.
+  A felled tree or a taken pickup is broadcast (`harvested`); the gatherer gets `harvest_got` and the fresh
+  `inventory`, or `harvest_refused`.
+- Worlds: the Riverbank's `pickups` (hand-placed in `priv/world_seeds/riverbank.json`), the Vale's `"chopping": false`,
+  the bazaar's carpenter (`tools/gen_bazaar.py`: the stallholder nearest the tinker, her stall `carpenter_stall`,
+  `"builds": "house"`), and the home template's `house` block and `"chopping": false` (`tools/gen_home_house.py`,
+  which documents the layout: three rooms side by side, so every inner wall runs north-south and the cutaway reads
+  cleanly).
+- Tests: `test/harvest_test.exs`, `test/harvest_channel_test.exs`, `test/house_test.exs`, `test/home_house_test.exs`.
+
+**Client** (`pokepals/scripts/`):
+- `presentation/mechanics/harvest_director.gd` (`HarvestDirector`, with its `PickupView`): the axe's use, the target
+  tree, timed chops, the pickups as examinable things, and the shared state (each felled tree and taken pickup comes
+  back on its own timer from the server's figure). `FishingDirector` (the hotbar's owner) hands it the axe.
+- `presentation/axe_view.gd` (`AxeView`): the axe over your shoulder and its swing, chips flying (also the
+  carpenter's hammer). Friends' axes in `PresenceDirector`.
+- `presentation/tree_view.gd`: a tree topples, leaves a stump, grows back; `Scenery.spec_tree(i)`.
+- `presentation/carpenter_panel.gd` (`CarpenterPanel`).
+- `presentation/house_view.gd` (`HouseView`, a `BuildingView`: the frame, the cottage, the cutaway),
+  `house_back_wall.gd` (`HouseBackWall`), `house_furniture.gd` (`HouseFurniture`), and
+  `mechanics/house_director.gd` (`HouseDirector`: the carpenter at work, finishing the house in front of you, moving
+  your finds in). `WorldArt` draws the house's plates (floorboards, tiles, low walls, rugs, plinths, the chest,
+  shelves) under the props, so your finds stand on them, and grows no grass or bushes on a floor. `CameraRig`
+  `keep_top_in_view` keeps the back wall in frame inside.
+- `ItemIcon`: the axe, a river stone, wood. `Net`: the new messages.
+- Tests: `tests/smoke_harvest.gd` (the Riverbank: picking up, regrowing, the axe, felling, a friend's axe),
+  `tests/smoke_carpenter.gd` (the bazaar), `tests/smoke_house.gd` (a home: the build, the carpenter, finishing,
+  walking in and out), with fixtures `home_house_building.json` / `home_house_built.json` made by `Server.HomeWorld`.
+  Checked with rendered screenshots (Godot under Xvfb) of the construction site, the cottage, and the cutaway inside.
+
+### Choices made at build time (open for review)
+
+- **Shared trees:** a felled tree is gone for everyone in that world until it grows back (not per player).
+- **Pickups** come back after 3 minutes, also shared. Wood and stones **can't be sold** to the fishmonger (no price).
+- **The axe has no fee** at the tinker (the lantern costs 10 coins).
+- **Which trees are wood:** everything in a world's `trees` except a short list of kinds (`Server.Harvest`'s
+  `@not_wood`, mirrored in `HarvestDirector.NOT_WOOD`). Stillglass's mirror lake keeps reflecting a tree you've felled on
+  its north bank (its reflections are baked once); Lanternfold's paper trees can be chopped.
+- **A stump still blocks** like the trunk did (so routing and collision don't change while a tree is down).
+- **One house per player.** It isn't something you can rearrange (yet): the rooms, furniture and display spots are
+  fixed by the template.
+- **The cutaway** follows your own feet: friends inside look hidden under the roof from outside (as anyone behind a
+  building is).

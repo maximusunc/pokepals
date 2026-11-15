@@ -166,6 +166,15 @@ defmodule Server.WorldChannel do
     # What the tinker in the bazaar can make (the same for everyone; small).
     push(socket, "recipes", %{recipes: Server.Crafting.recipes_view()})
 
+    # Home building: what's felled or picked up in this world (and how long until each grows back), how
+    # long a chop takes; and where our own house stands (none / being built / built), with what it costs.
+    push(socket, "harvest", %{
+      down: Server.Harvest.down(world_id),
+      chop_ms: Server.Harvest.chop_ms()
+    })
+
+    push(socket, "house", Server.House.status(user_id))
+
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
       peers when map_size(peers) == 0 -> :ok
@@ -533,6 +542,119 @@ defmodule Server.WorldChannel do
         {:ok, _} = Economy.grant_stack(user_id, id, 1, txn_type: "gather", context: %{"source" => "firefly_jar"})
         push(socket, "firefly_caught", %{count: Economy.owned_quantity(user_id, id)})
         push(socket, "inventory", inventory_snapshot(user_id))
+    end
+
+    {:noreply, socket}
+  end
+
+  # ── Home building: chopping trees, picking things up, and the carpenter (Server.Harvest, Server.House) ──
+
+  # Start chopping tree `index` (only needed while a chop takes time, `chop_ms` > 0): remember which tree and
+  # when, so the `chop` that follows is honoured only once that long has passed.
+  def handle_in("chop_start", %{"tree" => index}, socket) when is_integer(index) do
+    {:noreply,
+     assign(
+       socket,
+       :chop_started,
+       {Server.Harvest.tree_node(index), System.monotonic_time(:millisecond)}
+     )}
+  end
+
+  # Chop down tree `index` of this world's spec. Honoured only with an axe in our inventory, in a world that
+  # allows chopping, for a tree that's wood, within reach, and still standing (and, while chops take time,
+  # long enough after `chop_start`). The tree is down for everyone (`harvested`, broadcast) until it grows
+  # back; we get the wood (`harvest_got`, then the fresh `inventory`), or `harvest_refused` with a reason.
+  def handle_in("chop", %{"tree" => index}, socket) when is_integer(index) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+    node = Server.Harvest.tree_node(index)
+    now = System.monotonic_time(:millisecond)
+
+    result =
+      with true <-
+             Economy.owned_quantity(user_id, Server.Harvest.axe_id()) > 0 || {:error, :no_axe},
+           {:ok, _tree} <- Server.Harvest.check_tree(core, index, pos),
+           true <-
+             Server.Harvest.chop_ripe?(Map.get(socket.assigns, :chop_started), node, now) ||
+               {:error, :not_yet},
+           :ok <- Server.Harvest.take(world_id, node, Server.Harvest.tree_regrow_ms()) do
+        n = Server.Harvest.wood_per_tree()
+
+        {:ok, _} =
+          Economy.grant_stack(user_id, Server.Harvest.wood_id(), n,
+            txn_type: "gather",
+            context: %{"source" => "tree"}
+          )
+
+        broadcast!(socket, "harvested", %{
+          id: node,
+          left_ms: Server.Harvest.tree_regrow_ms(),
+          by: user_id
+        })
+
+        {:ok, Server.Harvest.wood_id(), n}
+      end
+
+    harvest_answer(socket, node, result)
+    {:noreply, assign(socket, :chop_started, nil)}
+  end
+
+  # Pick up a loose thing lying about (a world spec's `pickups`: the Riverbank's stones and driftwood). Nothing
+  # needed in hand; honoured within reach of one that's still there. Gone for everyone until it comes back.
+  def handle_in("gather", %{"id" => id}, socket) when is_binary(id) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    result =
+      with {:ok, p} <- Server.Harvest.check_pickup(core, id, pos),
+           item when is_integer(item) <-
+             Server.Harvest.pickup_item(p["kind"]) || {:error, :no_pickup},
+           :ok <- Server.Harvest.take(world_id, id, Server.Harvest.pickup_regrow_ms()) do
+        {:ok, _} =
+          Economy.grant_stack(user_id, item, 1,
+            txn_type: "gather",
+            context: %{"source" => "pickup"}
+          )
+
+        broadcast!(socket, "harvested", %{
+          id: id,
+          left_ms: Server.Harvest.pickup_regrow_ms(),
+          by: user_id
+        })
+
+        {:ok, item, 1}
+      end
+
+    harvest_answer(socket, id, result)
+    {:noreply, socket}
+  end
+
+  # Ask the carpenter to build our house (Server.House): only while we stand at her stall. One transaction
+  # (the wood and coins taken, the house started). Answers `house_commissioned` (the house's status and our
+  # new balance) then the fresh `inventory`, or `house_refused` with a reason.
+  def handle_in("commission_house", _payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    core = get_in(definition.spec, ["core"]) || %{}
+    pos = World.snapshot(world_id) |> Map.get(user_id, %{}) |> Map.get("p")
+
+    if Server.House.at_carpenter?(core, pos) do
+      case Server.House.commission(user_id) do
+        {:ok, %{status: status, balance: balance}} ->
+          push(socket, "house_commissioned", %{
+            house: status,
+            balance: balance,
+            currency: @shop_currency
+          })
+
+          push(socket, "inventory", inventory_snapshot(user_id))
+
+        {:error, reason} ->
+          push(socket, "house_refused", %{reason: to_string(reason)})
+      end
+    else
+      push(socket, "house_refused", %{reason: "not_at_carpenter"})
     end
 
     {:noreply, socket}
@@ -913,6 +1035,26 @@ defmodule Server.WorldChannel do
 
     %{currency: @shop_currency, balance: Economy.balance(user_id, @shop_currency), colors: colors}
   end
+
+  # Tell the gatherer what they got (and the fresh inventory), or why not.
+  defp harvest_answer(socket, node, {:ok, item, n}) do
+    user_id = socket.assigns.user_id
+    d = Enum.find(Server.Harvest.item_defs() ++ Fishing.item_defs(), &(&1.item_def_id == item))
+
+    push(socket, "harvest_got", %{
+      id: node,
+      item_def_id: item,
+      key: get_in(d, [:base_attributes, "key"]) || "",
+      name: (d && d.name) || "something",
+      count: n,
+      total: Economy.owned_quantity(user_id, item)
+    })
+
+    push(socket, "inventory", inventory_snapshot(user_id))
+  end
+
+  defp harvest_answer(socket, node, {:error, reason}),
+    do: push(socket, "harvest_refused", %{id: node, reason: to_string(reason)})
 
   # Run a change to our own tank, if we're standing in our own home, and tell everyone there.
   defp tank_change(socket, change) do

@@ -25,6 +25,8 @@ defmodule Server.Application do
       {DynamicSupervisor, strategy: :one_for_one, name: Server.WorldSupervisor},
       # One-off home invites: short-lived, one-visit passes (FR-3). Transient by design.
       Server.HomePasses,
+      # Felled trees and taken pickups, shared per world until they grow back (Server.Harvest).
+      Server.Harvest,
       # The HTTP/WebSocket listener (Phoenix Channels over Bandit). Bind/port come from config.
       Server.Endpoint
     ]

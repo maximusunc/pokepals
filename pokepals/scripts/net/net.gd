@@ -155,6 +155,18 @@ signal crafted(item: Dictionary)
 signal craft_failed(reason: String)
 signal firefly_caught(count: int)
 signal firefly_refused(reason: String)
+# Home building (docs/usable-items-design.md "Home building"). What's felled / picked up in this world, with how
+# long until each grows back (pushed on join; also kept, harvest_down()), how long a chop takes; something
+# felled or picked up by anyone here (`by` = who), what we got, or why not.
+signal harvest_received(down: Array, chop_ms: int)
+signal harvested(node_id: String, left_ms: int, by: String)
+signal harvest_got(info: Dictionary)
+signal harvest_refused(node_id: String, reason: String)
+# Our house: its status (state "none" / "building" / "built", left_ms, the carpenter's price; pushed on join,
+# also kept, house_status()), the carpenter agreeing to build it (with our new balance), or why not.
+signal house_status_received(status: Dictionary)
+signal house_commissioned(status: Dictionary, balance: int)
+signal house_refused(reason: String)
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -218,6 +230,12 @@ var _inventory: Array = []
 var _hotbar: Array = []
 var _has_inventory := false
 var _recipes: Array = []
+# Home building: what's down in the current world ([{ id, left_ms }] as of _harvest_at, msec ticks), how long a
+# chop takes, and our house's status.
+var _harvest_down: Array = []
+var _harvest_at := 0
+var _chop_ms := 0
+var _house_status: Dictionary = {}
 ## Which hotbar slot is selected. Kept here, not in the world, so it survives a world hop (the world scene, and
 ## everything in it, is rebuilt on every portal).
 var hotbar_selected := 0
@@ -651,6 +669,59 @@ func catch_firefly() -> void:
 	_push_event("catch_firefly", {})
 
 
+## What's felled or picked up in this world right now: [{ id, left_ms }], each left_ms counted from now (the
+## push's own figures, less the time since it arrived). Empty before the world's first join.
+func harvest_down() -> Array:
+	var since := Time.get_ticks_msec() - _harvest_at
+	var out: Array = []
+	for d in _harvest_down:
+		if d is Dictionary:
+			var left := int((d as Dictionary).get("left_ms", 0)) - since
+			if left > 0:
+				out.append({ "id": String((d as Dictionary).get("id", "")), "left_ms": left })
+	return out
+
+
+## How long a chop takes (ms; 0 = one swing fells a tree).
+func chop_ms() -> int:
+	return _chop_ms
+
+
+## Our house as the server last told us: { state: "none" | "building" | "built", left_ms, build_ms, wood, coins }.
+func house_status() -> Dictionary:
+	return _house_status
+
+
+## Start chopping tree `index` (only sent while a chop takes time). See chop().
+func chop_start(index: int) -> void:
+	if not _can_send():
+		return
+	_push_event("chop_start", { "tree": index })
+
+
+## Chop down tree `index` of this world's spec (we must hold an axe and stand at it; the server checks).
+## Answers harvested (to everyone) + harvest_got, or harvest_refused.
+func chop(index: int) -> void:
+	if not _can_send():
+		return
+	_push_event("chop", { "tree": index })
+
+
+## Pick up the loose thing `id` (a stone, a piece of driftwood) we're standing at. Answers like chop().
+func gather(id: String) -> void:
+	if not _can_send():
+		return
+	_push_event("gather", { "id": id })
+
+
+## Ask the carpenter to build our house (we must be at her stall; the server takes the wood and coins).
+## Answers house_commissioned or house_refused.
+func commission_house() -> void:
+	if not _can_send():
+		return
+	_push_event("commission_house", {})
+
+
 ## The world secret ids we've found so far (empty before our first join).
 func discoveries() -> Array:
 	return _discoveries
@@ -764,6 +835,7 @@ func _switch_to_world() -> void:
 	_current_world = wid
 	_joined = false
 	_join_in_flight = true
+	_harvest_down = []   # what's felled is per world: the new one tells us its own on join
 	_world_join_ref = _next_ref()
 	var join_payload := { "known_etag": _desired_known_etag }
 	if _resume_pending:
@@ -962,6 +1034,27 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			crafted.emit(payload)
 		"craft_failed":
 			craft_failed.emit(String(payload.get("reason", "")))
+		"harvest":
+			var dn: Variant = payload.get("down", [])
+			_harvest_down = (dn as Array).duplicate(true) if dn is Array else []
+			_harvest_at = Time.get_ticks_msec()
+			_chop_ms = int(payload.get("chop_ms", 0))
+			harvest_received.emit(_harvest_down, _chop_ms)
+		"harvested":
+			harvested.emit(String(payload.get("id", "")), int(payload.get("left_ms", 0)), String(payload.get("by", "")))
+		"harvest_got":
+			harvest_got.emit(payload)
+		"harvest_refused":
+			harvest_refused.emit(String(payload.get("id", "")), String(payload.get("reason", "")))
+		"house":
+			_house_status = payload.duplicate(true)
+			house_status_received.emit(_house_status)
+		"house_commissioned":
+			var hs: Variant = payload.get("house", {})
+			_house_status = (hs as Dictionary).duplicate(true) if hs is Dictionary else {}
+			house_commissioned.emit(_house_status, int(payload.get("balance", 0)))
+		"house_refused":
+			house_refused.emit(String(payload.get("reason", "")))
 		"firefly_caught":
 			firefly_caught.emit(int(payload.get("count", 0)))
 		"firefly_refused":

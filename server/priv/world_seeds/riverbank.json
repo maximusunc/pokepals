@@ -48,6 +48,20 @@
 		[1560, 85], [1680, 20], [1800, 95], [1920, 35], [2040, 80], [2160, 10],
 		[2280, 100], [2400, 45], [180, 130], [900, 125], [1500, 135], [2100, 128]
 	],
+	"_pickups_comment": "Loose things lying on the bank by the water's edge (home building; Server.Harvest): river stones and driftwood, picked up by examining them, with nothing needed in hand. The tinker in the bazaar makes an axe from three pieces of driftwood and two stones. Each is shared: once someone takes it, it's gone for everyone here until it washes back (a few minutes).",
+	"pickups": [
+		{"id": "rb_stone_1", "kind": "stone", "position": [330, 12]},
+		{"id": "rb_stone_2", "kind": "stone", "position": [640, 8]},
+		{"id": "rb_stone_3", "kind": "stone", "position": [910, 10]},
+		{"id": "rb_stone_4", "kind": "stone", "position": [1560, 12]},
+		{"id": "rb_stone_5", "kind": "stone", "position": [2010, 10]},
+		{"id": "rb_stone_6", "kind": "stone", "position": [2440, 14]},
+		{"id": "rb_driftwood_1", "kind": "driftwood", "position": [180, 16]},
+		{"id": "rb_driftwood_2", "kind": "driftwood", "position": [520, 14]},
+		{"id": "rb_driftwood_3", "kind": "driftwood", "position": [1080, 12]},
+		{"id": "rb_driftwood_4", "kind": "driftwood", "position": [1760, 14]},
+		{"id": "rb_driftwood_5", "kind": "driftwood", "position": [2300, 16]}
+	],
 	"_goal_comment": "The hunt: hide `count` salamanders (these count) and `decoy_count` decoys (these don't) among the rocks; the rest are empty. Decoys are tagged so the companion appraises them too (see companion.json 'appraisal'). flip_budget caps how many rocks you may turn over before the hunt ends (re-tapping a flipped rock is free) — so the skill is reading your companion's 'tell' (companion.json 'detector') to spend flips on real salamanders, not flipping every rock. Find all `count` within budget for a win (flawless = a 'perfect hunt'); run out and every rock flips face-up dimmed so you see what you missed, then the way home opens and you can come back for a fresh shuffle. Set flip_budget to 0 to disable the budget (unlimited flips).",
 	"goal": {
 		"type": "find_salamanders",

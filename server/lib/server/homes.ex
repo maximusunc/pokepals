@@ -66,6 +66,10 @@ defmodule Server.Homes do
   @spec set_tank(Ecto.UUID.t(), [integer()]) :: Home.t()
   def set_tank(owner_id, fish) when is_list(fish), do: upsert(owner_id, tank: fish)
 
+  @doc "Store the home's house record (`%{\"started_at\" => unix_ms}`). Only Server.House calls this."
+  @spec set_house(Ecto.UUID.t(), map()) :: Home.t()
+  def set_house(owner_id, house) when is_map(house), do: upsert(owner_id, house: house)
+
   @doc "Whether `visitor` may enter `owner`'s home right now (without using up a pass)."
   @spec can_visit?(Ecto.UUID.t(), Ecto.UUID.t()) :: boolean()
   def can_visit?(owner, owner), do: true
@@ -77,12 +81,12 @@ defmodule Server.Homes do
 
   defp upsert(owner_id, changes) do
     home = get(owner_id)
-    attrs = Map.merge(Map.take(home, [:closed, :keepsakes, :spots, :resident, :tank]), Map.new(changes))
+    attrs = Map.merge(Map.take(home, [:closed, :keepsakes, :spots, :resident, :tank, :house]), Map.new(changes))
     now = DateTime.utc_now()
 
     Repo.insert!(
       struct(Home, Map.merge(attrs, %{owner_id: owner_id, inserted_at: home.inserted_at || now, updated_at: now})),
-      on_conflict: {:replace, [:closed, :keepsakes, :spots, :resident, :tank, :updated_at]},
+      on_conflict: {:replace, [:closed, :keepsakes, :spots, :resident, :tank, :house, :updated_at]},
       conflict_target: :owner_id
     )
   end

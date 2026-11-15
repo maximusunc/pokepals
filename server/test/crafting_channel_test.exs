@@ -43,7 +43,8 @@ defmodule Server.CraftingChannelTest do
   test "joining tells us the recipes" do
     w = seed_world(%{})
     {_socket, _uid} = join_world(w)
-    assert_push "recipes", %{recipes: [%{id: "lantern"}]}
+    assert_push "recipes", %{recipes: recipes}
+    assert Enum.map(recipes, & &1.id) == ["lantern", "axe"]
   end
 
   test "crafting a lantern at the tinker, and only there" do

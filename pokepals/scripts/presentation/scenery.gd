@@ -17,6 +17,7 @@ const CULL_MARGIN := 200.0
 var _time := 0.0
 var _trees: Array[TreeView] = []  # cached so the per-frame cull doesn't re-walk get_children()
 var _buildings: Array[BuildingView] = []  # Clickton's brick buildings (see add_buildings)
+var _spec_trees: Array = []  # the spec's `trees`, in order: index i is tree "t<i>" (home building: felled / regrown)
 
 
 ## One shared clock for the whole grove: advance time once, find the on-screen rect once,
@@ -73,7 +74,7 @@ func add_buildings(list: Array, style: ArtStyle) -> Array:
 	for spec in list:
 		# a spec's "view" picks a dressed-up kind of building (Steamhollow's timber bathhouses)
 		var view := String(spec.get("view", ""))
-		var bv: BuildingView = BathhouseView.new() if view == "bathhouse" else (CliffView.new() if view == "cliff" else (ShadowScreenView.new() if view == "shadow_screen" else BuildingView.new()))
+		var bv: BuildingView = BathhouseView.new() if view == "bathhouse" else (CliffView.new() if view == "cliff" else (ShadowScreenView.new() if view == "shadow_screen" else (HouseView.new() if view == "house" else BuildingView.new())))
 		bv.setup(spec, style)
 		add_child(bv)
 		_buildings.append(bv)
@@ -91,6 +92,7 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 			child.queue_free()
 	_trees.clear()
 	_buildings.clear()
+	_spec_trees.clear()
 
 	var atmo: Dictionary = data.get("atmosphere", {})
 	var wind: Dictionary = atmo.get("wind", {})
@@ -106,6 +108,7 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	for t in data.get("trees", []):
 		var kind := String(t[2]) if (t is Array and t.size() > 2) else "tree"
 		_spawn_tree(WorldData.to_vec2(t), false, _art_for(arts, style, kind, "tree"), style, wind_strength, wind_speed)
+		_spec_trees.append(_trees[_trees.size() - 1])
 	for p in border_pts:
 		_spawn_tree(p, false, _art_for(arts, style, "tree", "tree"), style, wind_strength, wind_speed)
 
@@ -179,6 +182,11 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.phase = _phase_for(pos)
 	add_child(tree)
 	_trees.append(tree)
+
+
+## The view of the spec's tree number `index` (its `trees` list), or null.
+func spec_tree(index: int) -> TreeView:
+	return _spec_trees[index] if index >= 0 and index < _spec_trees.size() else null
 
 
 ## Where every ordinary tree stands (not the great trees), for AmbientLife's falling leaves.

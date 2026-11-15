@@ -53,6 +53,8 @@ defmodule Server.Home do
     field :resident, :map, default: %{}
     # The rare fish in the home's tank (item definition ids), put in by Server.Tank.
     field :tank, {:array, :integer}, default: []
+    # The player's house, once the carpenter has been paid (Server.House): %{"started_at" => unix_ms}.
+    field :house, :map
     timestamps(type: :utc_datetime_usec)
   end
 end
