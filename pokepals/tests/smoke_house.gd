@@ -79,12 +79,15 @@ func _unreachable_finds(fp: Rect2) -> Array:
 				todo.append(n)
 	var out: Array = []
 	for e in _world._interactables:
-		if (String(e.get("curio", "")) == "" and String(e.get("keepsake", "")) == "") or bool(e.get("_taken", false)):
+		var is_tank := bool(e.get("tank", false))
+		if (String(e.get("curio", "")) == "" and String(e.get("keepsake", "")) == "" and not is_tank) or bool(e.get("_taken", false)):
 			continue
-		var feet: Vector2 = e["pos"] + Vector2(0, 8)
+		# a find: up to it; the tank (bigger, and examined from further off): to its side
+		var feet: Vector2 = e["pos"] + (Vector2.ZERO if is_tank else Vector2(0, 8))
+		var reach := 34.0 if is_tank else 26.0
 		var near := false
 		for c in seen:
-			if (c as Vector2).distance_to(feet) <= 26.0:
+			if (c as Vector2).distance_to(feet) <= reach:
 				near = true
 				break
 		if not near:
@@ -128,7 +131,14 @@ func _process(_delta: float) -> bool:
 			_ok(hd.is_active() and view != null, "the home has a house")
 			_ok(view != null and not view.built, "it's being built")
 			var fp: Rect2 = view.footprint()
-			_ok(fp.end.y < -330.0 and fp.size.x >= 500.0, "a big house, north of the glade as it was (%s)" % fp)
+			# Its front door is a little north of the pond's top edge, straight up from the portal home.
+			var pond: Dictionary = (_world._world_data.get("ponds", []) as Array)[0]
+			var pond_top: float = float(pond["center"][1]) - float(pond["radius"])
+			var door_x: float = (float(view.house["door"][0]) + float(view.house["door"][1])) * 0.5
+			var portal_x: float = float((_world._world_data.get("portals", []) as Array)[0]["position"][0])
+			_ok(fp.size.x >= 500.0 and fp.end.y < pond_top - 100.0 and fp.end.y > pond_top - 180.0,
+				"a big house, its door a little north of the pond (%s, pond top %.0f)" % [fp, pond_top])
+			_ok(absf(door_x - portal_x) < 1.0, "its door in line with the portal home")
 			_ok(_world.get_node_or_null("Scenery/Carpenter") != null, "the carpenter is here, at work")
 			_ok(_world.get_node_or_null("Scenery/HouseBackWall") != null, "the frame's back wall stands")
 			_ok(_count("curio") == 0, "nothing has moved in yet")
@@ -197,7 +207,27 @@ func _process(_delta: float) -> bool:
 			# Every secret on show can be walked up to from the doorstep, through the real collision (secrets on
 			# shelves by the door once boxed the way in).
 			var unreachable := _unreachable_finds(fp)
-			_ok(unreachable.is_empty(), "every secret on show can be walked up to from the front door (unreachable: %s)" % [unreachable])
+			_ok(unreachable.is_empty(), "every secret on show, and the fish tank, can be walked up to from the front door (unreachable: %s)" % [unreachable])
+			# The fish tank moved in, fish and all, and you can examine it there.
+			var tank_at: Vector2 = _world._tank_dir.position()
+			_ok(fp.has_point(tank_at) and tank_at == WorldData.to_vec2(view.house["tank"]), "the fish tank has moved into the house (%s)" % tank_at)
+			var tank_entry: Dictionary = {}
+			for e in _world._interactables:
+				if bool(e.get("tank", false)):
+					tank_entry = e
+			_ok(not tank_entry.is_empty() and (tank_entry["pos"] as Vector2) == tank_at, "and is examined there")
+			var tank_view = _world.get_node_or_null("Scenery/FishTank")
+			_ok(tank_view != null and tank_view.w > 40.0, "a bigger tank, in the space by the fire (%s wide)" % (tank_view.w if tank_view != null else 0))
+			# You can't walk through the tank or the coffee table.
+			var body = _world._player
+			for what in ["coffee_table"]:
+				for f in view.house["furniture"]:
+					if String(f["kind"]) == what:
+						var at := WorldData.to_vec2(f["at"]) + Vector2(0, -4)
+						var pushed: Vector2 = Solids.resolve(at, body._body_radius, body._solids, body._bounds, body._margin)
+						_ok(pushed.distance_to(at) > 4.0, "the %s is solid" % what)
+			var in_tank := tank_at + Vector2(0, -8)
+			_ok(Solids.resolve(in_tank, body._body_radius, body._solids, body._bounds, body._margin).distance_to(in_tank) > 4.0, "and so is the tank")
 			_ok(_world.hint_text().contains("finished"), "a hint says it's finished")
 			# The curio cabinet holds every find, on show or not.
 			var cab: Dictionary = {}

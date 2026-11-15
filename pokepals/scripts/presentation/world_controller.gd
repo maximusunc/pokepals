@@ -497,6 +497,7 @@ func _create_directors() -> void:
 	_tank_dir = TankDirector.new()
 	add_child(_tank_dir)
 	_tank_dir.setup(self, _companion, _player, _scenery)
+	_house_dir._tank_dir = _tank_dir   # (when the house is finished, the tank moves in)
 
 
 # ── Host seam: the small set of shared-world operations the mechanic directors call back into. Kept

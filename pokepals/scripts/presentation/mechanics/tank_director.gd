@@ -44,6 +44,8 @@ func configure(data: Dictionary) -> void:
 			_view = TankView.new()
 			_view.name = "FishTank"
 			_view.position = _pos
+			if (it as Dictionary).get("size") is Array:
+				_view.set_size(WorldData.to_vec2(it["size"]))
 			_scenery.add_child(_view)
 	if _view == null:
 		return
@@ -54,6 +56,28 @@ func configure(data: Dictionary) -> void:
 	var fish: Variant = home.get("tank", [])
 	_fish = (fish as Array).duplicate(true) if fish is Array else []
 	_view.set_fish(_fish)
+
+
+## Where the tank stands (Vector2.INF without one).
+func position() -> Vector2:
+	return _pos if _view != null else Vector2.INF
+
+
+## Show or hide the tank (in your house it's only drawn while you're inside; the roof hides it otherwise, and its
+## fish swim every frame).
+func set_shown(shown: bool) -> void:
+	if _view != null:
+		_view.visible = shown
+		_view.set_process(shown)
+
+
+## Move the tank (your house was just finished, and it moved in), at `size` if given (the house's is bigger).
+func move_to(pos: Vector2, size := Vector2.ZERO) -> void:
+	_pos = pos
+	if _view != null:
+		_view.position = pos
+		if size != Vector2.ZERO:
+			_view.set_size(size)
 
 
 func has_tank() -> bool:

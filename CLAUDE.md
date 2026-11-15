@@ -100,10 +100,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 > The tinker makes an **axe** from 3 driftwood + 2 stones. With it selected, **Use** beside a tree fells it: +2 **wood**,
 > and a stump everyone in that world sees until it grows back (5 min). Not in the Vale or homes (`"chopping": false`),
 > and only trees that are wood. Chopping is instant for now (`chop_ms`). The **carpenter** in the bazaar (`"builds":
-> "house"`, `CarpenterPanel`) builds you a **house** for 100 wood + 300 coins. At home the glade widens north and she
-> works on it, a frame rising for 10 min (`build_ms`), then it's finished in front of you. Walk in and the roof lifts
+> "house"`, `CarpenterPanel`) builds you a **house** for 100 wood + 300 coins. At home, just north of the pond (in line with the way
+> in), she works on it, a frame rising for 10 min (`build_ms`), then it's finished in front of you. Walk in and the roof lifts
 > away (a cutaway): a kitchen, a living room with a fire and a couch, a bedroom. Your keepsakes stand on display plinths
-> and every other find on curio shelves. Every number is server config, overridable from the environment at boot
+> and the newest of the other finds on curio shelves (a curio cabinet lists every find); the fish tank moves in too. Every number is server config, overridable from the environment at boot
 > (`CHOP_SECONDS`, `TREE_REGROW_SECONDS`, `HOUSE_BUILD_SECONDS`, ...).
 > - **Server:** `Server.Harvest` (items, rules, the shared felled state in ETS); `Server.House` (`homes.house`);
 >   `Server.HomeWorld` (places the house, its walls, floors, furniture solids and your finds); channel `chop` /

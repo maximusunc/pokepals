@@ -78,9 +78,8 @@ defmodule Server.HomeWorld do
     # takes your finds in: the keepsakes onto its display spots, every other find onto its curio shelves.
     house = house_state(Map.get(state, :house), Map.get(state, :now, Server.House.now()))
     grown = grow(base, spots, template)
-    # The glade's north edge before the house widens it: the house is placed from it.
-    y0 = grown |> get_in(["bounds", "min"]) |> Enum.at(1)
-    origin = if house, do: house_origin(template["house"], y0)
+    # Where the house stands is fixed (by the pond, in line with the way in), however the glade grows.
+    origin = if house, do: house_origin(template)
 
     template =
       if house && house.state == "built",
@@ -178,11 +177,14 @@ defmodule Server.HomeWorld do
 
   defp house_state(_record, _now), do: nil
 
-  # Where the house stands: its footprint's top-left, once the glade has widened north for it. The glade's
-  # north edge before widening is `y0`.
-  defp house_origin(t, y0) do
-    [w, _d] = t["size"]
-    {-w / 2, y0 - t["extend_north"] + t["from_north"]}
+  # Where the house stands: its footprint's top-left. Centred on x = 0 (in line with the way in), its front door
+  # `door_from_pond` north of the glade's pond's top edge. It doesn't move as the glade grows with the bond.
+  defp house_origin(template) do
+    t = template["house"]
+    [w, d] = t["size"]
+    [_cx, cy | _] = get_in(template, ["base", "ponds", Access.at(0), "center"])
+    r = get_in(template, ["base", "ponds", Access.at(0), "radius"])
+    {-w / 2, cy - r - t["door_from_pond"] - d}
   end
 
   defp local_to_world(points, {ox, oy}), do: Enum.map(points, fn [x, y] -> [ox + x, oy + y] end)
@@ -197,7 +199,8 @@ defmodule Server.HomeWorld do
     abs_rect = fn [x, y, rw, rh] -> [ox + x, oy + y, rw, rh] end
     built = house.state == "built"
 
-    bounds = %{"min" => [x0, y0 - t["extend_north"]], "max" => max}
+    # the glade reaches north far enough to hold the house with room behind it for its treeline
+    bounds = %{"min" => [x0, min(y0, oy - t["from_north"])], "max" => max}
     regions = Enum.map(Map.get(core, "regions", []), &Map.merge(&1, bounds))
 
     plate = fn p -> Map.put(p, "rect", abs_rect.(p["rect"])) end
@@ -226,6 +229,8 @@ defmodule Server.HomeWorld do
         "curio_spots" => Enum.map(t["curio_spots"], abs),
         "curio_shown" => Map.get(t, "curio_shown", length(t["curio_spots"])),
         "cabinet" => if(t["cabinet"], do: abs.(t["cabinet"])),
+        "tank" => if(t["tank"], do: abs.(t["tank"])),
+        "tank_size" => t["tank_size"],
         "decor" =>
           Enum.map(t["decor"], fn dd -> %{dd | "x0" => ox + dd["x0"], "x1" => ox + dd["x1"]} end),
         "front_windows" => Enum.map(t["front_windows"], fn [a, b] -> [ox + a, ox + b] end),
@@ -252,12 +257,26 @@ defmodule Server.HomeWorld do
     door_x = ox + Enum.sum(t["door"]) / 2
 
     path = %{
-      "from" => [door_x, y0 + 40],
+      "from" => [door_x, 40],
       "to" => [door_x, oy + d + 12],
       "color" => [0.62, 0.56, 0.42]
     }
 
+    # Once it's built the fish tank moves in (it stood by the journal in the glade).
+    props =
+      if built and t["tank"] do
+        Enum.map(Map.get(core, "props", []), fn p ->
+          # bigger in the house, and walled in as furniture (its footprint is in furniture_solids)
+          if p["tank"] == true,
+            do: p |> Map.put("position", abs.(t["tank"])) |> Map.put("size", t["tank_size"]) |> Map.put("solid", false),
+            else: p
+        end)
+      else
+        Map.get(core, "props", [])
+      end
+
     core
+    |> Map.put("props", props)
     |> Map.put("bounds", bounds)
     |> Map.put("regions", regions)
     |> Map.update("buildings", [building], &(&1 ++ [building]))

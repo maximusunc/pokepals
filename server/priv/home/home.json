@@ -417,8 +417,8 @@
    -260
   ],
   [
-   60,
-   -330
+   90,
+   -282
   ]
  ],
  "quality_ramp_finds": 6,
@@ -1018,8 +1018,8 @@
   }
  },
  "house": {
-  "_comment": "The HOUSE (home building; tools/gen_home_house.py writes this, re-run it after editing). Placed by Server.HomeWorld once the carpenter in the bazaar has been paid (Server.House): the glade widens to the north by 'extend_north' and the house stands centred, 'from_north' below the new north edge. Everything below is LOCAL (from the footprint's top-left). While it's being built you see a timber frame on its floor, and the carpenter at work; once built, the furniture, rugs and display shelves go in and your finds move inside: keepsakes on 'display_spots', every other find on 'curio_spots'.",
-  "extend_north": 440,
+  "_comment": "The HOUSE (home building; tools/gen_home_house.py writes this, re-run it after editing). Placed by Server.HomeWorld once the carpenter in the bazaar has been paid (Server.House): the glade widens to the north only as far as it must: the house stands centred on x = 0 (in line with the way in), its front door 'door_from_pond' px north of the pond's top edge, with 'from_north' px behind it for the treeline. Everything below is LOCAL (from the footprint's top-left). While it's being built you see a timber frame on its floor, and the carpenter at work; once built, the furniture, rugs and display shelves go in and your finds move inside: keepsakes on 'display_spots', every other find on 'curio_spots'.",
+  "door_from_pond": 140,
   "from_north": 150,
   "size": [
    560,
@@ -1319,9 +1319,9 @@
    },
    {
     "rect": [
-     212,
+     312,
      10,
-     26,
+     22,
      16
     ],
     "kind": "plinth",
@@ -1333,9 +1333,9 @@
    },
    {
     "rect": [
-     312,
-     10,
-     22,
+     338,
+     54,
+     24,
      16
     ],
     "kind": "plinth",
@@ -1558,8 +1558,8 @@
    {
     "kind": "lamp",
     "at": [
-     242,
-     52
+     236,
+     142
     ],
     "w": 12
    },
@@ -1639,7 +1639,13 @@
      280,
      104
     ],
-    "w": 34
+    "w": 34,
+    "solid": [
+     264,
+     94,
+     32,
+     10
+    ]
    },
    {
     "kind": "couch",
@@ -1778,6 +1784,12 @@
     14
    ],
    [
+    264,
+    94,
+    32,
+    10
+   ],
+   [
     250,
     136,
     60,
@@ -1814,6 +1826,12 @@
     16
    ],
    [
+    199,
+    10,
+    50,
+    20
+   ],
+   [
     8,
     62,
     18,
@@ -1838,15 +1856,15 @@
     12
    ],
    [
-    212,
-    10,
-    26,
-    16
-   ],
-   [
     312,
     10,
     22,
+    16
+   ],
+   [
+    338,
+    54,
+    24,
     16
    ],
    [
@@ -1876,12 +1894,12 @@
   ],
   "display_spots": [
    [
-    225.0,
+    323.0,
     8.5
    ],
    [
-    323.0,
-    8.5
+    350.0,
+    52.5
    ],
    [
     174.0,
@@ -1974,6 +1992,14 @@
   "cabinet": [
    205,
    78
+  ],
+  "tank": [
+   224,
+   30
+  ],
+  "tank_size": [
+   46,
+   30
   ],
   "decor": [
    {

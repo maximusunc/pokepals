@@ -529,3 +529,28 @@ show every find:
 - `Server.HomeWorld` picks the shelves' finds (newest first, not keepsakes); `HouseDirector` makes the same choice when
   a house finishes in front of you. Tested in `home_house_test.exs` and `tests/smoke_house.gd` (17 finds: 15 on show,
   all 17 in the cabinet).
+
+### Where the house stands (2026-11-15)
+
+Asked for by the owner: the house was too far north (it stood from the glade's north edge, which moves out as the bond
+opens keepsake spots, so a well-bonded home put it a long way off). It now stands **by the pond, in line with the way
+in**: its front door `door_from_pond` (140 px, about 10 yards) north of the pond's top edge, centred on x = 0 like the
+portal home, and it doesn't move as the glade grows. The glade reaches north only as far as the house needs (its back
+plus `from_north` for the treeline). The seventh keepsake spot in the glade (used only before a house is finished)
+moved out of its way, and `home_house_test.exs` checks nothing in the glade stands where the house does, at any bond.
+
+### The fish tank moves in (2026-11-15)
+
+Asked for by the owner: once the house is built, the fish tank (which stood by the journal in the glade) stands in
+the **living room**, against the back wall **left of the fireplace** (the template's `house.tank`, with its
+collision the tank prop's own; moved there at the owner's ask from a first spot by the armchair). The display plinth
+that stood there moved to the tank's first spot, by the armchair under the bookshelf; the favourite keepsake now stands
+right of the fire; the floor lamp became a reading lamp by the couch. `Server.HomeWorld` moves the tank prop there for a built house; `HouseDirector` moves
+it (view, examine spot, collision) when the house finishes in front of you. Like the finds inside, it isn't drawn while
+you're outside the house. Your companion still wanders over to watch the fish. Checked by the layout's flood fill,
+`home_house_test.exs` and `tests/smoke_house.gd`.
+- **Bigger, and nothing to walk through** (2026-11-15, the owner's ask): in the house the tank is bigger (46 x 30, the
+  template's `house.tank_size`, against 34 x 24 in the glade; first 56 x 36, which looked crammed in), most of the space
+  between the wall and the fireplace with a little air either side, and
+  walls in as furniture (a rect in `furniture_solids`; its prop is no longer solid there). The coffee table is solid now
+  too (it was drawn but had no footprint). The chairs, plants and lamps are still walk-through.

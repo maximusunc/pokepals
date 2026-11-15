@@ -3,9 +3,10 @@
 
 Writes the `house` block of the home template (server/priv/home/home.json), and marks the home as a place
 where no axe works (`base.chopping: false`). Server.HomeWorld places the house once the carpenter has been
-paid: it widens the glade to the north by `extend_north` and stands the house `from_north` below the new north
-edge, centred, translating everything here (all LOCAL: x, y from the footprint's top-left corner) into world
-coordinates. The client draws it (HouseView, HouseFurniture; WorldArt draws the floors and display shelves as
+paid: it stands the house centred on x = 0 (in line with the way in), its front door `door_from_pond` north of the
+glade's pond's top edge, wherever the glade has grown to; the glade's north edge reaches at least `from_north` past the
+house's back, for its treeline. It translates everything here (all LOCAL: x, y from the footprint's top-left
+corner) into world coordinates. The client draws it (HouseView, HouseFurniture; WorldArt draws the floors and display shelves as
 plates) and walls it in (the building's `solid_rects`).
 
 A cosy cottage, three rooms side by side so every wall between them runs north-south (so a cutaway view reads
@@ -78,14 +79,17 @@ for w in walls[1:]:
 
 # ── display: plinths for the keepsakes, low shelves for every other find ──────────────────────────────────────
 display_plinths = [
-    rect(212, 10, 26, 16),    # living room, left of the fire (the favourite)
-    rect(312, 10, 22, 16),    # living room, right of the fire
+    rect(312, 10, 22, 16),    # living room, right of the fire (the favourite)
+    rect(338, 54, 24, 16),    # living room, by the armchair, under the bookshelf
     rect(164, 10, 20, 16),    # kitchen, by the stove
     rect(378, 10, 22, 16),    # bedroom, by the door
     rect(198, 188, 18, 14),   # a side table in the living room's front corner
     rect(344, 188, 18, 14),   # and its pair (both well clear of the front door)
 ]
 CHEST = rect(440, 100, 40, 16)   # the chest at the bed's foot
+TANK = (224, 30)                 # the fish tank's spot (its feet): in the living room, left of the fireplace
+TANK_SIZE = (46, 30)             # most of the space between the wall and the fireplace, with a little air either side (the glade's is 34 x 24)
+TANK_RECT = rect(199, 10, 50, 20)  # its stand's footprint, walled in like furniture
 
 
 def top_spot(r):
@@ -148,7 +152,7 @@ furniture = [
     piece("chair_n", [92, 154], 14),
     piece("plant", [176, 204], 14),
     # living room
-    piece("lamp", [242, 52], 12),
+    piece("lamp", [236, 142], 12),   # a reading lamp by the couch
     # the curio cabinet: glass doors, and every find you've ever made inside (examine it; HouseDirector)
     piece("cabinet", [205, 78], 18, rect(196, 60, 18, 18)),
     piece("fireplace", [280, 28], 52, rect(254, 8, 52, 20)),
@@ -156,7 +160,7 @@ furniture = [
     # (the couch stands well back from the front door, with room to walk round it either side)
     piece("armchair_e", [214, 106], 24, rect(203, 92, 22, 14)),
     piece("armchair_w", [346, 106], 24, rect(335, 92, 22, 14)),
-    piece("coffee_table", [280, 104], 34),
+    piece("coffee_table", [280, 104], 34, rect(264, 94, 32, 10)),
     piece("couch", [280, 152], 60, rect(250, 136, 60, 16)),
     piece("plant", [358, 150], 14),
     # bedroom
@@ -167,7 +171,7 @@ furniture = [
     piece("plant", [510, 204], 14),
 ]
 # the chest and the shelves block too (they're plates, drawn on the floor, but you don't walk through them)
-furniture_solids = [p["solid"] for p in furniture if "solid" in p] + [CHEST] + [sh["rect"] for sh in shelves] \
+furniture_solids = [p["solid"] for p in furniture if "solid" in p] + [CHEST, TANK_RECT] + [sh["rect"] for sh in shelves] \
     + [r for r in display_plinths]
 
 # What hangs on the back (north) wall of each room, seen from inside: x ranges, local.
@@ -187,11 +191,13 @@ front_windows = [[52, 96], [118, 160], [204, 240], [320, 356], [400, 440], [480,
 house = {
     "_comment": "The HOUSE (home building; tools/gen_home_house.py writes this, re-run it after editing). Placed by "
                 "Server.HomeWorld once the carpenter in the bazaar has been paid (Server.House): the glade widens to "
-                "the north by 'extend_north' and the house stands centred, 'from_north' below the new north edge. "
+                "the north only as far as it must: the house stands centred on x = 0 (in line with the way in), its front door "
+                "'door_from_pond' px north of the pond's top edge, with 'from_north' px behind it for the treeline. "
                 "Everything below is LOCAL (from the footprint's top-left). While it's being built you see a timber "
                 "frame on its floor, and the carpenter at work; once built, the furniture, rugs and display shelves "
                 "go in and your finds move inside: keepsakes on 'display_spots', every other find on 'curio_spots'.",
-    "extend_north": 440,
+    # 140 px is about 10 yards (a person is about 26 px tall)
+    "door_from_pond": 140,
     "from_north": 150,
     "size": [W, D],
     "wall_h": WALL_H,
@@ -209,6 +215,10 @@ house = {
     # so new finds rotate in. Every find is in the curio cabinet, whatever is on show.
     "curio_shown": 8,
     "cabinet": [205, 78],
+    # where the fish tank moves to once the house is built (from beside the journal in the glade): the living room,
+    # against the back wall left of the fireplace, and bigger. Its footprint walls in with the furniture.
+    "tank": list(TANK),
+    "tank_size": list(TANK_SIZE),
     "decor": decor,
     "front_windows": front_windows,
     "chimney_x": 280,
@@ -254,6 +264,8 @@ for room in ROOMS:
 for sx, sy in display_spots + curio_spots + [[205, 70]]:
     fx, fy = sx, sy + 8.0
     assert any((c[0] - fx) ** 2 + (c[1] - fy) ** 2 <= 26 * 26 for c in seen), "can't reach the find at %s" % [fx, fy]
+# the tank is bigger (and is examined from further off), so reaching its side is enough
+assert any((c[0] - TANK[0]) ** 2 + (c[1] - TANK[1]) ** 2 <= 34 * 34 for c in seen), "can't reach the fish tank"
 
 with open(TEMPLATE) as f:
     tpl = json.load(f)
