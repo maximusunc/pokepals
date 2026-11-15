@@ -107,4 +107,33 @@ defmodule Server.HomeHouseTest do
     assert y == -610 - t["extend_north"] + t["from_north"]
     assert Enum.all?(c["home"]["spot_positions"], fn [_px, py] -> py > y and py < y + 220 end)
   end
+
+  test "with every world's secret found and 7 keepsakes: all of them inside, each in its own place, none in the doorway" do
+    cards =
+      for f <- Path.wildcard("priv/world_seeds/*.json") |> Enum.sort(),
+          sec = Jason.decode!(File.read!(f))["secret"],
+          sec != nil,
+          do: {sec["id"], %{"qualities" => sec["qualities"] || [], "keepsake" => sec["keepsake"]}}
+
+    assert length(cards) >= 16
+    keepsakes = cards |> Enum.take(7) |> Enum.map(&elem(&1, 0))
+    c = core(:built, spots: 7, keepsakes: keepsakes, cards: cards)
+    [hx, hy, w, d] = house(c)["rect"]
+    t = template()["house"]
+    [d0, d1] = t["door"]
+
+    shown = Enum.filter(c["props"], &(Map.has_key?(&1, "keepsake") or Map.has_key?(&1, "curio")))
+    assert length(shown) == length(cards)
+    assert shown |> Enum.map(& &1["position"]) |> Enum.uniq() |> length() == length(shown)
+
+    for p <- shown do
+      [px, py] = p["position"]
+      assert px > hx and px < hx + w and py > hy and py < hy + d, "#{p["id"]} isn't inside the house"
+      # nothing stands in the way in: the doorway and two bodies' width either side, a few body-lengths deep
+      in_door = px > hx + d0 - 30 and px < hx + d1 + 30 and py + 8 > hy + d - 50
+      refute in_door, "#{p["id"]} stands in the doorway"
+    end
+
+    assert Enum.count(shown, &Map.has_key?(&1, "keepsake")) == 7
+  end
 end

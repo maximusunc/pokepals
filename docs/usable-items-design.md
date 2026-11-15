@@ -500,3 +500,9 @@ bite) and the server honours the chop only that long after you started on that v
   flood fill with a body's clearance), and `tests/smoke_house.gd` walks in, round the couch and back out through the
   real collision. The server builds homes from the template on every visit, so houses already built get the new
   layout straight away.
+- **Tests now run with a full house.** The house fixtures are made by `server/test/fixtures/gen_home_house_fixtures.exs`
+  (the real `Server.HomeWorld`) for a player who has found every world's secret, with 7 keepsakes chosen: so every
+  display plinth and curio shelf is taken. `tests/smoke_house.gd` checks all 17 move in, the keepsakes onto the
+  plinths, and flood-fills from the doorstep through the real collision to check each one can be walked up to; the
+  server's `home_house_test.exs` checks each stands inside, in a place of its own, and none in the doorway. Both fail
+  on the old layout.
