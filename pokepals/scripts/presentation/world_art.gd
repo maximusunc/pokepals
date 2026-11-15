@@ -355,6 +355,8 @@ func _parse_plates(data: Dictionary) -> void:
 			"kind": kind, "color": WorldData.to_color(pl.get("color", [0.7, 0.7, 0.7])), "tex": tex,
 			"raised": kind != "mark" and not HOUSE_PLATES.has(kind), "shimmer": bool(pl.get("shimmer", false)),
 		})
+	if is_inside_tree():
+		bake_house_plates.call_deferred()
 
 
 ## The plate kinds a HOUSE is laid with (home building; HouseView draws the rest of it): floorboards, kitchen
@@ -369,14 +371,51 @@ func refresh_plates(data: Dictionary) -> void:
 	queue_redraw()
 
 
+var _house_tex: Texture2D = null   # the house's plates, baked (PaintBake); drawn plate by plate until then
+var _house_rect := Rect2()
+var _house_gen := 0                # which plates the bake in flight is of (a newer parse makes it stale)
+
+
+## Bake the house's plates into one picture (called after they're parsed). Its floors cover the house edge to
+## edge, so the picture is solid where it matters and plain blending draws it right.
+func bake_house_plates() -> void:
+	_house_gen += 1
+	_house_tex = null
+	var box := Rect2()
+	var found := false
+	for pl in _plates:
+		if HOUSE_PLATES.has(String(pl["kind"])):
+			var r: Rect2 = (pl["rect"] as Rect2).grow_individual(0, 4, 2, 3)
+			box = r if not found else box.merge(r)
+			found = true
+	if not found or bake_only:
+		return
+	_house_rect = Rect2(box.position.floor(), box.size.ceil())
+	var gen := _house_gen
+	var origin := _house_rect.position
+	PaintBake.bake(self, _house_rect, func(ci: CanvasItem) -> void:
+		for pl in _plates:
+			if HOUSE_PLATES.has(String(pl["kind"])):
+				_draw_house_plate(ci, String(pl["kind"]), pl["rect"], pl["color"]),
+		func(tex: Texture2D) -> void:
+			if gen == _house_gen:
+				_house_tex = tex
+				queue_redraw())
+
+
 func _draw_plates(vis: Rect2, cull: bool) -> void:
+	# A house's floors, rugs and shelves, baked into one picture once (bake_house_plates), so this pass draws them
+	# with one call instead of re-issuing hundreds of boards and tiles every frame.
+	if _house_tex != null and (not cull or vis.intersects(_house_rect)):
+		draw_texture(_house_tex, _house_rect.position)
 	for pl in _plates:
 		var r: Rect2 = pl["rect"]
 		if cull and not vis.intersects(r.grow(4.0)):
 			continue
 		var col: Color = pl["color"]
 		if HOUSE_PLATES.has(String(pl["kind"])):
-			_draw_house_plate(String(pl["kind"]), r, col)
+			if _house_tex == null:
+				_draw_house_plate(self, String(pl["kind"]), r, col)
 			continue
 		if bool(pl["shimmer"]):
 			var k := 1.0 + 0.05 * sin(_time * 1.3 + r.position.x * 0.013 + r.position.y * 0.007)
@@ -394,25 +433,25 @@ func _draw_plates(vis: Rect2, cull: bool) -> void:
 
 ## One of a house's plates (see HOUSE_PLATES), in the game's oblique view: flat things are flat, the low
 ## things (a wall's top, a plinth, a chest, a shelf) show their top face and a strip of front face below it.
-func _draw_house_plate(kind: String, r: Rect2, col: Color) -> void:
+func _draw_house_plate(ci: CanvasItem, kind: String, r: Rect2, col: Color) -> void:
 	match kind:
 		"planks":
-			draw_rect(r, col)
+			ci.draw_rect(r, col)
 			var row := 0
 			var y := r.position.y
 			while y < r.end.y:
 				var h := minf(6.0, r.end.y - y)
-				draw_rect(Rect2(r.position.x, y + h - 1.0, r.size.x, 1.0), col.darkened(0.16))
+				ci.draw_rect(Rect2(r.position.x, y + h - 1.0, r.size.x, 1.0), col.darkened(0.16))
 				var x := r.position.x + (14.0 if row % 2 == 1 else 0.0) + 22.0
 				while x < r.end.x:
-					draw_rect(Rect2(x, y, 1.0, h - 1.0), col.darkened(0.12))
+					ci.draw_rect(Rect2(x, y, 1.0, h - 1.0), col.darkened(0.12))
 					x += 44.0
 				if row % 3 == 0:
-					draw_rect(Rect2(r.position.x, y, r.size.x, 1.0), col.lightened(0.06))
+					ci.draw_rect(Rect2(r.position.x, y, r.size.x, 1.0), col.lightened(0.06))
 				y += 6.0
 				row += 1
 		"tiles":
-			draw_rect(r, col)
+			ci.draw_rect(r, col)
 			var alt := col.darkened(0.08)
 			var ty := r.position.y
 			var tr := 0
@@ -421,49 +460,49 @@ func _draw_house_plate(kind: String, r: Rect2, col: Color) -> void:
 				var tc := 0
 				while tx < r.end.x:
 					if tc % 2 == 0:
-						draw_rect(Rect2(tx, ty, minf(8.0, r.end.x - tx), minf(8.0, r.end.y - ty)), alt)
+						ci.draw_rect(Rect2(tx, ty, minf(8.0, r.end.x - tx), minf(8.0, r.end.y - ty)), alt)
 					tx += 8.0
 					tc += 1
 				ty += 8.0
 				tr += 1
-			draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), col.darkened(0.25))
+			ci.draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), col.darkened(0.25))
 		"wall":
 			# a wall seen from above, cut low: its top, and a shade where it meets the floor
-			draw_rect(r, col)
-			draw_rect(Rect2(r.position, Vector2(r.size.x, 2)), col.lightened(0.12))
-			draw_rect(Rect2(r.position.x, r.end.y - 2.0, r.size.x, 2.0), col.darkened(0.2))
-			draw_rect(Rect2(r.position.x - 1.0, r.position.y, 1.0, r.size.y), Color(0, 0, 0, 0.18))
-			draw_rect(Rect2(r.end.x, r.position.y, 1.0, r.size.y), Color(0, 0, 0, 0.18))
+			ci.draw_rect(r, col)
+			ci.draw_rect(Rect2(r.position, Vector2(r.size.x, 2)), col.lightened(0.12))
+			ci.draw_rect(Rect2(r.position.x, r.end.y - 2.0, r.size.x, 2.0), col.darkened(0.2))
+			ci.draw_rect(Rect2(r.position.x - 1.0, r.position.y, 1.0, r.size.y), Color(0, 0, 0, 0.18))
+			ci.draw_rect(Rect2(r.end.x, r.position.y, 1.0, r.size.y), Color(0, 0, 0, 0.18))
 		"rug":
-			draw_rect(r.grow(1.0), col.darkened(0.35))
-			draw_rect(r, col)
-			draw_rect(r.grow(-4.0), col.lightened(0.12))
-			draw_rect(r.grow(-7.0), col)
+			ci.draw_rect(r.grow(1.0), col.darkened(0.35))
+			ci.draw_rect(r, col)
+			ci.draw_rect(r.grow(-4.0), col.lightened(0.12))
+			ci.draw_rect(r.grow(-7.0), col)
 			var mid := r.get_center()
-			draw_colored_polygon(PackedVector2Array([mid + Vector2(-10, 0), mid + Vector2(0, -6), mid + Vector2(10, 0), mid + Vector2(0, 6)]), col.lightened(0.28))
+			ci.draw_colored_polygon(PackedVector2Array([mid + Vector2(-10, 0), mid + Vector2(0, -6), mid + Vector2(10, 0), mid + Vector2(0, 6)]), col.lightened(0.28))
 			for fx in range(int(r.position.x) + 2, int(r.end.x) - 1, 4):   # fringe
-				draw_rect(Rect2(float(fx), r.position.y - 3.0, 1.0, 2.0), Color(0.94, 0.88, 0.74))
-				draw_rect(Rect2(float(fx), r.end.y + 1.0, 1.0, 2.0), Color(0.94, 0.88, 0.74))
+				ci.draw_rect(Rect2(float(fx), r.position.y - 3.0, 1.0, 2.0), Color(0.94, 0.88, 0.74))
+				ci.draw_rect(Rect2(float(fx), r.end.y + 1.0, 1.0, 2.0), Color(0.94, 0.88, 0.74))
 		"plinth", "chest", "shelf":
 			var front := 5.0
 			var top := Rect2(r.position, Vector2(r.size.x, r.size.y - front))
-			draw_rect(Rect2(r.position.x + 2.0, r.end.y, r.size.x, 2.0), Color(0, 0, 0, 0.18))   # its shadow
-			draw_rect(Rect2(r.position.x, r.end.y - front, r.size.x, front), col.darkened(0.3))   # the front face
-			draw_rect(top, col)                                                               # the top
-			draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), col.lightened(0.25))
-			draw_rect(Rect2(r.position.x, r.position.y, 1, top.size.y), col.lightened(0.15))
+			ci.draw_rect(Rect2(r.position.x + 2.0, r.end.y, r.size.x, 2.0), Color(0, 0, 0, 0.18))   # its shadow
+			ci.draw_rect(Rect2(r.position.x, r.end.y - front, r.size.x, front), col.darkened(0.3))   # the front face
+			ci.draw_rect(top, col)                                                               # the top
+			ci.draw_rect(Rect2(r.position, Vector2(r.size.x, 1)), col.lightened(0.25))
+			ci.draw_rect(Rect2(r.position.x, r.position.y, 1, top.size.y), col.lightened(0.15))
 			if kind == "chest":
-				draw_rect(Rect2(r.position.x, r.position.y + top.size.y * 0.5, r.size.x, 1), col.darkened(0.25))   # the lid's seam
-				draw_rect(Rect2(r.get_center().x - 2.0, r.end.y - front + 1.0, 4.0, 3.0), Color(0.86, 0.72, 0.34))   # the clasp
+				ci.draw_rect(Rect2(r.position.x, r.position.y + top.size.y * 0.5, r.size.x, 1), col.darkened(0.25))   # the lid's seam
+				ci.draw_rect(Rect2(r.get_center().x - 2.0, r.end.y - front + 1.0, 4.0, 3.0), Color(0.86, 0.72, 0.34))   # the clasp
 			elif kind == "shelf":
 				# small doors along its front
 				var step := 12.0
 				var sx := r.position.x + step
 				while sx < r.end.x - 2.0:
-					draw_rect(Rect2(sx, r.end.y - front, 1.0, front), col.darkened(0.45))
+					ci.draw_rect(Rect2(sx, r.end.y - front, 1.0, front), col.darkened(0.45))
 					sx += step
 			else:
-				draw_rect(Rect2(r.position.x + 2.0, r.end.y - front + 2.0, r.size.x - 4.0, 1.0), col.darkened(0.1))
+				ci.draw_rect(Rect2(r.position.x + 2.0, r.end.y - front + 2.0, r.size.x - 4.0, 1.0), col.darkened(0.1))
 
 
 ## A souk (the Bazaar): sandstone walls lining its lane, and the rooftops of everything beyond them.

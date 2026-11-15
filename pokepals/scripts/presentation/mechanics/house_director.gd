@@ -44,6 +44,11 @@ var _leaving := false
 # Where she's walking to right now: moved at walking pace and handed to her body as its target, so the body eases
 # after it and its walk cycle plays (setting her position directly would leave her gliding, unanimated).
 var _walk := Vector2.ZERO
+# Whether the finds on show inside are being drawn (only while you're inside: from outside the roof hides them,
+# and drawing 17 of them for nobody cost as much as the rest of the house), and how many things they were
+# worked out over (a find placed later is caught on the next change).
+var _interior_shown := true
+var _interior_count := -1
 
 
 func setup(host: Node, player: PlayerView, companion: CompanionView, world_art: WorldArt, scenery: Node2D, style: ArtStyle, home_dir: HomeDirector) -> void:
@@ -94,6 +99,21 @@ func update(delta: float) -> void:
 	if not _view.built and _view.build_progress() >= 1.0:
 		_finish(true)
 	_update_carpenter(delta)
+	_sync_interior()
+
+
+## Show the finds inside the house only while you're inside it (they're drawn by WorldArt, under the roof).
+func _sync_interior() -> void:
+	var show: bool = _view.built and _view._inside > 0.01
+	if show == _interior_shown and _interactables.size() == _interior_count:
+		return
+	_interior_shown = show
+	_interior_count = _interactables.size()
+	var fp := _view.footprint()
+	for e in _interactables:
+		var ri := int(e.get("render_index", -1))
+		if ri >= 0 and fp.has_point(e["pos"]):
+			_world_art.set_interactable_hidden(ri, not show)
 
 
 ## Examining the carpenter while she works: how long is left.
