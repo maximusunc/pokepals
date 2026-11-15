@@ -110,6 +110,7 @@ var _gateway_hidden := false
 var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
 var _ambient_life: AmbientLife
+var _perspective: PerspectiveView  # SPIKE (Horizon)
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
 # whether its world effect has fired yet. The controller watches the companion approach (Ruin-referee
 # style) and applies the effect once it arrives, so the brain never touches world state. Cleared when
@@ -409,6 +410,13 @@ func _build_world(cached: Dictionary) -> void:
 	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
 	# up yet — those callbacks early-return, so they never touch half-built state.
 	_world_built = true
+	# SPIKE (Horizon): view this world in fake-3D perspective. P toggles it; `-- --perspective` starts with it on.
+	_perspective = PerspectiveView.new()
+	_perspective.name = "Perspective"
+	add_child(_perspective)
+	_perspective.setup(self, _world_art, _scenery, _camera)
+	if OS.get_cmdline_user_args().has("--perspective"):
+		_perspective.set_on(true)
 
 
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
@@ -1416,6 +1424,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# The hotbar (U-9): 1-5 pick a slot, F uses what's selected.
 		elif event.physical_keycode == KEY_F:
 			_fishing_dir.use_item()
+		elif event.physical_keycode == KEY_P and _perspective != null:
+			_perspective.set_on(not _perspective.is_on())
 		elif event.physical_keycode >= KEY_1 and event.physical_keycode <= KEY_5:
 			_fishing_dir.select_slot(int(event.physical_keycode - KEY_1))
 
