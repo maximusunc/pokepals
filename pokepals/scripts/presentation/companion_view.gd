@@ -926,7 +926,17 @@ func _draw_point_alert() -> void:
 	var alpha := _point_vis                    # eases to full (1.0) during the hold, fades on release
 	var scale := 0.85 + 0.5 * _point_vis
 	var bob := sin(_time * 6.0) * 1.2 * _point_vis  # a little excited quiver while it holds
-	EmoteGlyphs.draw(self, "alert", Vector2(0.0, -30.0 + bob), alpha, scale)
+	EmoteGlyphs.draw(self, "alert", Vector2(0.0, _head_y(-30.0) + bob), alpha, scale)
+
+
+## A height above the companion (a glyph's anchor, tuned for a full-size body: feet at +8) brought down to
+## the head of a smaller animal form (a rabbit or a little bird, its "size" in data/pals.json), so emotes
+## sit just over it instead of floating far above.
+func _head_y(full_y: float) -> float:
+	if _form_tex == null:
+		return full_y
+	var size := float(_form_sheet.get("size", 1.0))
+	return PalSprite.FOOT_Y + (full_y - PalSprite.FOOT_Y) * size
 
 
 ## Render the floating emotes: each fades in fast, drifts upward, then fades out, drawn
@@ -938,7 +948,7 @@ func _draw_emotes() -> void:
 		var fade_in := clampf(p / 0.15, 0.0, 1.0)
 		var fade_out := 1.0 - clampf((p - 0.6) / 0.4, 0.0, 1.0)
 		var alpha := fade_in * fade_out
-		var rise := -18.0 - p * 16.0
+		var rise := _head_y(-18.0) - p * 16.0
 		var pop := 0.7 + 0.5 * clampf(p / 0.25, 0.0, 1.0)
 		EmoteGlyphs.draw(self, String(e["kind"]), Vector2(0.0, rise), alpha, pop)
 

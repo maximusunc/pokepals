@@ -54,6 +54,7 @@ var _lantern := Vector2.ZERO
 var _spot := Vector2.ZERO
 var _cfg: Dictionary = {}
 var _masks: Dictionary = {}       # species -> ShadowMask
+var _sizes: Dictionary = {}       # species -> how big it is drawn relative to its mask (1.0 if unset)
 var _target: Dictionary = {}      # the fill species' shadow from the spot
 var _shape_cache: Dictionary = {} # species -> shape score (masks never change)
 var _said := {}
@@ -76,9 +77,12 @@ func _init(reveal: Dictionary) -> void:
 	_target = ShadowCast.project(_face, _lantern, _spot, float(_cfg["hover"]))
 
 
-## The silhouettes of the species that can be told apart: { species: ShadowMask }.
-func set_masks(masks: Dictionary) -> void:
+## The silhouettes of the species that can be told apart: { species: ShadowMask }, and optionally how big
+## each is drawn relative to its mask ({ species: float }, 1.0 if unset), so a wolf's shadow is compared at a
+## wolf's size and a bird's at a bird's.
+func set_masks(masks: Dictionary, sizes: Dictionary = {}) -> void:
 	_masks = masks
+	_sizes = sizes
 	_shape_cache = {}
 
 
@@ -159,7 +163,9 @@ func _shape_of(species: String) -> float:
 	var b: ShadowMask = _masks.get(fill_species())
 	var score := 0.0
 	if a != null and b != null:
-		var iou := maxf(ShadowMask.iou(a, 1.0, b, 1.0), ShadowMask.iou(a, 1.0, b, 1.0, true))
+		var sa := float(_sizes.get(species, 1.0))
+		var sb := float(_sizes.get(fill_species(), 1.0))
+		var iou := maxf(ShadowMask.iou(a, sa, b, sb), ShadowMask.iou(a, sa, b, sb, true))
 		score = smoothstep(0.30, 0.95, iou)
 	_shape_cache[species] = score
 	return score

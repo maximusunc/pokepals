@@ -370,12 +370,14 @@ func _bird_frame() -> int:
 	return int(_clock * FLAP_FPS) % cols
 
 
-## One bird of the bird sheet's fly row at world-relative face point (x, v) (feet), at `s` times its size.
+## One bird of the bird sheet's fly row at world-relative face point (x, v) (feet), at `s` times its size
+## (times the bird's own drawn size, so the gap matches the shadow a companion bird really casts).
 func _put_bird(ci: CanvasItem, x: float, v: float, s: float, col: int, flip: bool = false) -> void:
 	var tex: Texture2D = _bird.get("tex")
 	if tex == null:
 		return
 	var sheet: Dictionary = _bird["sheet"]
+	s *= float(sheet.get("scale", 1.0))
 	var frame: Array = sheet.get("frame", [32, 32])
 	var fw := float(frame[0])
 	var fh := float(frame[1])
