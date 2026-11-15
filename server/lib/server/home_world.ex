@@ -230,6 +230,7 @@ defmodule Server.HomeWorld do
         "curio_shown" => Map.get(t, "curio_shown", length(t["curio_spots"])),
         "cabinet" => if(t["cabinet"], do: abs.(t["cabinet"])),
         "tank" => if(t["tank"], do: abs.(t["tank"])),
+        "tank_size" => t["tank_size"],
         "decor" =>
           Enum.map(t["decor"], fn dd -> %{dd | "x0" => ox + dd["x0"], "x1" => ox + dd["x1"]} end),
         "front_windows" => Enum.map(t["front_windows"], fn [a, b] -> [ox + a, ox + b] end),
@@ -265,7 +266,10 @@ defmodule Server.HomeWorld do
     props =
       if built and t["tank"] do
         Enum.map(Map.get(core, "props", []), fn p ->
-          if p["tank"] == true, do: Map.put(p, "position", abs.(t["tank"])), else: p
+          # bigger in the house, and walled in as furniture (its footprint is in furniture_solids)
+          if p["tank"] == true,
+            do: p |> Map.put("position", abs.(t["tank"])) |> Map.put("size", t["tank_size"]) |> Map.put("solid", false),
+            else: p
         end)
       else
         Map.get(core, "props", [])

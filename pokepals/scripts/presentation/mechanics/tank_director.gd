@@ -44,6 +44,8 @@ func configure(data: Dictionary) -> void:
 			_view = TankView.new()
 			_view.name = "FishTank"
 			_view.position = _pos
+			if (it as Dictionary).get("size") is Array:
+				_view.set_size(WorldData.to_vec2(it["size"]))
 			_scenery.add_child(_view)
 	if _view == null:
 		return
@@ -69,11 +71,13 @@ func set_shown(shown: bool) -> void:
 		_view.set_process(shown)
 
 
-## Move the tank (your house was just finished, and it moved in).
-func move_to(pos: Vector2) -> void:
+## Move the tank (your house was just finished, and it moved in), at `size` if given (the house's is bigger).
+func move_to(pos: Vector2, size := Vector2.ZERO) -> void:
 	_pos = pos
 	if _view != null:
 		_view.position = pos
+		if size != Vector2.ZERO:
+			_view.set_size(size)
 
 
 func has_tank() -> bool:

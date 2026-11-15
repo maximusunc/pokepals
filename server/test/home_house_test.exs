@@ -123,6 +123,8 @@ defmodule Server.HomeHouseTest do
     tank = Enum.find(c["props"], &(&1["tank"] == true))
     assert inside.(tank["position"])
     assert tank["position"] == house(c)["house"]["tank"]
+    # bigger, and walled in as furniture rather than by its prop's little circle
+    assert tank["size"] == template()["house"]["tank_size"] and tank["solid"] == false
     curios = Enum.filter(c["props"], &Map.has_key?(&1, "curio"))
     # newest first (cards come oldest first)
     assert Enum.map(curios, & &1["curio"]) == ["c", "a"]

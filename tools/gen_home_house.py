@@ -87,7 +87,9 @@ display_plinths = [
     rect(344, 188, 18, 14),   # and its pair (both well clear of the front door)
 ]
 CHEST = rect(440, 100, 40, 16)   # the chest at the bed's foot
-TANK = (230, 28)                 # the fish tank's spot (its feet): in the living room, left of the fireplace
+TANK = (224, 30)                 # the fish tank's spot (its feet): in the living room, left of the fireplace
+TANK_SIZE = (56, 36)             # filling the space between the wall and the fireplace (the glade's is 34 x 24)
+TANK_RECT = rect(196, 10, 56, 20)  # its stand's footprint, walled in like furniture
 
 
 def top_spot(r):
@@ -158,7 +160,7 @@ furniture = [
     # (the couch stands well back from the front door, with room to walk round it either side)
     piece("armchair_e", [214, 106], 24, rect(203, 92, 22, 14)),
     piece("armchair_w", [346, 106], 24, rect(335, 92, 22, 14)),
-    piece("coffee_table", [280, 104], 34),
+    piece("coffee_table", [280, 104], 34, rect(264, 94, 32, 10)),
     piece("couch", [280, 152], 60, rect(250, 136, 60, 16)),
     piece("plant", [358, 150], 14),
     # bedroom
@@ -169,7 +171,7 @@ furniture = [
     piece("plant", [510, 204], 14),
 ]
 # the chest and the shelves block too (they're plates, drawn on the floor, but you don't walk through them)
-furniture_solids = [p["solid"] for p in furniture if "solid" in p] + [CHEST] + [sh["rect"] for sh in shelves] \
+furniture_solids = [p["solid"] for p in furniture if "solid" in p] + [CHEST, TANK_RECT] + [sh["rect"] for sh in shelves] \
     + [r for r in display_plinths]
 
 # What hangs on the back (north) wall of each room, seen from inside: x ranges, local.
@@ -214,8 +216,9 @@ house = {
     "curio_shown": 8,
     "cabinet": [205, 78],
     # where the fish tank moves to once the house is built (from beside the journal in the glade): the living room,
-    # against the back wall left of the fireplace. Its collision is the tank prop's own (a circle, radius 14).
+    # against the back wall left of the fireplace, and bigger. Its footprint walls in with the furniture.
     "tank": list(TANK),
+    "tank_size": list(TANK_SIZE),
     "decor": decor,
     "front_windows": front_windows,
     "chimney_x": 280,
@@ -232,7 +235,7 @@ house = {
 # (a body needs ~8 px clear all round: Solids' body radius 6 plus its margin 2). A flood fill over a 4 px grid.
 CLEAR = 9.0
 STEP = 4
-blockers = walls + furniture_solids + [rect(TANK[0] - 14, TANK[1] - 14, 28, 28)]   # the tank: a circle, boxed
+blockers = walls + furniture_solids
 
 
 def blocked(x, y):

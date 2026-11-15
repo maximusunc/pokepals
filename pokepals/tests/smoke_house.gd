@@ -216,6 +216,18 @@ func _process(_delta: float) -> bool:
 				if bool(e.get("tank", false)):
 					tank_entry = e
 			_ok(not tank_entry.is_empty() and (tank_entry["pos"] as Vector2) == tank_at, "and is examined there")
+			var tank_view = _world.get_node_or_null("Scenery/FishTank")
+			_ok(tank_view != null and tank_view.w >= 50.0, "a bigger tank, filling the space by the fire (%s wide)" % (tank_view.w if tank_view != null else 0))
+			# You can't walk through the tank or the coffee table.
+			var body = _world._player
+			for what in ["coffee_table"]:
+				for f in view.house["furniture"]:
+					if String(f["kind"]) == what:
+						var at := WorldData.to_vec2(f["at"]) + Vector2(0, -4)
+						var pushed: Vector2 = Solids.resolve(at, body._body_radius, body._solids, body._bounds, body._margin)
+						_ok(pushed.distance_to(at) > 4.0, "the %s is solid" % what)
+			var in_tank := tank_at + Vector2(0, -8)
+			_ok(Solids.resolve(in_tank, body._body_radius, body._solids, body._bounds, body._margin).distance_to(in_tank) > 4.0, "and so is the tank")
 			_ok(_world.hint_text().contains("finished"), "a hint says it's finished")
 			# The curio cabinet holds every find, on show or not.
 			var cab: Dictionary = {}

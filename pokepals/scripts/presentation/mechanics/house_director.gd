@@ -152,16 +152,20 @@ func _finish(seen: bool) -> void:
 	var tank_at: Variant = house.get("tank")
 	if tank_at is Array:
 		var to := WorldData.to_vec2(tank_at)
+		var size: Variant = house.get("tank_size")
 		for it in _data.get("props", []):
 			if it is Dictionary and bool((it as Dictionary).get("tank", false)):
 				it["position"] = tank_at
+				it["solid"] = false   # in the house it walls in as furniture (its footprint is a furniture solid)
+				if size is Array:
+					it["size"] = size
 		for e in _interactables:
 			if bool(e.get("tank", false)):
 				e["pos"] = to
 				if int(e.get("render_index", -1)) >= 0:
 					_world_art.move_interactable(int(e["render_index"]), to)
 		if _tank_dir != null:
-			_tank_dir.move_to(to)
+			_tank_dir.move_to(to, WorldData.to_vec2(size) if size is Array else Vector2.ZERO)
 	# The furniture walls in.
 	for b in _data.get("buildings", []):
 		if String(b.get("view", "")) == "house":
