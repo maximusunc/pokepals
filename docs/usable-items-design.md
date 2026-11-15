@@ -506,3 +506,26 @@ bite) and the server honours the chop only that long after you started on that v
   plinths, and flood-fills from the doorstep through the real collision to check each one can be walked up to; the
   server's `home_house_test.exs` checks each stands inside, in a place of its own, and none in the doorway. Both fail
   on the old layout.
+
+### Performance, and how the finds scale (2026-11-15)
+
+**Performance.** The house drew everything live, every frame (thousands of little shapes for its shell, back wall
+and floors), drew its outside while faded away, and drew the finds inside while you were outside. Its still parts are
+now baked once into textures (`PaintBake`, a SubViewport rendered once, like `StaticBake`): the outside, the back
+wall, the floors and rugs (in `WorldArt`), and every still piece of furniture. Only the smoke, the door lamp, the fire,
+the stove, the lamp and the clock's pendulum stay live. The finds inside are hidden while you're outside. Measured
+(software renderer, so only the comparisons mean anything): outside the house 512 -> 37 draw calls; inside 529 -> about
+400 with a full showcase, about 20 per find on show (each is drawn shape by shape by `WorldArt`, as every keepsake
+is). Baking each keepsake type into a sprite would cut that further; not done yet.
+
+**How the finds scale** (decided by the owner, 2026-11-15: options 2 and 3 of those offered). The house never tries to
+show every find:
+- **A curated showcase:** the companion's **keepsakes** stand on the display plinths (up to 7, by bond, as before), and
+  the **newest** of the other finds stand on the shelves, up to `curio_shown` (**8**, in the template's `house` block;
+  the 8 was the suggested number), so new finds rotate in and older ones rotate out. At most 15 on show.
+- **The curio cabinet:** a glass-fronted cabinet by the living room's west wall. Examine it (`CabinetPanel`) for every
+  find you've ever made, newest first, each with its line and where it is ("On show: a keepsake", "On show: on a shelf",
+  "In the cabinet"). A friend can look in yours.
+- `Server.HomeWorld` picks the shelves' finds (newest first, not keepsakes); `HouseDirector` makes the same choice when
+  a house finishes in front of you. Tested in `home_house_test.exs` and `tests/smoke_house.gd` (17 finds: 15 on show,
+  all 17 in the cabinet).

@@ -224,6 +224,8 @@ defmodule Server.HomeWorld do
         "built_plates" => furnished,
         "display_spots" => Enum.map(t["display_spots"], abs),
         "curio_spots" => Enum.map(t["curio_spots"], abs),
+        "curio_shown" => Map.get(t, "curio_shown", length(t["curio_spots"])),
+        "cabinet" => if(t["cabinet"], do: abs.(t["cabinet"])),
         "decor" =>
           Enum.map(t["decor"], fn dd -> %{dd | "x0" => ox + dd["x0"], "x1" => ox + dd["x1"]} end),
         "front_windows" => Enum.map(t["front_windows"], fn [a, b] -> [ox + a, ox + b] end),
@@ -267,14 +269,19 @@ defmodule Server.HomeWorld do
     |> Map.update("paths", [path], &(&1 ++ [path]))
   end
 
-  # Every find that isn't one of the keepsakes on show sits on the house's curio shelves (a built house only).
+  # The house's curio shelves (a built house only) hold the NEWEST finds that aren't keepsakes on show, at most
+  # `curio_shown` of them, so new finds rotate in; every find, on show or not, is in the curio cabinet.
   defp place_curios(core, %{state: "built"}, keepsakes, cards, spots, template, {ox, oy}) do
     shown = keepsakes |> Enum.take(spots) |> MapSet.new()
     t = template["house"]
 
+    room = min(Map.get(t, "curio_shown", length(t["curio_spots"])), length(t["curio_spots"]))
+
     props =
       cards
+      |> Enum.reverse()
       |> Enum.reject(fn {id, _} -> MapSet.member?(shown, id) end)
+      |> Enum.take(room)
       |> Enum.zip(t["curio_spots"])
       |> Enum.map(fn {{id, card}, [x, y]} ->
         k = Map.get(card, "keepsake", %{})

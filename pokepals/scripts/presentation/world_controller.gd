@@ -1714,6 +1714,10 @@ func _try_interact() -> void:
 	if String(entry["kind"]) == "pickup":
 		_harvest_dir.examine_pickup(entry)
 		return
+	# The curio cabinet in your house: everything you've found.
+	if bool(entry.get("house_cabinet", false)):
+		_house_dir.open_cabinet()
+		return
 	# The carpenter at work on your house: how long is left.
 	if bool(entry.get("house_builder", false)):
 		_house_dir.examine_builder()

@@ -92,6 +92,23 @@ func _unreachable_finds(fp: Rect2) -> Array:
 	return out
 
 
+func _panel(script_file: String) -> Node:
+	var found: Node = null
+	for c in _world.get_node("UI").get_children():
+		var sc: Variant = c.get_script()
+		if sc != null and String((sc as Script).resource_path).ends_with(script_file):
+			found = c
+	return found
+
+
+func _labels(n: Node, out: Array = []) -> Array:
+	for c in n.get_children():
+		if c is Label:
+			out.append((c as Label).text)
+		_labels(c, out)
+	return out
+
+
 func _process(_delta: float) -> bool:
 	_frames += 1
 	if _world == null:
@@ -150,7 +167,24 @@ func _process(_delta: float) -> bool:
 					if fp.has_point(e["pos"]):
 						inside += 1
 			var finds: int = (_world._world_data.get("home", {}) as Dictionary).get("finds", []).size()
-			_ok(finds == 17 and inside == finds, "every find has moved inside (%d of %d)" % [inside, finds])
+			# A showcase, not every find: the 7 keepsakes, and the newest of the rest on the shelves (curio_shown).
+			var shelf_room: int = int(view.house.get("curio_shown", 0))
+			_ok(finds == 17 and shelf_room == 8 and inside == 7 + shelf_room, "a showcase moves in: 7 keepsakes and the %d newest finds (%d of %d on show)" % [shelf_room, inside, finds])
+			var all_finds: Array = (_world._world_data.get("home", {}) as Dictionary).get("finds", [])
+			var keeps := {}
+			for e in _world._interactables:
+				if String(e.get("keepsake", "")) != "" and not bool(e.get("_taken", false)):
+					keeps[String(e["keepsake"])] = true
+			var want: Array = []
+			for i in range(all_finds.size() - 1, -1, -1):
+				var fid := String(all_finds[i]["id"])
+				if not keeps.has(fid) and want.size() < shelf_room:
+					want.append(fid)
+			var got: Array = []
+			for e in _world._interactables:
+				if String(e.get("curio", "")) != "" and not bool(e.get("_taken", false)):
+					got.append(String(e["curio"]))
+			_ok(got == want, "the shelves hold the newest finds, newest first")
 			# The keepsakes stand on the display plinths, in order (the favourite by the fire).
 			var display: Array = view.house["display_spots"]
 			var on_plinths := 0
@@ -165,6 +199,29 @@ func _process(_delta: float) -> bool:
 			var unreachable := _unreachable_finds(fp)
 			_ok(unreachable.is_empty(), "every secret on show can be walked up to from the front door (unreachable: %s)" % [unreachable])
 			_ok(_world.hint_text().contains("finished"), "a hint says it's finished")
+			# The curio cabinet holds every find, on show or not.
+			var cab: Dictionary = {}
+			for e in _world._interactables:
+				if bool(e.get("house_cabinet", false)):
+					cab = e
+			_ok(not cab.is_empty() and fp.has_point(cab["pos"]), "there's a curio cabinet inside")
+			if not cab.is_empty():
+				_world._player.position = cab["pos"] + Vector2(16, 6)
+				_world._invalidate_nearest()
+				_world._try_interact()
+				var panel := _panel("cabinet_panel.gd")
+				_ok(panel != null, "examining it opens it")
+				if panel != null:
+					var shown := _labels(panel)
+					var rows := 0
+					var cabinet_only := 0
+					for t in shown:
+						if t.begins_with("On show") or t == "In the cabinet":
+							rows += 1
+						if t == "In the cabinet":
+							cabinet_only += 1
+					_ok(rows == 17 and cabinet_only == 2, "it lists all 17 finds, the 2 not on show among them (%d, %d)" % [rows, cabinet_only])
+					panel.close()
 			# Walk in and out for real, through the walls' and furniture's collision (once it trapped you inside).
 			var pl = _world._player
 			var door_x: float = (float(view.house["door"][0]) + float(view.house["door"][1])) * 0.5

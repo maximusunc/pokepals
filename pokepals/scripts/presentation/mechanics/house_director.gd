@@ -47,6 +47,7 @@ var _walk := Vector2.ZERO
 # Whether the finds on show inside are being drawn (only while you're inside: from outside the roof hides them,
 # and drawing 17 of them for nobody cost as much as the rest of the house), and how many things they were
 # worked out over (a find placed later is caught on the next change).
+var _cabinet_added := false
 var _interior_shown := true
 var _interior_count := -1
 
@@ -82,6 +83,8 @@ func begin(data: Dictionary, interactables: Array, building_views: Array) -> voi
 		return
 	var home: Dictionary = data.get("home", {})
 	_mine = String(home.get("owner_id", "")) == Net.local_id() and Net.local_id() != ""
+	if _view.built:
+		_add_cabinet()
 	if not _view.built:
 		if _view.build_progress() >= 1.0:
 			# It finished while we were away (or on the way here): finish it now, quietly.
@@ -125,7 +128,7 @@ func examine_builder() -> void:
 	var mins := int(ceil(left / 60.0))
 	var line := "\"Nearly there, a minute or so.\"" if mins <= 1 else "\"Coming along nicely. About %d minutes more.\"" % mins
 	if _view.progress < 0.3:
-		line = "\"Just getting the frame up. About %d minutes, and you'll have a roof over your head.\"" % mins
+		line = "\"Just getting the frame up. About %d minute%s, and you'll have a roof over your head.\"" % [mins, "" if mins == 1 else "s"]
 	_companion.notify_interaction(_entry.get("pos", _player.position), "carpenter", ["person"])
 	_host.show_hint(line)
 
@@ -171,11 +174,16 @@ func _move_finds_inside(house: Dictionary) -> void:
 			shown[String(e["keepsake"])] = true
 		if String(e.get("curio", "")) != "":
 			shown[String(e["curio"])] = true
+	# The shelves take the NEWEST finds not already keepsakes (finds come oldest first), up to `curio_shown`: the
+	# same choice Server.HomeWorld makes, so next visit it's the same. Every find is in the cabinet.
 	var curio_spots: Array = house.get("curio_spots", [])
+	var room := mini(int(house.get("curio_shown", curio_spots.size())), curio_spots.size())
+	var finds: Array = (_data.get("home", {}) as Dictionary).get("finds", []).duplicate()
+	finds.reverse()
 	var k := 0
-	for f in (_data.get("home", {}) as Dictionary).get("finds", []):
+	for f in finds:
 		var id := String(f.get("id", ""))
-		if shown.has(id) or k >= curio_spots.size():
+		if shown.has(id) or k >= room:
 			continue
 		var pos := WorldData.to_vec2(curio_spots[k])
 		k += 1
@@ -184,7 +192,40 @@ func _move_finds_inside(house: Dictionary) -> void:
 			"pos": pos, "label": String(f.get("label", "something you found")), "id": "curio_" + id, "tags": ["keepsake"],
 			"kind": "prop", "render_index": ri, "lore": String(f.get("line", "")), "affordances": {}, "curio": id,
 		})
+	_add_cabinet()
 	_host.secret_taken()   # (the examine scan's cache is stale)
+
+
+# ── the curio cabinet: every find, whatever's on show ──
+
+func _add_cabinet() -> void:
+	var at: Variant = _view.house.get("cabinet")
+	if not (at is Array) or _cabinet_added:
+		return
+	_cabinet_added = true
+	_interactables.append({
+		"pos": WorldData.to_vec2(at), "label": "the curio cabinet", "id": "house_cabinet", "tags": ["made", "keepsake"],
+		"kind": "prop", "render_index": -1, "lore": "", "affordances": {}, "house_cabinet": true,
+	})
+
+
+## Examining the cabinet: everything this home's owner has found, and which are on show.
+func open_cabinet() -> void:
+	var home: Dictionary = _data.get("home", {})
+	var on_show := {}
+	for e in _interactables:
+		if bool(e.get("_taken", false)):
+			continue
+		if String(e.get("keepsake", "")) != "":
+			on_show[String(e["keepsake"])] = "keepsake"
+		elif String(e.get("curio", "")) != "":
+			on_show[String(e["curio"])] = "shelf"
+	var panel := CabinetPanel.new()
+	panel.finds = home.get("finds", [])
+	panel.on_show = on_show
+	panel.owner_name = "" if _mine else String(home.get("owner_name", ""))
+	_companion.notify_interaction(WorldData.to_vec2(_view.house.get("cabinet", [0, 0])), "house_cabinet", ["keepsake"])
+	_host.open_sheet(panel)
 
 
 # ── the carpenter ──

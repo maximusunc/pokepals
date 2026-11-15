@@ -148,7 +148,9 @@ furniture = [
     piece("chair_n", [92, 154], 14),
     piece("plant", [176, 204], 14),
     # living room
-    piece("lamp", [202, 46], 12),
+    piece("lamp", [242, 52], 12),
+    # the curio cabinet: glass doors, and every find you've ever made inside (examine it; HouseDirector)
+    piece("cabinet", [205, 78], 18, rect(196, 60, 18, 18)),
     piece("fireplace", [280, 28], 52, rect(254, 8, 52, 20)),
     piece("bookshelf", [351, 22], 26, rect(338, 8, 26, 14)),
     # (the couch stands well back from the front door, with room to walk round it either side)
@@ -203,6 +205,10 @@ house = {
     "furniture_solids": furniture_solids,
     "display_spots": display_spots,
     "curio_spots": curio_spots,
+    # How many finds stand on the shelves (besides the keepsakes): the newest ones not already chosen as keepsakes,
+    # so new finds rotate in. Every find is in the curio cabinet, whatever is on show.
+    "curio_shown": 8,
+    "cabinet": [205, 78],
     "decor": decor,
     "front_windows": front_windows,
     "chimney_x": 280,
@@ -245,7 +251,7 @@ while todo:
 for room in ROOMS:
     inside = [c for c in seen if room["x0"] < c[0] < room["x1"] and 8 < c[1] < D - 8]
     assert len(inside) > 200, "room %s can't be walked into (%d cells)" % (room["id"], len(inside))
-for sx, sy in display_spots + curio_spots:
+for sx, sy in display_spots + curio_spots + [[205, 70]]:
     fx, fy = sx, sy + 8.0
     assert any((c[0] - fx) ** 2 + (c[1] - fy) ** 2 <= 26 * 26 for c in seen), "can't reach the find at %s" % [fx, fy]
 

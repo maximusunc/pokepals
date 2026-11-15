@@ -233,6 +233,23 @@ func _draw_piece(ci: CanvasItem) -> void:
 			SoftGlow.draw(_ci, Vector2(0, -24.0), 8.0, Color(1.0, 0.86, 0.50, 0.3), 0.6)
 		"bed":
 			_draw_bed()
+		"cabinet":
+			# the curio cabinet: tall, glass-fronted, little treasures glinting on its shelves
+			_shadow(w, 0.14)
+			var tall := 44.0
+			_ci.draw_rect(Rect2(-hw, -tall, w, tall), WOOD.darkened(0.1))
+			_ci.draw_rect(Rect2(-hw, -tall - 3.0, w, 3.0), WOOD_LIGHT)
+			_ci.draw_rect(Rect2(-hw + 2.0, -tall + 2.0, w - 4.0, tall - 6.0), Color(0.30, 0.36, 0.40))
+			var gems := [Color(0.62, 0.86, 1.0), Color(0.92, 0.72, 0.30), Color(0.86, 0.42, 0.52), Color(0.56, 0.80, 0.50), Color(0.96, 0.94, 0.88)]
+			for shelf in 3:
+				var sy := -tall + 2.0 + float(shelf + 1) * 12.0
+				_ci.draw_rect(Rect2(-hw + 2.0, sy, w - 4.0, 1.0), WOOD_LIGHT)
+				for k in 3:
+					_ci.draw_rect(Rect2(-hw + 3.0 + float(k) * 4.5, sy - 3.0 - float((k + shelf) % 2), 3.0, 3.0 + float((k + shelf) % 2)), gems[(k + shelf * 2) % gems.size()])
+			_ci.draw_rect(Rect2(-1.0, -tall + 2.0, 1.0, tall - 6.0), WOOD)                     # the doors' meeting
+			_ci.draw_line(Vector2(-hw + 3.0, -tall + 6.0), Vector2(-hw + 7.0, -tall + 14.0), Color(1, 1, 1, 0.45), 1.0)   # a glint
+			_ci.draw_rect(Rect2(-hw, -4.0, w, 4.0), WOOD.darkened(0.25))
+			_ci.draw_rect(Rect2(1.0, -tall * 0.55, 2.0, 2.0), Color(0.86, 0.74, 0.40))
 		"wardrobe":
 			_shadow(w, 0.14)
 			var tall := 52.0

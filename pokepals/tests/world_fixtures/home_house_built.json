@@ -673,6 +673,10 @@
             ]
           }
         ],
+        "cabinet": [
+          -75.0,
+          -822
+        ],
         "carpenter": {
           "appearance": {
             "colors": {
@@ -776,6 +780,7 @@
             0.18
           ]
         },
+        "curio_shown": 8,
         "curio_spots": [
           [
             -263.0,
@@ -1029,11 +1034,25 @@
           },
           {
             "at": [
-              -78.0,
-              -854
+              -38.0,
+              -848
             ],
             "kind": "lamp",
             "w": 12
+          },
+          {
+            "at": [
+              -75.0,
+              -822
+            ],
+            "kind": "cabinet",
+            "solid": [
+              -84.0,
+              -840,
+              18,
+              18
+            ],
+            "w": 18
           },
           {
             "at": [
@@ -1206,6 +1225,12 @@
             18
           ],
           [
+            -84.0,
+            -840,
+            18,
+            18
+          ],
+          [
             -26.0,
             -892,
             52,
@@ -1343,7 +1368,7 @@
             "x1": 272.0
           }
         ],
-        "started_at": 1794742402501,
+        "started_at": 1794744609905,
         "state": "built",
         "wall_h": 64,
         "wall_t": 8
@@ -1426,6 +1451,12 @@
           -216.0,
           -780,
           56,
+          18
+        ],
+        [
+          -84.0,
+          -840,
+          18,
           18
         ],
         [
@@ -2733,14 +2764,14 @@
     {
       "color": [
         1.0,
-        0.76,
-        0.3
+        0.82,
+        0.42
       ],
-      "curio": "paper_bird",
-      "id": "curio_paper_bird",
+      "curio": "root_heart",
+      "id": "curio_root_heart",
       "interactive": true,
-      "label": "a paper bird on a stick",
-      "lore": "A bird cut from a single sheet of paper. Hold it up to the lamp and it throws a bird on the wall, and your companion, in whatever shape, watches it fly.",
+      "label": "a seed wrapped in small roots",
+      "lore": "A seed from the deepest root of the great tree, glowing slowly. Your companion curls up beside it, and its eyes catch the light.",
       "position": [
         -263.0,
         -836.0
@@ -2748,147 +2779,7 @@
       "tags": [
         "keepsake"
       ],
-      "type": "kept_paper_bird"
-    },
-    {
-      "color": [
-        0.86,
-        0.72,
-        0.46
-      ],
-      "curio": "sky_nest",
-      "id": "curio_sky_nest",
-      "interactive": true,
-      "label": "a little nest with a feather across it",
-      "lore": "A small woven nest, one pale egg, one long feather. The feather lifts, a little, when no one is moving.",
-      "position": [
-        263.0,
-        -856.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "kept_nest"
-    },
-    {
-      "color": [
-        0.42,
-        0.66,
-        0.36
-      ],
-      "curio": "hedge_seed",
-      "id": "curio_hedge_seed",
-      "interactive": true,
-      "label": "a potted spiral hedge",
-      "lore": "The seed from the heart of the Hedge Maze, grown into a tiny spiral of hedge. Your companion curls up beside it as if it's guarding it.",
-      "position": [
-        -158.0,
-        -707.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "potted_hedge"
-    },
-    {
-      "color": [
-        0.62,
-        0.92,
-        1.0
-      ],
-      "curio": "mere_pearl",
-      "id": "curio_mere_pearl",
-      "interactive": true,
-      "label": "a mere-light in a jar",
-      "lore": "A light from the Mere, drifting in its jar. Your companion watches it turn, very still, for a long time.",
-      "position": [
-        132.0,
-        -707.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "mere_jar"
-    },
-    {
-      "color": [
-        0.92,
-        0.72,
-        0.3
-      ],
-      "curio": "elder_scale",
-      "id": "curio_elder_scale",
-      "interactive": true,
-      "label": "an elder's shed scale",
-      "lore": "The elder salamander's golden scale. Your companion noses it now and then, as if checking it's still warm.",
-      "position": [
-        -263.0,
-        -792.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "elder_scale"
-    },
-    {
-      "color": [
-        0.86,
-        0.62,
-        0.3
-      ],
-      "curio": "faint_bell",
-      "id": "curio_faint_bell",
-      "interactive": true,
-      "label": "a little bronze bell on a stand",
-      "lore": "A bell too quiet for you to hear. Your companion tilts its head toward it now and then, and listens.",
-      "position": [
-        263.0,
-        -808.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "kept_bronze_bell"
-    },
-    {
-      "color": [
-        0.8,
-        0.88,
-        0.96
-      ],
-      "curio": "mirror_stone",
-      "id": "curio_mirror_stone",
-      "interactive": true,
-      "label": "a stone and its reflection, in a dish of water",
-      "lore": "A little stone in a dish of still water. The reflection is a touch too bright, and sometimes, if you look at the right moment, it is not quite facing the same way.",
-      "position": [
-        -134.0,
-        -707.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "kept_mirror_stone"
-    },
-    {
-      "color": [
-        0.42,
-        0.38,
-        0.34
-      ],
-      "curio": "warden_lantern",
-      "id": "curio_warden_lantern",
-      "interactive": true,
-      "label": "the last Warden's lantern",
-      "lore": "The Warden's lantern, still lit. Your companion settles beside it in the evenings, as if keeping it company.",
-      "position": [
-        156.0,
-        -707.0
-      ],
-      "tags": [
-        "keepsake"
-      ],
-      "type": "kept_lantern"
+      "type": "kept_root_heart"
     },
     {
       "color": [
@@ -2902,8 +2793,8 @@
       "label": "a silver thimble on a spool of red cotton",
       "lore": "A thimble on a spool of red cotton. Your companion sits and looks at it sometimes, as if remembering a very tight squeeze.",
       "position": [
-        -263.0,
-        -748.0
+        263.0,
+        -856.0
       ],
       "tags": [
         "keepsake"
@@ -2912,23 +2803,123 @@
     },
     {
       "color": [
-        1.0,
-        0.82,
-        0.42
+        0.42,
+        0.38,
+        0.34
       ],
-      "curio": "root_heart",
-      "id": "curio_root_heart",
+      "curio": "warden_lantern",
+      "id": "curio_warden_lantern",
       "interactive": true,
-      "label": "a seed wrapped in small roots",
-      "lore": "A seed from the deepest root of the great tree, glowing slowly. Your companion curls up beside it, and its eyes catch the light.",
+      "label": "the last Warden's lantern",
+      "lore": "The Warden's lantern, still lit. Your companion settles beside it in the evenings, as if keeping it company.",
       "position": [
-        263.0,
-        -760.0
+        -158.0,
+        -707.0
       ],
       "tags": [
         "keepsake"
       ],
-      "type": "kept_root_heart"
+      "type": "kept_lantern"
+    },
+    {
+      "color": [
+        0.8,
+        0.88,
+        0.96
+      ],
+      "curio": "mirror_stone",
+      "id": "curio_mirror_stone",
+      "interactive": true,
+      "label": "a stone and its reflection, in a dish of water",
+      "lore": "A little stone in a dish of still water. The reflection is a touch too bright, and sometimes, if you look at the right moment, it is not quite facing the same way.",
+      "position": [
+        132.0,
+        -707.0
+      ],
+      "tags": [
+        "keepsake"
+      ],
+      "type": "kept_mirror_stone"
+    },
+    {
+      "color": [
+        0.86,
+        0.62,
+        0.3
+      ],
+      "curio": "faint_bell",
+      "id": "curio_faint_bell",
+      "interactive": true,
+      "label": "a little bronze bell on a stand",
+      "lore": "A bell too quiet for you to hear. Your companion tilts its head toward it now and then, and listens.",
+      "position": [
+        -263.0,
+        -792.0
+      ],
+      "tags": [
+        "keepsake"
+      ],
+      "type": "kept_bronze_bell"
+    },
+    {
+      "color": [
+        0.92,
+        0.72,
+        0.3
+      ],
+      "curio": "elder_scale",
+      "id": "curio_elder_scale",
+      "interactive": true,
+      "label": "an elder's shed scale",
+      "lore": "The elder salamander's golden scale. Your companion noses it now and then, as if checking it's still warm.",
+      "position": [
+        263.0,
+        -808.0
+      ],
+      "tags": [
+        "keepsake"
+      ],
+      "type": "elder_scale"
+    },
+    {
+      "color": [
+        0.62,
+        0.92,
+        1.0
+      ],
+      "curio": "mere_pearl",
+      "id": "curio_mere_pearl",
+      "interactive": true,
+      "label": "a mere-light in a jar",
+      "lore": "A light from the Mere, drifting in its jar. Your companion watches it turn, very still, for a long time.",
+      "position": [
+        -134.0,
+        -707.0
+      ],
+      "tags": [
+        "keepsake"
+      ],
+      "type": "mere_jar"
+    },
+    {
+      "color": [
+        0.42,
+        0.66,
+        0.36
+      ],
+      "curio": "hedge_seed",
+      "id": "curio_hedge_seed",
+      "interactive": true,
+      "label": "a potted spiral hedge",
+      "lore": "The seed from the heart of the Hedge Maze, grown into a tiny spiral of hedge. Your companion curls up beside it as if it's guarding it.",
+      "position": [
+        156.0,
+        -707.0
+      ],
+      "tags": [
+        "keepsake"
+      ],
+      "type": "potted_hedge"
     },
     {
       "color": [

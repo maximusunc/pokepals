@@ -94,7 +94,8 @@ defmodule Server.HomeHouseTest do
     assert inside.(k["position"])
     assert k["position"] == hd(c["home"]["spot_positions"])
     curios = Enum.filter(c["props"], &Map.has_key?(&1, "curio"))
-    assert Enum.map(curios, & &1["curio"]) == ["a", "c"]
+    # newest first (cards come oldest first)
+    assert Enum.map(curios, & &1["curio"]) == ["c", "a"]
     assert Enum.all?(curios, &inside.(&1["position"]))
     assert Enum.all?(curios, &(&1["interactive"] and &1["lore"] == "Ours."))
   end
@@ -108,7 +109,7 @@ defmodule Server.HomeHouseTest do
     assert Enum.all?(c["home"]["spot_positions"], fn [_px, py] -> py > y and py < y + 220 end)
   end
 
-  test "with every world's secret found and 7 keepsakes: all of them inside, each in its own place, none in the doorway" do
+  test "with every world's secret found and 7 keepsakes: a showcase inside, each in its own place, none in the doorway" do
     cards =
       for f <- Path.wildcard("priv/world_seeds/*.json") |> Enum.sort(),
           sec = Jason.decode!(File.read!(f))["secret"],
@@ -123,7 +124,10 @@ defmodule Server.HomeHouseTest do
     [d0, d1] = t["door"]
 
     shown = Enum.filter(c["props"], &(Map.has_key?(&1, "keepsake") or Map.has_key?(&1, "curio")))
-    assert length(shown) == length(cards)
+    # the 7 keepsakes, and the 8 newest of the rest on the shelves: never every find
+    assert length(shown) == 7 + t["curio_shown"]
+    newest = cards |> Enum.reverse() |> Enum.map(&elem(&1, 0)) |> Enum.reject(&(&1 in keepsakes)) |> Enum.take(t["curio_shown"])
+    assert shown |> Enum.filter(&Map.has_key?(&1, "curio")) |> Enum.map(& &1["curio"]) == newest
     assert shown |> Enum.map(& &1["position"]) |> Enum.uniq() |> length() == length(shown)
 
     for p <- shown do
@@ -135,5 +139,8 @@ defmodule Server.HomeHouseTest do
     end
 
     assert Enum.count(shown, &Map.has_key?(&1, "keepsake")) == 7
+    # the cabinet, inside, for everything
+    [cx, cy] = house(c)["house"]["cabinet"]
+    assert cx > hx and cx < hx + w and cy > hy and cy < hy + d
   end
 end
