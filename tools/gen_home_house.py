@@ -88,8 +88,8 @@ display_plinths = [
 ]
 CHEST = rect(440, 100, 40, 16)   # the chest at the bed's foot
 TANK = (224, 30)                 # the fish tank's spot (its feet): in the living room, left of the fireplace
-TANK_SIZE = (56, 36)             # filling the space between the wall and the fireplace (the glade's is 34 x 24)
-TANK_RECT = rect(196, 10, 56, 20)  # its stand's footprint, walled in like furniture
+TANK_SIZE = (46, 30)             # most of the space between the wall and the fireplace, with a little air either side (the glade's is 34 x 24)
+TANK_RECT = rect(199, 10, 50, 20)  # its stand's footprint, walled in like furniture
 
 
 def top_spot(r):

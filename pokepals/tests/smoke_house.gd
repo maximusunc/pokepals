@@ -217,7 +217,7 @@ func _process(_delta: float) -> bool:
 					tank_entry = e
 			_ok(not tank_entry.is_empty() and (tank_entry["pos"] as Vector2) == tank_at, "and is examined there")
 			var tank_view = _world.get_node_or_null("Scenery/FishTank")
-			_ok(tank_view != null and tank_view.w >= 50.0, "a bigger tank, filling the space by the fire (%s wide)" % (tank_view.w if tank_view != null else 0))
+			_ok(tank_view != null and tank_view.w > 40.0, "a bigger tank, in the space by the fire (%s wide)" % (tank_view.w if tank_view != null else 0))
 			# You can't walk through the tank or the coffee table.
 			var body = _world._player
 			for what in ["coffee_table"]:

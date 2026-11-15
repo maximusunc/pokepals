@@ -549,7 +549,8 @@ right of the fire; the floor lamp became a reading lamp by the couch. `Server.Ho
 it (view, examine spot, collision) when the house finishes in front of you. Like the finds inside, it isn't drawn while
 you're outside the house. Your companion still wanders over to watch the fish. Checked by the layout's flood fill,
 `home_house_test.exs` and `tests/smoke_house.gd`.
-- **Bigger, and nothing to walk through** (2026-11-15, the owner's ask): in the house the tank is bigger (56 x 36, the
-  template's `house.tank_size`, against 34 x 24 in the glade), filling the space between the wall and the fireplace, and
+- **Bigger, and nothing to walk through** (2026-11-15, the owner's ask): in the house the tank is bigger (46 x 30, the
+  template's `house.tank_size`, against 34 x 24 in the glade; first 56 x 36, which looked crammed in), most of the space
+  between the wall and the fireplace with a little air either side, and
   walls in as furniture (a rect in `furniture_solids`; its prop is no longer solid there). The coffee table is solid now
   too (it was drawn but had no footprint). The chairs, plants and lamps are still walk-through.
