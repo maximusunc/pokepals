@@ -1,6 +1,8 @@
 {
 	"_comment": "The Home World — tightened. A compact island where every region is pulled close to a single curving SPINE (the 'finding path'): you wake alone in the grove (east), pass indifferent pals, reach the one that is yours, gather at the always-lit Commons fire, and end at the Threshold (west), where the Gateway stands. The Overlook, Hollow and Meadow hang just off the spine; still water lines the southern edge. The footprint is deliberately small so density stays high at low population. Coordinates are world-space pixels. Colors are [r,g,b] 0..1. world_art draws it; world_controller uses 'props'/'portals' for proximity. Each prop/portal's 'type' picks how it's drawn (see world_art). Edit freely to reshape the place.",
 	"world_id": "vale",
+	"_chopping_comment": "The Vale is the companion's place: its trees are for keeping, so no axe works here (home building; Server.Harvest).",
+	"chopping": false,
 	"_regions_comment": "Named AREAS for new-area discovery (a bond source). The companion's bond deepens the first time it reaches each region (novelty-gated, so re-entering pays nothing). An area's id is world_id:region_id; a position in no region is just the world_id (the open 'wilds' — here, the intentional hush between beats). Because ids are world-namespaced and the companion remembers across sessions/worlds, this scales from sub-regions of one big world to entirely separate worlds. Rectangles in world space; first match wins; gaps fall through to the world default area.",
 	"regions": [
 		{ "id": "overlook", "min": [400, -480], "max": [680, -200], "tint": [0.66, 0.78, 0.70] },

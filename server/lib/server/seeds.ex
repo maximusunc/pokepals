@@ -100,7 +100,7 @@ defmodule Server.Seeds do
     seed_worlds()
 
     summary =
-      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs()) + length(Server.Crafting.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
+      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs()) + length(Server.Crafting.item_defs()) + length(Server.Harvest.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
 
     summary
   end
@@ -110,6 +110,8 @@ defmodule Server.Seeds do
     Server.Fishing.seed_definitions()
     # The lantern (item 4) and the firefly live with the crafting rules (Server.Crafting).
     Server.Crafting.seed_definitions()
+    # The axe, river stones and wood live with the harvesting rules (Server.Harvest).
+    Server.Harvest.seed_definitions()
 
     for attrs <- @item_defs do
       %ItemDefinition{}

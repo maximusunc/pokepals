@@ -11,6 +11,38 @@ if config_env() != :test do
     http: [ip: {0, 0, 0, 0}, port: String.to_integer(System.get_env("PORT") || "4000")]
 end
 
+# Home building's tunables, overridable at boot from the environment (defaults in config.exs). Seconds here,
+# so `HOUSE_BUILD_SECONDS=60` makes a house take a minute.
+seconds = fn name ->
+  with v when v not in [nil, ""] <- System.get_env(name), do: String.to_integer(v) * 1000
+end
+
+integer = fn name ->
+  with v when v not in [nil, ""] <- System.get_env(name), do: String.to_integer(v)
+end
+
+harvest =
+  [
+    chop_ms: seconds.("CHOP_SECONDS"),
+    tree_regrow_ms: seconds.("TREE_REGROW_SECONDS"),
+    pickup_regrow_ms: seconds.("PICKUP_REGROW_SECONDS"),
+    wood_per_tree: integer.("WOOD_PER_TREE")
+  ]
+  |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+
+house =
+  [
+    build_ms: seconds.("HOUSE_BUILD_SECONDS"),
+    wood: integer.("HOUSE_WOOD"),
+    coins: integer.("HOUSE_COINS")
+  ]
+  |> Enum.reject(fn {_k, v} -> is_nil(v) end)
+
+if config_env() != :test do
+  if harvest != [], do: config(:server, Server.Harvest, harvest)
+  if house != [], do: config(:server, Server.House, house)
+end
+
 # Database + secret. In prod both must be supplied; dev/test fall back to localhost defaults
 # (config/dev.exs, config/test.exs) and the dev/test secret in config/config.exs.
 if config_env() == :prod do
