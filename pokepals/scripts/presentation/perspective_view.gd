@@ -19,10 +19,11 @@ extends Node
 const SHADER := preload("res://assets/perspective_ground.gdshader")
 const FLAT_LAYER := 2  # visibility layer bit value for the flat world (rendered only into the SubViewport)
 
-@export var k := 0.55
-@export var z0 := 340.0
-@export var focus := Vector2(0, 50)
-@export var s_far := 0.3
+# The "over the shoulder" camera (chosen over a higher drone-like one and a near-the-ground one).
+@export var k := 0.35
+@export var z0 := 260.0
+@export var focus := Vector2(0, 90)
+@export var s_far := 0.22
 @export var s_near_cull := 0.05
 @export var flat_tex_size := Vector2i(2048, 1024)
 
