@@ -303,7 +303,7 @@ SECRET = {
         "spot": list(SPOT),
         "facing_deg": FACING,
         "hold_seconds": 2.0,
-        "capture_radius": 26.0, "capture_deg": 35.0, "still_speed": 14.0, "center_tol": 1.5, "yaw_tol_deg": 1.0,
+        "capture_radius": 64.0, "capture_deg": 35.0, "still_speed": 14.0, "center_tol": 1.5, "yaw_tol_deg": 1.0,
         "notice_range_low": 320.0, "notice_range_high": 720.0, "notice_cooldown_low": 16.0, "notice_cooldown_high": 6.0,
         "notice_hold": 2.0, "visit_range": 260.0, "visit_reset": 520.0,
         "lark_screen_x": SKYLARK["lark"]["screen"][0], "lark_screen_y": SKYLARK["lark"]["screen"][1],

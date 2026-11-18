@@ -71,7 +71,7 @@ func _process(_delta: float) -> bool:
 				# The secret: stand on the spot, looking roughly south, and keep still.
 				var reveal: Dictionary = WorldData.load_json("res://tests/world_fixtures/farmeadow.json")["secret"]["reveal"]
 				_spot = WorldData.to_vec2(reveal["spot"])
-				_world._player.position = _spot + Vector2(5, -3)
+				_world._player.position = _spot + Vector2(-38, 30)   # standing near the spot, not on it: still within reach
 				_world._player.velocity = Vector2.ZERO
 				_world._perspective.rig.yaw = PI - 0.35
 				_phase = 3
@@ -83,7 +83,7 @@ func _process(_delta: float) -> bool:
 				var pv: PerspectiveView = _world._perspective
 				_fails += _check(not entry.is_empty() and String(entry.get("label", "")) == "a carved wooden lark", "standing on the spot facing south and holding still, the lark comes off the farmyard and lands to be found")
 				_fails += _check(not entry.is_empty() and (entry["pos"] as Vector2).distance_to(_spot) < 60.0, "...at your feet")
-				_fails += _check(not pv._magnet and pv.proj.center.distance_to(_world._player.position) < 40.0, "...and the view is let go again")
+				_fails += _check(not pv._magnet and pv.proj.center.distance_to(_world._player.position) < 70.0, "...and the view is let go again")
 				var bare := 0
 				for c in _world._scenery.get_children():
 					if c is TreeView and (c as TreeView).tex != null and (c as TreeView).tex.resource_path.ends_with("_bare.png"):

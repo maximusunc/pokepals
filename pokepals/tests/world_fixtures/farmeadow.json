@@ -523,7 +523,7 @@
 			],
 			"facing_deg": 180.0,
 			"hold_seconds": 2.0,
-			"capture_radius": 26.0,
+			"capture_radius": 64.0,
 			"capture_deg": 35.0,
 			"still_speed": 14.0,
 			"center_tol": 1.5,
