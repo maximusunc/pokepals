@@ -24,7 +24,8 @@ extends Node
 
 const SHADER := preload("res://assets/perspective_ground.gdshader")
 const DEFAULTS_PATH := "res://data/view.json"
-const FLAT_LAYER := 2  # visibility layer bit value for the flat world (rendered only into the SubViewports)
+const FLAT_LAYER := 2
+const PAST_EDGE := 2600.0  # how far past the world's bounds the ground carries on (GroundLayer.extend)  # visibility layer bit value for the flat world (rendered only into the SubViewports)
 
 ## The view on screen right now, or null. Taps and on-screen prompts go through it (see to_world / to_screen).
 static var active: PerspectiveView
@@ -57,6 +58,8 @@ var _life_cfg: Dictionary = {}
 var _flutters: Array[FlutterView] = []
 var _rng := RandomNumberGenerator.new()
 var _day_tint: CanvasModulate
+var _cloud_speed := 0.0
+var _cloud_drift := 0.0
 
 
 static func defaults() -> Dictionary:
@@ -210,6 +213,14 @@ func _enable() -> void:
 	_mat.set_shader_parameter("sky_top", _color(sky.get("top", [0.45, 0.66, 0.9])))
 	_mat.set_shader_parameter("sky_low", _color(sky.get("low", [0.86, 0.9, 0.92])))
 	_mat.set_shader_parameter("beyond", _color(sky.get("beyond", [0.27, 0.44, 0.21])))
+	var backdrop: Dictionary = _cfg.get("backdrop", {})
+	for key in ["hills", "clouds"]:
+		var path := String(backdrop.get(key, ""))
+		var tex: Texture2D = load(path) if path != "" and ResourceLoader.exists(path) else null
+		_mat.set_shader_parameter("has_" + key, tex != null)
+		if tex != null:
+			_mat.set_shader_parameter(key, tex)
+	_cloud_speed = float(backdrop.get("cloud_drift", 0.0))
 	rect.material = _mat
 	_layer.add_child(rect)
 	# Things that float over the whole world in top-down space and have no perspective form (yet).
@@ -234,6 +245,9 @@ func _enable() -> void:
 	rig.yaw = 0.0
 	rig.linger = 0.0
 	rig.still = 0.0
+	var ground := _art.get_node_or_null("Ground") as GroundLayer
+	if ground != null:
+		ground.extend(PAST_EDGE)
 	_spawn_life()
 	active = self
 	set_process(true)
@@ -265,6 +279,9 @@ func _disable() -> void:
 	for c in _scenery.get_children():
 		if c is Node2D:
 			RenderingServer.canvas_item_set_transform((c as Node2D).get_canvas_item(), (c as Node2D).transform)
+	var ground := _art.get_node_or_null("Ground") as GroundLayer
+	if ground != null:
+		ground.extend(0.0)
 	for fl in _flutters:
 		fl.queue_free()
 	_flutters.clear()
@@ -303,6 +320,7 @@ func _process(delta: float) -> void:
 	proj.yaw = rig.yaw
 	proj.blend(_cfg.get("camera", {}), _cfg.get("linger_camera", _cfg.get("camera", {})), _smooth(rig.linger))
 	_tick_life(delta)
+	_cloud_drift = fposmod(_cloud_drift + _cloud_speed * delta, 1.0)
 
 
 # Butterflies about the ground just ahead of you (AmbientLife's, which have no perspective form, are hidden).
@@ -372,6 +390,8 @@ func _project() -> void:
 	_mat.set_shader_parameter("near_size", nf[1])
 	_mat.set_shader_parameter("far_center", ff[0])
 	_mat.set_shader_parameter("far_size", ff[1])
+	_mat.set_shader_parameter("yaw", proj.yaw)
+	_mat.set_shader_parameter("cloud_drift", _cloud_drift)
 	if _day_tint != null:
 		_mat.set_shader_parameter("tint", _day_tint.color)
 	# Upright things: only the DRAWN transform changes, relative to Scenery (which sits at the world origin).

@@ -28,7 +28,9 @@ func _process(_delta: float) -> bool:
 		var router := root.get_node("/root/WorldRouter")
 		var net := root.get_node("/root/Net")
 		var id: String = _id if _id != "" else router.VALE_ID
-		net.prime_world_spec(id, WorldData.load_json("res://tests/world_fixtures/%s.json" % _fixture))
+		var path := _fixture if _fixture.ends_with(".json") else "res://tests/world_fixtures/%s.json" % _fixture
+		net.prime_world_spec(id, WorldData.load_json(path))
+		_fixture = _fixture.get_file().get_basename()
 		router.current_world = id
 		router.arrival_portal_id = ""
 		_world = (load("res://scenes/world.tscn") as PackedScene).instantiate()
