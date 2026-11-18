@@ -133,21 +133,48 @@ func _static_checks() -> void:
 	for c in _world._scenery.get_children():
 		if c is TreeView and c.has_meta("card") and c.position.distance_to(Vector2(-70, 900)) < 30.0:
 			panel = c
-	var widest := 0.0
+	# Walking up the road past it, step by step, every point of it stays put on screen from one step to the next
+	# (while any of it is on screen): no end flung away as it passes the camera.
+	var worst_jump := 0.0
+	var steps_seen := 0
+	var vanished := 0
 	if panel != null:
 		var saved := pv.proj.center
 		pv.proj.yaw = 0.0
-		for i in 240:
-			pv.proj.center = Vector2(-10, 1100 - i * 2.5)
-			var pr := pv.proj.project(panel.position)
-			if pr.z <= 0.0:
+		var hw := panel.tex.get_width() * 0.5
+		var half_h := pv._view_size().y * 0.5
+		var last := []
+		var half_w := pv._view_size().x * 0.5
+		for i in 700:
+			pv.proj.center = Vector2(-50, 1100 - i * 1.0)
+			var xf := pv._card_xform(panel, panel.position, Vector3.ZERO, panel.position)
+			var ends := [xf * Vector2(-hw, 0.0) - pv.proj.center, xf * Vector2(hw, 0.0) - pv.proj.center]
+			# only while some of it is on screen (an end, or the bottom-to-top span of the panel)
+			var on := false
+			for e in ends:
+				var v := e as Vector2
+				if absf(v.x) <= half_w and v.y - panel.tex.get_height() * xf.y.y <= half_h and v.y >= -half_h:
+					on = true
+			if xf.x == Vector2.ZERO:
+				# hidden: then no part of it nearer than the near depth's far side may still be in view
+				for sgn in [-1.0, 1.0]:
+					var e: Vector2 = panel.position + Vector2(-cos(float(panel.get_meta("card"))), -sin(float(panel.get_meta("card")))) * hw * sgn
+					var pe := pv.proj.project(e)
+					if pe.z > 0.0 and pe.z < 1.0 / PerspectiveView.CARD_NEAR and absf(pe.x) <= half_w and pe.y - panel.tex.get_height() * pe.z <= half_h:
+						vanished += 1
+				last = []
 				continue
-			var at := pv.proj.center + Vector2(pr.x, pr.y)
-			var xf := pv._card_xform(panel, panel.position, pr, at)
-			widest = maxf(widest, xf.x.length() * panel.tex.get_width())
+			if not on:
+				last = []
+				continue
+			if not last.is_empty():
+				worst_jump = maxf(worst_jump, maxf((ends[0] as Vector2).distance_to(last[0]), (ends[1] as Vector2).distance_to(last[1])))
+			last = ends
+			steps_seen += 1
 		pv.proj.center = saved
 		pv.proj.yaw = pv.rig.yaw
-	_fails += _check(panel != null and widest < 160.0, "walking past a fence panel, it never shoots across the screen (widest %.0f px)" % widest)
+	_fails += _check(panel != null and steps_seen > 50 and steps_seen < 700 and worst_jump < 60.0, "walking past a fence panel, it never jumps across the screen (worst step %.1f px over %d steps)" % [worst_jump, steps_seen])
+	_fails += _check(panel != null and vanished == 0, "...and it isn't hidden while any of it is still in view (%d)" % vanished)
 	var router := root.get_node("/root/WorldRouter")
 	_fails += _check(_world._return_world == router.HUB_ID and _world._return_portal == router.HUB_GATEWAY_ID, "the way home is the Vale's Gateway")
 

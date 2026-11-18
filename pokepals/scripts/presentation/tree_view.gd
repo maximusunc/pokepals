@@ -164,7 +164,8 @@ func _draw_poof(k: float) -> void:
 
 func _draw_normal() -> void:
 	var cs := _sway(sway_gain)  # canopy catches the most wind
-	if tex_scale == 1.0 and not has_meta("card"):
+	# (In a perspective world the shadow lies on the ground instead: GroundShadows.)
+	if tex_scale == 1.0 and not has_meta("card") and PerspectiveView.active == null:
 		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow; a flat card casts none
 	_draw_glow(cs)
 	if _draw_sprite(cs, 6.0):
@@ -189,7 +190,8 @@ func _draw_normal() -> void:
 func _draw_great() -> void:
 	var sway := _sway(1.4 * sway_gain)
 	if tex_scale == 1.0:
-		_draw_shadow(Vector2(0, 8), 36.0, 0.22)
+		if PerspectiveView.active == null:
+			_draw_shadow(Vector2(0, 8), 36.0, 0.22)
 	_draw_glow(sway)
 	if _draw_sprite(sway, 8.0):
 		return

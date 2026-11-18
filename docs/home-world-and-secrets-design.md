@@ -1570,7 +1570,13 @@ companion's brain, the server and every director see a plain 2D world. Only the 
    blob shadow), the round **keep** (a landmark: drawn past the draw distance, so you see it from the start, small at the
    end of the road) and the **haystacks**. Things you can examine there carry their words on `hz_examine` props, which the
    art block lists as unseen.
-6. **A tree or building between the camera and you fades** to 35%.
+6. **A tree or building between the camera and you fades** to 35%. Near the camera nothing is hidden while any of it
+   is still on screen; a fence panel passing the lens is clipped to a near depth (and slides off) rather than flung.
+   **Shadows lie on the ground** (`GroundShadows`, in the flat layer): a dark contact pool and a soft tongue cast
+   north-east (an afternoon sun), longer for taller things; sprites' own top-down shadows are off in perspective.
+   **The distance fades into a land haze** (a greyed green, `view.json` sky.land_haze, from 60% of the draw
+   distance), not the pale sky, and the hills' feet fade into the same colour: a white strip there made everything in
+   the middle distance look like it was standing on a cliff edge.
 7. **The land past the edge**: the pixel ground carries on 2600 past the world's bounds (mirrored noise, no paths), beyond
    the one row of border trees, and the far ground fades into a haze that the backdrop hills stand on. The hills
    panorama has windmills on its near hills.

@@ -59,6 +59,8 @@ var _life_cfg: Dictionary = {}
 var _flutters: Array[FlutterView] = []
 var _rng := RandomNumberGenerator.new()
 var _day_tint: CanvasModulate
+var _static_shadows: GroundShadows
+var _actor_shadows: GroundShadows
 var _cloud_speed := 0.0
 var _cloud_drift := 0.0
 
@@ -196,6 +198,14 @@ func _enable() -> void:
 	var f := _new_flat(_vec2i(_cfg.get("far_tex", [1024, 512])))
 	_far = f[0]
 	_far_cam = f[1]
+	# Contact shadows lie on the ground (GroundShadows), so they go in the flat layer too.
+	_static_shadows = GroundShadows.new()
+	_static_shadows.name = "GroundShadowsStatic"
+	_art.add_child(_static_shadows)
+	_actor_shadows = GroundShadows.new()
+	_actor_shadows.name = "GroundShadowsActors"
+	_art.add_child(_actor_shadows)
+	_items_count = -1
 	# The world node draws nothing itself but is a parent of both halves, so it is in both layers.
 	_world.visibility_layer = 1 | FLAT_LAYER
 	_set_layer(_art, FLAT_LAYER)
@@ -214,6 +224,9 @@ func _enable() -> void:
 	_mat.set_shader_parameter("sky_top", _color(sky.get("top", [0.45, 0.66, 0.9])))
 	_mat.set_shader_parameter("sky_low", _color(sky.get("low", [0.86, 0.9, 0.92])))
 	_mat.set_shader_parameter("beyond", _color(sky.get("beyond", [0.27, 0.44, 0.21])))
+	_mat.set_shader_parameter("land_haze", _color(sky.get("land_haze", [0.62, 0.70, 0.60])))
+	_mat.set_shader_parameter("haze_from", float(sky.get("haze_from", 0.6)))
+	_mat.set_shader_parameter("haze_max", float(sky.get("haze_max", 0.85)))
 	var backdrop: Dictionary = _cfg.get("backdrop", {})
 	for key in ["hills", "clouds"]:
 		var path := String(backdrop.get(key, ""))
@@ -287,6 +300,9 @@ func _disable() -> void:
 	if ground != null:
 		ground.extend(0.0)
 	_unfade_all()
+	for gs in [_static_shadows, _actor_shadows]:
+		if is_instance_valid(gs):
+			gs.queue_free()
 	for item in _items:
 		if is_instance_valid(item[0]) and int(item[1]) & F_SMALL:
 			(item[0] as Node2D).visible = true
@@ -461,8 +477,43 @@ func _rebuild_items() -> void:
 		var b := n.transform
 		if not (b.x.is_equal_approx(Vector2.RIGHT) and b.y.is_equal_approx(Vector2.DOWN)):
 			flags |= F_BASIS
-		_items.append([n, flags])
+		_items.append([n, flags, _tall(n)])
 	_items_count = _scenery.get_child_count()
+	_refresh_shadows()
+
+
+## Who casts a contact shadow on the ground: every tree, windmill, keep and haystack (not the flat cards), and
+## every actor (you, your companion, friends, pals). Redone whenever Scenery's children come or go.
+func _refresh_shadows() -> void:
+	if not is_instance_valid(_static_shadows):
+		return
+	var spots: Array = []
+	var actors: Array = []
+	for item in _items:
+		var n: Node2D = item[0]
+		var flags: int = item[1]
+		if n is TreeView and not (flags & F_CARD):
+			var t := n as TreeView
+			var tex: Texture2D = t.angle_frames[0] if not t.angle_frames.is_empty() else (t.canopy_tex if t.canopy_tex != null else t.tex)
+			var w := tex.get_width() * t.tex_scale if tex != null else 48.0
+			var r := clampf(w * 0.3, 6.0, 40.0 if t.is_great else 18.0)
+			spots.append([n.position, r, float(item[2]) * 0.4])
+		elif not (flags & F_STATIC) and not (n is FlutterView):
+			actors.append([n, 6.0, 12.0])
+	var shadow := Color(0.1, 0.12, 0.08)
+	_static_shadows.setup_static(spots, shadow)
+	_actor_shadows.setup_actors(actors, shadow)
+
+
+## How far up from its feet a thing reaches, for telling when it has gone wholly below the screen.
+static func _tall(n: Node2D) -> float:
+	if n is TreeView:
+		var t := n as TreeView
+		var tex: Texture2D = t.angle_frames[0] if not t.angle_frames.is_empty() else (t.canopy_tex if t.canopy_tex != null else t.tex)
+		return (tex.get_height() * t.tex_scale if tex != null else 90.0) + 10.0
+	if n is Sprite2D and (n as Sprite2D).texture != null:
+		return (n as Sprite2D).texture.get_height() + 6.0
+	return 72.0
 
 
 func _project_uprights() -> void:
@@ -489,6 +540,7 @@ func _project_uprights() -> void:
 	var a_land := proj.back + LANDMARK_REACH
 	var a_small := proj.back + SMALL_REACH
 	var slope := (_view_size().x * 0.5 / _zoom()) / f * 1.08
+	var half_h := _view_size().y * 0.5 / _zoom() + 4.0
 	# The camera exactly where it was last frame: nothing that never moves needs projecting again.
 	var key := PackedFloat32Array([cx, cy, proj.yaw, h, proj.back, proj.pitch, shift, _zoom(), _items_count, me.x, me.y])
 	var still := key == _cam_key
@@ -514,15 +566,21 @@ func _project_uprights() -> void:
 				continue
 		var z := a * cp + hsp
 		var xf: Transform2D
+		if flags & F_CARD and a <= a_far:
+			# a flat panel works out its own near clipping (it may be half past the camera and half still in view)
+			RenderingServer.canvas_item_set_transform(n.get_canvas_item(), _card_xform(n, wp, Vector3.ZERO, n.position))
+			continue
 		if z <= 1.0 or a > (a_land if flags & F_LANDMARK else a_far):
 			xf = Transform2D(Vector2.ZERO, Vector2.ZERO, n.position)  # past the draw distance, or behind the eye
 		else:
 			var b := rx * -fy + ry * fx  # along R = F turned a quarter clockwise
 			var s := f / z
-			if s > NEAR_HIDE and not (flags & F_CARD):
+			var oy := shift + f * (hcp - a * sp) / z
+			if oy - float(item[2]) * s > half_h or s > NEAR_HIDE:
+				# wholly below the bottom of the screen (it's passing beside or under the camera): nothing to draw
 				RenderingServer.canvas_item_set_transform(n.get_canvas_item(), Transform2D(Vector2.ZERO, Vector2.ZERO, n.position))
-				continue  # right up at the lens (passing beside the camera): not drawn, rather than filling the screen
-			var at := Vector2(cx + f * b / z, cy + shift + f * (hcp - a * sp) / z)
+				continue
+			var at := Vector2(cx + f * b / z, cy + oy)
 			if not origin_ok:
 				at = to_local * at
 			if flags & F_CARD:
@@ -549,32 +607,43 @@ func _card_xform(n: Node2D, world_pos: Vector2, pr: Vector3, at: Vector2) -> Tra
 	var hw := 16.0
 	if n is TreeView and (n as TreeView).tex != null:
 		hw = (n as TreeView).tex.get_width() * (n as TreeView).tex_scale * 0.5
-	# Near the camera an end of the panel can come right up to the eye, where projecting it would fling it across
-	# the screen: each end is pulled in along the panel to a near depth first, and the slant is taken from what's
-	# left (an affine stand-in for the true perspective, anchored at the middle). A panel right at the lens isn't
-	# drawn at all.
+	# Near the camera part of a panel can come right up to the eye, where projecting it would fling it across the
+	# screen. So nothing nearer than a near depth is projected: each end is pulled in along the panel to it, and if
+	# even the middle is that near, the panel is anchored at the nearest point that isn't (toward its far end), so
+	# it slides on off the screen rather than vanishing. The slant is taken from what's left (an affine stand-in
+	# for the true perspective). Only a panel wholly that near isn't drawn.
 	var z_min := proj.focal() * CARD_NEAR
+	var e0: Vector2 = world_pos - along * hw
+	var e1: Vector2 = world_pos + along * hw
+	var z0 := _depth(e0)
+	var z1 := _depth(e1)
 	var z_mid := _depth(world_pos)
-	if z_mid < z_min * 1.05:
-		return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
-	var ends := []
-	for sgn in [-1.0, 1.0]:
-		var e: Vector2 = world_pos + along * hw * sgn
-		var z_e := _depth(e)
-		if z_e < z_min:
-			e = world_pos + (e - world_pos) * ((z_mid - z_min) / (z_mid - z_e))
-		ends.append(e)
-	var pa := proj.project(ends[0])
-	var pb := proj.project(ends[1])
-	var span: float = (ends[1] as Vector2).distance_to(ends[0])
-	if pa.z <= 0.0 or pb.z <= 0.0 or span < 0.5:
+	var anchor := world_pos
+	if z_mid < z_min:
+		var far_end := e1 if z1 > z0 else e0
+		var z_far := maxf(z0, z1)
+		if z_far <= z_min:
+			return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
+		anchor = world_pos + (far_end - world_pos) * ((z_min - z_mid) / (z_far - z_mid))
+	var z_anchor := maxf(z_mid, z_min)
+	if z0 < z_min:
+		e0 = anchor + (e0 - anchor) * ((z_anchor - z_min) / maxf(z_anchor - z0, 1e-4))
+	if z1 < z_min:
+		e1 = anchor + (e1 - anchor) * ((z_anchor - z_min) / maxf(z_anchor - z1, 1e-4))
+	var pa := proj.project(e0)
+	var pb := proj.project(e1)
+	var pc := proj.project(anchor)
+	var span := (e1 - e0).dot(along)
+	if pa.z <= 0.0 or pb.z <= 0.0 or pc.z <= 0.0 or span < 0.5:
 		return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
 	var x_axis := (Vector2(pb.x, pb.y) - Vector2(pa.x, pa.y)) / span
-	return Transform2D(x_axis, Vector2(0.0, pr.z), at)
+	# The drawing's middle (local 0) goes where the anchor's own place along the panel says.
+	var origin := proj.center + Vector2(pc.x, pc.y) - x_axis * (anchor - world_pos).dot(along)
+	return Transform2D(x_axis, Vector2(0.0, pc.z), origin)
 
 
-const NEAR_HIDE := 3.2  # an upright thing nearer the lens than this scale isn't drawn
-const CARD_NEAR := 0.45  # nearest a card's end is projected from, as a share of the focal length (scale ~2.2)
+const NEAR_HIDE := 30.0  # (only right at the lens; anything still on screen is drawn)
+const CARD_NEAR := 0.12  # nearest a card's end is projected from, as a share of the focal length (scale ~8)
 
 
 ## How far in front of the eye a ground point is, along the line of sight (ViewProjection's z).

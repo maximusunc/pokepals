@@ -22,7 +22,7 @@ W = 1440       # 4 columns per degree, ~1 texel per screen pixel at the view's f
 HILLS_H = 120
 CLOUDS_H = 150
 
-HAZE = (219, 230, 235)
+HAZE = (158, 178, 153)  # the land haze (data/view.json sky.land_haze): the far ground fades into it, and so do the hills' feet
 BAYER4 = [[0, 8, 2, 10], [12, 4, 14, 6], [3, 11, 1, 9], [15, 7, 13, 5]]
 
 

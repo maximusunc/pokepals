@@ -20,6 +20,12 @@ uniform vec4 beyond : source_color = vec4(0.27, 0.44, 0.21, 1.0);  // past the w
 uniform vec4 sky_top : source_color = vec4(0.45, 0.66, 0.90, 1.0);
 uniform vec4 sky_low : source_color = vec4(0.86, 0.90, 0.92, 1.0);
 uniform vec4 tint = vec4(1.0);
+// What the land fades into with distance: a greyed green, like far fields, not the pale sky, so the ground runs on
+// visibly behind things to the hills (a white strip there makes everything in the middle distance look like it's
+// standing on a cliff edge). The backdrop hills' foot fades into the same colour.
+uniform vec4 land_haze : source_color = vec4(0.62, 0.70, 0.60, 1.0);
+uniform float haze_from = 0.6;  // haze starts this share of the draw distance ahead
+uniform float haze_max = 0.85;  // ...and reaches at most this much at the draw distance
 // The backdrop (a world's view "backdrop"): panoramas wrapping 360 degrees round the horizon, column = bearing
 // (0 = north, clockwise), one texel per screen pixel: distant hills standing on the far edge of the ground, and
 // clouds above them, drifting.
@@ -87,7 +93,7 @@ void fragment() {
 			c = inside01(uvf) ? texture(far_tex, uvf) : vec4(0.0);
 		}
 		c.rgb = mix(beyond.rgb * tint.rgb, c.rgb, c.a);
-		float haze = smoothstep(far * 0.45, far, ahead);
-		COLOR = vec4(mix(c.rgb, sky_low.rgb * tint.rgb, haze), 1.0);
+		float haze = smoothstep(far * haze_from, far, ahead) * haze_max;
+		COLOR = vec4(mix(c.rgb, land_haze.rgb * tint.rgb, haze), 1.0);
 	}
 }
