@@ -519,6 +519,9 @@ func _project_uprights() -> void:
 		else:
 			var b := rx * -fy + ry * fx  # along R = F turned a quarter clockwise
 			var s := f / z
+			if s > NEAR_HIDE and not (flags & F_CARD):
+				RenderingServer.canvas_item_set_transform(n.get_canvas_item(), Transform2D(Vector2.ZERO, Vector2.ZERO, n.position))
+				continue  # right up at the lens (passing beside the camera): not drawn, rather than filling the screen
 			var at := Vector2(cx + f * b / z, cy + shift + f * (hcp - a * sp) / z)
 			if not origin_ok:
 				at = to_local * at
@@ -546,12 +549,38 @@ func _card_xform(n: Node2D, world_pos: Vector2, pr: Vector3, at: Vector2) -> Tra
 	var hw := 16.0
 	if n is TreeView and (n as TreeView).tex != null:
 		hw = (n as TreeView).tex.get_width() * (n as TreeView).tex_scale * 0.5
-	var pa := proj.project(world_pos - along * hw)
-	var pb := proj.project(world_pos + along * hw)
-	if pa.z <= 0.0 or pb.z <= 0.0:
-		return Transform2D(0.0, Vector2(pr.z, pr.z), 0.0, at)
-	var x_axis := (Vector2(pb.x, pb.y) - Vector2(pa.x, pa.y)) / (2.0 * hw)
+	# Near the camera an end of the panel can come right up to the eye, where projecting it would fling it across
+	# the screen: each end is pulled in along the panel to a near depth first, and the slant is taken from what's
+	# left (an affine stand-in for the true perspective, anchored at the middle). A panel right at the lens isn't
+	# drawn at all.
+	var z_min := proj.focal() * CARD_NEAR
+	var z_mid := _depth(world_pos)
+	if z_mid < z_min * 1.05:
+		return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
+	var ends := []
+	for sgn in [-1.0, 1.0]:
+		var e: Vector2 = world_pos + along * hw * sgn
+		var z_e := _depth(e)
+		if z_e < z_min:
+			e = world_pos + (e - world_pos) * ((z_mid - z_min) / (z_mid - z_e))
+		ends.append(e)
+	var pa := proj.project(ends[0])
+	var pb := proj.project(ends[1])
+	var span: float = (ends[1] as Vector2).distance_to(ends[0])
+	if pa.z <= 0.0 or pb.z <= 0.0 or span < 0.5:
+		return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
+	var x_axis := (Vector2(pb.x, pb.y) - Vector2(pa.x, pa.y)) / span
 	return Transform2D(x_axis, Vector2(0.0, pr.z), at)
+
+
+const NEAR_HIDE := 3.2  # an upright thing nearer the lens than this scale isn't drawn
+const CARD_NEAR := 0.45  # nearest a card's end is projected from, as a share of the focal length (scale ~2.2)
+
+
+## How far in front of the eye a ground point is, along the line of sight (ViewProjection's z).
+func _depth(p: Vector2) -> float:
+	var a := (p - (proj.center - proj.forward() * proj.back)).dot(proj.forward())
+	return a * cos(proj.pitch) + proj.height * sin(proj.pitch)
 
 
 ## Scenery's grove, in a perspective world: a tree is shown only inside the wedge of ground the view can see

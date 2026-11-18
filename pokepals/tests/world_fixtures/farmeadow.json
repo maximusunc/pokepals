@@ -419,6 +419,20 @@
 		[1152, 567, "tree"],
 		[1156, 532, "tree"]
 	],
+	"_fences_comment": "Invisible walls along each run of fence panels, so the gaps between panels don't let you through (gates are left open). Segment solids like hedges, with nothing drawn: the fence you see is the panels.",
+	"fences": [
+		{"from": [-70, 1060], "to": [-70, 858], "thickness": 8},
+		{"from": [-70, 824], "to": [-70, 520], "thickness": 8},
+		{"from": [90, 1000], "to": [99, 865], "thickness": 8},
+		{"from": [102, 831], "to": [111, 695], "thickness": 8},
+		{"from": [113, 662], "to": [120, 560], "thickness": 8},
+		{"from": [260, 260], "to": [326, 260], "thickness": 8},
+		{"from": [359, 260], "to": [720, 260], "thickness": 8},
+		{"from": [260, 700], "to": [720, 700], "thickness": 8},
+		{"from": [260, 260], "to": [260, 497], "thickness": 8},
+		{"from": [260, 531], "to": [260, 700], "thickness": 8},
+		{"from": [720, 260], "to": [720, 700], "thickness": 8}
+	],
 	"props": [
 		{"id": "keep_stones", "type": "hz_examine", "position": [40, -1880], "color": [0.72, 0.7, 0.66], "label": "the old keep", "interactive": true, "lore": "A round keep, its top long gone. The stones are warm on the sunny side and cool on the other. You can see the whole road from here, and the place you started is too small to make out.", "solid": true, "collision_radius": 34},
 		{"id": "fingerpost", "type": "hz_examine", "position": [70, 1080], "color": [0.72, 0.7, 0.66], "label": "a fingerpost", "interactive": true, "lore": "One arm points up the road: KEEP. The other points back the way you came, and the word on it has worn away. Somebody kept painting the first one."},

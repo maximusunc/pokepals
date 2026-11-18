@@ -211,6 +211,34 @@ def _shade3(c, t):
     return c
 
 
+def _plant(sp, cx, half, base_y, arc, wall_at, seed, grass=True):
+    """Stand a round building on the ground. Seen from a little above, the foot of a round wall curves toward you
+    (lowest at the middle, `arc` pixels below `base_y`), darkens where it meets the earth, and grass grows up over
+    it. A straight bottom edge is what makes a sprite look like it's hovering. `wall_at(x, y)` is the wall's
+    colour there (so the courses and shading carry on down)."""
+    rnd = random.Random(seed)
+    foot = {}
+    for x in range(int(cx - half), int(cx + half) + 1):
+        u = max(-1.0, min(1.0, (x - cx) / float(half)))
+        bottom = base_y + int(round(arc * math.sqrt(1.0 - u * u)))
+        foot[x] = bottom
+        for y in range(base_y, bottom + 1):
+            sp.put(x, y, wall_at(x, y))
+        for y in (bottom, bottom - 1):  # the dark line where it meets the ground
+            c = sp.px[x, y]
+            if c[3]:
+                sp.put(x, y, _mix(c[:3], (40, 46, 36), 0.45 if y == bottom else 0.2))
+    if grass:
+        greens = [(76, 120, 60), (98, 146, 70), (62, 100, 52)]
+        for x in range(int(cx - half) - 1, int(cx + half) + 2):
+            if rnd.random() < 0.55:
+                h = rnd.choice([1, 2, 2, 3])
+                b = foot.get(x, base_y + 1) + 1
+                for y in range(b - h, b + 1):
+                    sp.put(x, y, rnd.choice(greens))
+    return foot
+
+
 def windmill_frames(n=8):
     """A white tower windmill seen from n bearings round it. Frame k: the viewer has turned k steps clockwise from
     looking straight at its front (where the door and the sails are), so the mill appears turned the other way."""
@@ -234,10 +262,11 @@ def windmill_frames(n=8):
                 for x in range(int(cx - half), int(cx + half) + 1):
                     u = (x - cx) / max(half, 1)
                     sp.put(x, y, _shade3(wall, u * 1.1 + _bayer(x, y) * 0.3))
+            _plant(sp, cx, 10, base_y, 2, lambda x, y: _shade3(wall, (x - cx) / 10.0 * 1.1 + _bayer(x, y) * 0.3), seed=k, grass=False)
             # the door and a window, on the front face, where they turn to
             if math.cos(th) > 0.15:
                 dx = math.sin(th) * 8
-                sp.rect(cx + dx - 2, base_y - 9, 4, 9, door_c)
+                sp.rect(cx + dx - 2, base_y - 9, 4, 11, door_c)
                 sp.rect(cx + math.sin(th) * 6 - 1, base_y - 30, 3, 4, (80, 96, 120))
             # the cap
             for y in range(base_y - 56, base_y - 45):
@@ -271,11 +300,14 @@ def windmill_frames(n=8):
         else:
             sails(True)
             tower()
-        # a small shadow at its foot
-        for x in range(cx - 14, cx + 15):
-            for y in range(base_y, base_y + 4):
-                if ((x - cx) / 14.0) ** 2 + ((y - base_y - 1) / 3.0) ** 2 <= 1 and sp.px[x, y][3] == 0:
-                    sp.put(x, y, (0, 0, 0), 46)
+        # grass growing up round its foot
+        rnd = random.Random(100 + k)
+        for x in range(cx - 11, cx + 12):
+            if rnd.random() < 0.5:
+                u = max(-1.0, min(1.0, (x - cx) / 10.0))
+                b = base_y + int(round(2 * math.sqrt(1.0 - u * u))) + 1
+                for y in range(b - rnd.choice([1, 2, 2]), b + 1):
+                    sp.put(x, y, rnd.choice([(76, 120, 60), (98, 146, 70), (62, 100, 52)]))
         frames.append(sp.outline() if True else sp.img)
     return frames
 
@@ -287,7 +319,7 @@ def ruin_keep():
     sp = Sprite(W_, H_)
     cx = W_ // 2
     stone = (168, 160, 148)
-    base_y = H_ - 10
+    base_y = H_ - 12  # the wall's curved foot reaches 4 lower, H - 8: TreeView stands a landmark's sprite there
     rnd = random.Random(4)
     top_line = [base_y - 150 + int(abs(math.sin(x * 0.21)) * 18 + (x % 7) * 2) for x in range(W_)]
     for y in range(base_y - 170, base_y):
@@ -301,8 +333,17 @@ def ruin_keep():
             if (base_y - y) % 7 == 0 or ((x + row * 5) % 11 == 0):
                 c = _mix(c, (90, 86, 82), 0.35)
             sp.put(x, y, c)
+    def keep_wall(x, y):
+        u = (x - cx) / 34.0
+        c = _shade3(stone, u * 1.15 + _bayer(x, y) * 0.35)
+        row = (base_y - y) // 7
+        if (base_y - y) % 7 == 0 or ((x + row * 5) % 11 == 0):
+            c = _mix(c, (90, 86, 82), 0.35)
+        return c
+
+    _plant(sp, cx, 34, base_y, 4, keep_wall, seed=4, grass=False)
     # the arched door and an upper window, dark inside
-    for y in range(base_y - 30, base_y):
+    for y in range(base_y - 30, base_y + 4):
         for x in range(cx - 9, cx + 10):
             if y > base_y - 22 or (x - cx) ** 2 + (y - (base_y - 22)) ** 2 <= 81:
                 sp.put(x, y, (46, 42, 44))
@@ -317,11 +358,18 @@ def ruin_keep():
         y = base_y - int(abs(rnd.gauss(0, 60)))
         if sp.px[min(max(x, 0), W_ - 1), min(max(y, 0), H_ - 1)][3] > 0:
             sp.put(x, y, rnd.choice(ivy))
-    # fallen stones at its foot
+    # fallen stones at its foot, and the grass grown up round it
     for _ in range(9):
         x = cx + rnd.randint(-48, 48)
-        y = base_y + rnd.randint(-3, 4)
+        y = base_y + 2 + rnd.randint(-1, 4)
         sp.rect(x, y, rnd.randint(3, 6), 3, _mix(stone, (60, 60, 60), 0.15))
+    greens = [(76, 120, 60), (98, 146, 70), (62, 100, 52)]
+    for x in range(cx - 36, cx + 37):
+        if rnd.random() < 0.6:
+            u = max(-1.0, min(1.0, (x - cx) / 34.0))
+            b = base_y + int(round(4 * math.sqrt(1.0 - u * u))) + 1
+            for y in range(b - rnd.choice([1, 2, 3, 3]), b + 1):
+                sp.put(x, y, rnd.choice(greens))
     return sp.outline()
 
 

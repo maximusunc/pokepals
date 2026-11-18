@@ -121,8 +121,45 @@ func _static_checks() -> void:
 		if String(e.get("label", "")) in ["a fingerpost", "the old keep", "a windmill"]:
 			looks += 1
 	_fails += _check(looks >= 4, "the fingerpost, the windmills and the keep can be examined (%d)" % looks)
+	# The paddock's fence holds you in (and out) between its panels; its gates let you through.
+	var solids: Array = _world._player._solids
+	var bounds: Rect2 = _world._bounds_rect
+	var blocked := _walk(solids, bounds, Vector2(500, 780), Vector2(500, 600))
+	var gated := _walk(solids, bounds, Vector2(342, 160), Vector2(342, 400))
+	_fails += _check(blocked.y > 700.0, "the paddock fence stops you between its panels (%s)" % str(blocked.round()))
+	_fails += _check(gated.y > 300.0, "...and its gate lets you in (%s)" % str(gated.round()))
+	# A fence panel the camera walks right past never flings itself across the screen.
+	var panel: TreeView = null
+	for c in _world._scenery.get_children():
+		if c is TreeView and c.has_meta("card") and c.position.distance_to(Vector2(-70, 900)) < 30.0:
+			panel = c
+	var widest := 0.0
+	if panel != null:
+		var saved := pv.proj.center
+		pv.proj.yaw = 0.0
+		for i in 240:
+			pv.proj.center = Vector2(-10, 1100 - i * 2.5)
+			var pr := pv.proj.project(panel.position)
+			if pr.z <= 0.0:
+				continue
+			var at := pv.proj.center + Vector2(pr.x, pr.y)
+			var xf := pv._card_xform(panel, panel.position, pr, at)
+			widest = maxf(widest, xf.x.length() * panel.tex.get_width())
+		pv.proj.center = saved
+		pv.proj.yaw = pv.rig.yaw
+	_fails += _check(panel != null and widest < 160.0, "walking past a fence panel, it never shoots across the screen (widest %.0f px)" % widest)
 	var router := root.get_node("/root/WorldRouter")
 	_fails += _check(_world._return_world == router.HUB_ID and _world._return_portal == router.HUB_GATEWAY_ID, "the way home is the Vale's Gateway")
+
+
+## Walk a body from `a` toward `b` through the world's real resolver; where it ends up.
+func _walk(solids: Array, bounds: Rect2, a: Vector2, b: Vector2) -> Vector2:
+	var p := a
+	var dir := (b - a).normalized()
+	for _i in int(a.distance_to(b) / 3.0) + 20:
+		p += dir * 3.0
+		p = Solids.resolve(p, 6.0, solids, bounds, 2.0)
+	return p
 
 
 func _toggle_checks() -> void:

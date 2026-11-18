@@ -101,6 +101,7 @@ def prop(id, type, pos, color, label, lore=None, tags=None, solid=None, radius=N
 
 STONE = (0.72, 0.70, 0.66)
 TREES = []      # [x, y, kind] or [x, y, kind, facing_deg]
+FENCES = []     # the walls along each run of fence panels (segments; nothing drawn: the panels are the look)
 LANDMARKS = [{"type": "keep", "position": list(KEEP)}]
 
 # The things that stand up are tree kinds (drawn by TreeView, seen from any side); the ones you can examine
@@ -159,9 +160,16 @@ def fence(a, b, gap_every=0, gaps=()):
     if ny < 0:
         nx, ny = -nx, -ny
     facing = math.degrees(math.atan2(nx, -ny)) % 360
-    for i in range(n):
-        if i in gaps:
+    run = None
+    for i in range(n + 1):
+        if i == n or i in gaps:
+            if run is not None:  # the run of panels just ended: one invisible wall along it (the spec's "fences")
+                FENCES.append({"from": [round(a[0] + ux * run * d / n), round(a[1] + uy * run * d / n)],
+                               "to": [round(a[0] + ux * i * d / n), round(a[1] + uy * i * d / n)], "thickness": 8})
+                run = None
             continue
+        if run is None:
+            run = i
         x = a[0] + ux * (i + 0.5) * d / n
         y = a[1] + uy * (i + 0.5) * d / n
         TREES.append([round(x), round(y), "fence", round(facing)])
@@ -311,6 +319,8 @@ out.append('\t"ponds": [\n%s\n\t],' % block(PONDS))
 out.append('\t"paths": [\n%s\n\t],' % block(paths))
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
+out.append('\t"_fences_comment": "Invisible walls along each run of fence panels, so the gaps between panels don\'t let you through (gates are left open). Segment solids like hedges, with nothing drawn: the fence you see is the panels.",')
+out.append('\t"fences": [\n%s\n\t],' % block(FENCES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
 out.append('\t"ambient_pals": [\n%s\n\t],' % block(AMBIENT_PALS))
 out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))
@@ -331,7 +341,7 @@ road_len = sum(math.hypot(b[0] - a[0], b[1] - a[1]) for a, b in zip(ROAD[:-1], R
 kinds = {}
 for t in d["trees"]:
     kinds[t[2]] = kinds.get(t[2], 0) + 1
-print("props:", len(d["props"]), "| trees:", kinds, "| road: %d px" % road_len)
+print("fences:", len(d["fences"]), "| props:", len(d["props"]), "| trees:", kinds, "| road: %d px" % road_len)
 for path in ["server/priv/world_seeds/farmeadow.json", "pokepals/tests/world_fixtures/farmeadow.json"]:
     open(path, "w").write(text)
 print("wrote both files")
