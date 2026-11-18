@@ -53,6 +53,10 @@ var _mat: ShaderMaterial
 var _hidden: Array[CanvasItem] = []
 var _saved_camera := {}
 var _on := false
+var _life_cfg: Dictionary = {}
+var _flutters: Array[FlutterView] = []
+var _rng := RandomNumberGenerator.new()
+var _day_tint: CanvasModulate
 
 
 static func defaults() -> Dictionary:
@@ -64,7 +68,10 @@ static func wants(spec: Dictionary) -> bool:
 	return String(spec.get("view", {}).get("projection", "")) == "perspective"
 
 
-func setup(world: Node2D, art: CanvasItem, scenery: Node2D, camera: Camera2D, player: Node2D, companion: Node2D, spec_view: Dictionary = {}) -> void:
+## `life` is the world's ambient_life art entity: its butterflies are kept here, standing up in the scenery.
+func setup(world: Node2D, art: CanvasItem, scenery: Node2D, camera: Camera2D, player: Node2D, companion: Node2D, spec_view: Dictionary = {}, life: Dictionary = {}) -> void:
+	_life_cfg = life
+	_day_tint = world.get_node_or_null("DayTint") as CanvasModulate
 	_world = world
 	_art = art
 	_scenery = scenery
@@ -108,6 +115,32 @@ static func to_screen(ci: CanvasItem, world_pos: Vector2) -> Vector3:
 		return active._world_to_screen(world_pos)
 	var p := ci.get_viewport().get_canvas_transform() * world_pos
 	return Vector3(p.x, p.y, 1.0)
+
+
+## A world point in a node's own drawing space, as it's DRAWN: for something carried by an upright thing (the
+## rod in your hand drawing its line out to the bobber on the water), the point where the world point appears,
+## relative to how the carrier is drawn (projected and scaled). Plain to_local() when no perspective view is up.
+static func local_of(ci: Node2D, world_pos: Vector2) -> Vector2:
+	if active == null:
+		return ci.to_local(world_pos)
+	return active._local_of(ci, world_pos)
+
+
+func _local_of(ci: Node2D, world_pos: Vector2) -> Vector2:
+	var a: Node = ci
+	while a != null and a.get_parent() != _scenery:
+		a = a.get_parent()
+	var carrier := a as Node2D
+	if carrier == null:
+		return ci.to_local(world_pos)
+	var pa := proj.project(_scenery.global_transform * carrier.position)
+	var pw := proj.project(world_pos)
+	if pa.z <= 0.0 or pw.z <= 0.0:
+		return ci.to_local(world_pos)
+	var basis := carrier.transform
+	basis.origin = Vector2.ZERO
+	var in_carrier := basis.affine_inverse() * ((Vector2(pw.x, pw.y) - Vector2(pa.x, pa.y)) / pa.z)
+	return (ci.global_transform.affine_inverse() * carrier.global_transform) * in_carrier
 
 
 func _view_size() -> Vector2:
@@ -201,6 +234,7 @@ func _enable() -> void:
 	rig.yaw = 0.0
 	rig.linger = 0.0
 	rig.still = 0.0
+	_spawn_life()
 	active = self
 	set_process(true)
 	RenderingServer.frame_pre_draw.connect(_project)
@@ -231,6 +265,9 @@ func _disable() -> void:
 	for c in _scenery.get_children():
 		if c is Node2D:
 			RenderingServer.canvas_item_set_transform((c as Node2D).get_canvas_item(), (c as Node2D).transform)
+	for fl in _flutters:
+		fl.queue_free()
+	_flutters.clear()
 	_near.queue_free()
 	_far.queue_free()
 	_layer.queue_free()
@@ -265,6 +302,39 @@ func _process(delta: float) -> void:
 	view_yaw = rig.yaw
 	proj.yaw = rig.yaw
 	proj.blend(_cfg.get("camera", {}), _cfg.get("linger_camera", _cfg.get("camera", {})), _smooth(rig.linger))
+	_tick_life(delta)
+
+
+# Butterflies about the ground just ahead of you (AmbientLife's, which have no perspective form, are hidden).
+const LIFE_AHEAD := 150.0
+const LIFE_RADIUS := 260.0
+
+
+func _spawn_life() -> void:
+	var bf: Dictionary = _life_cfg.get("butterflies", {})
+	var colors: Array = bf.get("colors", [[0.98, 0.86, 0.4]])
+	_rng.seed = 0x5EEDF1
+	for i in int(bf.get("count", 0)):
+		var fl := FlutterView.new()
+		fl.setup(_rng, WorldData.to_color(colors[i % colors.size()]))
+		fl.position = _life_spot()
+		_scenery.add_child(fl)
+		_flutters.append(fl)
+
+
+func _life_spot() -> Vector2:
+	var mid := _player.position + proj.forward() * LIFE_AHEAD
+	return mid + Vector2.from_angle(_rng.randf() * TAU) * sqrt(_rng.randf()) * LIFE_RADIUS
+
+
+func _tick_life(delta: float) -> void:
+	if _flutters.is_empty():
+		return
+	var mid := _player.position + proj.forward() * LIFE_AHEAD
+	for fl in _flutters:
+		if fl.position.distance_to(mid) > LIFE_RADIUS * 1.3:
+			fl.position = _life_spot()
+		fl.tick(delta)
 
 
 static func _smooth(t: float) -> float:
@@ -302,6 +372,8 @@ func _project() -> void:
 	_mat.set_shader_parameter("near_size", nf[1])
 	_mat.set_shader_parameter("far_center", ff[0])
 	_mat.set_shader_parameter("far_size", ff[1])
+	if _day_tint != null:
+		_mat.set_shader_parameter("tint", _day_tint.color)
 	# Upright things: only the DRAWN transform changes, relative to Scenery (which sits at the world origin).
 	var to_local := _scenery.global_transform.affine_inverse()
 	for child in _scenery.get_children():

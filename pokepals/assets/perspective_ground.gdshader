@@ -19,6 +19,7 @@ uniform vec2 far_size;
 uniform vec4 beyond : source_color = vec4(0.27, 0.44, 0.21, 1.0);  // past the world's edge: plain ground on to the horizon
 uniform vec4 sky_top : source_color = vec4(0.45, 0.66, 0.90, 1.0);
 uniform vec4 sky_low : source_color = vec4(0.86, 0.90, 0.92, 1.0);
+uniform vec4 tint = vec4(1.0);  // the world's day tint (its CanvasModulate): the ground textures already carry it, the sky takes it here
 
 bool inside01(vec2 uv) {
 	return uv.x >= 0.0 && uv.x <= 1.0 && uv.y >= 0.0 && uv.y <= 1.0;
@@ -37,6 +38,7 @@ void fragment() {
 	float den = q * cp + sp;
 	float a = den > 1e-6 ? h * (cp - q * sp) / den : 1e9;
 	float ahead = a - back;
+	sky.rgb *= tint.rgb;
 	if (ahead > far) {
 		COLOR = sky;
 	} else {
@@ -50,8 +52,8 @@ void fragment() {
 			vec2 uvf = (d - far_center) / far_size + 0.5;
 			c = inside01(uvf) ? texture(far_tex, uvf) : vec4(0.0);
 		}
-		c.rgb = mix(beyond.rgb, c.rgb, c.a);
+		c.rgb = mix(beyond.rgb * tint.rgb, c.rgb, c.a);
 		float haze = smoothstep(far * 0.45, far, ahead);
-		COLOR = vec4(mix(c.rgb, sky_low.rgb, haze), 1.0);
+		COLOR = vec4(mix(c.rgb, sky_low.rgb * tint.rgb, haze), 1.0);
 	}
 }

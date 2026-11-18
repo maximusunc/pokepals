@@ -184,7 +184,7 @@ func _draw_fx() -> void:
 	if _held and _phase == "bite" and _cast_t >= 1.0:
 		_draw_alert(_fx)
 		if _ring != null and not _ring.is_over():
-			_draw_ring(_fx, to_local(_bobber))
+			_draw_ring(_fx, PerspectiveView.local_of(self, _bobber))
 	if _pop_t >= 0.0:
 		_draw_pop(_fx)
 
@@ -228,7 +228,7 @@ func _draw_rod_and_line() -> void:
 	if f.y < -0.5:
 		hand = Vector2(-6.0, -11.0)
 	var fishing := _phase in ["cast", "wait", "bite"]
-	var bob_local := to_local(_bobber)
+	var bob_local := PerspectiveView.local_of(self, _bobber)
 	var tip: Vector2
 	if fishing:
 		var dir := (bob_local - hand).normalized() if bob_local.distance_to(hand) > 1.0 else Vector2(side, 0)
@@ -293,7 +293,7 @@ func _draw_ring(ci: CanvasItem, center: Vector2) -> void:
 func _draw_pop(ci: CanvasItem) -> void:
 	var u := clampf(_pop_t / POP_SECONDS, 0.0, 1.0)
 	var rise := ease(minf(u * 1.6, 1.0), 0.5)
-	var from := to_local(_pop_from)
+	var from := PerspectiveView.local_of(self, _pop_from)
 	var to := Vector2(0, -40)
 	var p := from.lerp(to, rise) + Vector2(0, -14.0 * sin(PI * minf(u * 1.6, 1.0)))
 	var alpha := 1.0 if u < 0.7 else 1.0 - (u - 0.7) / 0.3

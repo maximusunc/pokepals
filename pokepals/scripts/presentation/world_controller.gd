@@ -416,7 +416,7 @@ func _build_world(cached: Dictionary) -> void:
 	_perspective = PerspectiveView.new()
 	_perspective.name = "Perspective"
 	add_child(_perspective)
-	_perspective.setup(self, _world_art, _scenery, _camera, _player, _companion, data.get("view", {}))
+	_perspective.setup(self, _world_art, _scenery, _camera, _player, _companion, data.get("view", {}), _style.entity("ambient_life"))
 	if PerspectiveView.wants(data) or OS.get_cmdline_user_args().has("--inside"):
 		_perspective.set_on(true)
 
