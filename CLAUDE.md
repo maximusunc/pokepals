@@ -413,13 +413,13 @@ not a blocker** — pick it up if/when a shared world wants it.
 > **Farmeadow and the perspective view (2026-11):** the first world that looks like **a different game**: the same world
 > logic seen **from inside**, in fake 3D (still Godot 2D). A rolling meadow and one long road (3600x3600): you arrive at its
 > south end and walk north past fences, haystacks, copses and windmills to the ruin of a keep you can see from the start.
-> Reached through the Gateway (featured). **Secret:** a skylark painted across eight boards on posts in a field, which only
-> line up into one picture from one spot, looking **south** (back the way you came): stand still there and the view settles
-> exactly (`PerspectiveView.set_magnet`), hold it two seconds and the painted lark lifts off the boards (`LarkFlight`) and
-> lands beside you as a carved wooden lark. Your companion looks back toward the spot as you near it, then sits on it. New
+> Reached through the Gateway (featured). **Secret:** a skylark (and a ring for the sun) painted across a little farmyard in a
+> field (an old barn wall, a scarecrow, straw bales, a dry-stone wall), which only joins up into one picture from one spot,
+> looking **south** (back the way you came): stand still there and the view settles exactly (`PerspectiveView.set_magnet`),
+> hold it two seconds and the painted lark lifts off (`LarkFlight`) and lands beside you as a carved wooden lark. Your companion looks back toward the spot as you near it, then sits on it. New
 > reveal type `align` (server: "this world, standing at it"). Pure `AlignGate` (`scripts/world`, tested) over
-> `AlignDirector` (`mechanics/`); the picture is laid out for `data/view.json`'s camera (`data/hz_skylark.json`, from
-> `gen_horizon.py`), each board at its own depth with a per-kind `tex_scale`.
+> `AlignDirector` (`mechanics/`); `gen_horizon.py` paints the farmyard for `data/view.json`'s camera from the spot (a
+> depth buffer decides which thing is in front), writes plain backs (a card's `"back"` art) and `data/hz_skylark.json`.
 > - **Opt-in per world:** a spec `view` block (`{"projection": "perspective"}`), deep-merged over `data/view.json`. Any world
 >   can be looked at this way from the gear menu's dev item (or P).
 > - **The camera is pure logic:** `ViewProjection` (a pinhole camera: eye height, distance behind you, tilt, lens shift, draw

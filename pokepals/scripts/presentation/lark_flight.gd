@@ -1,6 +1,6 @@
 class_name LarkFlight
 extends Node2D
-## Farmeadow's painted skylark, come alive: it starts exactly where the painted one is on the boards (its ground
+## Farmeadow's painted skylark, come alive: it starts exactly where the painted one is on the farmyard (its ground
 ## point on the ray through it, lifted to its height, as big as it's painted), shrinks to a real bird's size as it
 ## flies, and flutters down to land at your feet, then `landed`. There it stays, a little carved wooden lark
 ## standing in the grass, until it's picked up (the world's flat prop drawing would be a smear at this low angle). A child of Scenery, so the perspective view stands

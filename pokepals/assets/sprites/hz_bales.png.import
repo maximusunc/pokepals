@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c4h6awux5byia"
-path="res://.godot/imported/hz_board_4.png-82d2d9bd5b0ac4dd05620431bbf4528d.ctex"
+uid="uid://c660bor0ke4lf"
+path="res://.godot/imported/hz_bales.png-b505ddec59e52c331cea5abd5b9566c2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/hz_board_4.png"
-dest_files=["res://.godot/imported/hz_board_4.png-82d2d9bd5b0ac4dd05620431bbf4528d.ctex"]
+source_file="res://assets/sprites/hz_bales.png"
+dest_files=["res://.godot/imported/hz_bales.png-b505ddec59e52c331cea5abd5b9566c2.ctex"]
 
 [params]
 

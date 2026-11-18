@@ -13,8 +13,8 @@ windmills from 8 bearings ("angles"), the fences and the fingerpost as cards, th
 the same all the way round. It is still the same world underneath: the same companion, the same examine, the
 same portal home.
 
-Its SECRET is a skylark painted across eight boards in a field, which only line up into one picture from one spot,
-looking south (back the way you came): see SECRET below. Fishing works (the mill pond); chopping is off (the windmills, the keep and
+Its SECRET is a skylark painted across a little farmyard (a barn wall, a scarecrow, bales, a dry-stone wall), which
+only joins up into one picture from one spot, looking south (back the way you came): see SECRET below. Fishing works (the mill pond); chopping is off (the windmills, the keep and
 the fences are tree kinds, and none of them is wood).
 
 Hand-authored: the road, the fields, the windmills, the keep, every lore line, the art override. Procedural
@@ -139,10 +139,11 @@ for x, y, f in WINDMILLS:
 TREES.append([70, 1080, "signpost", 180])
 
 # ── THE SECRET: the skylark picture ──────────────────────────────────────────────────────────────────
-# Eight painted boards on posts stand in the field south of SPOT, each at its own distance. Standing on SPOT and
-# looking SOUTH (back the way you came up the road), the perspective camera sees them line up into one picture: a
-# skylark over a low sun. The boards' screen rects, depths and sizes come from the art (data/hz_skylark.json,
-# written by pokepals/tools/gen_horizon.py for data/view.json's camera); here they're stood in the world.
+# A little farmyard stands in the field south of SPOT: an old barn wall, a scarecrow, straw bales and a stretch of
+# dry-stone wall, each at its own distance. A skylark and a ring for the sun are painted across their fronts, and
+# from SPOT, looking SOUTH (back the way you came up the road), the paint joins up into one picture. Where each
+# stands comes from the art (data/hz_skylark.json, written by pokepals/tools/gen_horizon.py for data/view.json's
+# camera); here they're stood in the world, each with an invisible wall along it (the spec's "fences").
 SKYLARK = json.load(open("pokepals/data/hz_skylark.json"))
 SPOT = (430, -1020)
 FACING = 180.0
@@ -152,24 +153,27 @@ _F = (0.0, 1.0)          # looking south
 _R = (-1.0, 0.0)         # ...so screen right is west
 EYE = (SPOT[0] - _F[0] * _cam["back"], SPOT[1] - _F[1] * _cam["back"])
 BOARDS = []
-for b in SKYLARK["boards"]:
-    x0, y0, w, h = b["rect"]
+FARMYARD_WALLS = []
+for b in SKYLARK["objects"]:
     z = b["depth"]
-    lat = (x0 + w / 2.0) * z / _f
+    lat = b["x"] * z / _f
     pos = (EYE[0] + _F[0] * z + _R[0] * lat, EYE[1] + _F[1] * z + _R[1] * lat)
     BOARDS.append((b, pos))
     TREES.append([round(pos[0], 2), round(pos[1], 2), b["id"], 0])
-    placed.append((pos[0], pos[1], 20))
+    hw = b["w"] * 0.5 - 2
+    FARMYARD_WALLS.append({"from": [round(pos[0] - hw, 1), round(pos[1], 1)], "to": [round(pos[0] + hw, 1), round(pos[1], 1)], "thickness": 8})
+    placed.append((pos[0], pos[1], b["w"] * 0.5 + 10))
 placed.append((SPOT[0], SPOT[1], 40))
 
 
 def _in_view_of_picture(x, y, r):
-    """Inside the wedge of ground between the spot's camera and the boards: kept clear so nothing hides them."""
+    """Inside the wedge of ground between the spot's camera and the farmyard: kept clear so nothing hides it."""
     a = (x - EYE[0]) * _F[0] + (y - EYE[1]) * _F[1]
-    if a <= 0 or a > 700:
+    if a <= 0 or a > 620:
         return False
-    lat = (x - EYE[0]) * _R[0] + (y - EYE[1]) * _R[1]
-    return abs(lat) < a * (130.0 / _f) + 30 + r
+    sx = ((x - EYE[0]) * _R[0] + (y - EYE[1]) * _R[1]) * _f / a   # where it'd be on screen, from the spot
+    m = (r + 20) * _f / a
+    return -25 - m < sx < 175 + m
 
 
 def clear(x, y, r, road=70):
@@ -276,15 +280,15 @@ for a, b in [((-1650, 80), (-650, 80)), ((650, 60), (1650, 60)), ((-1650, -900),
     hedgerow(a, b)
 
 ALL_PROPS = SPECIAL + [
-    prop("skylark_boards", "hz_examine", BOARDS[3][1], STONE, "a painted board",
-         "An old board on a post, painted with a patch of evening sky and something dark across one corner. There are "
-         "others like it about the field, none of them matching. Someone went to a lot of trouble over this."),
+    prop("barn_wall", "hz_examine", BOARDS[0][1], STONE, "an old barn wall",
+         "All that's left of a barn: one wall, still standing. Someone has painted on it, big dark brushstrokes that "
+         "don't make anything. There's paint on the bales too, and on the stones. Odd."),
 ]
 
-SECRET_COMMENT = ("This world's one SECRET. reveal.type 'align': the painted boards (tree kinds hz_board_0..7) only line "
-                  "up into the skylark picture from 'spot' looking 'facing_deg' (south) with this world's perspective "
+SECRET_COMMENT = ("This world's one SECRET. reveal.type 'align': the paint on the farmyard (tree kinds hz_barnwall, "
+                  "hz_scarecrow, hz_bales, hz_drywall) only joins up into the skylark picture from 'spot' looking 'facing_deg' (south) with this world's perspective "
                   "camera. Standing still there facing near enough south captures the view (PerspectiveView.set_magnet), "
-                  "it settles exactly, and held for 'hold_seconds' the painted lark lifts off the boards and flutters "
+                  "it settles exactly, and held for 'hold_seconds' the painted lark lifts off and flutters "
                   "down at your feet as the prop (AlignGate / AlignDirector). The server only checks 'this world, "
                   "standing at it'.")
 LARK_AT = (SPOT[0] - 30, SPOT[1] + 18)   # beside you (to your right, looking south), not hidden behind you
@@ -305,13 +309,13 @@ SECRET = {
         "lark_screen_x": SKYLARK["lark"]["screen"][0], "lark_screen_y": SKYLARK["lark"]["screen"][1],
         "lark_depth": SKYLARK["lark"]["depth"], "lark_span": SKYLARK["lark"]["span"],
         "land": list(LARK_AT),
-        "bare": {b["id"]: b["bare"] for b in SKYLARK["boards"] if "bare" in b},
+        "bare": {b["id"]: b["bare"] for b in SKYLARK["objects"]},
         "lines": {
             "notice": "Your companion stops and looks back the way you came, as if something over there was looking at it.",
             "visit": "Your companion trots off and sits very still in one particular spot, looking south.",
-            "settle": "From here, the boards in the field start to make sense.",
+            "settle": "From here, the paint on the barn wall and the bales starts to line up.",
         },
-        "reveal_line": "The boards line up into one picture: a skylark over the setting sun. Then the lark isn't painted any more.",
+        "reveal_line": "The smudges of paint join up into one picture: a skylark crossing the sun. Then the lark isn't paint any more.",
     },
     "found_line": "Somebody painted a lark that could only be seen from one place, facing home. You found the place.",
     "home_line": "Something has changed at home.",
@@ -340,8 +344,8 @@ ART = {
         "fence": {"render": "sprite", "sprite": S + "hz_fence.png", "sway": 0.0, "card": True},
         "signpost": {"render": "sprite", "sprite": S + "hz_signpost.png", "sway": 0.0, "card": True},
         "haystack": {"render": "sprite", "sprite": S + "hz_haystack.png", "sway": 0.0},
-        **{b["id"]: {"render": "sprite", "sprite": b["sprite"], "sway": 0.0, "card": True, "tex_scale": b["tex_scale"]}
-           for b in json.load(open("pokepals/data/hz_skylark.json"))["boards"]},
+        **{b["id"]: {"render": "sprite", "sprite": b["sprite"], "back": b["back"], "sway": 0.0, "card": True}
+           for b in json.load(open("pokepals/data/hz_skylark.json"))["objects"]},
         # wooden_lark: the secret's prop stands up as the landed LarkFlight here; drawn flat it'd be a smear
         "props": {"unseen": ["hz_examine", "wooden_lark"]},
     },
@@ -405,7 +409,7 @@ out.append('\t"paths": [\n%s\n\t],' % block(paths))
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"_fences_comment": "Invisible walls along each run of fence panels, so the gaps between panels don\'t let you through (gates are left open). Segment solids like hedges, with nothing drawn: the fence you see is the panels.",')
-out.append('\t"fences": [\n%s\n\t],' % block(FENCES))
+out.append('\t"fences": [\n%s\n\t],' % block(FENCES + FARMYARD_WALLS))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
 out.append('\t"ambient_pals": [\n%s\n\t],' % block(AMBIENT_PALS))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))

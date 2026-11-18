@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c1jv3v3ilixnp"
-path="res://.godot/imported/hz_board_3.png-2d5a2730cbd27e5da0902eaf91dc0abc.ctex"
+uid="uid://c6oiwxrast3y3"
+path="res://.godot/imported/hz_drywall.png-c3440c13461ad3b55fee948d176b2628.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/hz_board_3.png"
-dest_files=["res://.godot/imported/hz_board_3.png-2d5a2730cbd27e5da0902eaf91dc0abc.ctex"]
+source_file="res://assets/sprites/hz_drywall.png"
+dest_files=["res://.godot/imported/hz_drywall.png-c3440c13461ad3b55fee948d176b2628.ctex"]
 
 [params]
 

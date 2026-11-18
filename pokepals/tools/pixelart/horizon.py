@@ -421,70 +421,165 @@ def haystack():
 
 # ----------------------------------------------------------------------------------------- the skylark picture
 #
-# Farmeadow's secret: a picture painted across eight old boards on posts, scattered through a field at different
-# distances. From one spot, looking south, the boards line up into one picture: a skylark over a low sun. From
-# anywhere else they're odd painted boards. The picture is laid out in SCREEN pixels as the perspective camera sees
-# it from that spot (data/view.json's camera, PerspectiveView / ViewProjection); each board stands at its own depth,
-# drawn at one texel per screen pixel (its "tex_scale" is depth / focal), on a post reaching down to the ground.
-# skylark_boards() writes the boards and data/hz_skylark.json, which tools/gen_farmeadow_world.py reads to stand
-# them in the world. The upper board in each column stands farther off than the one below it, so its post hides
-# behind the lower board and never crosses the picture.
+# Farmeadow's secret, painted the way some street art is: one simple picture (a skylark, and a ring for the sun)
+# painted across several ordinary things in a field that stand at different distances: an old barn wall, a
+# scarecrow, a stack of straw bales and a dry-stone wall. From anywhere else they're just farm things with odd
+# smudges of paint on them; from one spot, looking south, the smudges join up into the lark crossing the sun.
+#
+# How the paint is put on: every object is drawn at the world's own scale (one texel per world unit), standing
+# square to the spot (a card facing north). For each texel on an object's front, we work out where the perspective
+# camera at the spot (data/view.json's camera) would show it, and if that screen pixel is part of the picture, and
+# this object is the nearest thing there, the texel is painted. Backs are left plain. skylark_objects() writes the
+# objects and data/hz_skylark.json (where each stands: its screen centre and depth), which
+# tools/gen_farmeadow_world.py reads to stand them in the world.
 
-PIC_X0, PIC_Y0 = -83, -46            # the picture's top-left on screen, from the view's centre (y down)
-BOARD_W, BOARD_H, GAP = 40, 32, 2
-# depth (distance ahead of the camera's foot) of each board: [column][row]; row 0 (upper) farther than row 1.
-# Kept close together: a board's size in the world grows with its depth, and a far one would be a billboard.
-BOARD_DEPTHS = [(440, 290), (360, 268), (480, 322), (400, 300)]
-LARK_AT = (0.47, 0.47)  # the lark's middle, as a share of the picture's width and height
-LARK_SPAN = 45.0        # its wingspan on screen
+# The picture, on screen (from the view's centre, y down): low and to the right of where you stand, since with the
+# eye this low ordinary things only reach a little above the horizon.
+LARK_CENTER = (68.0, 57.0)
+LARK_SPAN = 38.0
+SUN_CENTER = (99.0, 75.0)
+SUN_R, SUN_RING = 12.0, 3.0
+LARK_PAINT = (78, 56, 42)
+SUN_PAINT = (232, 142, 62)
+# The things it's painted across: kind, size in world units (w, h), depth (distance ahead of the camera's foot)
+# and the screen x of its middle.
+SKYLARK_OBJECTS = [
+    {"id": "hz_barnwall", "kind": "barnwall", "w": 150, "h": 100, "z": 470.0, "x": 76.0},
+    {"id": "hz_scarecrow", "kind": "scarecrow", "w": 30, "h": 74, "z": 310.0, "x": 44.0},
+    {"id": "hz_bales", "kind": "bales", "w": 66, "h": 44, "z": 330.0, "x": 62.0},
+    {"id": "hz_drywall", "kind": "drywall", "w": 86, "h": 30, "z": 285.0, "x": 112.0},
+]
 
 
-def _paint_picture(w, h, with_lark=True):
-    """The whole picture, w x h screen pixels: a warm evening sky, a low sun, two streaks of cloud, and a skylark
-    in flight crossing in front of the sun."""
-    img = Image.new("RGBA", (w, h), (0, 0, 0, 255))
-    px = img.load()
-    top, low = (222, 146, 140), (250, 192, 104)
-    sun_c, sun_r = (w * 0.58, h + 2), 23.0
-    for y in range(h):
-        for x in range(w):
-            t = y / float(h - 1)
-            c = _mix(top, low, min(1.0, t + _bayer(x, y) * 0.12))
-            d = math.hypot(x - sun_c[0], y - sun_c[1])
-            if d < sun_r + 10:
-                c = _mix(c, (255, 232, 168), max(0.0, 1.0 - (d - sun_r) / 10.0) * 0.6)
-            if d < sun_r:
-                c = (255, 242, 196) if d < sun_r - 3 + _bayer(x, y) * 2 else (250, 178, 88)
-            px[x, y] = c + (255,)
-    # cloud streaks
-    for (cx, cy, ln) in ((30, 16, 44), (112, 28, 34), (84, 11, 22)):
-        for x in range(int(cx - ln / 2), int(cx + ln / 2)):
-            for dy in (0, 1):
-                if 0 <= x < w and (x + dy) % 7 != 0:
-                    px[x, cy + dy] = _mix(px[x, cy + dy][:3], (214, 170, 176), 0.7) + (255,)
-    if not with_lark:
-        return img
-    # the skylark: crossing in front of the sun, wings raised mid-beat, tail fanned, heading right
-    from PIL import ImageDraw
-    d = ImageDraw.Draw(img)
-    lark = (104, 76, 54)
-    shade = (70, 50, 38)
-    belly = (196, 160, 120)
-    bx, by = w * LARK_AT[0], h * LARK_AT[1]
-    k = LARK_SPAN / 60.0
+def _lark_polys(cx, cy, span):
+    """The lark's shapes on screen (wings, tail, body, head, beak), as polygons and ellipses."""
+    k = span / 60.0
 
     def P(pts):
-        return [(bx + x * k, by + y * k) for x, y in pts]
-    d.polygon(P([(-4, -2), (-30, -30), (-26, -33), (-14, -24), (2, -6)]), fill=lark, outline=shade)    # far wing
-    d.polygon(P([(2, -3), (24, -34), (29, -31), (20, -14), (8, -1)]), fill=lark, outline=shade)        # near wing
-    d.polygon(P([(-14, 1), (-26, -3), (-27, 6), (-14, 4)]), fill=lark, outline=shade)                 # tail
-    d.ellipse([bx - 15 * k, by - 4 * k, bx + 10 * k, by + 5 * k], fill=lark, outline=shade)             # body
-    d.line(P([(-10, 3), (6, 3)]), fill=belly, width=1)                                                   # pale belly
-    d.ellipse([bx + 6 * k, by - 7 * k, bx + 14 * k, by + 1 * k], fill=lark, outline=shade)              # head
-    d.polygon(P([(14, -4), (19, -3), (14, -2)]), fill=shade)                                            # beak
-    d.point((bx + 11 * k, by - 4 * k), fill=(30, 22, 18))                                               # eye
-    d.polygon(P([(9, -9), (11, -13), (13, -8)]), fill=lark)                                             # its little crest
-    return img
+        return [(cx + x * k, cy + y * k) for x, y in pts]
+    polys = [P([(-4, -2), (-30, -30), (-26, -33), (-14, -24), (2, -6)]), P([(2, -3), (24, -34), (29, -31), (20, -14), (8, -1)]),
+             P([(-14, 1), (-26, -3), (-27, 6), (-14, 4)]), P([(14, -4), (19, -3), (14, -2)])]
+    ellipses = [(cx - 15 * k, cy - 4 * k, cx + 10 * k, cy + 5 * k), (cx + 6 * k, cy - 7 * k, cx + 14 * k, cy + 1 * k)]
+    return polys, ellipses
+
+
+def _picture_masks(x0, y0, w, h):
+    """The picture as two masks over a screen region: the lark, and the sun's ring."""
+    from PIL import ImageDraw
+    lark = Image.new("L", (w, h), 0)
+    d = ImageDraw.Draw(lark)
+    polys, ellipses = _lark_polys(LARK_CENTER[0] - x0, LARK_CENTER[1] - y0, LARK_SPAN)
+    for pg in polys:
+        d.polygon(pg, fill=255)
+    for e in ellipses:
+        d.ellipse(e, fill=255)
+    sun = Image.new("L", (w, h), 0)
+    px = sun.load()
+    for y in range(h):
+        for x in range(w):
+            dd = math.hypot(x + x0 + 0.5 - SUN_CENTER[0], y + y0 + 0.5 - SUN_CENTER[1])
+            if abs(dd - SUN_R) <= SUN_RING * 0.5:
+                px[x, y] = 255
+    return lark, sun
+
+
+def _barnwall(w, h):
+    """All that's left of a barn: a wall of weathered planks with a broken gable top."""
+    sp = Sprite(w, h + 6)
+    rnd = random.Random(31)
+    plank = 9
+    for x in range(w):
+        col = x // plank
+        # the gable: highest in the middle, broken off unevenly, one plank in five shorter than its neighbours
+        tall = h - 8 + 8 * (1 - abs(x - w * 0.5) / (w * 0.5)) + rnd.randint(-3, 2) - (9 if col % 5 == 3 else 0)
+        top = int(h - max(40, min(h, tall)))
+        base = [(128, 112, 94), (118, 104, 88), (136, 120, 100)][col % 3]
+        for y in range(max(0, top), h):
+            c = base
+            if x % plank == 0:
+                c = _mix(c, (60, 50, 42), 0.5)
+            elif x % plank == plank - 1:
+                c = _mix(c, (200, 190, 170), 0.12)
+            if (y * 7 + x * 3 + col * 11) % 37 == 0:
+                c = _mix(c, (70, 60, 50), 0.4)  # knots and grain
+            if y in (h - 22, h - 70):
+                c = _mix(c, (72, 60, 48), 0.55)  # the cross rails' shadows
+            sp.put(x, y, c)
+    return sp
+
+
+def _scarecrow(w, h):
+    """A scarecrow: a patched coat on a cross of poles, a sack head and a hat."""
+    sp = Sprite(w, h + 6)
+    pole = (120, 92, 62)
+    cx = w // 2
+    sp.rect(cx - 1, 20, 3, h - 20, pole)
+    coat = (110, 120, 92)
+    for y in range(26, 58):
+        half = 14 if y < 34 else 11
+        for x in range(cx - half, cx + half + 1):
+            c = coat if (x + y) % 9 else _mix(coat, (60, 70, 50), 0.4)
+            if 40 <= y <= 47 and cx + 2 <= x <= cx + 7:
+                c = (150, 96, 70)  # a patch
+            sp.put(x, y, c)
+    for y in range(12, 25):  # the sack head
+        for x in range(cx - 6, cx + 7):
+            if (x - cx) ** 2 / 40.0 + (y - 18.5) ** 2 / 45.0 <= 1:
+                sp.put(x, y, (196, 172, 124))
+    sp.put(cx - 2, 17, (60, 46, 36))
+    sp.put(cx + 2, 17, (60, 46, 36))
+    sp.rect(cx - 9, 10, 19, 2, (82, 64, 48))  # the hat's brim
+    sp.rect(cx - 5, 3, 11, 7, (96, 74, 54))
+    return sp
+
+
+def _bales(w, h):
+    """Straw bales, three below and two on top, each with its twine."""
+    sp = Sprite(w, h + 6)
+    straw = (214, 182, 102)
+    bw, bh = w // 3, h // 2
+
+    def bale(x0, y0):
+        for y in range(y0, y0 + bh):
+            for x in range(x0, x0 + bw - 1):
+                c = straw if (x * 5 + y * 3) % 7 else _mix(straw, (160, 128, 60), 0.5)
+                if y == y0:
+                    c = _mix(straw, (255, 240, 190), 0.3)
+                if x in (x0 + bw // 3, x0 + 2 * bw // 3):
+                    c = (140, 100, 60)  # twine
+                sp.put(x, y, c)
+    for i in range(3):
+        bale(i * bw, h - bh)
+    for i in range(2):
+        bale(bw // 2 + i * bw, h - 2 * bh)
+    return sp
+
+
+def _drywall(w, h):
+    """A stretch of dry-stone wall: stones laid without mortar, an uneven top."""
+    sp = Sprite(w, h + 6)
+    rnd = random.Random(5)
+    y = h
+    while y > 0:
+        rh = rnd.randint(5, 8)
+        x = -rnd.randint(0, 8)
+        while x < w:
+            sw = rnd.randint(9, 16)
+            g = rnd.randint(-14, 14)
+            stone = (150 + g, 146 + g, 136 + g)
+            top_cut = h - (20 + int(6 * math.sin(x * 0.17)) + rnd.randint(-2, 2))
+            for yy in range(max(0, y - rh), y):
+                if yy < top_cut:
+                    continue
+                for xx in range(max(0, x), min(w, x + sw - 1)):
+                    c = stone if yy > y - rh else _mix(stone, (255, 255, 240), 0.15)
+                    sp.put(xx, yy, c)
+            x += sw
+        y -= rh
+    return sp
+
+
+_OBJECT_ART = {"barnwall": _barnwall, "scarecrow": _scarecrow, "bales": _bales, "drywall": _drywall}
 
 
 def _canvas_camera():
@@ -498,58 +593,79 @@ def _canvas_camera():
     return cam, focal
 
 
-def skylark_boards():
-    """The eight boards: [(name, image, info)], info = rect on screen, depth and tex_scale; plus the whole picture."""
+def skylark_objects():
+    """The painted things: [(name, image, info)] (each object's painted front, its plain back, and a version with only
+    the sun, for after the lark has flown), plus the lark's own place for the one that comes alive."""
     cam, f = _canvas_camera()
-    h, shift = cam["height"], cam["shift"]
-    pic_w = 4 * BOARD_W + 3 * GAP
-    pic_h = 2 * BOARD_H + GAP
-    picture = _paint_picture(pic_w, pic_h)
-    bare_picture = _paint_picture(pic_w, pic_h, with_lark=False)
-    wood = (150, 112, 78)
+    eye, shift = cam["height"], cam["shift"]
+    objs = []
+    for o in SKYLARK_OBJECTS:
+        sp = _OBJECT_ART[o["kind"]](o["w"], o["h"])
+        s = f / o["z"]
+        objs.append(dict(o, sp=sp, img=sp.img, s=s, y_foot=shift + f * eye / o["z"]))
+    # The screen region the picture lives in, and which object is nearest at each pixel there (a depth buffer).
+    X0, Y0, W, H = -40, -40, 240, 160
+    owner = [[None] * W for _ in range(H)]
+    for o in sorted(objs, key=lambda q: -q["z"]):  # far to near: nearer overwrite
+        src = o["img"].load()
+        for py in range(H):
+            for px_ in range(W):
+                tx = (px_ + X0 + 0.5 - o["x"]) / o["s"] + o["w"] / 2.0
+                ty = (py + Y0 + 0.5 - o["y_foot"]) / o["s"] + o["h"]
+                if 0 <= tx < o["w"] and 0 <= ty < o["h"] and src[int(tx), int(ty)][3] > 0:
+                    owner[py][px_] = o["id"]
+    lark_m, sun_m = _picture_masks(X0, Y0, W, H)
+    lark_px, sun_px = lark_m.load(), sun_m.load()
+    covered = {"lark": [0, 0], "sun": [0, 0]}
+    for py in range(H):
+        for px_ in range(W):
+            for key, m in (("lark", lark_px), ("sun", sun_px)):
+                if m[px_, py]:
+                    covered[key][1] += 1
+                    covered[key][0] += 1 if owner[py][px_] is not None else 0
     out = []
-    for col in range(4):
-        for row in range(2):
-            z = float(BOARD_DEPTHS[col][row])
-            sc = f / z                                   # screen pixels per world unit at that depth
-            x0 = PIC_X0 + col * (BOARD_W + GAP)
-            y0 = PIC_Y0 + row * (BOARD_H + GAP)
-            y_foot = shift + f * h / z                   # where its foot lands on screen
-            tall = int(round(y_foot + 6 * sc - y0))      # TreeView stands a sprite's bottom 6 units below its foot
-            post_end = int(round(y_foot - y0))
-            sp = Sprite(BOARD_W, tall)
-            box = (col * (BOARD_W + GAP), row * (BOARD_H + GAP), col * (BOARD_W + GAP) + BOARD_W, row * (BOARD_H + GAP) + BOARD_H)
+    for o in objs:
+        rnd = random.Random(hash(o["id"]) & 0xFFFF)
+        base = o["img"]
 
-            def board(tile):
-                sp = Sprite(BOARD_W, tall)
-                # the painted face, with the boards' planks showing faintly through the paint
-                for yy in range(BOARD_H):
-                    for xx in range(BOARD_W):
-                        c = tile.getpixel((xx, yy))[:3]
-                        if xx % 9 == 0:
-                            c = _mix(c, (90, 70, 52), 0.18)
-                        sp.put(xx, yy, c)
-                # its post, from under the board down to the ground
-                for yy in range(BOARD_H, post_end):
-                    for xx in range(BOARD_W // 2 - 1, BOARD_W // 2 + 2):
-                        sp.put(xx, yy, _mix(wood, (40, 30, 20), 0.25) if xx == BOARD_W // 2 + 1 else wood)
-                return sp.outline()
+        def painted(with_lark):
+            img = base.copy()
+            dst = img.load()
+            for ty in range(o["h"]):
+                for tx in range(o["w"]):
+                    if dst[tx, ty][3] == 0:
+                        continue
+                    sx = o["x"] + (tx + 0.5 - o["w"] / 2.0) * o["s"]
+                    sy = o["y_foot"] + (ty + 0.5 - o["h"]) * o["s"]
+                    px_, py = int(math.floor(sx - X0)), int(math.floor(sy - Y0))
+                    if not (0 <= px_ < W and 0 <= py < H) or owner[py][px_] != o["id"]:
+                        continue
+                    paint = None
+                    if with_lark and lark_px[px_, py]:
+                        paint = LARK_PAINT
+                    elif sun_px[px_, py]:
+                        paint = SUN_PAINT
+                    if paint is not None and rnd.random() > 0.07:  # weathered: a few flecks have worn off
+                        dst[tx, ty] = _mix(dst[tx, ty][:3], paint, 0.82 + rnd.random() * 0.1) + (255,)
+            sp = Sprite(o["w"], o["h"] + 6)
+            sp.img = img
+            sp.px = img.load()
+            return sp.outline()
 
-            tile = picture.crop(box)
-            bare = bare_picture.crop(box)
-            name = "hz_board_%d" % (col * 2 + row)
-            info = {"id": name, "rect": [x0, y0, BOARD_W, BOARD_H], "depth": z, "tex_scale": round(z / f, 6)}
-            out.append((name, board(tile), info))
-            if list(tile.getdata()) != list(bare.getdata()):  # the lark crosses this board: a version without it
-                info["bare"] = "res://assets/sprites/%s_bare.png" % name
-                out.append((name + "_bare", board(bare), None))
-    # where the painted lark is, so the one that comes alive can start exactly there
-    lx = PIC_X0 + pic_w * LARK_AT[0]
-    ly = PIC_Y0 + pic_h * LARK_AT[1]
-    col = min(3, int((lx - PIC_X0) // (BOARD_W + GAP)))
-    row = min(1, int((ly - PIC_Y0) // (BOARD_H + GAP)))
-    lark = {"screen": [round(lx, 1), round(ly, 1)], "depth": float(BOARD_DEPTHS[col][row]), "span": LARK_SPAN}
-    return out, picture, cam, lark
+        plain = Sprite(o["w"], o["h"] + 6)
+        plain.img = base.copy()
+        plain.px = plain.img.load()
+        info = {"id": o["id"], "depth": o["z"], "x": o["x"], "w": o["w"], "h": o["h"],
+                "rect": [round(o["x"] - o["w"] * o["s"] / 2.0, 2), round(o["y_foot"] - o["h"] * o["s"], 2),
+                         round(o["w"] * o["s"], 2), round(o["h"] * o["s"], 2)]}
+        out.append((o["id"], painted(True), info))
+        out.append((o["id"] + "_back", plain.outline(), None))
+        out.append((o["id"] + "_bare", painted(False), None))
+    lark_owner = owner[int(LARK_CENTER[1] - Y0)][int(LARK_CENTER[0] - X0)]
+    lark_depth = next(o["z"] for o in objs if o["id"] == lark_owner)
+    lark = {"screen": list(LARK_CENTER), "depth": lark_depth, "span": LARK_SPAN,
+            "coverage": {k: round(v[0] / max(1, v[1]), 3) for k, v in covered.items()}}
+    return out, cam, lark
 
 
 if __name__ == "__main__":

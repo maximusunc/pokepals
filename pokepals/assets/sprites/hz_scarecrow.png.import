@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c1il0w6f2841a"
-path="res://.godot/imported/hz_board_7.png-2c501e3d1df09354b22e29d35fc4cdd0.ctex"
+uid="uid://ckgktpeumcgi"
+path="res://.godot/imported/hz_scarecrow.png-109c47598ef8e923e9a7e34865c3456b.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/hz_board_7.png"
-dest_files=["res://.godot/imported/hz_board_7.png-2c501e3d1df09354b22e29d35fc4cdd0.ctex"]
+source_file="res://assets/sprites/hz_scarecrow.png"
+dest_files=["res://.godot/imported/hz_scarecrow.png-109c47598ef8e923e9a7e34865c3456b.ctex"]
 
 [params]
 

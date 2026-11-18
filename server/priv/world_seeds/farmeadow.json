@@ -56,61 +56,33 @@
 				"sprite": "res://assets/sprites/hz_haystack.png",
 				"sway": 0.0
 			},
-			"hz_board_0": {
+			"hz_barnwall": {
 				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_0.png",
+				"sprite": "res://assets/sprites/hz_barnwall.png",
+				"back": "res://assets/sprites/hz_barnwall_back.png",
 				"sway": 0.0,
-				"card": true,
-				"tex_scale": 2.0
+				"card": true
 			},
-			"hz_board_1": {
+			"hz_scarecrow": {
 				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_1.png",
+				"sprite": "res://assets/sprites/hz_scarecrow.png",
+				"back": "res://assets/sprites/hz_scarecrow_back.png",
 				"sway": 0.0,
-				"card": true,
-				"tex_scale": 1.318182
+				"card": true
 			},
-			"hz_board_2": {
+			"hz_bales": {
 				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_2.png",
+				"sprite": "res://assets/sprites/hz_bales.png",
+				"back": "res://assets/sprites/hz_bales_back.png",
 				"sway": 0.0,
-				"card": true,
-				"tex_scale": 1.636364
+				"card": true
 			},
-			"hz_board_3": {
+			"hz_drywall": {
 				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_3.png",
+				"sprite": "res://assets/sprites/hz_drywall.png",
+				"back": "res://assets/sprites/hz_drywall_back.png",
 				"sway": 0.0,
-				"card": true,
-				"tex_scale": 1.218182
-			},
-			"hz_board_4": {
-				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_4.png",
-				"sway": 0.0,
-				"card": true,
-				"tex_scale": 2.181818
-			},
-			"hz_board_5": {
-				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_5.png",
-				"sway": 0.0,
-				"card": true,
-				"tex_scale": 1.463636
-			},
-			"hz_board_6": {
-				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_6.png",
-				"sway": 0.0,
-				"card": true,
-				"tex_scale": 1.818182
-			},
-			"hz_board_7": {
-				"render": "sprite",
-				"sprite": "res://assets/sprites/hz_board_7.png",
-				"sway": 0.0,
-				"card": true,
-				"tex_scale": 1.363636
+				"card": true
 			},
 			"props": {
 				"unseen": [
@@ -154,14 +126,10 @@
 		[-1180, 760, "windmill", 90],
 		[760, -1500, "windmill", 200],
 		[70, 1080, "signpost", 180],
-		[556.0, -800.0, "hz_board_0", 0],
-		[513.05, -950.0, "hz_board_1", 0],
-		[464.36, -880.0, "hz_board_2", 0],
-		[455.58, -972.0, "hz_board_3", 0],
-		[384.18, -760.0, "hz_board_4", 0],
-		[399.26, -918.0, "hz_board_5", 0],
-		[315.45, -840.0, "hz_board_6", 0],
-		[344.09, -940.0, "hz_board_7", 0],
+		[267.64, -770.0, "hz_barnwall", 0],
+		[368.0, -930.0, "hz_scarecrow", 0],
+		[337.0, -910.0, "hz_bales", 0],
+		[284.91, -955.0, "hz_drywall", 0],
 		[-70, 1043, "fence", 270],
 		[-70, 1009, "fence", 270],
 		[-70, 976, "fence", 270],
@@ -496,7 +464,11 @@
 		{"from": [260, 700], "to": [720, 700], "thickness": 8},
 		{"from": [260, 260], "to": [260, 497], "thickness": 8},
 		{"from": [260, 531], "to": [260, 700], "thickness": 8},
-		{"from": [720, 260], "to": [720, 700], "thickness": 8}
+		{"from": [720, 260], "to": [720, 700], "thickness": 8},
+		{"from": [194.6, -770.0], "to": [340.6, -770.0], "thickness": 8},
+		{"from": [355.0, -930.0], "to": [381.0, -930.0], "thickness": 8},
+		{"from": [306.0, -910.0], "to": [368.0, -910.0], "thickness": 8},
+		{"from": [243.9, -955.0], "to": [325.9, -955.0], "thickness": 8}
 	],
 	"props": [
 		{"id": "keep_stones", "type": "hz_examine", "position": [40, -1880], "color": [0.72, 0.7, 0.66], "label": "the old keep", "interactive": true, "lore": "A round keep, its top long gone. The stones are warm on the sunny side and cool on the other. You can see the whole road from here, and the place you started is too small to make out.", "solid": true, "collision_radius": 34},
@@ -506,7 +478,7 @@
 		{"id": "millpond_stone", "type": "rock", "position": [-640, -230], "color": [0.72, 0.7, 0.66], "label": "a flat stone by the pond", "interactive": true, "lore": "A flat stone at the water's edge, worn smooth by people sitting just here. The pond holds the whole sky, and a fish now and then.", "solid": true, "collision_radius": 9},
 		{"id": "road_milestone", "type": "rock", "position": [-60, 300], "color": [0.72, 0.7, 0.66], "label": "a milestone", "interactive": true, "lore": "A milestone. The number on it is half a mile less than the last one, but you don't remember passing the last one.", "solid": true, "collision_radius": 7},
 		{"id": "rise_milestone", "type": "rock", "position": [230, -880], "color": [0.72, 0.7, 0.66], "label": "another milestone", "interactive": true, "lore": "Another milestone, nearer the keep. Someone has balanced a tiny stone on top, and a smaller one on that.", "solid": true, "collision_radius": 7},
-		{"id": "skylark_boards", "type": "hz_examine", "position": [456, -972], "color": [0.72, 0.7, 0.66], "label": "a painted board", "interactive": true, "lore": "An old board on a post, painted with a patch of evening sky and something dark across one corner. There are others like it about the field, none of them matching. Someone went to a lot of trouble over this."}
+		{"id": "barn_wall", "type": "hz_examine", "position": [268, -770], "color": [0.72, 0.7, 0.66], "label": "an old barn wall", "interactive": true, "lore": "All that's left of a barn: one wall, still standing. Someone has painted on it, big dark brushstrokes that don't make anything. There's paint on the bales too, and on the stones. Odd."}
 	],
 	"ambient_pals": [
 		{"id": "pal_fm_0", "home": [-300, 700], "roam_radius": 120, "region": "fm", "species": "rabbit", "variant": 0, "look": {"ear_rest": 2.0, "bounce_base": 2.6, "wag_life": 2.2, "body_scale": 0.86}},
@@ -519,7 +491,7 @@
 		{"id": "pal_fm_7", "home": [-100, -1500], "roam_radius": 160, "region": "fm", "species": "bird", "variant": 1, "look": {"ear_rest": 2.0, "bounce_base": 2.6, "wag_life": 2.2, "body_scale": 0.86}},
 		{"id": "pal_fm_8", "home": [-760, 120], "roam_radius": 90, "region": "fm", "species": "cat", "variant": 2, "look": {"ear_rest": 2.0, "bounce_base": 2.6, "wag_life": 2.2, "body_scale": 0.86}}
 	],
-	"_secret_comment": "This world's one SECRET. reveal.type 'align': the painted boards (tree kinds hz_board_0..7) only line up into the skylark picture from 'spot' looking 'facing_deg' (south) with this world's perspective camera. Standing still there facing near enough south captures the view (PerspectiveView.set_magnet), it settles exactly, and held for 'hold_seconds' the painted lark lifts off the boards and flutters down at your feet as the prop (AlignGate / AlignDirector). The server only checks 'this world, standing at it'.",
+	"_secret_comment": "This world's one SECRET. reveal.type 'align': the paint on the farmyard (tree kinds hz_barnwall, hz_scarecrow, hz_bales, hz_drywall) only joins up into the skylark picture from 'spot' looking 'facing_deg' (south) with this world's perspective camera. Standing still there facing near enough south captures the view (PerspectiveView.set_magnet), it settles exactly, and held for 'hold_seconds' the painted lark lifts off and flutters down at your feet as the prop (AlignGate / AlignDirector). The server only checks 'this world, standing at it'.",
 	"secret": {
 		"id": "wooden_lark",
 		"position": [
@@ -563,25 +535,26 @@
 			"notice_hold": 2.0,
 			"visit_range": 260.0,
 			"visit_reset": 520.0,
-			"lark_screen_x": -5.0,
-			"lark_screen_y": -15.0,
-			"lark_depth": 360.0,
-			"lark_span": 45.0,
+			"lark_screen_x": 68.0,
+			"lark_screen_y": 57.0,
+			"lark_depth": 470.0,
+			"lark_span": 38.0,
 			"land": [
 				400,
 				-1002
 			],
 			"bare": {
-				"hz_board_2": "res://assets/sprites/hz_board_2_bare.png",
-				"hz_board_3": "res://assets/sprites/hz_board_3_bare.png",
-				"hz_board_4": "res://assets/sprites/hz_board_4_bare.png"
+				"hz_barnwall": "res://assets/sprites/hz_barnwall_bare.png",
+				"hz_scarecrow": "res://assets/sprites/hz_scarecrow_bare.png",
+				"hz_bales": "res://assets/sprites/hz_bales_bare.png",
+				"hz_drywall": "res://assets/sprites/hz_drywall_bare.png"
 			},
 			"lines": {
 				"notice": "Your companion stops and looks back the way you came, as if something over there was looking at it.",
 				"visit": "Your companion trots off and sits very still in one particular spot, looking south.",
-				"settle": "From here, the boards in the field start to make sense."
+				"settle": "From here, the paint on the barn wall and the bales starts to line up."
 			},
-			"reveal_line": "The boards line up into one picture: a skylark over the setting sun. Then the lark isn't painted any more."
+			"reveal_line": "The smudges of paint join up into one picture: a skylark crossing the sun. Then the lark isn't paint any more."
 		},
 		"found_line": "Somebody painted a lark that could only be seen from one place, facing home. You found the place.",
 		"home_line": "Something has changed at home.",

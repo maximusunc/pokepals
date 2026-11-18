@@ -1589,23 +1589,30 @@ companion's brain, the server and every director see a plain 2D world. Only the 
    dropped), and while the camera is still nothing that never moves is projected again. Measured headless/xvfb on desktop:
    about 0.2 ms standing, about 1 ms walking. **Not yet measured in a browser on a phone**, which is the real test.
 
-**The secret: the skylark picture (reveal type `align`), agreed with the owner:** a picture painted across boards in a
-field that only lines up from one spot, **facing south** (so you have to turn round and look back the way you came), and
-you have to **hold it a couple of seconds** so walking past never sets it off. The picture is a **skylark over a low sun**
-(the owner's pick); held, the painted lark lifts off the boards and lands beside you as a carved wooden lark.
+**The secret: the skylark picture (reveal type `align`), agreed with the owner:** a picture that only lines up from one
+spot, **facing south** (so you have to turn round and look back the way you came), and you have to **hold it a couple of
+seconds** so walking past never sets it off. The picture is a **skylark over a low sun** (the owner's pick). It was first
+painted across eight boards on posts; the owner found those too apparent and chose to have it **painted on things already
+in the field** instead: a little farmyard (an old barn wall, a scarecrow, straw bales, a stretch of dry-stone wall), with
+just the lark's silhouette and a ring for the sun painted across their fronts. From anywhere else they're farm things with
+odd smudges of paint on them. Held, the painted lark lifts off and lands beside you as a carved wooden lark.
 
-How it works: `data/hz_skylark.json` (written by `pokepals/tools/gen_horizon.py`) lays the picture out in screen pixels
-as `data/view.json`'s camera sees it from the spot; each board stands at its own depth, drawn at one texel per screen
-pixel (`tex_scale` = depth / focal, a new per-kind art key), as a card facing the spot, on a post down to the ground.
-`tools/gen_farmeadow_world.py` stands them in the world and keeps the line of sight clear. Pure `AlignGate`
+How it works: every farmyard thing is drawn at the world's own scale and stands square to the spot (a card facing north).
+`pokepals/tools/gen_horizon.py` paints them: for each texel on a thing's front it works out where `data/view.json`'s camera
+at the spot would show it, and paints it if that screen pixel is part of the picture and this thing is the nearest there
+(a depth buffer). It writes each thing's painted front, its plain back (a card's new `"back"` art key, shown from behind)
+and a version without the lark, plus `data/hz_skylark.json` (each thing's depth and screen place, and how much of the
+lark falls on them: all of it). `tools/gen_farmeadow_world.py` stands them in the world, with an invisible wall along each
+(the spec's `fences`), and keeps the line of sight clear. Pure `AlignGate`
 (`scripts/world`, tested) over `AlignDirector` (`mechanics/`), `LarkFlight`, `PerspectiveView.set_magnet`. The server
 only checks "this world, standing at it". smoke_farmeadow checks the boards line up to within a pixel from the spot, that
 they don't facing north, and the whole flow.
 
 **Judgment calls (all open):**
-1. **Where:** the spot is in the field east of the road's upper stretch (430, -1020); the boards stand 270 to 480 ahead
-   of the camera to the south, eight of them (4 x 2), the upper one in each column farther off so its post hides
-   behind the lower board. The biggest is about 87 units wide.
+1. **Where:** the spot is in the field east of the road's upper stretch (430, -1020). Because the eye is low (53),
+   ordinary things only reach a little above the horizon, so the picture sits low and to the right of where you stand:
+   the barn wall (150 x 100) 470 ahead, the bales 330, the scarecrow 310, the dry-stone wall 285. The lark's wings are
+   on the barn wall and its body and tail run onto the bales; the sun's ring crosses the wall and the stones.
 2. **Lining up:** stand still within 26 of the spot with the view within 35 degrees of south, and the view is drawn
    exactly onto the spot and heading (a "magnet", easing in about a second; lingering is held off, since a lower camera
    would break the picture), so you never have to hit the exact angle yourself. It counts as lined up within 1.5 units
@@ -1615,7 +1622,7 @@ they don't facing north, and the whole flow.
    each happens.
 4. **The reveal:** the painted lark comes alive exactly where it's painted (same size), shrinks to a real bird as it
    flies, turns from painted brown to pale carved wood, and lands beside you (to your right, so you're not hiding it).
-   The boards it was painted across are left showing only the sky and the sun, and stay that way once found.
+   The paint where it was is gone from the farmyard (the sun's ring stays), and stays that way once found.
 5. **The find:** a carved wooden lark (`wooden_lark`), standing in the grass as an upright figure (a flat prop would be a
    smear at this low angle); its keepsake at home is the lark on a little post (`kept_wooden_lark`). Qualities: old,
    made, airy. Found already, the picture still lines up from the spot (a toy), without its lark.

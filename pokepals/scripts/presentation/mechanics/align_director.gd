@@ -1,11 +1,11 @@
 class_name AlignDirector
 extends Node
-## Farmeadow's secret on screen: the skylark painted across eight boards in a field, which only line up from one
-## spot looking south. Drives the pure AlignGate each frame, and does what it says:
+## Farmeadow's secret on screen: the skylark painted across a little farmyard (an old barn wall, a scarecrow, straw
+## bales, a dry-stone wall), which only joins up into one picture from one spot looking south. Drives the pure AlignGate each frame, and does what it says:
 ##   * your companion points at the spot now and then as you come near, then trots over and sits right on it;
 ##   * standing still there, looking near enough south, the view is drawn exactly onto the spot and heading
 ##     (PerspectiveView.set_magnet: the picture clicks together);
-##   * held for a couple of seconds, the painted lark lifts off the boards (LarkFlight) and flutters down at your
+##   * held for a couple of seconds, the painted lark lifts off the farmyard (LarkFlight) and flutters down at your
 ##     feet, where it's the secret's prop (`lark_landed`; SecretDirector reveals it).
 ## Found already, the picture still lines up when you stand there (a toy), but nothing more happens.
 
@@ -78,8 +78,9 @@ func update(delta: float) -> void:
 		_lift_the_lark(pv)
 
 
-## The painted lark comes off the boards: a little bird starting exactly where the painted one is (on the ray
-## through it, at the boards' distance, as big as it's painted) and fluttering down to land at your feet.
+## The painted lark comes off the farmyard: a little bird starting exactly where the painted one is (on the ray
+## through it, at the distance of the wall it's mostly painted on, as big as it's painted) and fluttering down to
+## land at your feet.
 func _lift_the_lark(pv: PerspectiveView) -> void:
 	var proj := pv.proj
 	var screen := Vector2(float(_reveal.get("lark_screen_x", -8.0)), float(_reveal.get("lark_screen_y", -9.0)))
@@ -96,10 +97,10 @@ func _lift_the_lark(pv: PerspectiveView) -> void:
 	_flight.landed.connect(_on_landed.bind(land))
 	_companion.point_at(Vector2.ZERO, 0.0)
 	(_player.get_parent() as Node).add_child(_flight)
-	_empty_the_picture()   # it comes off the boards: they're left showing just the sky and the sun
+	_empty_the_picture()   # it comes off the wall and the bales: they're left with just the sun's ring
 
 
-## Swap the boards the lark was painted across for their versions without it (the reveal's `bare`).
+## Swap the things the lark was painted across for their versions without it (the reveal's `bare`).
 func _empty_the_picture() -> void:
 	var bare: Dictionary = _reveal.get("bare", {})
 	if bare.is_empty() or _player == null:

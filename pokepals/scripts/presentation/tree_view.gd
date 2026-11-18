@@ -41,6 +41,8 @@ var tex_scale := 1.0
 # fence panel, a signpost) is instead a "card": PerspectiveView narrows it by the angle it's seen at.
 var facing := PI
 var angle_frames: Array = []
+## A card painted on its front only (Farmeadow's farmyard): what it shows when seen from behind.
+var back_tex: Texture2D = null
 
 var _time := 0.0
 
@@ -226,6 +228,10 @@ func _draw_glow(crown_sway: float) -> void:
 func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
 	if not angle_frames.is_empty():
 		_blit(angle_frames[angle_frame(angle_frames.size(), facing, PerspectiveView.view_yaw)], 0.0, base_y)
+		return true
+	if back_tex != null and tex != null and PerspectiveView.active != null \
+			and cos(angle_difference(facing - PI, PerspectiveView.view_yaw)) < 0.0:
+		_blit(back_tex, canopy_sway, base_y)   # seen from behind
 		return true
 	if trunk_tex != null and canopy_tex != null:
 		_blit(trunk_tex, 0.0, base_y)

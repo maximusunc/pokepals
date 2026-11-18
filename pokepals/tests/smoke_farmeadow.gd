@@ -81,14 +81,14 @@ func _process(_delta: float) -> bool:
 			var entry: Dictionary = sd._entry
 			if not entry.is_empty() or _frames - _phase_frame > 60 * 60:
 				var pv: PerspectiveView = _world._perspective
-				_fails += _check(not entry.is_empty() and String(entry.get("label", "")) == "a carved wooden lark", "standing on the spot facing south and holding still, the lark comes off the boards and lands to be found")
+				_fails += _check(not entry.is_empty() and String(entry.get("label", "")) == "a carved wooden lark", "standing on the spot facing south and holding still, the lark comes off the farmyard and lands to be found")
 				_fails += _check(not entry.is_empty() and (entry["pos"] as Vector2).distance_to(_spot) < 60.0, "...at your feet")
 				_fails += _check(not pv._magnet and pv.proj.center.distance_to(_world._player.position) < 40.0, "...and the view is let go again")
 				var bare := 0
 				for c in _world._scenery.get_children():
 					if c is TreeView and (c as TreeView).tex != null and (c as TreeView).tex.resource_path.ends_with("_bare.png"):
 						bare += 1
-				_fails += _check(bare == 3, "...and the boards it was painted across are left showing only the sky (%d)" % bare)
+				_fails += _check(bare == 4, "...and the paint it was is gone from the farmyard, the sun's ring left (%d)" % bare)
 				_toggle_checks()
 				return _finish()
 	return false
@@ -228,9 +228,9 @@ func _picture_checks() -> void:
 	var count := 0
 	var boards := {}
 	for c in _world._scenery.get_children():
-		if c is TreeView and String((c as TreeView).tex.resource_path if (c as TreeView).tex != null else "").contains("hz_board_"):
+		if c is TreeView and (c as TreeView).back_tex != null:
 			boards[(c as TreeView).tex.resource_path.get_file().get_basename()] = c
-	for b in sky["boards"]:
+	for b in sky["objects"]:
 		var t: TreeView = boards.get(b["id"])
 		if t == null:
 			continue
@@ -240,15 +240,17 @@ func _picture_checks() -> void:
 		var pr := pv.proj.project(t.position)
 		var xf := pv._card_xform(t, t.position, pr, pv.proj.center + Vector2(pr.x, pr.y))
 		var top_left := xf * Vector2(-size.x * 0.5, 6.0 - size.y) - pv.proj.center
-		var bottom_right := xf * Vector2(size.x * 0.5, 6.0 - size.y + float((b["rect"] as Array)[3]) * ts) - pv.proj.center
+		var bottom_right := xf * Vector2(size.x * 0.5, 6.0 - size.y + float(b["h"]) * ts) - pv.proj.center
 		var r: Array = b["rect"]
 		worst = maxf(worst, maxf(top_left.distance_to(Vector2(r[0], r[1])), bottom_right.distance_to(Vector2(float(r[0]) + float(r[2]), float(r[1]) + float(r[3])))))
-	_fails += _check(count == 8 and worst < 2.5, "from the spot, facing south, the eight boards line up into the picture (worst %.2f px)" % worst)
+	_fails += _check(count == 4 and worst < 2.5, "from the spot, facing south, the four painted things stand just where the picture needs them (worst %.2f px)" % worst)
+	var lark: Dictionary = sky["lark"]
+	_fails += _check(float(lark["coverage"]["lark"]) >= 0.99, "...and the whole lark falls on them (%.0f%%)" % (float(lark["coverage"]["lark"]) * 100.0))
 	# Turned the other way (north) from the same spot, whatever of them is still in front of the camera is nowhere
 	# near its place in the picture.
 	pv.proj.yaw = 0.0
 	var nearest_miss := INF
-	for b in sky["boards"]:
+	for b in sky["objects"]:
 		var t: TreeView = boards.get(b["id"])
 		if t == null:
 			continue
@@ -257,6 +259,15 @@ func _picture_checks() -> void:
 			continue
 		var r: Array = b["rect"]
 		nearest_miss = minf(nearest_miss, Vector2(pr.x, pr.y).distance_to(Vector2(float(r[0]) + float(r[2]) * 0.5, float(r[1]) + float(r[3]))))
+	# Seen from behind (looking north at them), they show their plain backs.
+	var backs := 0
+	PerspectiveView.view_yaw = 0.0
+	for t in boards.values():
+		var tv := t as TreeView
+		if cos(angle_difference(tv.facing - PI, PerspectiveView.view_yaw)) < 0.0 and tv.back_tex.resource_path.ends_with("_back.png"):
+			backs += 1
+	PerspectiveView.view_yaw = pv.rig.yaw
+	_fails += _check(backs == 4, "...and from behind they're just farm things, the paint only on their fronts")
 	_fails += _check(nearest_miss > 30.0, "...and facing north from the same spot, nothing lines up (nearest %.0f px off)" % nearest_miss)
 	pv.proj.center = saved_c
 	pv.proj.yaw = saved_y

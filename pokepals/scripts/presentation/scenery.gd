@@ -161,7 +161,9 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 	for path in cfg.get("angles", []):
 		if ResourceLoader.exists(String(path)):
 			angles.append(load(String(path)))
+	var back_path := String(cfg.get("back", ""))
 	var art := {
+		"back": load(back_path) if back_path != "" and ResourceLoader.exists(back_path) else null,
 		"tex_scale": float(cfg.get("tex_scale", 0.0)),  # world units per texel, when a kind's art isn't 1:1 (Farmeadow's boards)
 		"angles": angles,
 		"card": bool(cfg.get("card", false)),
@@ -203,6 +205,7 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.wind_speed = wind_speed
 	tree.phase = _phase_for(pos)
 	tree.angle_frames = art.get("angles", [])
+	tree.back_tex = art.get("back")
 	if bool(art.get("card", false)):
 		tree.set_meta("card", tree.facing)
 	add_child(tree)
