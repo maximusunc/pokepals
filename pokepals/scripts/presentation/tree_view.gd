@@ -164,8 +164,8 @@ func _draw_poof(k: float) -> void:
 
 func _draw_normal() -> void:
 	var cs := _sway(sway_gain)  # canopy catches the most wind
-	if tex_scale == 1.0:
-		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow
+	if tex_scale == 1.0 and not has_meta("card"):
+		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow; a flat card casts none
 	_draw_glow(cs)
 	if _draw_sprite(cs, 6.0):
 		return

@@ -25,7 +25,8 @@ extends Node
 const SHADER := preload("res://assets/perspective_ground.gdshader")
 const DEFAULTS_PATH := "res://data/view.json"
 const FLAT_LAYER := 2
-const PAST_EDGE := 2600.0  # how far past the world's bounds the ground carries on (GroundLayer.extend)  # visibility layer bit value for the flat world (rendered only into the SubViewports)
+const PAST_EDGE := 2600.0
+const LANDMARK_REACH := 6000.0  # landmarks (TreeView.is_great) are drawn this far ahead, past the draw distance  # how far past the world's bounds the ground carries on (GroundLayer.extend)  # visibility layer bit value for the flat world (rendered only into the SubViewports)
 
 ## The view on screen right now, or null. Taps and on-screen prompts go through it (see to_world / to_screen).
 static var active: PerspectiveView
@@ -245,6 +246,9 @@ func _enable() -> void:
 	rig.yaw = 0.0
 	rig.linger = 0.0
 	rig.still = 0.0
+	proj.center = _player.position
+	_camera.global_position = proj.center
+	process_priority = 100
 	var ground := _art.get_node_or_null("Ground") as GroundLayer
 	if ground != null:
 		ground.extend(PAST_EDGE)
@@ -283,6 +287,13 @@ func _disable() -> void:
 	if ground != null:
 		ground.extend(0.0)
 	_unfade_all()
+	for item in _items:
+		if is_instance_valid(item[0]) and int(item[1]) & F_SMALL:
+			(item[0] as Node2D).visible = true
+	for item in _items:
+		if is_instance_valid(item[0]) and (item[0] is TreeView):
+			(item[0] as Node2D).visible = true
+	_items_count = -1
 	for fl in _flutters:
 		fl.queue_free()
 	_flutters.clear()
@@ -320,6 +331,7 @@ func _process(delta: float) -> void:
 	view_yaw = rig.yaw
 	proj.yaw = rig.yaw
 	proj.blend(_cfg.get("camera", {}), _cfg.get("linger_camera", _cfg.get("camera", {})), _smooth(rig.linger))
+	_follow(delta)
 	_tick_life(delta)
 	_cloud_drift = fposmod(_cloud_drift + _cloud_speed * delta, 1.0)
 
@@ -356,6 +368,22 @@ func _tick_life(delta: float) -> void:
 		fl.tick(delta)
 
 
+## The view frames you, not wherever the camera node has eased to: its focus follows you a touch behind (the same
+## ease as CameraRig's), snapping when you've jumped (an arrival), and the camera node is kept on it, since what
+## the main view draws is laid out round the screen centre. Runs after CameraRig (process_priority).
+const FOLLOW_SPEED := 4.5
+const SNAP := 160.0
+
+
+func _follow(delta: float) -> void:
+	var target := _player.position
+	if proj.center.distance_to(target) > SNAP:
+		proj.center = target
+	else:
+		proj.center = proj.center.lerp(target, 1.0 - exp(-FOLLOW_SPEED * delta))
+	_camera.global_position = proj.center
+
+
 static func _smooth(t: float) -> float:
 	return t * t * (3.0 - 2.0 * t)
 
@@ -377,7 +405,6 @@ func _project() -> void:
 	var t0 := Time.get_ticks_usec()
 	var zoom := _zoom()
 	var view := _view_size() / zoom
-	proj.center = _camera.get_screen_center_position()
 	ViewCull.override_rect = proj.visible_bounds(view)
 	var a_near := proj.near_ground(view)
 	var a_focus := proj.back
@@ -395,30 +422,164 @@ func _project() -> void:
 	_mat.set_shader_parameter("cloud_drift", _cloud_drift)
 	if _day_tint != null:
 		_mat.set_shader_parameter("tint", _day_tint.color)
-	# Upright things: only the DRAWN transform changes, relative to Scenery (which sits at the world origin).
-	var to_local := _scenery.global_transform.affine_inverse()
-	var me := proj.project(_player.position) if _player != null else Vector3.ZERO
+	_project_uprights()
+	last_project_usec = Time.get_ticks_usec() - t0
+
+
+# What each Scenery child is, worked out once (and again whenever children come or go), so the per-frame pass
+# does no type checks or meta lookups: [node, flags]. It's the one loop over every upright thing each frame, so
+# it's kept tight: the projection is inlined (ViewProjection.project's maths) and plain nodes skip the matrices.
+const F_CARD := 1
+const F_FADE := 2       # a tree or building: fades when it stands between the camera and you
+const F_LANDMARK := 4   # drawn past the draw distance
+const F_BASIS := 8      # has its own scale/rotation to keep
+const F_SMALL := 16     # a bush or stump (the understory): culled to the wedge here, and dropped past SMALL_REACH
+const SMALL_REACH := 700.0
+const F_STATIC := 32    # never moves (trees, bushes, fences, buildings, portals): skipped while the camera is still
+var _cam_key := PackedFloat32Array()
+var _items: Array = []
+var _items_count := -1
+
+
+func _rebuild_items() -> void:
+	_items.clear()
 	for child in _scenery.get_children():
 		var n := child as Node2D
-		if n == null or not n.visible:
+		if n == null:
 			continue
-		var world_pos := _scenery.global_transform * n.position
-		var pr := proj.project(world_pos)
+		var flags := 0
+		if n.has_meta("card"):
+			flags |= F_CARD
+		if n is TreeView or n is BuildingView:
+			flags |= F_FADE
+		if n is TreeView and (n as TreeView).is_great:
+			flags |= F_LANDMARK
+		if n.has_meta("understory"):
+			flags |= F_SMALL
+		if n is TreeView or n is BuildingView or n is PortalView or n.has_meta("understory"):
+			flags |= F_STATIC
+		var b := n.transform
+		if not (b.x.is_equal_approx(Vector2.RIGHT) and b.y.is_equal_approx(Vector2.DOWN)):
+			flags |= F_BASIS
+		_items.append([n, flags])
+	_items_count = _scenery.get_child_count()
+
+
+func _project_uprights() -> void:
+	if _scenery.get_child_count() != _items_count:
+		_rebuild_items()
+	var origin_ok := _scenery.global_transform == Transform2D.IDENTITY
+	var to_local := _scenery.global_transform.affine_inverse()
+	var me := proj.project(_player.position) if _player != null else Vector3.ZERO
+	# ViewProjection.project, unrolled: a = along the heading from the camera's foot, b = across it.
+	var fwd := proj.forward()
+	var foot := proj.center - fwd * proj.back
+	var fx := fwd.x
+	var fy := fwd.y
+	var cp := cos(proj.pitch)
+	var sp := sin(proj.pitch)
+	var h := proj.height
+	var f := proj.focal()
+	var hsp := h * sp
+	var hcp := h * cp
+	var shift := proj.shift
+	var cx := proj.center.x
+	var cy := proj.center.y
+	var a_far := proj.back + proj.far
+	var a_land := proj.back + LANDMARK_REACH
+	var a_small := proj.back + SMALL_REACH
+	var slope := (_view_size().x * 0.5 / _zoom()) / f * 1.08
+	# The camera exactly where it was last frame: nothing that never moves needs projecting again.
+	var key := PackedFloat32Array([cx, cy, proj.yaw, h, proj.back, proj.pitch, shift, _zoom(), _items_count, me.x, me.y])
+	var still := key == _cam_key
+	_cam_key = key
+	for item in _items:
+		var flags: int = item[1]
+		if still and flags & F_STATIC:
+			continue
+		var n: Node2D = item[0]
+		if not is_instance_valid(n):
+			continue
+		if not n.visible and not (flags & F_SMALL):
+			continue
+		var wp := n.position if origin_ok else _scenery.global_transform * n.position
+		var rx := wp.x - foot.x
+		var ry := wp.y - foot.y
+		var a := rx * fx + ry * fy
+		if flags & F_SMALL:
+			var seen := a > 4.0 and a < a_small and absf(rx * -fy + ry * fx) < a * slope + SIDE_MARGIN
+			if seen != n.visible:
+				n.visible = seen
+			if not seen:
+				continue
+		var z := a * cp + hsp
 		var xf: Transform2D
-		if pr.z <= 0.0 or proj.ahead_of_focus(world_pos) > proj.far:
-			xf = Transform2D(0.0, Vector2.ZERO, 0.0, n.position)  # past the draw distance, or behind the eye
+		if z <= 1.0 or a > (a_land if flags & F_LANDMARK else a_far):
+			xf = Transform2D(Vector2.ZERO, Vector2.ZERO, n.position)  # past the draw distance, or behind the eye
 		else:
-			var basis := n.transform
-			basis.origin = Vector2.ZERO
-			if n.has_meta("card"):
-				# a flat thing, narrowed by the angle it's seen at (edge-on is a sliver; from behind it's mirrored)
-				var c := cos(angle_difference(float(n.get_meta("card")) - PI, proj.yaw))
-				basis = basis * Transform2D(0.0, Vector2(c if absf(c) > 0.12 else 0.12 * signf(c + 1e-6), 1.0), 0.0, Vector2.ZERO)
-			xf = Transform2D(0.0, Vector2(pr.z, pr.z), 0.0, to_local * (proj.center + Vector2(pr.x, pr.y))) * basis
-			if n is TreeView or n is BuildingView:
-				_fade_if_in_the_way(n, pr, me)
+			var b := rx * -fy + ry * fx  # along R = F turned a quarter clockwise
+			var s := f / z
+			var at := Vector2(cx + f * b / z, cy + shift + f * (hcp - a * sp) / z)
+			if not origin_ok:
+				at = to_local * at
+			if flags & F_CARD:
+				xf = _card_xform(n, wp, Vector3(at.x, at.y, s), at)
+			elif flags & F_BASIS:
+				var basis := n.transform
+				basis.origin = Vector2.ZERO
+				xf = Transform2D(Vector2(s, 0.0), Vector2(0.0, s), at) * basis
+			else:
+				xf = Transform2D(Vector2(s, 0.0), Vector2(0.0, s), at)
+			if flags & F_FADE and s > me.z:
+				_fade_if_in_the_way(n, Vector3(at.x - cx, at.y - cy, s), me)
+			elif flags & F_FADE and n.self_modulate.a < 1.0:
+				_fade_if_in_the_way(n, Vector3(at.x - cx, at.y - cy, s), me)
 		RenderingServer.canvas_item_set_transform(n.get_canvas_item(), xf)
-	last_project_usec = Time.get_ticks_usec() - t0
+
+
+## A flat thing standing up (a fence panel, a signpost): its two ends are projected, so it narrows and slants
+## with the angle it's seen at, the same as the ground under it, and a run of panels joins up end to end. Seen
+## from behind it comes out mirrored. Its height scales with its middle.
+func _card_xform(n: Node2D, world_pos: Vector2, pr: Vector3, at: Vector2) -> Transform2D:
+	var facing := float(n.get_meta("card"))
+	var along := Vector2(-cos(facing), -sin(facing))  # its drawing's +x, from the front: east for a south-facing card
+	var hw := 16.0
+	if n is TreeView and (n as TreeView).tex != null:
+		hw = (n as TreeView).tex.get_width() * (n as TreeView).tex_scale * 0.5
+	var pa := proj.project(world_pos - along * hw)
+	var pb := proj.project(world_pos + along * hw)
+	if pa.z <= 0.0 or pb.z <= 0.0:
+		return Transform2D(0.0, Vector2(pr.z, pr.z), 0.0, at)
+	var x_axis := (Vector2(pb.x, pb.y) - Vector2(pa.x, pa.y)) / (2.0 * hw)
+	return Transform2D(x_axis, Vector2(0.0, pr.z), at)
+
+
+## Scenery's grove, in a perspective world: a tree is shown only inside the wedge of ground the view can see
+## (a landmark out to LANDMARK_REACH), and swayed (redrawn) every frame only while near; a distant one sways
+## every few frames, where nobody can tell. Hiding drops it out of the y-sort and the projection pass too.
+const SWAY_NEAR := 520.0
+const SIDE_MARGIN := 90.0
+var _tick := 0
+
+
+func tick_trees(trees: Array, t: float) -> void:
+	_tick += 1
+	var fwd := proj.forward()
+	var right := proj.right()
+	var foot := proj.center - fwd * proj.back
+	var slope := (_view_size().x * 0.5 / _zoom()) / proj.focal() * 1.08
+	var reach := proj.back + proj.far
+	var i := 0
+	for tree in trees:
+		i += 1
+		var rel: Vector2 = tree.position - foot
+		var a := rel.dot(fwd)
+		var lim := proj.back + LANDMARK_REACH if tree.is_great else reach
+		var vis := a > 4.0 and a < lim and absf(rel.dot(right)) < a * slope + SIDE_MARGIN
+		if vis != tree.visible:
+			tree.visible = vis
+		if vis and (a < proj.back + SWAY_NEAR or (_tick + i) % 4 == 0):
+			tree.set_time(t)
 
 
 # A tree or building standing between the camera and you fades, so it never hides you.

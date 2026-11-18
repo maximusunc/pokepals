@@ -34,6 +34,10 @@ func _process(delta: float) -> void:
 	var vis := ViewCull.visible_world_rect(self, CULL_MARGIN)
 	var cull := vis.has_area()  # false in headless / before the camera exists → tick them all
 	_tick_buildings(delta, vis, cull)
+	# In a perspective world the visible ground is a long wedge, not a rect: the view culls and ticks the grove.
+	if PerspectiveView.active != null:
+		PerspectiveView.active.tick_trees(_trees, _time)
+		return
 	for tree in _trees:
 		if cull and not vis.has_point(tree.position):
 			if tree.visible:

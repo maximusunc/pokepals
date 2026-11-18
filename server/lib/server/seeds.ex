@@ -65,7 +65,10 @@ defmodule Server.Seeds do
       tags: ["sky", "islands", "windmills", "kites", "bright", "bird", "explore", "cozy", "secret"], accent: [0.62, 0.84, 1.0], featured: true},
     %{world_id: "13131313-1313-1313-1313-131313131313", slug: "thimblewick", name: "Thimblewick", file: "thimblewick.json",
       blurb: "A tiny cottage garden, and you are the size of a beetle. Clover for umbrellas, a teacup for a pond, a fence like a castle wall, and a gap in it too small for you.",
-      tags: ["garden", "tiny", "giant", "flowers", "rabbit", "explore", "cozy", "secret"], accent: [0.92, 0.84, 0.46], featured: true}
+      tags: ["garden", "tiny", "giant", "flowers", "rabbit", "explore", "cozy", "secret"], accent: [0.92, 0.84, 0.46], featured: true},
+    %{world_id: "15151515-1515-1515-1515-151515151515", slug: "farmeadow", name: "Farmeadow", file: "farmeadow.json",
+      blurb: "A rolling meadow and one long road, and you're seeing it from inside. Windmills, haystacks, hills all round the horizon, and an old keep at the far end of the road.",
+      tags: ["meadow", "road", "windmills", "perspective", "inside", "explore", "cozy"], accent: [0.74, 0.86, 0.52], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

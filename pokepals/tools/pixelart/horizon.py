@@ -6,8 +6,8 @@ degrees (column x is the bearing x / width * 360, 0 = north, clockwise), so turn
 far distance past you. Both are pixel art at one texel per screen pixel at the horizon.
 
   hills_panorama()   far blue ridges, a nearer green range with trees on its crest, the meadow's own rolling
-                     hills nearest; at north (where the long road runs) the far ridge carries the ruin of an old
-                     keep; windmills stand here and there on the near hills. The bottom rows fade into the haze
+                     hills nearest; windmills stand here and there on the near hills. (A world's own landmarks
+                     stand in front of it at any distance: PerspectiveView draws them past the draw distance.) The bottom rows fade into the haze
                      the far ground ends in, so the hills sit on the land with no seam.
   clouds_panorama()  soft cumulus with flat, shaded bottoms, drifting (the shader slides it slowly).
 
@@ -62,33 +62,6 @@ def _ridge(img, color, base, amp, seed, waves=7, dither=0.9):
     return heights
 
 
-def _keep(img, cx, ground, color):
-    """The ruin of an old keep on the far ridge, due north: a broken curtain wall between two towers, one fallen."""
-    px = img.load()
-    shade = _mix(color, (0, 0, 0), 0.1)
-
-    def rect(x0, y0, w, h, c):
-        for x in range(x0, x0 + w):
-            for y in range(y0, y0 + h):
-                xx = x % W
-                if 0 <= y < HILLS_H:
-                    px[xx, y] = c + (255,)
-
-    top = HILLS_H - ground
-    rect(cx - 22, top - 10, 44, 12, color)              # curtain wall
-    for i, x in enumerate(range(cx - 22, cx + 22, 4)):  # crenellations, broken toward the east
-        if i < 7 or i % 3 == 0:
-            rect(x, top - 12, 2, 2, color)
-    rect(cx - 28, top - 24, 9, 26, color)               # the tall west tower
-    rect(cx - 28, top - 26, 2, 2, color)
-    rect(cx - 24, top - 26, 2, 2, color)
-    rect(cx - 21, top - 26, 2, 2, color)
-    rect(cx - 25, top - 18, 2, 3, shade)                # a window
-    rect(cx + 19, top - 16, 8, 18, color)               # the east tower, its top fallen
-    rect(cx + 19, top - 18, 3, 2, color)
-    rect(cx - 4, top - 6, 5, 6, shade)                  # the gate
-
-
 def _windmill(img, cx, ground, color):
     px = img.load()
     top = HILLS_H - ground
@@ -126,8 +99,7 @@ def hills_panorama():
     far = (168, 186, 202)
     mid = (126, 156, 150)
     near = (98, 138, 94)
-    far_h = _ridge(img, far, 30, 34, seed=11, waves=8)
-    _keep(img, 0, int(far_h[0]) - 1, _mix(far, (40, 50, 70), 0.18))
+    _ridge(img, far, 30, 34, seed=11, waves=8)
     mid_h = _ridge(img, mid, 16, 22, seed=23, waves=7)
     _crest_trees(img, mid_h, _mix(mid, (20, 40, 30), 0.25), seed=5, every=(14, 44))
     near_h = _ridge(img, near, 9, 20, seed=37, waves=6)
