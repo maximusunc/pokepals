@@ -1,0 +1,119 @@
+{
+ "_comment": "Farmeadow's skylark picture (tools/gen_horizon.py): each board's rect on screen (from the view's centre, y down) as the perspective camera sees it from the secret's spot looking south, its depth ahead of the camera's foot, and tex_scale (world units per texel). Laid out for this camera.",
+ "camera": {
+  "height": 53.0,
+  "back": 220.0,
+  "pitch_deg": 0.0,
+  "shift": 52.0,
+  "far": 1250.0
+ },
+ "lark": {
+  "screen": [
+   -5.0,
+   -15.0
+  ],
+  "depth": 360.0,
+  "span": 45.0
+ },
+ "boards": [
+  {
+   "id": "hz_board_0",
+   "rect": [
+    -83,
+    -46,
+    40,
+    32
+   ],
+   "depth": 440.0,
+   "tex_scale": 2.0,
+   "sprite": "res://assets/sprites/hz_board_0.png"
+  },
+  {
+   "id": "hz_board_1",
+   "rect": [
+    -83,
+    -12,
+    40,
+    32
+   ],
+   "depth": 290.0,
+   "tex_scale": 1.318182,
+   "sprite": "res://assets/sprites/hz_board_1.png"
+  },
+  {
+   "id": "hz_board_2",
+   "rect": [
+    -41,
+    -46,
+    40,
+    32
+   ],
+   "depth": 360.0,
+   "tex_scale": 1.636364,
+   "bare": "res://assets/sprites/hz_board_2_bare.png",
+   "sprite": "res://assets/sprites/hz_board_2.png"
+  },
+  {
+   "id": "hz_board_3",
+   "rect": [
+    -41,
+    -12,
+    40,
+    32
+   ],
+   "depth": 268.0,
+   "tex_scale": 1.218182,
+   "bare": "res://assets/sprites/hz_board_3_bare.png",
+   "sprite": "res://assets/sprites/hz_board_3.png"
+  },
+  {
+   "id": "hz_board_4",
+   "rect": [
+    1,
+    -46,
+    40,
+    32
+   ],
+   "depth": 480.0,
+   "tex_scale": 2.181818,
+   "bare": "res://assets/sprites/hz_board_4_bare.png",
+   "sprite": "res://assets/sprites/hz_board_4.png"
+  },
+  {
+   "id": "hz_board_5",
+   "rect": [
+    1,
+    -12,
+    40,
+    32
+   ],
+   "depth": 322.0,
+   "tex_scale": 1.463636,
+   "sprite": "res://assets/sprites/hz_board_5.png"
+  },
+  {
+   "id": "hz_board_6",
+   "rect": [
+    43,
+    -46,
+    40,
+    32
+   ],
+   "depth": 400.0,
+   "tex_scale": 1.818182,
+   "sprite": "res://assets/sprites/hz_board_6.png"
+  },
+  {
+   "id": "hz_board_7",
+   "rect": [
+    43,
+    -12,
+    40,
+    32
+   ],
+   "depth": 300.0,
+   "tex_scale": 1.363636,
+   "sprite": "res://assets/sprites/hz_board_7.png"
+  }
+ ]
+}

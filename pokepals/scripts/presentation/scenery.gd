@@ -162,6 +162,7 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 		if ResourceLoader.exists(String(path)):
 			angles.append(load(String(path)))
 	var art := {
+		"tex_scale": float(cfg.get("tex_scale", 0.0)),  # world units per texel, when a kind's art isn't 1:1 (Farmeadow's boards)
 		"angles": angles,
 		"card": bool(cfg.get("card", false)),
 		"variants": variants,
@@ -188,7 +189,10 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	# Crisp pixel art when the 640x360 view is scaled up to the window. A glowing growth (Nocthollow's)
 	# keeps linear filtering, or its soft halo would turn blocky.
 	# Smooth @2x art (Bobbledown's) is drawn at half size and stays linear too.
-	if bool(art.get("hd", false)):
+	if float(art.get("tex_scale", 0.0)) > 0.0:
+		tree.tex_scale = float(art["tex_scale"])
+		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	elif bool(art.get("hd", false)):
 		tree.tex_scale = 0.5
 	elif float(art["glow_radius"]) <= 0.0:
 		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST

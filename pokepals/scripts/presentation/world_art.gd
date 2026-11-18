@@ -2001,6 +2001,27 @@ func _draw_dream_lantern(c: Vector2, tint: Color, k: float) -> void:
 	draw_rect(Rect2(c + Vector2(-2.6, 0.2) * k, Vector2(5.2, 1.8) * k), Color(0.46, 0.36, 0.30))
 
 
+## Farmeadow's carved lark: a pale wooden bird with its wings raised, the grain showing, a dark eye. `k` scales it.
+func _draw_wooden_lark(c: Vector2, tint: Color, k: float) -> void:
+	var wood := tint.lightened(0.15)
+	var dark := tint.darkened(0.35)
+	draw_set_transform(c + Vector2(0, 2) * k, 0.0, Vector2(1.0, 0.4))
+	draw_circle(Vector2.ZERO, 8.0 * k, Color(0, 0, 0, 0.16))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	for side in [-1.0, 1.0]:
+		var tip := c + Vector2(side * 9.0, -11.0) * k
+		draw_colored_polygon(PackedVector2Array([c + Vector2(side * 1.0, -3.0) * k, tip, c + Vector2(side * 4.0, -1.0) * k]), wood)
+		draw_line(c + Vector2(side * 1.0, -3.0) * k, tip, dark, 1.0)
+	draw_set_transform(c + Vector2(0, -2) * k, 0.0, Vector2(1.0, 0.55))
+	draw_circle(Vector2.ZERO, 5.0 * k, wood)
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	draw_circle(c + Vector2(4.0, -4.0) * k, 2.4 * k, wood)
+	draw_line(c + Vector2(-5.0, -2.0) * k, c + Vector2(-8.0, -4.0) * k, dark, 1.0)
+	draw_line(c + Vector2(-2.0, -2.0) * k, c + Vector2(2.0, -2.0) * k, tint.darkened(0.15), 1.0)   # the grain
+	draw_rect(Rect2(c + Vector2(4.5, -5.0) * k, Vector2(1, 1)), Color(0.12, 0.08, 0.06))
+	draw_line(c + Vector2(6.0, -4.0) * k, c + Vector2(8.0, -3.6) * k, dark, 1.0)
+
+
 ## The frost-flower: a six-petalled flower of clear ice around a small blue-lit heart, with a slow glint
 ## that travels round the petals. `k` scales it (the keepsake is a touch smaller).
 func _draw_frost_flower(c: Vector2, tint: Color, k: float) -> void:
@@ -2520,6 +2541,15 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 			draw_circle(p + Vector2(0, 4), 8.0, Color(0.34, 0.52, 0.36), true, -1.0, true)
 			draw_arc(p + Vector2(0, 3), 6.0, 0.2, PI - 0.2, 10, Color(0.52, 0.70, 0.48), 1.5, true)
 			_draw_dream_lantern(p + Vector2(0, 2), color, 0.8)
+		"wooden_lark":
+			# Farmeadow's secret: the skylark that came off the painted boards, a little carved wooden bird now,
+			# wings up, sitting in the grass.
+			_draw_wooden_lark(p, color, 1.0)
+		"kept_wooden_lark":
+			# its keepsake at home: the same lark, on a little post of its own
+			draw_circle(p + Vector2(0, 5), 8.0, Color(0.20, 0.14, 0.10, 0.18), true, -1.0, true)
+			draw_rect(Rect2(p + Vector2(-1.5, -10), Vector2(3, 15)), Color(0.46, 0.34, 0.24))
+			_draw_wooden_lark(p + Vector2(0, -11), color, 0.85)
 		"frost_flower":
 			# Drifthallow's secret: a flower of frost in the snow-hare's den. Six clear petals the cold has
 			# made, and a heart that holds a little blue light. It has never melted and it glints, slowly.

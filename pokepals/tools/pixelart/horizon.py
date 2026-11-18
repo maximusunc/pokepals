@@ -419,6 +419,139 @@ def haystack():
     return sp.outline()
 
 
+# ----------------------------------------------------------------------------------------- the skylark picture
+#
+# Farmeadow's secret: a picture painted across eight old boards on posts, scattered through a field at different
+# distances. From one spot, looking south, the boards line up into one picture: a skylark over a low sun. From
+# anywhere else they're odd painted boards. The picture is laid out in SCREEN pixels as the perspective camera sees
+# it from that spot (data/view.json's camera, PerspectiveView / ViewProjection); each board stands at its own depth,
+# drawn at one texel per screen pixel (its "tex_scale" is depth / focal), on a post reaching down to the ground.
+# skylark_boards() writes the boards and data/hz_skylark.json, which tools/gen_farmeadow_world.py reads to stand
+# them in the world. The upper board in each column stands farther off than the one below it, so its post hides
+# behind the lower board and never crosses the picture.
+
+PIC_X0, PIC_Y0 = -83, -46            # the picture's top-left on screen, from the view's centre (y down)
+BOARD_W, BOARD_H, GAP = 40, 32, 2
+# depth (distance ahead of the camera's foot) of each board: [column][row]; row 0 (upper) farther than row 1.
+# Kept close together: a board's size in the world grows with its depth, and a far one would be a billboard.
+BOARD_DEPTHS = [(440, 290), (360, 268), (480, 322), (400, 300)]
+LARK_AT = (0.47, 0.47)  # the lark's middle, as a share of the picture's width and height
+LARK_SPAN = 45.0        # its wingspan on screen
+
+
+def _paint_picture(w, h, with_lark=True):
+    """The whole picture, w x h screen pixels: a warm evening sky, a low sun, two streaks of cloud, and a skylark
+    in flight crossing in front of the sun."""
+    img = Image.new("RGBA", (w, h), (0, 0, 0, 255))
+    px = img.load()
+    top, low = (222, 146, 140), (250, 192, 104)
+    sun_c, sun_r = (w * 0.58, h + 2), 23.0
+    for y in range(h):
+        for x in range(w):
+            t = y / float(h - 1)
+            c = _mix(top, low, min(1.0, t + _bayer(x, y) * 0.12))
+            d = math.hypot(x - sun_c[0], y - sun_c[1])
+            if d < sun_r + 10:
+                c = _mix(c, (255, 232, 168), max(0.0, 1.0 - (d - sun_r) / 10.0) * 0.6)
+            if d < sun_r:
+                c = (255, 242, 196) if d < sun_r - 3 + _bayer(x, y) * 2 else (250, 178, 88)
+            px[x, y] = c + (255,)
+    # cloud streaks
+    for (cx, cy, ln) in ((30, 16, 44), (112, 28, 34), (84, 11, 22)):
+        for x in range(int(cx - ln / 2), int(cx + ln / 2)):
+            for dy in (0, 1):
+                if 0 <= x < w and (x + dy) % 7 != 0:
+                    px[x, cy + dy] = _mix(px[x, cy + dy][:3], (214, 170, 176), 0.7) + (255,)
+    if not with_lark:
+        return img
+    # the skylark: crossing in front of the sun, wings raised mid-beat, tail fanned, heading right
+    from PIL import ImageDraw
+    d = ImageDraw.Draw(img)
+    lark = (104, 76, 54)
+    shade = (70, 50, 38)
+    belly = (196, 160, 120)
+    bx, by = w * LARK_AT[0], h * LARK_AT[1]
+    k = LARK_SPAN / 60.0
+
+    def P(pts):
+        return [(bx + x * k, by + y * k) for x, y in pts]
+    d.polygon(P([(-4, -2), (-30, -30), (-26, -33), (-14, -24), (2, -6)]), fill=lark, outline=shade)    # far wing
+    d.polygon(P([(2, -3), (24, -34), (29, -31), (20, -14), (8, -1)]), fill=lark, outline=shade)        # near wing
+    d.polygon(P([(-14, 1), (-26, -3), (-27, 6), (-14, 4)]), fill=lark, outline=shade)                 # tail
+    d.ellipse([bx - 15 * k, by - 4 * k, bx + 10 * k, by + 5 * k], fill=lark, outline=shade)             # body
+    d.line(P([(-10, 3), (6, 3)]), fill=belly, width=1)                                                   # pale belly
+    d.ellipse([bx + 6 * k, by - 7 * k, bx + 14 * k, by + 1 * k], fill=lark, outline=shade)              # head
+    d.polygon(P([(14, -4), (19, -3), (14, -2)]), fill=shade)                                            # beak
+    d.point((bx + 11 * k, by - 4 * k), fill=(30, 22, 18))                                               # eye
+    d.polygon(P([(9, -9), (11, -13), (13, -8)]), fill=lark)                                             # its little crest
+    return img
+
+
+def _canvas_camera():
+    import json
+    import os
+    here = os.path.dirname(os.path.abspath(__file__))
+    with open(os.path.join(here, "..", "..", "data", "view.json")) as f:
+        cam = json.load(f)["camera"]
+    pitch = math.radians(cam.get("pitch_deg", 0.0))
+    focal = cam["back"] * math.cos(pitch) + cam["height"] * math.sin(pitch)
+    return cam, focal
+
+
+def skylark_boards():
+    """The eight boards: [(name, image, info)], info = rect on screen, depth and tex_scale; plus the whole picture."""
+    cam, f = _canvas_camera()
+    h, shift = cam["height"], cam["shift"]
+    pic_w = 4 * BOARD_W + 3 * GAP
+    pic_h = 2 * BOARD_H + GAP
+    picture = _paint_picture(pic_w, pic_h)
+    bare_picture = _paint_picture(pic_w, pic_h, with_lark=False)
+    wood = (150, 112, 78)
+    out = []
+    for col in range(4):
+        for row in range(2):
+            z = float(BOARD_DEPTHS[col][row])
+            sc = f / z                                   # screen pixels per world unit at that depth
+            x0 = PIC_X0 + col * (BOARD_W + GAP)
+            y0 = PIC_Y0 + row * (BOARD_H + GAP)
+            y_foot = shift + f * h / z                   # where its foot lands on screen
+            tall = int(round(y_foot + 6 * sc - y0))      # TreeView stands a sprite's bottom 6 units below its foot
+            post_end = int(round(y_foot - y0))
+            sp = Sprite(BOARD_W, tall)
+            box = (col * (BOARD_W + GAP), row * (BOARD_H + GAP), col * (BOARD_W + GAP) + BOARD_W, row * (BOARD_H + GAP) + BOARD_H)
+
+            def board(tile):
+                sp = Sprite(BOARD_W, tall)
+                # the painted face, with the boards' planks showing faintly through the paint
+                for yy in range(BOARD_H):
+                    for xx in range(BOARD_W):
+                        c = tile.getpixel((xx, yy))[:3]
+                        if xx % 9 == 0:
+                            c = _mix(c, (90, 70, 52), 0.18)
+                        sp.put(xx, yy, c)
+                # its post, from under the board down to the ground
+                for yy in range(BOARD_H, post_end):
+                    for xx in range(BOARD_W // 2 - 1, BOARD_W // 2 + 2):
+                        sp.put(xx, yy, _mix(wood, (40, 30, 20), 0.25) if xx == BOARD_W // 2 + 1 else wood)
+                return sp.outline()
+
+            tile = picture.crop(box)
+            bare = bare_picture.crop(box)
+            name = "hz_board_%d" % (col * 2 + row)
+            info = {"id": name, "rect": [x0, y0, BOARD_W, BOARD_H], "depth": z, "tex_scale": round(z / f, 6)}
+            out.append((name, board(tile), info))
+            if list(tile.getdata()) != list(bare.getdata()):  # the lark crosses this board: a version without it
+                info["bare"] = "res://assets/sprites/%s_bare.png" % name
+                out.append((name + "_bare", board(bare), None))
+    # where the painted lark is, so the one that comes alive can start exactly there
+    lx = PIC_X0 + pic_w * LARK_AT[0]
+    ly = PIC_Y0 + pic_h * LARK_AT[1]
+    col = min(3, int((lx - PIC_X0) // (BOARD_W + GAP)))
+    row = min(1, int((ly - PIC_Y0) // (BOARD_H + GAP)))
+    lark = {"screen": [round(lx, 1), round(ly, 1)], "depth": float(BOARD_DEPTHS[col][row]), "span": LARK_SPAN}
+    return out, picture, cam, lark
+
+
 if __name__ == "__main__":
     hills = hills_panorama()
     clouds = clouds_panorama()

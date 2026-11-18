@@ -389,10 +389,30 @@ func _tick_life(delta: float) -> void:
 ## the main view draws is laid out round the screen centre. Runs after CameraRig (process_priority).
 const FOLLOW_SPEED := 4.5
 const SNAP := 160.0
+const MAGNET_RATE := 3.0
+
+# A view a world wants you to see exactly (Farmeadow's picture, which only lines up from one spot): while it's
+# set, the focus eases onto `center` instead of you, the heading onto `yaw`, and lingering holds off.
+var _magnet := false
+var _magnet_center := Vector2.ZERO
+var _magnet_yaw := 0.0
+
+
+func set_magnet(on: bool, center := Vector2.ZERO, yaw := 0.0) -> void:
+	_magnet = on
+	_magnet_center = center
+	_magnet_yaw = yaw
+	rig.hold_linger = on
 
 
 func _follow(delta: float) -> void:
 	var target := _player.position
+	if _magnet:
+		target = _magnet_center
+		var k := 1.0 - exp(-MAGNET_RATE * delta)
+		rig.yaw = wrapf(rig.yaw + angle_difference(rig.yaw, _magnet_yaw) * k, -PI, PI)
+		view_yaw = rig.yaw
+		proj.yaw = rig.yaw
 	if proj.center.distance_to(target) > SNAP:
 		proj.center = target
 	else:

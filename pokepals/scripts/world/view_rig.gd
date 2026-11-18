@@ -22,6 +22,8 @@ var full_speed := 90.0    # the swing is at full rate from this speed
 var linger_after := 2.5   # seconds standing before it settles
 var linger_down := 0.45   # per second, settling
 var linger_up := 2.5      # per second, rising again
+## While something wants the view held steady (Farmeadow's picture lining up), standing still doesn't settle it.
+var hold_linger := false
 
 
 func configure(cfg: Dictionary) -> ViewRig:
@@ -48,5 +50,5 @@ func step(velocity: Vector2, delta: float) -> void:
 		still = 0.0
 	else:
 		still += delta
-	var want := 1.0 if still > linger_after else 0.0
+	var want := 1.0 if still > linger_after and not hold_linger else 0.0
 	linger = move_toward(linger, want, (linger_down if want > linger else linger_up) * delta)

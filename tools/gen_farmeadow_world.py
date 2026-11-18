@@ -13,7 +13,8 @@ windmills from 8 bearings ("angles"), the fences and the fingerpost as cards, th
 the same all the way round. It is still the same world underneath: the same companion, the same examine, the
 same portal home.
 
-No secret yet: that's to be decided. Fishing works (the mill pond); chopping is off (the windmills, the keep and
+Its SECRET is a skylark painted across eight boards in a field, which only line up into one picture from one spot,
+looking south (back the way you came): see SECRET below. Fishing works (the mill pond); chopping is off (the windmills, the keep and
 the fences are tree kinds, and none of them is wood).
 
 Hand-authored: the road, the fields, the windmills, the keep, every lore line, the art override. Procedural
@@ -137,6 +138,39 @@ for x, y, f in WINDMILLS:
     placed.append((x, y, 60))
 TREES.append([70, 1080, "signpost", 180])
 
+# ── THE SECRET: the skylark picture ──────────────────────────────────────────────────────────────────
+# Eight painted boards on posts stand in the field south of SPOT, each at its own distance. Standing on SPOT and
+# looking SOUTH (back the way you came up the road), the perspective camera sees them line up into one picture: a
+# skylark over a low sun. The boards' screen rects, depths and sizes come from the art (data/hz_skylark.json,
+# written by pokepals/tools/gen_horizon.py for data/view.json's camera); here they're stood in the world.
+SKYLARK = json.load(open("pokepals/data/hz_skylark.json"))
+SPOT = (430, -1020)
+FACING = 180.0
+_cam = SKYLARK["camera"]
+_f = _cam["back"] * math.cos(math.radians(_cam["pitch_deg"])) + _cam["height"] * math.sin(math.radians(_cam["pitch_deg"]))
+_F = (0.0, 1.0)          # looking south
+_R = (-1.0, 0.0)         # ...so screen right is west
+EYE = (SPOT[0] - _F[0] * _cam["back"], SPOT[1] - _F[1] * _cam["back"])
+BOARDS = []
+for b in SKYLARK["boards"]:
+    x0, y0, w, h = b["rect"]
+    z = b["depth"]
+    lat = (x0 + w / 2.0) * z / _f
+    pos = (EYE[0] + _F[0] * z + _R[0] * lat, EYE[1] + _F[1] * z + _R[1] * lat)
+    BOARDS.append((b, pos))
+    TREES.append([round(pos[0], 2), round(pos[1], 2), b["id"], 0])
+    placed.append((pos[0], pos[1], 20))
+placed.append((SPOT[0], SPOT[1], 40))
+
+
+def _in_view_of_picture(x, y, r):
+    """Inside the wedge of ground between the spot's camera and the boards: kept clear so nothing hides them."""
+    a = (x - EYE[0]) * _F[0] + (y - EYE[1]) * _F[1]
+    if a <= 0 or a > 700:
+        return False
+    lat = (x - EYE[0]) * _R[0] + (y - EYE[1]) * _R[1]
+    return abs(lat) < a * (130.0 / _f) + 30 + r
+
 
 def clear(x, y, r, road=70):
     if not (BOUNDS_MIN[0] + 150 <= x <= BOUNDS_MAX[0] - 150 and BOUNDS_MIN[1] + 150 <= y <= BOUNDS_MAX[1] - 150):
@@ -146,6 +180,8 @@ def clear(x, y, r, road=70):
     if any(math.hypot(x - pd["center"][0], y - pd["center"][1]) < pd["radius"] * 1.2 + r for pd in PONDS):
         return False
     if _near_road((x, y), road + r):
+        return False
+    if _in_view_of_picture(x, y, r):
         return False
     return all(math.hypot(x - px, y - py) >= r + pr for px, py, pr in placed)
 
@@ -230,7 +266,7 @@ def hedgerow(a, b, every=46, wobble=12):
 
 # copses, near and far, so the road always has something passing by
 for cx, cy, n, s in [(-420, 900, 7, 70), (420, 1180, 5, 60), (-380, 360, 9, 80), (380, -60, 8, 70),
-                     (-520, -420, 10, 90), (480, -1100, 9, 80), (-560, -1200, 11, 100), (-1300, -1500, 14, 140),
+                     (-520, -420, 10, 90), (720, -1260, 9, 80), (-560, -1200, 11, 100), (-1300, -1500, 14, 140),
                      (1300, -1650, 12, 120), (1350, 300, 10, 110), (-1450, 200, 9, 100), (1200, 1150, 8, 90),
                      (-1100, -700, 7, 80), (200, -1450, 6, 60), (-300, -1650, 6, 60)]:
     copse(cx, cy, n, s)
@@ -239,7 +275,53 @@ for a, b in [((-1650, 80), (-650, 80)), ((650, 60), (1650, 60)), ((-1650, -900),
              ((700, -920), (1650, -920)), ((-1200, 1300), (-1200, 400)), ((1150, 1300), (1150, 500))]:
     hedgerow(a, b)
 
-ALL_PROPS = SPECIAL
+ALL_PROPS = SPECIAL + [
+    prop("skylark_boards", "hz_examine", BOARDS[3][1], STONE, "a painted board",
+         "An old board on a post, painted with a patch of evening sky and something dark across one corner. There are "
+         "others like it about the field, none of them matching. Someone went to a lot of trouble over this."),
+]
+
+SECRET_COMMENT = ("This world's one SECRET. reveal.type 'align': the painted boards (tree kinds hz_board_0..7) only line "
+                  "up into the skylark picture from 'spot' looking 'facing_deg' (south) with this world's perspective "
+                  "camera. Standing still there facing near enough south captures the view (PerspectiveView.set_magnet), "
+                  "it settles exactly, and held for 'hold_seconds' the painted lark lifts off the boards and flutters "
+                  "down at your feet as the prop (AlignGate / AlignDirector). The server only checks 'this world, "
+                  "standing at it'.")
+LARK_AT = (SPOT[0] - 30, SPOT[1] + 18)   # beside you (to your right, looking south), not hidden behind you
+SECRET = {
+    "id": "wooden_lark",
+    "position": list(LARK_AT),
+    "radius": 120.0,
+    "prop": {"type": "wooden_lark", "color": [0.62, 0.46, 0.32], "label": "a carved wooden lark", "tags": ["small", "made", "old", "odd"]},
+    "lore": "A skylark carved from pale wood, wings up, worn smooth by hands. It's still warm, as if it had been flying.",
+    "reveal": {
+        "type": "align",
+        "spot": list(SPOT),
+        "facing_deg": FACING,
+        "hold_seconds": 2.0,
+        "capture_radius": 26.0, "capture_deg": 35.0, "still_speed": 14.0, "center_tol": 1.5, "yaw_tol_deg": 1.0,
+        "notice_range_low": 320.0, "notice_range_high": 720.0, "notice_cooldown_low": 16.0, "notice_cooldown_high": 6.0,
+        "notice_hold": 2.0, "visit_range": 260.0, "visit_reset": 520.0,
+        "lark_screen_x": SKYLARK["lark"]["screen"][0], "lark_screen_y": SKYLARK["lark"]["screen"][1],
+        "lark_depth": SKYLARK["lark"]["depth"], "lark_span": SKYLARK["lark"]["span"],
+        "land": list(LARK_AT),
+        "bare": {b["id"]: b["bare"] for b in SKYLARK["boards"] if "bare" in b},
+        "lines": {
+            "notice": "Your companion stops and looks back the way you came, as if something over there was looking at it.",
+            "visit": "Your companion trots off and sits very still in one particular spot, looking south.",
+            "settle": "From here, the boards in the field start to make sense.",
+        },
+        "reveal_line": "The boards line up into one picture: a skylark over the setting sun. Then the lark isn't painted any more.",
+    },
+    "found_line": "Somebody painted a lark that could only be seen from one place, facing home. You found the place.",
+    "home_line": "Something has changed at home.",
+    "qualities": ["old", "made", "airy"],
+    "keepsake": {
+        "id": "lark_on_a_post", "type": "kept_wooden_lark", "color": [0.62, 0.46, 0.32], "label": "a wooden lark on a little post",
+        "line": "The carved lark, on a post of its own. Your companion looks at it from one side, then the other, as if waiting for it to line up.",
+        "temperament": {"curiosity": 0.75, "energy": 0.55, "clinginess": 0.4},
+    },
+}
 
 AMBIENT_PALS = []
 for i, (species, home, r) in enumerate([("rabbit", (-300, 700), 120), ("rabbit", (420, 900), 140), ("bird", (-200, 200), 160),
@@ -258,7 +340,10 @@ ART = {
         "fence": {"render": "sprite", "sprite": S + "hz_fence.png", "sway": 0.0, "card": True},
         "signpost": {"render": "sprite", "sprite": S + "hz_signpost.png", "sway": 0.0, "card": True},
         "haystack": {"render": "sprite", "sprite": S + "hz_haystack.png", "sway": 0.0},
-        "props": {"unseen": ["hz_examine"]},
+        **{b["id"]: {"render": "sprite", "sprite": b["sprite"], "sway": 0.0, "card": True, "tex_scale": b["tex_scale"]}
+           for b in json.load(open("pokepals/data/hz_skylark.json"))["boards"]},
+        # wooden_lark: the secret's prop stands up as the landed LarkFlight here; drawn flat it'd be a smear
+        "props": {"unseen": ["hz_examine", "wooden_lark"]},
     },
 }
 
@@ -282,7 +367,7 @@ HEADER = ("FARMEADOW - a rolling meadow and one long road, the first world seen 
           "the road's south end; it runs north past fences, haystacks, copses and windmills to the ruin of an old keep, "
           "small on the horizon from the start. Upright things are tree kinds drawn to be seen from any side: windmills "
           "from 8 bearings ('angles'), fences and the fingerpost as 'card's, the keep and the haystacks round. Tree entries "
-          "are [x, y, kind] or [x, y, kind, facing bearing]. No secret yet. Generated by tools/gen_farmeadow_world.py (art: "
+          "are [x, y, kind] or [x, y, kind, facing bearing]. Its secret: see the 'secret' block (reveal type 'align'). Generated by tools/gen_farmeadow_world.py (art: "
           "pokepals/tools/gen_horizon.py) - edit that and re-run, don't hand-tune positions.")
 
 
@@ -323,6 +408,8 @@ out.append('\t"_fences_comment": "Invisible walls along each run of fence panels
 out.append('\t"fences": [\n%s\n\t],' % block(FENCES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
 out.append('\t"ambient_pals": [\n%s\n\t],' % block(AMBIENT_PALS))
+out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
+out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))
 out.append('\t"portals": [\n%s\n\t]' % block(PORTALS))
 out.append("}")
 text = "\n".join(out) + "\n"

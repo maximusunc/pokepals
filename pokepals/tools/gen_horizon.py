@@ -10,6 +10,7 @@ Writes, each with a .import sidecar (lossless, nearest-friendly, the same recipe
   assets/sprites/hz_fence.png    a split-rail fence panel (a "card")
   assets/sprites/hz_signpost.png a fingerpost (a "card")
   assets/sprites/hz_haystack.png a haystack
+  assets/sprites/hz_board_<0-7>.png + data/hz_skylark.json  the skylark picture's eight painted boards on posts
 
 A perspective world's spec points its view block's "backdrop" at these. Requires Pillow (tools-only); the PNGs
 are committed so the game never needs Python. After regenerating run `godot --headless --path pokepals --import`.
@@ -48,6 +49,20 @@ def main():
     _save(art.fence_panel(), "assets/sprites/hz_fence.png")
     _save(art.signpost(), "assets/sprites/hz_signpost.png")
     _save(art.haystack(), "assets/sprites/hz_haystack.png")
+    # the skylark picture's boards, and where each stands (read by tools/gen_farmeadow_world.py)
+    import json
+    boards, picture, cam, lark = art.skylark_boards()
+    for name, img, info in boards:
+        _save(img, "assets/sprites/%s.png" % name)
+        if info is not None:
+            info["sprite"] = "res://assets/sprites/%s.png" % name
+    data = {"_comment": "Farmeadow's skylark picture (tools/gen_horizon.py): each board's rect on screen (from the view's centre, y down) as the perspective camera sees it from the secret's spot looking south, its depth ahead of the camera's foot, and tex_scale (world units per texel). Laid out for this camera.",
+            "camera": cam, "lark": lark, "boards": [info for _, _, info in boards if info is not None]}
+    with open(os.path.join(ROOT, "data", "hz_skylark.json"), "w") as f:
+        json.dump(data, f, indent=1)
+    print("wrote data/hz_skylark.json")
+    if "--preview" in sys.argv:
+        picture.resize((picture.width * 3, picture.height * 3)).save(sys.argv[sys.argv.index("--preview") + 1] + ".picture.png")
     if "--preview" in sys.argv:
         from PIL import Image
         out = Image.new("RGBA", (art.W, art.CLOUDS_H + art.HILLS_H), (120, 170, 228, 255))

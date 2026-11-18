@@ -21,6 +21,7 @@ var _phase := 0
 var _phase_frame := 0
 var _fails := 0
 var _start := Vector2.ZERO
+var _spot := Vector2.ZERO
 
 
 func _process(_delta: float) -> bool:
@@ -66,6 +67,28 @@ func _process(_delta: float) -> bool:
 				var moved: Vector2 = _world._player.position - _start
 				_fails += _check(moved.x < -15.0, "\"down\" walks you back toward the camera (%s)" % str(moved.round()))
 				_fails += _check(absf(angle_difference(PerspectiveView.view_yaw, PI / 2.0)) < 0.15, "...without the camera flipping round")
+				_picture_checks()
+				# The secret: stand on the spot, looking roughly south, and keep still.
+				var reveal: Dictionary = WorldData.load_json("res://tests/world_fixtures/farmeadow.json")["secret"]["reveal"]
+				_spot = WorldData.to_vec2(reveal["spot"])
+				_world._player.position = _spot + Vector2(5, -3)
+				_world._player.velocity = Vector2.ZERO
+				_world._perspective.rig.yaw = PI - 0.35
+				_phase = 3
+				_phase_frame = _frames
+		3:
+			var sd = _world._secret_dir
+			var entry: Dictionary = sd._entry
+			if not entry.is_empty() or _frames - _phase_frame > 60 * 60:
+				var pv: PerspectiveView = _world._perspective
+				_fails += _check(not entry.is_empty() and String(entry.get("label", "")) == "a carved wooden lark", "standing on the spot facing south and holding still, the lark comes off the boards and lands to be found")
+				_fails += _check(not entry.is_empty() and (entry["pos"] as Vector2).distance_to(_spot) < 60.0, "...at your feet")
+				_fails += _check(not pv._magnet and pv.proj.center.distance_to(_world._player.position) < 40.0, "...and the view is let go again")
+				var bare := 0
+				for c in _world._scenery.get_children():
+					if c is TreeView and (c as TreeView).tex != null and (c as TreeView).tex.resource_path.ends_with("_bare.png"):
+						bare += 1
+				_fails += _check(bare == 3, "...and the boards it was painted across are left showing only the sky (%d)" % bare)
 				_toggle_checks()
 				return _finish()
 	return false
@@ -187,6 +210,56 @@ func _walk(solids: Array, bounds: Rect2, a: Vector2, b: Vector2) -> Vector2:
 		p += dir * 3.0
 		p = Solids.resolve(p, 6.0, solids, bounds, 2.0)
 	return p
+
+
+## The picture: from the spot, looking south, with the world's own camera, every board's painted face lands on
+## its own place in the picture (within a pixel or two); turned to look north from the same spot, they don't.
+func _picture_checks() -> void:
+	var pv: PerspectiveView = _world._perspective
+	var spec: Dictionary = WorldData.load_json("res://tests/world_fixtures/farmeadow.json")
+	var reveal: Dictionary = spec["secret"]["reveal"]
+	var sky: Dictionary = WorldData.load_json("res://data/hz_skylark.json")
+	var saved_c := pv.proj.center
+	var saved_y := pv.proj.yaw
+	pv.proj.configure(pv._cfg["camera"])
+	pv.proj.center = WorldData.to_vec2(reveal["spot"])
+	pv.proj.yaw = deg_to_rad(float(reveal["facing_deg"]))
+	var worst := 0.0
+	var count := 0
+	var boards := {}
+	for c in _world._scenery.get_children():
+		if c is TreeView and String((c as TreeView).tex.resource_path if (c as TreeView).tex != null else "").contains("hz_board_"):
+			boards[(c as TreeView).tex.resource_path.get_file().get_basename()] = c
+	for b in sky["boards"]:
+		var t: TreeView = boards.get(b["id"])
+		if t == null:
+			continue
+		count += 1
+		var ts := t.tex_scale
+		var size := t.tex.get_size() * ts
+		var pr := pv.proj.project(t.position)
+		var xf := pv._card_xform(t, t.position, pr, pv.proj.center + Vector2(pr.x, pr.y))
+		var top_left := xf * Vector2(-size.x * 0.5, 6.0 - size.y) - pv.proj.center
+		var bottom_right := xf * Vector2(size.x * 0.5, 6.0 - size.y + float((b["rect"] as Array)[3]) * ts) - pv.proj.center
+		var r: Array = b["rect"]
+		worst = maxf(worst, maxf(top_left.distance_to(Vector2(r[0], r[1])), bottom_right.distance_to(Vector2(float(r[0]) + float(r[2]), float(r[1]) + float(r[3])))))
+	_fails += _check(count == 8 and worst < 2.5, "from the spot, facing south, the eight boards line up into the picture (worst %.2f px)" % worst)
+	# Turned the other way (north) from the same spot, whatever of them is still in front of the camera is nowhere
+	# near its place in the picture.
+	pv.proj.yaw = 0.0
+	var nearest_miss := INF
+	for b in sky["boards"]:
+		var t: TreeView = boards.get(b["id"])
+		if t == null:
+			continue
+		var pr := pv.proj.project(t.position)
+		if pr.z <= 0.0:
+			continue
+		var r: Array = b["rect"]
+		nearest_miss = minf(nearest_miss, Vector2(pr.x, pr.y).distance_to(Vector2(float(r[0]) + float(r[2]) * 0.5, float(r[1]) + float(r[3]))))
+	_fails += _check(nearest_miss > 30.0, "...and facing north from the same spot, nothing lines up (nearest %.0f px off)" % nearest_miss)
+	pv.proj.center = saved_c
+	pv.proj.yaw = saved_y
 
 
 func _toggle_checks() -> void:

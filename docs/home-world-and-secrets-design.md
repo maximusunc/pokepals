@@ -1537,7 +1537,7 @@ listed here for review.**
 
 **What it is.** `server/priv/world_seeds/farmeadow.json` (and the test fixture) from `tools/gen_farmeadow_world.py`; art from
 `pokepals/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; catalog id `15151515-1515-1515-1515-151515151515`, slug
-`farmeadow`, listed and featured, with the standard small portal home beside the arrival spot. **No secret yet** (below).
+`farmeadow`, listed and featured, with the standard small portal home beside the arrival spot. Its secret is below.
 
 **How the view works.** A world opts in with a spec `view` block (`{"projection": "perspective", ...}`), deep-merged over
 `pokepals/data/view.json` (every camera number lives there). The world itself is untouched: positions, collision, the
@@ -1589,10 +1589,37 @@ companion's brain, the server and every director see a plain 2D world. Only the 
    dropped), and while the camera is still nothing that never moves is projected again. Measured headless/xvfb on desktop:
    about 0.2 ms standing, about 1 ms walking. **Not yet measured in a browser on a phone**, which is the real test.
 
-**Still to decide: its secret.** Farmeadow hides nothing yet. Ideas, none built: something only visible at the horizon
-(a light on the far hills that's gone when you look straight at it, found by walking where the companion keeps glancing);
-a windmill whose sails only turn when you and your companion stand still beside it long enough (lingering); a place the
-road forgets (a fork that only appears from one bearing). To be chosen with the owner.
+**The secret: the skylark picture (reveal type `align`), agreed with the owner:** a picture painted across boards in a
+field that only lines up from one spot, **facing south** (so you have to turn round and look back the way you came), and
+you have to **hold it a couple of seconds** so walking past never sets it off. The picture is a **skylark over a low sun**
+(the owner's pick); held, the painted lark lifts off the boards and lands beside you as a carved wooden lark.
+
+How it works: `data/hz_skylark.json` (written by `pokepals/tools/gen_horizon.py`) lays the picture out in screen pixels
+as `data/view.json`'s camera sees it from the spot; each board stands at its own depth, drawn at one texel per screen
+pixel (`tex_scale` = depth / focal, a new per-kind art key), as a card facing the spot, on a post down to the ground.
+`tools/gen_farmeadow_world.py` stands them in the world and keeps the line of sight clear. Pure `AlignGate`
+(`scripts/world`, tested) over `AlignDirector` (`mechanics/`), `LarkFlight`, `PerspectiveView.set_magnet`. The server
+only checks "this world, standing at it". smoke_farmeadow checks the boards line up to within a pixel from the spot, that
+they don't facing north, and the whole flow.
+
+**Judgment calls (all open):**
+1. **Where:** the spot is in the field east of the road's upper stretch (430, -1020); the boards stand 270 to 480 ahead
+   of the camera to the south, eight of them (4 x 2), the upper one in each column farther off so its post hides
+   behind the lower board. The biggest is about 87 units wide.
+2. **Lining up:** stand still within 26 of the spot with the view within 35 degrees of south, and the view is drawn
+   exactly onto the spot and heading (a "magnet", easing in about a second; lingering is held off, since a lower camera
+   would break the picture), so you never have to hit the exact angle yourself. It counts as lined up within 1.5 units
+   and 1 degree; held for **2 seconds**. Moving or turning away lets the hold go.
+3. **Your companion:** from 320 away (720 when deeply bonded) it stops and looks back toward the spot now and then; within
+   260 it trots over and sits on the very spot, once per approach, so you can see where to stand. Hints the first time
+   each happens.
+4. **The reveal:** the painted lark comes alive exactly where it's painted (same size), shrinks to a real bird as it
+   flies, turns from painted brown to pale carved wood, and lands beside you (to your right, so you're not hiding it).
+   The boards it was painted across are left showing only the sky and the sun, and stay that way once found.
+5. **The find:** a carved wooden lark (`wooden_lark`), standing in the grass as an upright figure (a flat prop would be a
+   smear at this low angle); its keepsake at home is the lark on a little post (`kept_wooden_lark`). Qualities: old,
+   made, airy. Found already, the picture still lines up from the spot (a toy), without its lark.
+6. **Words:** the hints, the boards' lore and the keepsake line are in the generator, to be tuned.
 
 ## How we work through it
 
