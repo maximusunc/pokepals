@@ -1,60 +1,43 @@
 class_name PerspectiveView
 extends Node
-## SPIKE (Horizon, the fake-3D world): look at an ordinary 2D world through a tilted perspective, with the
-## ground running off to a horizon and upright things standing on it, scaled by distance. The world itself is
-## untouched: every position stays a plain 2D world position, so logic, collision, the server and every
-## director carry on exactly as before. Only the DRAWING changes, in two parts:
-##   * the flat layer (WorldArt: ground, paths, ponds, props) is rendered top-down into two SubViewports that
-##     share this world's canvas (a sharp one for the near ground, a wide one out to the horizon), and a
-##     full-screen shader looks at those textures in perspective;
-##   * just before the frame is drawn, every direct child of Scenery (actors, trees, buildings, portals) has
-##     its DRAWN transform overridden in the RenderingServer: moved to its projected spot and scaled by depth.
-##     Node.position is never touched, so nothing that reads it sees any difference.
-## Throwaway: proving the trick and its cost decides whether Horizon is built for real.
+## The perspective ("inside") view: an ordinary 2D world seen from just behind and above you, the ground running
+## off to a horizon, everything standing up on it and shrinking with distance, the camera swinging round behind
+## the way you walk. A world opts in with a `view` block in its spec ({"projection": "perspective", ...},
+## deep-merged over data/view.json); any world can be looked at this way from the gear menu's dev item.
 ##
-## Two cameras, cycled from the gear menu (or P):
-##   SHOULDER: fixed, facing north, over the shoulder.
-##   INSIDE:   lower, nearer eye level; it swings lazily round behind you as you walk, the joystick moves you
-##             relative to the screen, your companion walks beside you, and standing still for a few seconds
-##             lets the camera drift down lower still (lingering).
+## The world itself is untouched: every position stays a plain 2D world position, so logic, collision, the
+## server and every director carry on exactly as before. Only the DRAWING changes, in two parts:
+##   * the flat layer (WorldArt: ground, paths, ponds, props, footprints) is rendered top-down into two
+##     SubViewports that share this world's canvas, both cut along the view's heading (a sharp one for the near
+##     ground, a wide one out to the draw distance), and a full-screen shader (assets/perspective_ground.gdshader)
+##     looks at them in perspective, with the sky above;
+##   * just before each frame is drawn, every direct child of Scenery (actors, trees, buildings, portals) has its
+##     DRAWN transform overridden in the RenderingServer: moved to its projected spot and scaled by depth. Godot
+##     y-sorts by that drawn transform, so nearer things still cover farther ones at any heading. Node.position
+##     is never written, so nothing that reads it sees any difference.
+## The camera is pure logic: ViewProjection (where things land) and ViewRig (how it turns and lingers).
 ##
-## The projection. The camera faces F = (0,-1) rotated by `yaw` (0 = north, +PI/2 = east). For a world point
-## p, with C the ground point at the focus:
-##   d = (p - C).rotated(-yaw)   (into the view's frame: -y is "away from the camera")
-##   z = z0 - d.y (distance from the eye);  s = z0 / z (scale; 1 at the focus)
-##   screen offset (world units at the focus) = focus + (d.x * s, k * z0 * (s - 1))
-## so near the focus the ground is foreshortened by k, and the horizon (s -> 0) sits k * z0 above it.
-
-enum Mode { OFF, SHOULDER, INSIDE }
+## Godot notes: a SubViewport is an off-screen screen; giving it the main viewport's `world_2d` makes it look at
+## the same canvas, and visibility layers + its `canvas_cull_mask` make it draw only the flat layer while the main
+## view skips it. RenderingServer.frame_pre_draw fires after all scripts have run for the frame, just before
+## drawing, so the transforms set there are what gets drawn.
 
 const SHADER := preload("res://assets/perspective_ground.gdshader")
+const DEFAULTS_PATH := "res://data/view.json"
 const FLAT_LAYER := 2  # visibility layer bit value for the flat world (rendered only into the SubViewports)
 
-## The view's turn, read by the sprite drawers (so a sprite faces relative to the camera) and the player's
-## input (so the joystick moves you relative to the screen). 0 whenever the perspective view is off.
+## The view on screen right now, or null. Taps and on-screen prompts go through it (see to_world / to_screen).
+static var active: PerspectiveView
+## The view's heading, read by the sprite drawers (a sprite faces relative to the camera) and the player's input
+## (the joystick moves you relative to the screen). 0 whenever no perspective view is on.
 static var view_yaw := 0.0
 
-# SHOULDER: the "over the shoulder" camera (chosen over a higher drone-like one and a near-the-ground one).
-@export var shoulder := { "k": 0.35, "z0": 260.0, "focus_y": 90.0, "s_far": 0.22 }
-# INSIDE: lower, with a nearer eye; and where lingering takes it.
-@export var inside := { "k": 0.24, "z0": 220.0, "focus_y": 105.0, "s_far": 0.15 }
-@export var inside_linger := { "k": 0.17, "z0": 210.0, "focus_y": 75.0, "s_far": 0.12 }
-@export var swing_rate := 2.0       # how quickly the INSIDE camera comes round behind you (per second, at full speed)
-@export var swing_sideways := 0.25  # ...as a share of that when walking straight across the screen (so holding a side doesn't spin you round)
-@export var swing_max_deg := 115.0  # walking back toward the camera (more than this off its facing) doesn't swing it
-@export var linger_after := 2.5     # seconds standing still before the camera starts to settle lower
-@export var linger_down_rate := 0.45
-@export var linger_up_rate := 2.5
-@export var companion_side_deg := 70.0  # INSIDE: the companion's follow spot, turned from behind you toward your side
-@export var near_s := 0.5            # the sharp near texture covers the ground from the bottom of the screen to here
-@export var near_tex_size := Vector2i(1024, 512)
-@export var far_tex_size := Vector2i(2048, 1024)
+var proj := ViewProjection.new()
+var rig := ViewRig.new()
+## Timings (usec) of the last frame's projection pass, for measuring.
+var last_project_usec := 0
 
-var k := 0.35
-var z0 := 260.0
-var focus := Vector2(0, 90)
-var s_far := 0.22
-
+var _cfg: Dictionary = {}
 var _world: Node2D
 var _art: CanvasItem
 var _scenery: Node2D
@@ -66,81 +49,90 @@ var _near_cam: Camera2D
 var _far: SubViewport
 var _far_cam: Camera2D
 var _layer: CanvasLayer
-var _rect: ColorRect
 var _mat: ShaderMaterial
 var _hidden: Array[CanvasItem] = []
-var _mode := Mode.OFF
-var _yaw := 0.0
-var _still := 0.0
-var _linger := 0.0
-var _limits := []
-## Timings (usec) of the last frame's projection pass, for measuring.
-var last_project_usec := 0
+var _saved_camera := {}
+var _on := false
 
 
-func setup(world: Node2D, art: CanvasItem, scenery: Node2D, camera: Camera2D, player: Node2D = null, companion: Node2D = null) -> void:
+static func defaults() -> Dictionary:
+	return WorldData.load_json(DEFAULTS_PATH)
+
+
+## Does this world's spec ask to be seen in perspective?
+static func wants(spec: Dictionary) -> bool:
+	return String(spec.get("view", {}).get("projection", "")) == "perspective"
+
+
+func setup(world: Node2D, art: CanvasItem, scenery: Node2D, camera: Camera2D, player: Node2D, companion: Node2D, spec_view: Dictionary = {}) -> void:
 	_world = world
 	_art = art
 	_scenery = scenery
 	_camera = camera
 	_player = player
 	_companion = companion
+	_cfg = ArtStyle.deep_merge(defaults(), spec_view)
+	rig.configure(_cfg)
+	proj.configure(_cfg.get("camera", {}))
 	set_process(false)
 
 
 func is_on() -> bool:
-	return _mode != Mode.OFF
-
-
-func mode() -> int:
-	return _mode
-
-
-## The label for the gear menu's item: what a tap switches TO.
-func next_label() -> String:
-	match _mode:
-		Mode.OFF: return "Shoulder view (test)"
-		Mode.SHOULDER: return "Inside view (test)"
-	return "Top-down view (test)"
-
-
-## Top-down -> shoulder -> inside -> top-down.
-func cycle() -> void:
-	set_mode((_mode + 1) % 3)
+	return _on
 
 
 func set_on(on: bool) -> void:
-	set_mode(Mode.SHOULDER if on else Mode.OFF)
-
-
-func set_mode(m: int) -> void:
-	if m == _mode:
+	if on == _on:
 		return
-	var was_on := _mode != Mode.OFF
-	_mode = m
-	if m != Mode.OFF and not was_on:
+	_on = on
+	if on:
 		_enable()
-	elif m == Mode.OFF and was_on:
+	else:
 		_disable()
-	_yaw = 0.0
-	view_yaw = 0.0
-	_still = 0.0
-	_linger = 0.0
-	_apply_params()
-	if _companion != null and "follow_side" in _companion:
-		_companion.follow_side = deg_to_rad(companion_side_deg) if m == Mode.INSIDE else 0.0
-	set_process(m == Mode.INSIDE)
 
 
-func _apply_params() -> void:
-	var a: Dictionary = inside if _mode == Mode.INSIDE else shoulder
-	var b: Dictionary = inside_linger if _mode == Mode.INSIDE else shoulder
-	var t := _linger
-	k = lerpf(float(a["k"]), float(b["k"]), t)
-	z0 = lerpf(float(a["z0"]), float(b["z0"]), t)
-	focus = Vector2(0, lerpf(float(a["focus_y"]), float(b["focus_y"]), t))
-	s_far = lerpf(float(a["s_far"]), float(b["s_far"]), t)
+# ---------------------------------------------------------------------------------------------- screen <-> world
 
+## The world point under a screen position (viewport coordinates, as an input event gives them): the ground seen
+## there in perspective, or the canvas inverse when no perspective view is up. A tap on the sky gives the far
+## ground straight ahead of it.
+static func to_world(ci: CanvasItem, screen_pos: Vector2) -> Vector2:
+	if active != null:
+		return active._screen_to_world(screen_pos)
+	return ci.get_viewport().get_canvas_transform().affine_inverse() * screen_pos
+
+
+## Where a world point appears on screen (viewport coordinates) and how big things there are drawn (1 = native).
+static func to_screen(ci: CanvasItem, world_pos: Vector2) -> Vector3:
+	if active != null:
+		return active._world_to_screen(world_pos)
+	var p := ci.get_viewport().get_canvas_transform() * world_pos
+	return Vector3(p.x, p.y, 1.0)
+
+
+func _view_size() -> Vector2:
+	return _world.get_viewport_rect().size
+
+
+func _zoom() -> float:
+	return _camera.zoom.x
+
+
+func _screen_to_world(screen_pos: Vector2) -> Vector2:
+	var off := (screen_pos - _view_size() * 0.5) / _zoom()
+	var g: Variant = proj.unproject(off)
+	if g == null:
+		g = proj.unproject(Vector2(off.x, proj.horizon_y() + 1.0))
+	return g if g != null else proj.center
+
+
+func _world_to_screen(world_pos: Vector2) -> Vector3:
+	var p := proj.project(world_pos)
+	var s := _view_size() * 0.5 + Vector2(p.x, p.y) * _zoom()
+	return Vector3(s.x, s.y, p.z * _zoom())
+
+
+# ------------------------------------------------------------------------------------------------- on / off
 
 func _new_flat(size: Vector2i) -> Array:
 	var sub := SubViewport.new()
@@ -149,11 +141,11 @@ func _new_flat(size: Vector2i) -> Array:
 	sub.canvas_cull_mask = FLAT_LAYER
 	sub.render_target_update_mode = SubViewport.UPDATE_ALWAYS
 	sub.disable_3d = true
-	sub.transparent_bg = true  # past the world's edge reads as haze, not the clear colour
+	sub.transparent_bg = true  # past the world's edge reads as plain ground, not the clear colour
 	sub.snap_2d_transforms_to_pixel = true
 	add_child(sub)
 	var cam := Camera2D.new()
-	cam.ignore_rotation = false  # the texture is cut along the view's turn, so its texels line up with the screen
+	cam.ignore_rotation = false  # the texture is cut along the view's heading, so its texels line up with the screen
 	sub.add_child(cam)
 	cam.make_current()
 	return [sub, cam]
@@ -161,10 +153,10 @@ func _new_flat(size: Vector2i) -> Array:
 
 func _enable() -> void:
 	var vp := _world.get_viewport()
-	var n := _new_flat(near_tex_size)
+	var n := _new_flat(_vec2i(_cfg.get("near_tex", [1024, 512])))
 	_near = n[0]
 	_near_cam = n[1]
-	var f := _new_flat(far_tex_size)
+	var f := _new_flat(_vec2i(_cfg.get("far_tex", [1024, 512])))
 	_far = f[0]
 	_far_cam = f[1]
 	# The world node draws nothing itself but is a parent of both halves, so it is in both layers.
@@ -174,32 +166,52 @@ func _enable() -> void:
 	_layer = CanvasLayer.new()
 	_layer.layer = -1
 	add_child(_layer)
-	_rect = ColorRect.new()
-	_rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
-	_rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var rect := ColorRect.new()
+	rect.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	rect.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_mat = ShaderMaterial.new()
 	_mat.shader = SHADER
 	_mat.set_shader_parameter("near_tex", _near.get_texture())
 	_mat.set_shader_parameter("far_tex", _far.get_texture())
-	_rect.material = _mat
-	_layer.add_child(_rect)
-	# Things floating over the whole world that this spike doesn't project yet.
+	var sky: Dictionary = _cfg.get("sky", {})
+	_mat.set_shader_parameter("sky_top", _color(sky.get("top", [0.45, 0.66, 0.9])))
+	_mat.set_shader_parameter("sky_low", _color(sky.get("low", [0.86, 0.9, 0.92])))
+	_mat.set_shader_parameter("beyond", _color(sky.get("beyond", [0.27, 0.44, 0.21])))
+	rect.material = _mat
+	_layer.add_child(rect)
+	# Things that float over the whole world in top-down space and have no perspective form (yet).
 	for nm in ["AmbientLife", "Garlands", "SteamPuffs"]:
 		var ci := _world.get_node_or_null(nm) as CanvasItem
 		if ci != null and ci.visible:
 			ci.visible = false
 			_hidden.append(ci)
-	# The camera's world limits stop it at the edge, which in perspective just pushes you off the focus.
-	_limits = [_camera.limit_left, _camera.limit_top, _camera.limit_right, _camera.limit_bottom]
+	# The camera: no world limits (they'd push you off the focus at an edge) and no look-ahead (ahead is up).
+	_saved_camera = {
+		"limits": [_camera.limit_left, _camera.limit_top, _camera.limit_right, _camera.limit_bottom],
+		"look_ahead": _camera.get("look_ahead"),
+	}
 	_camera.limit_left = -10000000
 	_camera.limit_top = -10000000
 	_camera.limit_right = 10000000
 	_camera.limit_bottom = 10000000
+	if "look_ahead" in _camera:
+		_camera.set("look_ahead", 0.0)
+	if _companion != null and "follow_side" in _companion:
+		_companion.follow_side = deg_to_rad(float(_cfg.get("companion_side_deg", 70.0)))
+	rig.yaw = 0.0
+	rig.linger = 0.0
+	rig.still = 0.0
+	active = self
+	set_process(true)
 	RenderingServer.frame_pre_draw.connect(_project)
 
 
 func _disable() -> void:
 	RenderingServer.frame_pre_draw.disconnect(_project)
+	set_process(false)
+	if active == self:
+		active = null
+	view_yaw = 0.0
 	ViewCull.override_rect = Rect2()
 	_world.get_viewport().set_canvas_cull_mask_bit(1, true)
 	_world.visibility_layer = 1
@@ -207,10 +219,15 @@ func _disable() -> void:
 	for ci in _hidden:
 		ci.visible = true
 	_hidden.clear()
-	_camera.limit_left = _limits[0]
-	_camera.limit_top = _limits[1]
-	_camera.limit_right = _limits[2]
-	_camera.limit_bottom = _limits[3]
+	var lim: Array = _saved_camera["limits"]
+	_camera.limit_left = lim[0]
+	_camera.limit_top = lim[1]
+	_camera.limit_right = lim[2]
+	_camera.limit_bottom = lim[3]
+	if _saved_camera["look_ahead"] != null:
+		_camera.set("look_ahead", _saved_camera["look_ahead"])
+	if _companion != null and "follow_side" in _companion:
+		_companion.follow_side = 0.0
 	for c in _scenery.get_children():
 		if c is Node2D:
 			RenderingServer.canvas_item_set_transform((c as Node2D).get_canvas_item(), (c as Node2D).transform)
@@ -230,109 +247,83 @@ func _set_layer(n: Node, layer: int) -> void:
 
 
 func _exit_tree() -> void:
-	if _mode != Mode.OFF:
+	if _on:
 		RenderingServer.frame_pre_draw.disconnect(_project)
 		ViewCull.override_rect = Rect2()
 		view_yaw = 0.0
+		if active == self:
+			active = null
 
 
-## INSIDE: swing the view round behind the way you're walking (lazily, and not when you walk back toward the
-## camera), and settle lower while you stand still.
+# ------------------------------------------------------------------------------------------------- per frame
+
 func _process(delta: float) -> void:
 	if _player == null:
 		return
 	var v: Variant = _player.get("velocity")
-	var vel: Vector2 = v if v is Vector2 else Vector2.ZERO
-	var speed := vel.length()
-	if speed > 20.0:
-		var target := atan2(vel.x, -vel.y)
-		var diff := angle_difference(_yaw, target)
-		if absf(diff) < deg_to_rad(swing_max_deg):
-			var pace := clampf(speed / 90.0, 0.0, 1.0)
-			var w := swing_sideways + (1.0 - swing_sideways) * maxf(0.0, cos(diff))
-			_yaw += diff * (1.0 - exp(-swing_rate * pace * w * delta))
-		_still = 0.0
-	else:
-		_still += delta
-	view_yaw = _yaw
-	var want := 1.0 if _still > linger_after else 0.0
-	var rate := linger_down_rate if want > _linger else linger_up_rate
-	_linger = move_toward(_linger, want, rate * delta)
-	_apply_params()
+	rig.step(v if v is Vector2 else Vector2.ZERO, delta)
+	view_yaw = rig.yaw
+	proj.yaw = rig.yaw
+	proj.blend(_cfg.get("camera", {}), _cfg.get("linger_camera", _cfg.get("camera", {})), _smooth(rig.linger))
 
 
-## Where world point p lands, as an offset from the screen centre in world units at the focus (multiply by the
-## camera zoom for canvas units), and its scale. z = s <= 0 means behind the eye.
-func project(p: Vector2, c: Vector2) -> Vector3:
-	var d := (p - c).rotated(-_yaw)
-	var z := z0 - d.y
-	if z <= 1.0:
-		return Vector3(0, 0, 0)
-	var s := z0 / z
-	return Vector3(focus.x + d.x * s, focus.y + k * z0 * (s - 1.0), s)
+static func _smooth(t: float) -> float:
+	return t * t * (3.0 - 2.0 * t)
 
 
-## The ground between scales s_a (nearer) and s_b (farther), as a rect in the VIEW's frame around C.
-func _band(half: Vector2, s_a: float, s_b: float) -> Rect2:
-	var near_y := z0 - z0 / s_a
-	var far_y := z0 - z0 / s_b
-	var far_half_w := half.x / s_b
-	return Rect2(Vector2(-far_half_w, far_y), Vector2(2.0 * far_half_w, near_y - far_y))
-
-
-func _fit(sub_cam: Camera2D, tex: Vector2i, band: Rect2, c: Vector2) -> Array:
+## Lay a flat texture's camera over a band of ground (a rect in the view's frame) and say what it covers.
+func _fit(sub_cam: Camera2D, tex: Vector2i, band: Rect2) -> Array:
 	var zs := minf(float(tex.x) / band.size.x, float(tex.y) / band.size.y)
 	var covered := Vector2(tex) / zs
-	var center := band.get_center()
-	sub_cam.position = c + center.rotated(_yaw)
-	sub_cam.rotation = _yaw
+	var mid := band.get_center()
+	sub_cam.position = proj.center + mid.rotated(proj.yaw)
+	sub_cam.rotation = proj.yaw
 	sub_cam.zoom = Vector2(zs, zs)
-	return [center, covered]
+	return [mid, covered]
 
 
 func _project() -> void:
 	if not is_instance_valid(_scenery) or not _scenery.is_inside_tree():
 		return
 	var t0 := Time.get_ticks_usec()
-	var zoom := _camera.zoom.x
-	var view := _world.get_viewport_rect().size / zoom
-	var c := _camera.get_screen_center_position()
-	var half := view * 0.5
-	var s_bottom := 1.0 + (half.y - focus.y) / (k * z0)
-	var whole := _band(half, s_bottom, s_far)
-	# Culling: the bounding box of the visible ground, turned back into the world.
-	var bb := Rect2(c + whole.position.rotated(_yaw), Vector2.ZERO)
-	bb = bb.expand(c + Vector2(whole.end.x, whole.position.y).rotated(_yaw))
-	bb = bb.expand(c + Vector2(whole.position.x, whole.end.y).rotated(_yaw))
-	bb = bb.expand(c + whole.end.rotated(_yaw))
-	ViewCull.override_rect = bb
-	var nf := _fit(_near_cam, near_tex_size, _band(half, s_bottom, maxf(near_s, s_far)), c)
-	var ff := _fit(_far_cam, far_tex_size, whole, c)
-	_mat.set_shader_parameter("view_size", _world.get_viewport_rect().size)
+	var zoom := _zoom()
+	var view := _view_size() / zoom
+	proj.center = _camera.get_screen_center_position()
+	ViewCull.override_rect = proj.visible_bounds(view)
+	var a_near := proj.near_ground(view)
+	var a_focus := proj.back
+	var nf := _fit(_near_cam, _near.size, proj.band(view, a_near, a_focus + float(_cfg.get("near_reach", 220.0))))
+	var ff := _fit(_far_cam, _far.size, proj.band(view, a_near, a_focus + proj.far))
+	_mat.set_shader_parameter("view_size", _view_size())
 	_mat.set_shader_parameter("zoom", zoom)
-	_mat.set_shader_parameter("focus", focus)
-	_mat.set_shader_parameter("k", k)
-	_mat.set_shader_parameter("z0", z0)
+	_mat.set_shader_parameter("cam", Vector4(proj.height, proj.back, proj.pitch, proj.shift))
+	_mat.set_shader_parameter("far", proj.far)
 	_mat.set_shader_parameter("near_center", nf[0])
 	_mat.set_shader_parameter("near_size", nf[1])
 	_mat.set_shader_parameter("far_center", ff[0])
 	_mat.set_shader_parameter("far_size", ff[1])
-	_mat.set_shader_parameter("s_far", s_far)
-	_mat.set_shader_parameter("s_haze", lerpf(s_far, 1.0, 0.33))
-	# Upright things: overriding only the drawn transform, relative to Scenery (at the world origin).
-	var inv := _scenery.global_transform.affine_inverse()
+	# Upright things: only the DRAWN transform changes, relative to Scenery (which sits at the world origin).
+	var to_local := _scenery.global_transform.affine_inverse()
 	for child in _scenery.get_children():
 		var n := child as Node2D
 		if n == null or not n.visible:
 			continue
-		var pr := project(_scenery.global_transform * n.position, c)
+		var world_pos := _scenery.global_transform * n.position
+		var pr := proj.project(world_pos)
 		var xf: Transform2D
-		if pr.z < s_far * 0.9:
+		if pr.z <= 0.0 or proj.ahead_of_focus(world_pos) > proj.far:
 			xf = Transform2D(0.0, Vector2.ZERO, 0.0, n.position)  # past the draw distance, or behind the eye
 		else:
-			var q := c + Vector2(pr.x, pr.y)
 			var basis := n.transform
 			basis.origin = Vector2.ZERO
-			xf = Transform2D(0.0, Vector2(pr.z, pr.z), 0.0, inv * q) * basis
+			xf = Transform2D(0.0, Vector2(pr.z, pr.z), 0.0, to_local * (proj.center + Vector2(pr.x, pr.y))) * basis
 		RenderingServer.canvas_item_set_transform(n.get_canvas_item(), xf)
 	last_project_usec = Time.get_ticks_usec() - t0
+
+
+static func _vec2i(a: Array) -> Vector2i:
+	return Vector2i(int(a[0]), int(a[1]))
+
+
+static func _color(a: Array) -> Color:
+	return Color(float(a[0]), float(a[1]), float(a[2]))

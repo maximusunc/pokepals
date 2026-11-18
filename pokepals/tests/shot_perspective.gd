@@ -1,16 +1,16 @@
 extends SceneTree
-## SPIKE (Horizon): screenshot a world top-down, then in a perspective view, and time the projection.
-## Needs a real renderer (not --headless), e.g.:
+## Dev tool for the perspective view (PerspectiveView): screenshot a world top-down, then in perspective, and
+## time the projection pass. It walks north, then holds "right" (so the camera swings round), shoots mid-walk,
+## then stands still long enough to linger and shoots again. Needs a real renderer (not --headless), e.g.:
 ##   xvfb-run -s "-screen 0 1280x720x24" godot --path pokepals --resolution 1280x720 \
-##     --script res://tests/spike_perspective_shot.gd -- <fixture> <out_dir> [shoulder|inside]
-## Shoulder: walks north a little, then shoots. Inside: walks north, then holds "right" (so the camera swings
-## round), shoots mid-walk, then stands still long enough to linger and shoots again.
+##     --script res://tests/shot_perspective.gd -- <fixture> <out_dir> [<world id>]
+## A fixture whose spec asks for perspective starts in it; others are switched into it after the top-down shot.
 
 var _world: Node
 var _frames := 0
 var _fixture := "vale"
 var _out := "user://"
-var _mode := "shoulder"
+var _id := ""
 var _samples: Array = []
 var _quit_at := -1
 
@@ -24,10 +24,10 @@ func _process(_delta: float) -> bool:
 		if args.size() > 1:
 			_out = args[1]
 		if args.size() > 2:
-			_mode = args[2]
+			_id = args[2]
 		var router := root.get_node("/root/WorldRouter")
 		var net := root.get_node("/root/Net")
-		var id: String = router.VALE_ID
+		var id: String = _id if _id != "" else router.VALE_ID
 		net.prime_world_spec(id, WorldData.load_json("res://tests/world_fixtures/%s.json" % _fixture))
 		router.current_world = id
 		router.arrival_portal_id = ""
@@ -47,22 +47,23 @@ func _process(_delta: float) -> bool:
 		# a bonded companion keeps close, so it's in the shots
 		_world._companion._brain.get_self().bond = 1.0
 	if _frames == 203:
-		pv.set_mode(PerspectiveView.Mode.INSIDE if _mode == "inside" else PerspectiveView.Mode.SHOULDER)
+		pv.set_on(true)
 	if _frames > 210:
 		_samples.append(pv.last_project_usec)
 	if _frames == 210:
 		Input.action_press("ui_up")
-	if _mode == "shoulder" and _frames == 330:
-		Input.action_release("ui_up")
-		_shot("shoulder")
-		_finish()
-	if _mode == "inside":
+	if true:
 		if _frames == 260:
 			Input.action_release("ui_up")
 			Input.action_press("ui_right")
 		if _frames == 400:
 			print("SPIKE yaw after turning: %.0f deg" % rad_to_deg(PerspectiveView.view_yaw))
 			_shot("inside_walking")
+			# a tap on the companion's feet resolves to where it stands
+			var cpos: Vector2 = _world._companion.position
+			var at := PerspectiveView.to_screen(_world, cpos)
+			var back := PerspectiveView.to_world(_world, Vector2(at.x, at.y))
+			print("SPIKE tap round trip error: %.2f" % back.distance_to(cpos))
 		if _frames == 420:
 			Input.action_release("ui_right")
 		if _frames == 900:

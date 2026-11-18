@@ -75,8 +75,9 @@ func _process(_delta: float) -> void:
 	# Project the object's world point to screen. A CanvasLayer Control isn't moved by the camera,
 	# so we apply the viewport's canvas transform ourselves — this stays correct through the camera's
 	# pan and its opening zoom. The caret tip sits OBJECT_LIFT px above the object.
-	var xform := get_viewport().get_canvas_transform()
-	var tip := xform * _target_world - Vector2(0, OBJECT_LIFT)
+	# (In a perspective world it's where the object is drawn, its lift scaled by its distance.)
+	var at := PerspectiveView.to_screen(self, _target_world)
+	var tip := Vector2(at.x, at.y) - Vector2(0, OBJECT_LIFT * at.z)
 	var bsz := _button.get_combined_minimum_size()
 	_button.size = bsz
 	# Center the bubble over the tip, lifted by its height + the caret so the caret points down at it.
