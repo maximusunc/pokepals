@@ -191,6 +191,214 @@ def clouds_panorama():
     return img
 
 
+# ------------------------------------------------------------------------------------------------ the land
+
+OUTLINE = (52, 44, 40)
+
+
+class Sprite:
+    """A little RGBA canvas with the few primitives the props need."""
+
+    def __init__(self, w, h):
+        self.img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        self.px = self.img.load()
+        self.w, self.h = w, h
+
+    def put(self, x, y, c, a=255):
+        x, y = int(round(x)), int(round(y))
+        if 0 <= x < self.w and 0 <= y < self.h:
+            self.px[x, y] = tuple(c) + (a,)
+
+    def rect(self, x0, y0, w, h, c):
+        for x in range(int(x0), int(x0 + w)):
+            for y in range(int(y0), int(y0 + h)):
+                self.put(x, y, c)
+
+    def outline(self):
+        """A dark one-pixel rim round everything drawn (the game's sprite convention)."""
+        src = self.img.copy().load()
+        for x in range(self.w):
+            for y in range(self.h):
+                if src[x, y][3] == 0:
+                    for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                        xx, yy = x + dx, y + dy
+                        if 0 <= xx < self.w and 0 <= yy < self.h and src[xx, yy][3] > 0:
+                            self.px[x, y] = OUTLINE + (255,)
+                            break
+        return self.img
+
+
+def _shade3(c, t):
+    """Light from the left: t in -1 (lit) .. 1 (shadow) picks one of three tones, dithered between them."""
+    lit = _mix(c, (255, 250, 236), 0.22)
+    dark = _mix(c, (30, 30, 50), 0.32)
+    if t < -0.35:
+        return lit
+    if t > 0.45:
+        return dark
+    return c
+
+
+def windmill_frames(n=8):
+    """A white tower windmill seen from n bearings round it. Frame k: the viewer has turned k steps clockwise from
+    looking straight at its front (where the door and the sails are), so the mill appears turned the other way."""
+    frames = []
+    W_, H_ = 64, 96
+    wall = (232, 226, 210)
+    cap = (150, 92, 64)
+    sail = (238, 232, 218)
+    frame_c = (120, 84, 60)
+    door_c = (112, 78, 52)
+    base_y = H_ - 8
+    for k in range(n):
+        th = -k * math.tau / n  # the mill's front, relative to the viewer (0 = facing us)
+        sp = Sprite(W_, H_)
+        cx = W_ // 2
+
+        def tower():
+            for y in range(base_y - 46, base_y):
+                hy = (base_y - y) / 46.0
+                half = 10 - 4 * hy
+                for x in range(int(cx - half), int(cx + half) + 1):
+                    u = (x - cx) / max(half, 1)
+                    sp.put(x, y, _shade3(wall, u * 1.1 + _bayer(x, y) * 0.3))
+            # the door and a window, on the front face, where they turn to
+            if math.cos(th) > 0.15:
+                dx = math.sin(th) * 8
+                sp.rect(cx + dx - 2, base_y - 9, 4, 9, door_c)
+                sp.rect(cx + math.sin(th) * 6 - 1, base_y - 30, 3, 4, (80, 96, 120))
+            # the cap
+            for y in range(base_y - 56, base_y - 45):
+                hy = (base_y - 45 - y) / 11.0
+                half = 7 - 6 * hy * hy
+                for x in range(int(cx - half), int(cx + half) + 1):
+                    u = (x - cx) / max(half, 1)
+                    sp.put(x, y, _shade3(cap, u + _bayer(x, y) * 0.3))
+
+        hub = (cx + math.sin(th) * 6, base_y - 50)
+        fore = math.cos(th) >= 0
+
+        def sails(dim):
+            c_sail = _mix(sail, (120, 120, 130), 0.25) if dim else sail
+            c_frame = _mix(frame_c, (60, 60, 70), 0.3) if dim else frame_c
+            for a in (0.5, 0.5 + math.pi / 2, 0.5 + math.pi, 0.5 + 1.5 * math.pi):
+                for r in range(2, 27):
+                    x = hub[0] + math.cos(a) * r * math.cos(th)
+                    y = hub[1] + math.sin(a) * r
+                    sp.put(x, y, c_frame)
+                    if r > 6:  # the sailcloth, to one side of the stock
+                        for w in (1, 2, 3):
+                            sx = x + (-math.sin(a)) * w * math.cos(th)
+                            sy = y + math.cos(a) * w
+                            sp.put(sx, sy, c_sail)
+            sp.rect(hub[0] - 1, hub[1] - 1, 3, 3, c_frame)
+
+        if fore:
+            tower()
+            sails(False)
+        else:
+            sails(True)
+            tower()
+        # a small shadow at its foot
+        for x in range(cx - 14, cx + 15):
+            for y in range(base_y, base_y + 4):
+                if ((x - cx) / 14.0) ** 2 + ((y - base_y - 1) / 3.0) ** 2 <= 1 and sp.px[x, y][3] == 0:
+                    sp.put(x, y, (0, 0, 0), 46)
+        frames.append(sp.outline() if True else sp.img)
+    return frames
+
+
+def ruin_keep():
+    """The ruin at the end of the long road: a round stone keep, its top broken off, an arched door and a window,
+    ivy up one side. Round, so it looks the same from every side."""
+    W_, H_ = 120, 200
+    sp = Sprite(W_, H_)
+    cx = W_ // 2
+    stone = (168, 160, 148)
+    base_y = H_ - 10
+    rnd = random.Random(4)
+    top_line = [base_y - 150 + int(abs(math.sin(x * 0.21)) * 18 + (x % 7) * 2) for x in range(W_)]
+    for y in range(base_y - 170, base_y):
+        for x in range(cx - 34, cx + 35):
+            if y < top_line[x]:
+                continue
+            u = (x - cx) / 34.0
+            c = _shade3(stone, u * 1.15 + _bayer(x, y) * 0.35)
+            # courses of stone: a mortar line every 7 rows, joints staggered
+            row = (base_y - y) // 7
+            if (base_y - y) % 7 == 0 or ((x + row * 5) % 11 == 0):
+                c = _mix(c, (90, 86, 82), 0.35)
+            sp.put(x, y, c)
+    # the arched door and an upper window, dark inside
+    for y in range(base_y - 30, base_y):
+        for x in range(cx - 9, cx + 10):
+            if y > base_y - 22 or (x - cx) ** 2 + (y - (base_y - 22)) ** 2 <= 81:
+                sp.put(x, y, (46, 42, 44))
+    for y in range(base_y - 100, base_y - 84):
+        for x in range(cx + 4, cx + 11):
+            if y > base_y - 96 or (x - cx - 7.5) ** 2 + (y - (base_y - 96)) ** 2 <= 12:
+                sp.put(x, y, (46, 42, 44))
+    # ivy climbing the left (lit) side
+    ivy = [(70, 112, 60), (92, 138, 70), (54, 90, 52)]
+    for _ in range(420):
+        x = cx - 34 + int(abs(rnd.gauss(0, 9)))
+        y = base_y - int(abs(rnd.gauss(0, 60)))
+        if sp.px[min(max(x, 0), W_ - 1), min(max(y, 0), H_ - 1)][3] > 0:
+            sp.put(x, y, rnd.choice(ivy))
+    # fallen stones at its foot
+    for _ in range(9):
+        x = cx + rnd.randint(-48, 48)
+        y = base_y + rnd.randint(-3, 4)
+        sp.rect(x, y, rnd.randint(3, 6), 3, _mix(stone, (60, 60, 60), 0.15))
+    return sp.outline()
+
+
+def fence_panel():
+    """A length of split-rail fence between two posts (a 'card': PerspectiveView narrows it edge-on)."""
+    sp = Sprite(34, 24)
+    wood = (150, 108, 72)
+    for x in (1, 30):
+        sp.rect(x, 2, 3, 22, _mix(wood, (40, 30, 30), 0.15))
+        sp.rect(x, 2, 1, 22, _mix(wood, (255, 240, 220), 0.2))
+    for y in (6, 13):
+        sp.rect(2, y, 30, 3, wood)
+        sp.rect(2, y, 30, 1, _mix(wood, (255, 240, 220), 0.25))
+    return sp.outline()
+
+
+def signpost():
+    """A fingerpost: two arms, one pointing on up the road, one back the way you came (a card)."""
+    sp = Sprite(40, 48)
+    wood = (140, 100, 66)
+    sp.rect(18, 8, 4, 40, wood)
+    sp.rect(18, 8, 1, 40, _mix(wood, (255, 240, 220), 0.22))
+    board = (196, 164, 116)
+    for (x0, y0, d) in ((20, 10, 1), (20, 22, -1)):
+        for i in range(17):
+            x = x0 + i * d
+            h = 7 if i < 14 else 7 - (i - 13) * 2
+            sp.rect(x, y0 + (7 - h) // 2, 1, max(h, 1), board)
+        for i in range(2, 12, 3):
+            sp.put(x0 + i * d, y0 + 3, (110, 80, 52))
+    return sp.outline()
+
+
+def haystack():
+    """A round haystack (round: the same from every side)."""
+    sp = Sprite(40, 34)
+    hay = (214, 182, 104)
+    for y in range(4, 32):
+        for x in range(2, 38):
+            u = (x - 20) / 18.0
+            v = (y - 30) / 26.0
+            if u * u + v * v <= 1.0:
+                c = _shade3(hay, u * 1.1 + v * 0.3 + _bayer(x, y) * 0.4)
+                if (x * 3 + y * 7) % 11 == 0:
+                    c = _mix(c, (150, 120, 60), 0.4)
+                sp.put(x, y, c)
+    return sp.outline()
+
+
 if __name__ == "__main__":
     hills = hills_panorama()
     clouds = clouds_panorama()

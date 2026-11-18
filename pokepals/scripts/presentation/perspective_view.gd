@@ -282,6 +282,7 @@ func _disable() -> void:
 	var ground := _art.get_node_or_null("Ground") as GroundLayer
 	if ground != null:
 		ground.extend(0.0)
+	_unfade_all()
 	for fl in _flutters:
 		fl.queue_free()
 	_flutters.clear()
@@ -396,6 +397,7 @@ func _project() -> void:
 		_mat.set_shader_parameter("tint", _day_tint.color)
 	# Upright things: only the DRAWN transform changes, relative to Scenery (which sits at the world origin).
 	var to_local := _scenery.global_transform.affine_inverse()
+	var me := proj.project(_player.position) if _player != null else Vector3.ZERO
 	for child in _scenery.get_children():
 		var n := child as Node2D
 		if n == null or not n.visible:
@@ -408,9 +410,39 @@ func _project() -> void:
 		else:
 			var basis := n.transform
 			basis.origin = Vector2.ZERO
+			if n.has_meta("card"):
+				# a flat thing, narrowed by the angle it's seen at (edge-on is a sliver; from behind it's mirrored)
+				var c := cos(angle_difference(float(n.get_meta("card")) - PI, proj.yaw))
+				basis = basis * Transform2D(0.0, Vector2(c if absf(c) > 0.12 else 0.12 * signf(c + 1e-6), 1.0), 0.0, Vector2.ZERO)
 			xf = Transform2D(0.0, Vector2(pr.z, pr.z), 0.0, to_local * (proj.center + Vector2(pr.x, pr.y))) * basis
+			if n is TreeView or n is BuildingView:
+				_fade_if_in_the_way(n, pr, me)
 		RenderingServer.canvas_item_set_transform(n.get_canvas_item(), xf)
 	last_project_usec = Time.get_ticks_usec() - t0
+
+
+# A tree or building standing between the camera and you fades, so it never hides you.
+const FADED := 0.35
+var _faded := {}
+
+
+func _fade_if_in_the_way(n: CanvasItem, pr: Vector3, me: Vector3) -> void:
+	var in_way := me.z > 0.0 and pr.z > me.z and absf(pr.x - me.x) < 34.0 * pr.z and pr.y - 70.0 * pr.z < me.y
+	var want := FADED if in_way else 1.0
+	var a := n.self_modulate.a
+	if is_equal_approx(a, want):
+		if not in_way:
+			_faded.erase(n)
+		return
+	n.self_modulate.a = move_toward(a, want, 0.08)
+	_faded[n] = true
+
+
+func _unfade_all() -> void:
+	for n in _faded:
+		if is_instance_valid(n):
+			(n as CanvasItem).self_modulate.a = 1.0
+	_faded.clear()
 
 
 static func _vec2i(a: Array) -> Vector2i:

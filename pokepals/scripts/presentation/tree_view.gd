@@ -34,6 +34,13 @@ var glow_y := -24.0
 # (Bobbledown's), which is baked at twice the world resolution and drawn at half size, linearly
 # filtered, so its curves stay smooth when the view is scaled up.
 var tex_scale := 1.0
+# Perspective worlds (Horizon) see things from every side. `facing` is the way its front looks (a bearing in
+# radians: 0 north, PI/2 east, PI south, toward the top-down viewer). Something drawn from several bearings
+# round it gives them as `angle_frames` (frame k: seen by a viewer whose heading is k steps clockwise of looking
+# straight at its front), and shows the one for where you look from (PerspectiveView.view_yaw). A flat thing (a
+# fence panel, a signpost) is instead a "card": PerspectiveView narrows it by the angle it's seen at.
+var facing := PI
+var angle_frames: Array = []
 
 var _time := 0.0
 
@@ -215,6 +222,9 @@ func _draw_glow(crown_sway: float) -> void:
 ## piece (the older, less lively path). All parts are bottom-anchored at `base_y` so
 ## their feet meet the ground at the node origin — the same anchor SpriteSlot.draw uses.
 func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
+	if not angle_frames.is_empty():
+		_blit(angle_frames[angle_frame(angle_frames.size(), facing, PerspectiveView.view_yaw)], 0.0, base_y)
+		return true
 	if trunk_tex != null and canopy_tex != null:
 		_blit(trunk_tex, 0.0, base_y)
 		_blit(canopy_tex, canopy_sway, base_y)
@@ -223,6 +233,12 @@ func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
 		_blit(tex, canopy_sway, base_y)
 		return true
 	return false
+
+
+## Which of n views round a thing faces a viewer with heading `view_yaw` (0 = its front, then clockwise).
+static func angle_frame(n: int, front_facing: float, view_yaw: float) -> int:
+	var rel := wrapf(view_yaw - (front_facing - PI), 0.0, TAU)
+	return int(roundf(rel / (TAU / float(n)))) % n
 
 
 func _blit(t: Texture2D, off_x: float, base_y: float) -> void:

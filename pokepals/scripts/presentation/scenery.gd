@@ -108,7 +108,13 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	for t in data.get("trees", []):
 		var kind := String(t[2]) if (t is Array and t.size() > 2) else "tree"
 		_spawn_tree(WorldData.to_vec2(t), false, _art_for(arts, style, kind, "tree"), style, wind_strength, wind_speed)
-		_spec_trees.append(_trees[_trees.size() - 1])
+		var tv: TreeView = _trees[_trees.size() - 1]
+		_spec_trees.append(tv)
+		# An optional 4th entry: the bearing (degrees, 0 north, clockwise) its front faces (see TreeView.facing).
+		if t is Array and t.size() > 3:
+			tv.facing = deg_to_rad(float(t[3]))
+		if tv.has_meta("card"):
+			tv.set_meta("card", tv.facing)
 	for p in border_pts:
 		_spawn_tree(p, false, _art_for(arts, style, "tree", "tree"), style, wind_strength, wind_speed)
 
@@ -145,7 +151,15 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 			"canopy": SpriteSlot.resolve(vc, "canopy"),
 			"glow": WorldData.to_color(vc["glow"]) if vc.has("glow") else Color(0, 0, 0, 0),
 		})
+	# Perspective worlds: a kind drawn from several bearings ("angles": [paths, frame 0 = its front, then
+	# clockwise]), or a flat one foreshortened by the angle it's seen at ("card": true). See TreeView.facing.
+	var angles: Array = []
+	for path in cfg.get("angles", []):
+		if ResourceLoader.exists(String(path)):
+			angles.append(load(String(path)))
 	var art := {
+		"angles": angles,
+		"card": bool(cfg.get("card", false)),
 		"variants": variants,
 		"glow_radius": float(cfg.get("glow_radius", 0.0)),
 		"glow_y": float(cfg.get("glow_y", -24.0)),
@@ -180,6 +194,9 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.wind_strength = wind_strength
 	tree.wind_speed = wind_speed
 	tree.phase = _phase_for(pos)
+	tree.angle_frames = art.get("angles", [])
+	if bool(art.get("card", false)):
+		tree.set_meta("card", tree.facing)
 	add_child(tree)
 	_trees.append(tree)
 

@@ -5,6 +5,11 @@ Writes, each with a .import sidecar (lossless, nearest-friendly, the same recipe
 
   assets/sprites/hz_hills.png    the ring of distant hills round the horizon (a 360 degree panorama)
   assets/sprites/hz_clouds.png   the band of clouds above it (a 360 degree panorama)
+  assets/sprites/hz_windmill_<0-7>.png  a windmill seen from 8 bearings (a tree kind's "angles")
+  assets/sprites/hz_keep.png     the ruined keep at the end of the long road (round: one view)
+  assets/sprites/hz_fence.png    a split-rail fence panel (a "card")
+  assets/sprites/hz_signpost.png a fingerpost (a "card")
+  assets/sprites/hz_haystack.png a haystack
 
 A perspective world's spec points its view block's "backdrop" at these. Requires Pillow (tools-only); the PNGs
 are committed so the game never needs Python. After regenerating run `godot --headless --path pokepals --import`.
@@ -37,6 +42,12 @@ def main():
     clouds = art.clouds_panorama()
     _save(hills, "assets/sprites/hz_hills.png")
     _save(clouds, "assets/sprites/hz_clouds.png")
+    for k, frame in enumerate(art.windmill_frames()):
+        _save(frame, "assets/sprites/hz_windmill_%d.png" % k)
+    _save(art.ruin_keep(), "assets/sprites/hz_keep.png")
+    _save(art.fence_panel(), "assets/sprites/hz_fence.png")
+    _save(art.signpost(), "assets/sprites/hz_signpost.png")
+    _save(art.haystack(), "assets/sprites/hz_haystack.png")
     if "--preview" in sys.argv:
         from PIL import Image
         out = Image.new("RGBA", (art.W, art.CLOUDS_H + art.HILLS_H), (120, 170, 228, 255))
