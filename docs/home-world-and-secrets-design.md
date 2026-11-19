@@ -1525,6 +1525,118 @@ the red cotton and the gap, and the companion going through and coming back carr
 standalone `secret_reveal_test.exs` passes; `mix test` could not run (hex.pm blocked). *Not checked:* phone frame rate (about
 800 scenery nodes, view-culled), the world-pack build, a real two-player session, and the feel (that is the playtest).
 
+## Farmeadow (the perspective view) — built 2026-11, every choice below OPEN for the owner's review
+
+Farmeadow is the first of the "completely different skin" worlds (the others are issues #157 Vectorgrid, #158 Plaza, #159
+Glyphfall, #160 Facet): the same game, **seen from inside**. Agreed with the owner: a fake-3D perspective view (Godot 2D,
+no 3D nodes), the **"inside" camera** (low, near eye level, swinging round behind the way you walk, not the fixed
+over-the-shoulder one, which was dropped), the joystick relative to the screen, the companion beside you, standing still
+lets the camera settle lower ("lingering"), the swing speed (2.0) and a **rolling meadow with a long road** for the world.
+A throwaway spike (PR #161, closed unmerged) proved the trick first. **Everything finer was decided by the builder and is
+listed here for review.**
+
+**What it is.** `server/priv/world_seeds/farmeadow.json` (and the test fixture) from `tools/gen_farmeadow_world.py`; art from
+`pokepals/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; catalog id `15151515-1515-1515-1515-151515151515`, slug
+`farmeadow`, listed and featured, with the standard small portal home beside the arrival spot. Its secret is below.
+
+**How the view works.** A world opts in with a spec `view` block (`{"projection": "perspective", ...}`), deep-merged over
+`pokepals/data/view.json` (every camera number lives there). The world itself is untouched: positions, collision, the
+companion's brain, the server and every director see a plain 2D world. Only the drawing changes:
+- the camera is pure logic: `ViewProjection` (`scripts/world`, tested: a pinhole camera with eye height, distance behind
+  you, tilt, lens shift and draw distance; world -> screen and back) and `ViewRig` (tested: the swing and the lingering);
+- `PerspectiveView` (`scripts/presentation`) renders the flat layer (WorldArt: ground, paths, ponds, props, footprints)
+  top-down into two SubViewports cut along the view's heading (a sharp near one, a wide far one) and shows them through
+  `assets/perspective_ground.gdshader`, with the sky and the **backdrop** (360-degree panoramas of hills and clouds);
+- just before each frame is drawn it overrides the **drawn** transform of every Scenery child in the RenderingServer
+  (projected spot, scaled by depth); Godot y-sorts by it, so depth order is right at any heading;
+- taps (`PerspectiveView.to_world`), the examine prompt (`to_screen`), picking another player
+  (`PresenceDirector.peer_at_screen`) and the rod's line (`local_of`) go through it.
+
+**Judgment calls (all open):**
+1. **The name** "Farmeadow" (the code and art keep the working title: `PerspectiveView`, `hz_*` art). Blurb and tags in
+   `seeds.ex`.
+2. **The camera numbers** (`data/view.json`): eye height 53, 220 behind you, no tilt, the horizon a little below the
+   middle of the screen, draw distance 1250; lingering (after 2.5 s still) eases to eye height 36 over about 2 s. The
+   companion's follow spot is turned 70 degrees from straight behind you toward your side.
+3. **Swing rules.** Walking ahead or diagonally it catches up in about half a second; walking straight across the screen
+   only a quarter as fast (holding a side curves you gently round); walking back toward the camera (more than 115 degrees
+   off it) never swings it.
+4. **What's off in perspective.** AmbientLife's flat butterflies, cloud shadows and leaves, garlands and steam are hidden;
+   a few **butterflies** (`FlutterView`) stand in the scenery instead. A perspective world shouldn't use fog (`MistVeil`),
+   reflections, the tide or sky islands: those layers are top-down only. Buildings (`BuildingView`) are drawn front-on
+   only, so Farmeadow has none.
+5. **Upright things are tree kinds** seen from any side: the **windmill** drawn from 8 bearings (`"angles"`), the **fence**
+   panels and the **fingerpost** as `"card"`s (both ends projected, so a run of panels joins and slants with the land; no
+   blob shadow), the round **keep** (a landmark: drawn past the draw distance, so you see it from the start, small at the
+   end of the road) and the **haystacks**. Things you can examine there carry their words on `hz_examine` props, which the
+   art block lists as unseen.
+6. **A tree or building between the camera and you fades** to 35% (a card by its own drawn outline, so a wide wall
+   fades whenever it covers you). Near the camera nothing is hidden while any of it is still on screen. **Cards** (fences,
+   the fingerpost, the farmyard) are drawn in thin upright slices, each placed exactly where perspective puts it, so
+   a near end grows taller as well as lower instead of shearing across the screen; the part nearer the lens than a near
+   depth is cut off.
+   **Shadows lie on the ground** (`GroundShadows`, in the flat layer): a dark contact pool and a soft tongue cast
+   north-east (an afternoon sun), longer for taller things; sprites' own top-down shadows are off in perspective.
+   **The distance fades into a land haze** (a greyed green, `view.json` sky.land_haze, from 60% of the draw
+   distance), not the pale sky, and the hills' feet fade into the same colour: a white strip there made everything in
+   the middle distance look like it was standing on a cliff edge.
+7. **The land past the edge**: the pixel ground carries on 2600 past the world's bounds (mirrored noise, no paths), beyond
+   the one row of border trees, and the far ground fades into a haze that the backdrop hills stand on. The hills
+   panorama has windmills on its near hills.
+8. **The layout.** 3600 x 3600; the road runs 3300 px from the arrival spot to the keep, gently wandering, with lanes west
+   to the mill pond and east up Windmill Rise; fences along its first stretch (gates left open), a fenced paddock with
+   haystacks, a haystack field, copses near and far, hedgerows dividing the fields; four windmills; nine ambient pals
+   (rabbits, birds, a fox, a cat). Fishing works (the mill pond; the cast lands where it's drawn); chopping is off.
+9. **Performance.** The projection pass is one tight loop over cached per-node flags; in perspective the view culls and
+   ticks Scenery's grove itself (only the visible wedge; distant trees sway every fourth frame; bushes past 700 are
+   dropped), and while the camera is still nothing that never moves is projected again. Measured headless/xvfb on desktop:
+   about 0.2 ms standing, about 1 ms walking. **Not yet measured in a browser on a phone**, which is the real test.
+
+**The secret: the skylark picture (reveal type `align`), agreed with the owner:** a picture that only lines up from one
+spot, **facing south** (so you have to turn round and look back the way you came), and you have to **hold it a couple of
+seconds** so walking past never sets it off. The picture is a **skylark over a low sun** (the owner's pick). It was first
+painted across eight boards on posts; the owner found those too apparent and chose to have it **painted on things already
+in the field** instead: a little farmyard (an old barn wall, a scarecrow, straw bales, a stretch of dry-stone wall), with
+just the lark's silhouette and a ring for the sun painted across their fronts. From anywhere else they're farm things with
+odd smudges of paint on them. Held, the painted lark lifts off and lands beside you as a carved wooden lark.
+
+How it works: every farmyard thing is drawn at the world's own scale and stands square to the spot (a card facing north).
+`pokepals/tools/gen_horizon.py` paints them: for each texel on a thing's front it works out where `data/view.json`'s camera
+at the spot would show it, and paints it if that screen pixel is part of the picture and this thing is the nearest there
+(a depth buffer). It writes each thing's painted front, its plain back (a card's new `"back"` art key, shown from behind)
+and a version without the lark, plus `data/hz_skylark.json` (each thing's depth and screen place, and how much of the
+lark falls on them: all of it). `tools/gen_farmeadow_world.py` stands them in the world, with an invisible wall along each
+(the spec's `fences`), and keeps the line of sight clear. Pure `AlignGate`
+(`scripts/world`, tested) over `AlignDirector` (`mechanics/`), `LarkFlight`, `PerspectiveView.set_magnet`. The server
+only checks "this world, standing at it". smoke_farmeadow checks the boards line up to within a pixel from the spot, that
+they don't facing north, and the whole flow.
+
+**Judgment calls (all open):**
+1. **Where:** the spot is in the field east of the road's upper stretch (430, -1020). Because the eye is low (53),
+   ordinary things only reach a little above the horizon, so the picture sits low and to the right of where you stand:
+   the barn wall (150 x 100) 470 ahead, the bales 330, the scarecrow 310, the dry-stone wall 285. The lark's wings are
+   on the barn wall and its body and tail run onto the bales; the sun's ring crosses the wall and the stones.
+2. **Lining up:** you can stand anywhere on a strip along the line of sight: from about 124 back from the spot
+   (away from the picture) to 64 on toward it, and 64 either side, still, with YOU facing within 35 degrees of
+   south (the way you last walked: walk back down onto it; the camera never turns when you walk toward it, so it
+   can't be the camera's heading that counts). The view then swings round to look south and its EYE is drawn onto
+   the one point the picture lines up from (220 behind the spot), keeping the usual lens: moving a camera along its
+   own line only changes how big the near things look, so the picture is exactly as from the spot, and you simply
+   look bigger, the camera having come up close behind you (`AlignGate.magnet_view`, `PerspectiveView.set_magnet`
+   with a `back`, `ViewProjection.focal_override`). Lingering is held off. It counts as lined up within 1.5 units
+   and 1 degree; held for **2 seconds**. Moving or turning away lets the hold go. The lark lands beside wherever
+   you stand (the claim's radius covers the whole strip).
+3. **Your companion:** from 320 away (720 when deeply bonded) it stops and looks back toward the spot now and then; within
+   260 it trots over and sits on the very spot, once per approach, so you can see where to stand. Hints the first time
+   each happens.
+4. **The reveal:** the painted lark comes alive exactly where it's painted (same size), shrinks to a real bird as it
+   flies, turns from painted brown to pale carved wood, and lands beside you (to your right, so you're not hiding it).
+   The paint where it was is gone from the farmyard (the sun's ring stays), and stays that way once found.
+5. **The find:** a carved wooden lark (`wooden_lark`), standing in the grass as an upright figure (a flat prop would be a
+   smear at this low angle); its keepsake at home is the lark on a little post (`kept_wooden_lark`). Qualities: old,
+   made, airy. Found already, the picture still lines up from the spot (a toy), without its lark.
+6. **Words:** the hints, the boards' lore and the keepsake line are in the generator, to be tuned.
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

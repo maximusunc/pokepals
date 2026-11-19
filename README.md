@@ -96,6 +96,7 @@ godot --headless --path pokepals --script res://tests/smoke_stillglass.gd
 godot --headless --path pokepals --script res://tests/smoke_ebbmere.gd
 godot --headless --path pokepals --script res://tests/smoke_loftreach.gd
 godot --headless --path pokepals --script res://tests/smoke_thimblewick.gd
+godot --headless --path pokepals --script res://tests/smoke_farmeadow.gd
 godot --headless --path pokepals --script res://tests/smoke_packs.gd
 godot --headless --path pokepals --script res://tests/smoke_harvest.gd
 godot --headless --path pokepals --script res://tests/smoke_carpenter.gd

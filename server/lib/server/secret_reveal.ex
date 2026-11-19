@@ -26,6 +26,10 @@ defmodule Server.SecretReveal do
       The nap, the dream and the walk all happen on the player's own screen (`DreamGate` on the client),
       so the server only checks "this world, standing at it", like `stillness` and `tracks`. Honest about
       what that means: it can't tell a dreamed arrival from a walked-in one.
+    * `align`: it appears once the player has stood on one spot, looking one way, and held still while a
+      picture painted across boards in a field lines up (Farmeadow's skylark, seen in its perspective view). The
+      lining up happens entirely on the player's own screen (`AlignGate` on the client), so the server only
+      checks "this world, standing at it", like `stillness`.
     * `listen`: it is simply there to be found, but only the player's companion can hear where
       (Steamhollow's faint bell, in the fog). The listening (calm, settled beside you, the gaze turning
       toward the sound) happens entirely on the player's own screen (`ListenGuide` on the client), so
@@ -96,6 +100,7 @@ defmodule Server.SecretReveal do
       %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))
       %{"type" => "skyview"} -> true
       %{"type" => "fetch"} -> true
+      %{"type" => "align"} -> true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end

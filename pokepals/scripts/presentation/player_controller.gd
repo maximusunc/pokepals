@@ -240,7 +240,8 @@ func _input_direction() -> Vector2:
 		v.y += 1.0
 	if _joystick != null:
 		v += _joystick.direction
-	return v.limit_length(1.0)
+	# SPIKE (Horizon): in a turning perspective view, "up" is into the screen, whichever way that faces.
+	return v.limit_length(1.0).rotated(PerspectiveView.view_yaw)
 
 
 func _draw() -> void:

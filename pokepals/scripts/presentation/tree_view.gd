@@ -34,6 +34,39 @@ var glow_y := -24.0
 # (Bobbledown's), which is baked at twice the world resolution and drawn at half size, linearly
 # filtered, so its curves stay smooth when the view is scaled up.
 var tex_scale := 1.0
+# Perspective worlds (Horizon) see things from every side. `facing` is the way its front looks (a bearing in
+# radians: 0 north, PI/2 east, PI south, toward the top-down viewer). Something drawn from several bearings
+# round it gives them as `angle_frames` (frame k: seen by a viewer whose heading is k steps clockwise of looking
+# straight at its front), and shows the one for where you look from (PerspectiveView.view_yaw). A flat thing (a
+# fence panel, a signpost) is instead a "card": PerspectiveView narrows it by the angle it's seen at.
+var facing := PI
+var angle_frames: Array = []
+## A card painted on its front only (Farmeadow's farmyard): what it shows when seen from behind.
+var back_tex: Texture2D = null
+## In a perspective view, a card is drawn in upright slices PerspectiveView lays out (4 points per slice, local:
+## bottom-left, bottom-right, top-right, top-left; `_card_us` the texture's u at each slice edge). Empty otherwise.
+var _card_quads := PackedVector2Array()
+var _card_us := PackedFloat32Array()
+
+
+func set_card_quads(quads: PackedVector2Array, us: PackedFloat32Array) -> void:
+	_card_quads = quads
+	_card_us = us
+	queue_redraw()
+
+
+func _draw_card_slices() -> void:
+	var t := tex
+	if back_tex != null and cos(angle_difference(facing - PI, PerspectiveView.view_yaw)) < 0.0:
+		t = back_tex   # seen from behind
+	if t == null:
+		return
+	var white := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+	for i in _card_us.size() - 1:
+		var u0 := _card_us[i]
+		var u1 := _card_us[i + 1]
+		var q := _card_quads.slice(i * 4, i * 4 + 4)
+		draw_polygon(q, white, PackedVector2Array([Vector2(u0, 1), Vector2(u1, 1), Vector2(u1, 0), Vector2(u0, 0)]), t)
 
 var _time := 0.0
 
@@ -95,6 +128,9 @@ func shake() -> void:
 
 
 func _draw() -> void:
+	if not _card_quads.is_empty():
+		_draw_card_slices()
+		return
 	if is_great:
 		_draw_great()
 		return
@@ -157,8 +193,9 @@ func _draw_poof(k: float) -> void:
 
 func _draw_normal() -> void:
 	var cs := _sway(sway_gain)  # canopy catches the most wind
-	if tex_scale == 1.0:
-		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow
+	# (In a perspective world the shadow lies on the ground instead: GroundShadows.)
+	if tex_scale == 1.0 and not has_meta("card") and PerspectiveView.active == null:
+		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow; a flat card casts none
 	_draw_glow(cs)
 	if _draw_sprite(cs, 6.0):
 		return
@@ -182,7 +219,8 @@ func _draw_normal() -> void:
 func _draw_great() -> void:
 	var sway := _sway(1.4 * sway_gain)
 	if tex_scale == 1.0:
-		_draw_shadow(Vector2(0, 8), 36.0, 0.22)
+		if PerspectiveView.active == null:
+			_draw_shadow(Vector2(0, 8), 36.0, 0.22)
 	_draw_glow(sway)
 	if _draw_sprite(sway, 8.0):
 		return
@@ -215,6 +253,13 @@ func _draw_glow(crown_sway: float) -> void:
 ## piece (the older, less lively path). All parts are bottom-anchored at `base_y` so
 ## their feet meet the ground at the node origin — the same anchor SpriteSlot.draw uses.
 func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
+	if not angle_frames.is_empty():
+		_blit(angle_frames[angle_frame(angle_frames.size(), facing, PerspectiveView.view_yaw)], 0.0, base_y)
+		return true
+	if back_tex != null and tex != null and PerspectiveView.active != null \
+			and cos(angle_difference(facing - PI, PerspectiveView.view_yaw)) < 0.0:
+		_blit(back_tex, canopy_sway, base_y)   # seen from behind
+		return true
 	if trunk_tex != null and canopy_tex != null:
 		_blit(trunk_tex, 0.0, base_y)
 		_blit(canopy_tex, canopy_sway, base_y)
@@ -223,6 +268,12 @@ func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
 		_blit(tex, canopy_sway, base_y)
 		return true
 	return false
+
+
+## Which of n views round a thing faces a viewer with heading `view_yaw` (0 = its front, then clockwise).
+static func angle_frame(n: int, front_facing: float, view_yaw: float) -> int:
+	var rel := wrapf(view_yaw - (front_facing - PI), 0.0, TAU)
+	return int(roundf(rel / (TAU / float(n)))) % n
 
 
 func _blit(t: Texture2D, off_x: float, base_y: float) -> void:

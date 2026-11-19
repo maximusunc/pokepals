@@ -86,6 +86,7 @@ var _lights: MereLights
 var _tracks: TracksDirector
 var _doze: DozeDirector
 var _listen: ListenDirector
+var _align: AlignDirector  # Farmeadow: the skylark picture that lines up from one spot
 var _howl: HowlDirector
 var _cliffs: Array = []        # the world's building views (a cliff holds the cave)
 var _follow: FollowDirector
@@ -154,6 +155,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_fetch):
 		_fetch.queue_free()
 	_fetch = null
+	if is_instance_valid(_align):
+		_align.queue_free()
+	_align = null
 	var secret: Dictionary = data.get("secret", {})
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "skyview" \
 			and Net.has_discovery(String(secret["id"])):
@@ -180,6 +184,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "fetch" \
 			and Net.has_discovery(String(secret["id"])):
 		_start_fetch(secret, true)   # found already: the fetching stays a toy of small finds, the thimble doesn't come
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "align" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_align(secret, true)   # found already: the picture still lines up from its spot, the lark doesn't come
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -244,6 +251,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		"fetch":
 			# Nothing to see yet: your companion has to bring the thimble back through the fence.
 			_start_fetch(secret, false)
+		"align":
+			# Nothing to see yet but painted boards: they have to be seen from the one spot, facing south, and held.
+			_start_align(secret, false)
 		_:
 			combined.append(_secret_prop())
 
@@ -280,6 +290,21 @@ func try_go_up() -> void:
 ## A tap on the world while your companion's eyes are up: true when it brought the bird home.
 func on_world_tap() -> bool:
 	return _sky != null and _sky.on_world_tap()
+
+
+func _start_align(secret: Dictionary, found: bool) -> void:
+	_align = AlignDirector.new()
+	_align.name = "AlignDirector"
+	add_child(_align)
+	_align.setup(_host, _companion, _world_art, _player)
+	_align.configure(secret, found)
+	_align.lark_landed.connect(_on_lark_landed)
+
+
+## The painted lark has come off the boards and landed at your feet: it's there to examine (and to claim).
+func _on_lark_landed(pos: Vector2, line: String) -> void:
+	if _reveal_type() == "align" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(line, pos)
 
 
 func _start_fetch(secret: Dictionary, found: bool) -> void:
@@ -453,6 +478,8 @@ func update(delta: float) -> void:
 		_sky.update(delta)
 	if _fetch != null:
 		_fetch.update(delta)
+	if _align != null:
+		_align.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})

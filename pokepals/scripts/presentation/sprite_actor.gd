@@ -37,7 +37,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var fdir := facing
 	if fdir.length() < 0.01:
 		fdir = Vector2.DOWN
-	fdir = fdir.normalized()
+	fdir = fdir.normalized().rotated(-PerspectiveView.view_yaw)  # SPIKE (Horizon): face relative to the view
 	var dirs: Dictionary = cfg.get("dirs", {"down": 0, "side": 1, "up": 2})
 	var row := int(dirs.get("down", 0))
 	var flip := false
