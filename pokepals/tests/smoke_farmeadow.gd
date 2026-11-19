@@ -167,48 +167,22 @@ func _static_checks() -> void:
 	for c in _world._scenery.get_children():
 		if c is TreeView and c.has_meta("card") and c.position.distance_to(Vector2(-70, 900)) < 30.0:
 			panel = c
-	# Walking up the road past it, step by step, every point of it stays put on screen from one step to the next
-	# (while any of it is on screen): no end flung away as it passes the camera.
-	var worst_jump := 0.0
-	var steps_seen := 0
-	var vanished := 0
-	if panel != null:
-		var saved := pv.proj.center
-		pv.proj.yaw = 0.0
-		var hw := panel.tex.get_width() * 0.5
-		var half_h := pv._view_size().y * 0.5
-		var last := []
-		var half_w := pv._view_size().x * 0.5
-		for i in 700:
-			pv.proj.center = Vector2(-50, 1100 - i * 1.0)
-			var xf := pv._card_xform(panel, panel.position, Vector3.ZERO, panel.position)
-			var ends := [xf * Vector2(-hw, 0.0) - pv.proj.center, xf * Vector2(hw, 0.0) - pv.proj.center]
-			# only while some of it is on screen (an end, or the bottom-to-top span of the panel)
-			var on := false
-			for e in ends:
-				var v := e as Vector2
-				if absf(v.x) <= half_w and v.y - panel.tex.get_height() * xf.y.y <= half_h and v.y >= -half_h:
-					on = true
-			if xf.x == Vector2.ZERO:
-				# hidden: then no part of it nearer than the near depth's far side may still be in view
-				for sgn in [-1.0, 1.0]:
-					var e: Vector2 = panel.position + Vector2(-cos(float(panel.get_meta("card"))), -sin(float(panel.get_meta("card")))) * hw * sgn
-					var pe := pv.proj.project(e)
-					if pe.z > 0.0 and pe.z < 1.0 / PerspectiveView.CARD_NEAR and absf(pe.x) <= half_w and pe.y - panel.tex.get_height() * pe.z <= half_h:
-						vanished += 1
-				last = []
-				continue
-			if not on:
-				last = []
-				continue
-			if not last.is_empty():
-				worst_jump = maxf(worst_jump, maxf((ends[0] as Vector2).distance_to(last[0]), (ends[1] as Vector2).distance_to(last[1])))
-			last = ends
-			steps_seen += 1
-		pv.proj.center = saved
-		pv.proj.yaw = pv.rig.yaw
-	_fails += _check(panel != null and steps_seen > 50 and steps_seen < 700 and worst_jump < 60.0, "walking past a fence panel, it never jumps across the screen (worst step %.1f px over %d steps)" % [worst_jump, steps_seen])
-	_fails += _check(panel != null and vanished == 0, "...and it isn't hidden while any of it is still in view (%d)" % vanished)
+	# Walking up the road past it, step by step, every corner of it stays put on screen from one step to the next
+	# (while any of it is on screen): no end flung away as it passes the camera; and it's never hidden while any of
+	# it is still in view.
+	var fence_walk := _walk_past(panel, Vector2(-50, 1100), Vector2(-50, 400), 0.0)
+	_fails += _check(panel != null and fence_walk[1] > 50 and fence_walk[0] < 60.0, "walking past a fence panel, it never jumps across the screen (worst step %.1f px over %d steps)" % [fence_walk[0], fence_walk[1]])
+	_fails += _check(panel != null and fence_walk[2] == 0, "...and it isn't hidden while any of it is still in view (%d)" % fence_walk[2])
+	# The same for the widest card there is, the farmyard's barn wall, walking south right past its end.
+	var wall: TreeView = null
+	for c in _world._scenery.get_children():
+		if c is TreeView and (c as TreeView).tex != null and (c as TreeView).tex.resource_path.contains("hz_barnwall"):
+			wall = c
+	var wall_walk := [INF, 0, 1]
+	if wall != null:
+		var east := wall.position.x + wall.tex.get_width() * 0.5 + 22.0
+		wall_walk = _walk_past(wall, Vector2(east, wall.position.y - 420), Vector2(east, wall.position.y + 300), PI)
+	_fails += _check(wall != null and wall_walk[1] > 50 and wall_walk[0] < 60.0 and wall_walk[2] == 0, "walking right past the barn wall's end, it never jumps across the screen (worst step %.1f px over %d steps) or vanishes in view (%d)" % [wall_walk[0], wall_walk[1], wall_walk[2]])
 	var router := root.get_node("/root/WorldRouter")
 	_fails += _check(_world._return_world == router.HUB_ID and _world._return_portal == router.HUB_GATEWAY_ID, "the way home is the Vale's Gateway")
 
@@ -246,14 +220,12 @@ func _picture_checks() -> void:
 		if t == null:
 			continue
 		count += 1
-		var ts := t.tex_scale
-		var size := t.tex.get_size() * ts
-		var pr := pv.proj.project(t.position)
-		var xf := pv._card_xform(t, t.position, pr, pv.proj.center + Vector2(pr.x, pr.y))
-		var top_left := xf * Vector2(-size.x * 0.5, 6.0 - size.y) - pv.proj.center
-		var bottom_right := xf * Vector2(size.x * 0.5, 6.0 - size.y + float(b["h"]) * ts) - pv.proj.center
+		var k := _card_corners(pv, t)   # [bottom-left, bottom-right, top-right, top-left], from the view's centre
 		var r: Array = b["rect"]
-		worst = maxf(worst, maxf(top_left.distance_to(Vector2(r[0], r[1])), bottom_right.distance_to(Vector2(float(r[0]) + float(r[2]), float(r[1]) + float(r[3])))))
+		if k.is_empty():
+			worst = INF
+			continue
+		worst = maxf(worst, maxf((k[3] as Vector2).distance_to(Vector2(r[0], r[1])), (k[2] as Vector2).distance_to(Vector2(float(r[0]) + float(r[2]), float(r[1])))))
 	_fails += _check(count == 4 and worst < 2.5, "from the spot, facing south, the four painted things stand just where the picture needs them (worst %.2f px)" % worst)
 	var lark: Dictionary = sky["lark"]
 	_fails += _check(float(lark["coverage"]["lark"]) >= 0.99, "...and the whole lark falls on them (%.0f%%)" % (float(lark["coverage"]["lark"]) * 100.0))
@@ -300,14 +272,72 @@ func _far_alignment_check() -> void:
 		for b in sky["objects"]:
 			if b["id"] != id:
 				continue
-			var pr := pv.proj.project(t.position)
-			var xf := pv._card_xform(t, t.position, pr, pv.proj.center + Vector2(pr.x, pr.y))
-			var size := t.tex.get_size()
-			var tl := xf * Vector2(-size.x * 0.5, 6.0 - size.y) - pv.proj.center
+			var k := _card_corners(pv, t)
+			if k.is_empty():
+				worst = INF
+				continue
+			var tl: Vector2 = k[3]
 			var r: Array = b["rect"]
 			var want := Vector2(float(r[0]) * zoom, shift + (float(r[1]) - shift) * zoom)
 			worst = maxf(worst, tl.distance_to(want))
 	_fails += _check(_world._player.position.distance_to(_spot) > 100.0 and is_equal_approx(zoom, 1.0) and worst < 2.5, "standing %.0f back from the spot, the picture lines up exactly as from the spot (x%.2f, worst %.2f px)" % [_world._player.position.distance_to(_spot), zoom, worst])
+
+
+## A card's four outer corners as drawn (its slices' outline), from the view's centre: [bottom-left,
+## bottom-right, top-right, top-left]; [] when none of it is drawn.
+func _card_corners(pv: PerspectiveView, t: TreeView) -> Array:
+	var cq := pv.card_quads(t, t.position)
+	if cq.is_empty():
+		return []
+	var o: Vector2 = cq[0] - pv.proj.center
+	var q: PackedVector2Array = cq[1]
+	var n := q.size()
+	return [o + q[0], o + q[n - 3], o + q[n - 2], o + q[3]]
+
+
+## Walk the camera's focus from `a` to `b` (half a unit a step), looking along `yaw`, past card `t`: the worst a
+## corner of it moves on screen in one step while any of it is on screen, the steps it was seen, and the steps it
+## was hidden while some of it (no nearer than the near depth) was still in view. [worst, seen, vanished]
+func _walk_past(t: TreeView, a: Vector2, b: Vector2, yaw: float) -> Array:
+	if t == null:
+		return [INF, 0, 1]
+	var pv: PerspectiveView = _world._perspective
+	var saved := pv.proj.center
+	pv.proj.yaw = yaw
+	var half := pv._view_size() * 0.5
+	var hw := t.tex.get_width() * t.tex_scale * 0.5
+	var along := Vector2(-cos(float(t.get_meta("card"))), -sin(float(t.get_meta("card"))))
+	var worst := 0.0
+	var seen := 0
+	var vanished := 0
+	var last := []
+	var steps := int(a.distance_to(b) / 0.5)
+	for i in steps:
+		pv.proj.center = a.lerp(b, float(i) / steps)
+		var k := _card_corners(pv, t)
+		if k.is_empty():
+			for sgn in [-1.0, 1.0]:
+				var pe := pv.proj.project(t.position + along * hw * sgn)
+				if pe.z > 0.0 and pe.z < 1.0 / PerspectiveView.CARD_NEAR * 0.95 and absf(pe.x) <= half.x and pe.y - t.tex.get_height() * pe.z <= half.y:
+					vanished += 1
+			last = []
+			continue
+		var on := false
+		for c in k:
+			var v := c as Vector2
+			if absf(v.x) <= half.x and absf(v.y) <= half.y:
+				on = true
+		if not on:
+			last = []
+			continue
+		if not last.is_empty():
+			for m in 4:
+				worst = maxf(worst, (k[m] as Vector2).distance_to(last[m]))
+		last = k
+		seen += 1
+	pv.proj.center = saved
+	pv.proj.yaw = pv.rig.yaw
+	return [worst, seen, vanished]
 
 
 func _toggle_checks() -> void:

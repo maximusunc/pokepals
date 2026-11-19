@@ -296,6 +296,8 @@ func _disable() -> void:
 	for c in _scenery.get_children():
 		if c is Node2D:
 			RenderingServer.canvas_item_set_transform((c as Node2D).get_canvas_item(), (c as Node2D).transform)
+		if c is TreeView:
+			(c as TreeView).set_card_quads(PackedVector2Array(), PackedFloat32Array())
 	var ground := _art.get_node_or_null("Ground") as GroundLayer
 	if ground != null:
 		ground.extend(0.0)
@@ -603,13 +605,15 @@ func _project_uprights() -> void:
 			var seen := a > 4.0 and a < a_small and absf(rx * -fy + ry * fx) < a * slope + SIDE_MARGIN
 			if seen != n.visible:
 				n.visible = seen
+				_cam_key = PackedFloat32Array()
 			if not seen:
 				continue
 		var z := a * cp + hsp
 		var xf: Transform2D
 		if flags & F_CARD and a <= a_far:
-			# a flat panel works out its own near clipping (it may be half past the camera and half still in view)
-			RenderingServer.canvas_item_set_transform(n.get_canvas_item(), _card_xform(n, wp, Vector3.ZERO, n.position))
+			# a flat panel is drawn in slices, and works out its own near clipping (it may be half past the camera
+			# and half still in view)
+			_place_card(n, wp, to_local, me)
 			continue
 		if z <= 1.0 or a > (a_land if flags & F_LANDMARK else a_far):
 			xf = Transform2D(Vector2.ZERO, Vector2.ZERO, n.position)  # past the draw distance, or behind the eye
@@ -624,9 +628,7 @@ func _project_uprights() -> void:
 			var at := Vector2(cx + f * b / z, cy + oy)
 			if not origin_ok:
 				at = to_local * at
-			if flags & F_CARD:
-				xf = _card_xform(n, wp, Vector3(at.x, at.y, s), at)
-			elif flags & F_BASIS:
+			if flags & F_BASIS:
 				var basis := n.transform
 				basis.origin = Vector2.ZERO
 				xf = Transform2D(Vector2(s, 0.0), Vector2(0.0, s), at) * basis
@@ -639,52 +641,91 @@ func _project_uprights() -> void:
 		RenderingServer.canvas_item_set_transform(n.get_canvas_item(), xf)
 
 
-## A flat thing standing up (a fence panel, a signpost): its two ends are projected, so it narrows and slants
-## with the angle it's seen at, the same as the ground under it, and a run of panels joins up end to end. Seen
-## from behind it comes out mirrored. Its height scales with its middle.
-func _card_xform(n: Node2D, world_pos: Vector2, pr: Vector3, at: Vector2) -> Transform2D:
+## A flat thing standing up (a fence panel, a signpost, Farmeadow's painted barn wall): drawn in thin upright
+## slices, each placed exactly where perspective puts it, so it narrows and slants with the angle it's seen at, its
+## near end grows taller as well as lower (one slanted shape can't do that, and a wide card bent into one flung its
+## near end across the screen), a run of panels joins up end to end, and from behind it comes out mirrored.
+## Nothing nearer the eye than a near depth is drawn: the part of it past that is cut off. Returns
+## [origin (canvas), quads (4 points per slice, relative to origin: bottom-left, bottom-right, top-right,
+## top-left), us (the texture's u at each slice edge)], or [] when none of it is in front of the camera.
+const CARD_SLICE := 10.0  # world units per slice (at most CARD_SLICES)
+const CARD_SLICES := 16
+
+
+func card_quads(n: Node2D, world_pos: Vector2) -> Array:
+	var t := n as TreeView
 	var facing := float(n.get_meta("card"))
 	var along := Vector2(-cos(facing), -sin(facing))  # its drawing's +x, from the front: east for a south-facing card
 	var hw := 16.0
-	if n is TreeView and (n as TreeView).tex != null:
-		hw = (n as TreeView).tex.get_width() * (n as TreeView).tex_scale * 0.5
-	# Near the camera part of a panel can come right up to the eye, where projecting it would fling it across the
-	# screen. So nothing nearer than a near depth is projected: each end is pulled in along the panel to it, and if
-	# even the middle is that near, the panel is anchored at the nearest point that isn't (toward its far end), so
-	# it slides on off the screen rather than vanishing. The slant is taken from what's left (an affine stand-in
-	# for the true perspective). Only a panel wholly that near isn't drawn.
+	var tall := 24.0
+	if t != null and t.tex != null:
+		hw = t.tex.get_width() * t.tex_scale * 0.5
+		tall = t.tex.get_height() * t.tex_scale
 	var z_min := proj.focal() * CARD_NEAR
-	var e0: Vector2 = world_pos - along * hw
-	var e1: Vector2 = world_pos + along * hw
-	var z0 := _depth(e0)
-	var z1 := _depth(e1)
-	var z_mid := _depth(world_pos)
-	var anchor := world_pos
-	if z_mid < z_min:
-		var far_end := e1 if z1 > z0 else e0
-		var z_far := maxf(z0, z1)
-		if z_far <= z_min:
-			return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
-		anchor = world_pos + (far_end - world_pos) * ((z_min - z_mid) / (z_far - z_mid))
-	var z_anchor := maxf(z_mid, z_min)
+	# depth is linear along the card: find the stretch of it in front of the near depth
+	var z0 := _depth(world_pos - along * hw)
+	var z1 := _depth(world_pos + along * hw)
+	var u_lo := 0.0
+	var u_hi := 1.0
+	if z0 < z_min and z1 < z_min:
+		return []
 	if z0 < z_min:
-		e0 = anchor + (e0 - anchor) * ((z_anchor - z_min) / maxf(z_anchor - z0, 1e-4))
-	if z1 < z_min:
-		e1 = anchor + (e1 - anchor) * ((z_anchor - z_min) / maxf(z_anchor - z1, 1e-4))
-	var pa := proj.project(e0)
-	var pb := proj.project(e1)
-	var pc := proj.project(anchor)
-	var span := (e1 - e0).dot(along)
-	if pa.z <= 0.0 or pb.z <= 0.0 or pc.z <= 0.0 or span < 0.5:
-		return Transform2D(Vector2.ZERO, Vector2.ZERO, at)
-	var x_axis := (Vector2(pb.x, pb.y) - Vector2(pa.x, pa.y)) / span
-	# The drawing's middle (local 0) goes where the anchor's own place along the panel says.
-	var origin := proj.center + Vector2(pc.x, pc.y) - x_axis * (anchor - world_pos).dot(along)
-	return Transform2D(x_axis, Vector2(0.0, pc.z), origin)
+		u_lo = (z_min - z0) / (z1 - z0)
+	elif z1 < z_min:
+		u_hi = (z_min - z0) / (z1 - z0)
+	var slices := clampi(ceili((u_hi - u_lo) * 2.0 * hw / CARD_SLICE), 1, CARD_SLICES)
+	var origin := Vector2.INF
+	var quads := PackedVector2Array()
+	var us := PackedFloat32Array()
+	var prev_bottom := Vector2.ZERO
+	var prev_top := Vector2.ZERO
+	for i in slices + 1:
+		var u := lerpf(u_lo, u_hi, float(i) / slices)
+		var p := proj.project(world_pos + along * hw * (2.0 * u - 1.0))
+		if p.z <= 0.0:
+			return []
+		# the sprite's bottom stands 6 units below its foot (TreeView's base), its top `tall` above that
+		var bottom := proj.center + Vector2(p.x, p.y + 6.0 * p.z)
+		var top := bottom - Vector2(0.0, tall * p.z)
+		if origin == Vector2.INF:
+			origin = proj.center + Vector2(p.x, p.y)
+		if i > 0:
+			quads.append_array(PackedVector2Array([prev_bottom - origin, bottom - origin, top - origin, prev_top - origin]))
+		us.append(u)
+		prev_bottom = bottom
+		prev_top = top
+	# sort by the middle of what's drawn (its own foot), not its first edge
+	var mid := proj.project(world_pos + along * hw * (u_lo + u_hi - 1.0))
+	var sort_at := proj.center + Vector2(mid.x, mid.y)
+	var shift_by := sort_at - origin
+	for k in quads.size():
+		quads[k] -= shift_by
+	return [sort_at, quads, us]
+
+
+func _place_card(n: Node2D, world_pos: Vector2, to_local: Transform2D, me: Vector3) -> void:
+	var t := n as TreeView
+	var cq := card_quads(n, world_pos)
+	if cq.is_empty():
+		RenderingServer.canvas_item_set_transform(n.get_canvas_item(), Transform2D(Vector2.ZERO, Vector2.ZERO, n.position))
+		return
+	var at: Vector2 = cq[0]
+	RenderingServer.canvas_item_set_transform(n.get_canvas_item(), Transform2D(0.0, Vector2.ONE, 0.0, to_local * at))
+	if t != null:
+		t.set_card_quads(cq[1], cq[2])
+		# Drawn in front of you (sorted lower down the screen than your feet) and covering you: it fades. Its own
+		# outline is the test, since a wall can be far wider than a tree.
+		var feet := proj.center + Vector2(me.x, me.y)
+		var body := feet - Vector2(0.0, 16.0 * me.z)
+		var quads: PackedVector2Array = cq[1]
+		var box := Rect2(at + quads[0], Vector2.ZERO)
+		for q in quads:
+			box = box.expand(at + q)
+		_fade_to(t, me.z > 0.0 and at.y > feet.y and box.has_point(body))
 
 
 const NEAR_HIDE := 30.0  # (only right at the lens; anything still on screen is drawn)
-const CARD_NEAR := 0.12  # nearest a card's end is projected from, as a share of the focal length (scale ~8)
+const CARD_NEAR := 0.12  # nothing of a card nearer the eye than this share of the focal length is drawn (scale ~8)
 
 
 ## How far in front of the eye a ground point is, along the line of sight (ViewProjection's z).
@@ -717,6 +758,7 @@ func tick_trees(trees: Array, t: float) -> void:
 		var vis := a > 4.0 and a < lim and absf(rel.dot(right)) < a * slope + SIDE_MARGIN
 		if vis != tree.visible:
 			tree.visible = vis
+			_cam_key = PackedFloat32Array()   # just shown or hidden: the next pass places everything again
 		if vis and (a < proj.back + SWAY_NEAR or (_tick + i) % 4 == 0):
 			tree.set_time(t)
 
@@ -727,7 +769,10 @@ var _faded := {}
 
 
 func _fade_if_in_the_way(n: CanvasItem, pr: Vector3, me: Vector3) -> void:
-	var in_way := me.z > 0.0 and pr.z > me.z and absf(pr.x - me.x) < 34.0 * pr.z and pr.y - 70.0 * pr.z < me.y
+	_fade_to(n, me.z > 0.0 and pr.z > me.z and absf(pr.x - me.x) < 34.0 * pr.z and pr.y - 70.0 * pr.z < me.y)
+
+
+func _fade_to(n: CanvasItem, in_way: bool) -> void:
 	var want := FADED if in_way else 1.0
 	var a := n.self_modulate.a
 	if is_equal_approx(a, want):
@@ -736,6 +781,7 @@ func _fade_if_in_the_way(n: CanvasItem, pr: Vector3, me: Vector3) -> void:
 		return
 	n.self_modulate.a = move_toward(a, want, 0.08)
 	_faded[n] = true
+	_cam_key = PackedFloat32Array()   # still fading: keep the pass going next frame, even if the camera has stopped
 
 
 func _unfade_all() -> void:

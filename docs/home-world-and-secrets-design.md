@@ -1570,8 +1570,11 @@ companion's brain, the server and every director see a plain 2D world. Only the 
    blob shadow), the round **keep** (a landmark: drawn past the draw distance, so you see it from the start, small at the
    end of the road) and the **haystacks**. Things you can examine there carry their words on `hz_examine` props, which the
    art block lists as unseen.
-6. **A tree or building between the camera and you fades** to 35%. Near the camera nothing is hidden while any of it
-   is still on screen; a fence panel passing the lens is clipped to a near depth (and slides off) rather than flung.
+6. **A tree or building between the camera and you fades** to 35% (a card by its own drawn outline, so a wide wall
+   fades whenever it covers you). Near the camera nothing is hidden while any of it is still on screen. **Cards** (fences,
+   the fingerpost, the farmyard) are drawn in thin upright slices, each placed exactly where perspective puts it, so
+   a near end grows taller as well as lower instead of shearing across the screen; the part nearer the lens than a near
+   depth is cut off.
    **Shadows lie on the ground** (`GroundShadows`, in the flat layer): a dark contact pool and a soft tongue cast
    north-east (an afternoon sun), longer for taller things; sprites' own top-down shadows are off in perspective.
    **The distance fades into a land haze** (a greyed green, `view.json` sky.land_haze, from 60% of the draw

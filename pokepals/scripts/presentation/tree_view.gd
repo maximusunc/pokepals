@@ -43,6 +43,30 @@ var facing := PI
 var angle_frames: Array = []
 ## A card painted on its front only (Farmeadow's farmyard): what it shows when seen from behind.
 var back_tex: Texture2D = null
+## In a perspective view, a card is drawn in upright slices PerspectiveView lays out (4 points per slice, local:
+## bottom-left, bottom-right, top-right, top-left; `_card_us` the texture's u at each slice edge). Empty otherwise.
+var _card_quads := PackedVector2Array()
+var _card_us := PackedFloat32Array()
+
+
+func set_card_quads(quads: PackedVector2Array, us: PackedFloat32Array) -> void:
+	_card_quads = quads
+	_card_us = us
+	queue_redraw()
+
+
+func _draw_card_slices() -> void:
+	var t := tex
+	if back_tex != null and cos(angle_difference(facing - PI, PerspectiveView.view_yaw)) < 0.0:
+		t = back_tex   # seen from behind
+	if t == null:
+		return
+	var white := PackedColorArray([Color.WHITE, Color.WHITE, Color.WHITE, Color.WHITE])
+	for i in _card_us.size() - 1:
+		var u0 := _card_us[i]
+		var u1 := _card_us[i + 1]
+		var q := _card_quads.slice(i * 4, i * 4 + 4)
+		draw_polygon(q, white, PackedVector2Array([Vector2(u0, 1), Vector2(u1, 1), Vector2(u1, 0), Vector2(u0, 0)]), t)
 
 var _time := 0.0
 
@@ -104,6 +128,9 @@ func shake() -> void:
 
 
 func _draw() -> void:
+	if not _card_quads.is_empty():
+		_draw_card_slices()
+		return
 	if is_great:
 		_draw_great()
 		return
