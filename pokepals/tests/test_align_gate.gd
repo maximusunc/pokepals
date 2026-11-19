@@ -33,7 +33,7 @@ static func _run(g: AlignGate, secs: float, pos: Vector2, speed: float, center: 
 	var completed := 0
 	var t := 0.0
 	while t < secs:
-		out = g.update(DT, pos, speed, center, yaw, 0.5)
+		out = g.update(DT, pos, speed, yaw, center, yaw, 0.5)
 		if out["completed"]:
 			completed += 1
 		t += DT
@@ -49,9 +49,11 @@ static func _test_walking_past() -> int:
 
 static func _test_capture_needs_facing() -> int:
 	var g := _gate()
-	var north := g.update(DT, Vector2(104, 98), 0.0, Vector2(104, 98), 0.0, 0.5)
-	var south := g.update(DT, Vector2(104, 98), 0.0, Vector2(104, 98), PI + 0.3, 0.5)
-	return _check("standing on the spot captures the view only when looking (near enough) south", not north["capture"] and south["capture"] and not south["aligned"])
+	var north := g.update(DT, Vector2(104, 98), 0.0, 0.0, Vector2(104, 98), 0.0, 0.5)
+	var south := g.update(DT, Vector2(104, 98), 0.0, PI + 0.3, Vector2(104, 98), PI + 0.3, 0.5)
+	# the turn-around: you walked back down onto it (facing south) while the camera still looks north
+	var back := g.update(DT, Vector2(104, 98), 0.0, PI, Vector2(104, 98), 0.0, 0.5)
+	return _check("standing on the spot captures the view when YOU face (near enough) south, whichever way the camera looks", not north["capture"] and south["capture"] and not south["aligned"] and back["capture"] and not back["aligned"])
 
 
 static func _test_hold_completes_once() -> int:
@@ -77,14 +79,14 @@ static func _test_companion_points_then_sits() -> int:
 	# walk in from 600 away to beside the spot, then away and back again
 	for i in 600:
 		var p := Vector2(100, 700 - i)
-		var out := g.update(DT, p, 90.0, p, 0.0, 1.0)
+		var out := g.update(DT, p, 90.0, 0.0, p, 0.0, 1.0)
 		pointed = pointed or out["point"]
 		visits += 1 if out["visit"] else 0
 	for i in 700:
-		var out := g.update(DT, Vector2(100, 100 + i), 90.0, Vector2(100, 100 + i), 0.0, 1.0)
+		var out := g.update(DT, Vector2(100, 100 + i), 90.0, 0.0, Vector2(100, 100 + i), 0.0, 1.0)
 		visits += 1 if out["visit"] else 0
 	for i in 600:
-		var out := g.update(DT, Vector2(100, 800 - i), 90.0, Vector2(100, 800 - i), 0.0, 1.0)
+		var out := g.update(DT, Vector2(100, 800 - i), 90.0, 0.0, Vector2(100, 800 - i), 0.0, 1.0)
 		visits += 1 if out["visit"] else 0
 	return _check("the companion points at it from afar, and sits on the spot once per approach (%d)" % visits, pointed and visits == 2)
 

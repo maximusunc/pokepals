@@ -5,9 +5,11 @@ extends RefCounted
 ## fast you're going and where the view is looking; says how strongly the view should be drawn onto the exact spot
 ## and heading (the "magnet"), whether the picture is lined up, how long it's been held, and when it's done.
 ##
-##   * CAPTURE: standing still (slower than `still_speed`) within `capture_radius` of the spot, with the view
-##     within `capture_deg` of the facing, the view is drawn exactly onto it (PerspectiveView.set_magnet). Walking
-##     past doesn't capture: you have to stop there and look.
+##   * CAPTURE: standing still (slower than `still_speed`) within `capture_radius` of the spot, YOU facing within
+##     `capture_deg` of the facing (the way you last walked, not the camera's heading: walking back toward the
+##     camera never turns it, so you'd never get it to face south by walking there), the view is drawn exactly onto
+##     the spot and heading (PerspectiveView.set_magnet), swinging round to look the way you face. Walking past
+##     doesn't capture: you have to stop there.
 ##   * ALIGNED: the view has settled within `center_tol` of the spot and `yaw_tol_deg` of the facing.
 ##   * HELD: aligned for `hold_seconds` in a row (a couple of seconds, so someone just walking by never sets it
 ##     off) and it's DONE, once. Moving off, or turning away, lets the hold go back to zero.
@@ -56,13 +58,14 @@ func cfg(key: String) -> float:
 
 ## One frame. Returns { capture: bool, aligned: bool, progress: 0..1, completed: bool (true once, the frame it's
 ## done), point: bool (the companion should point at the spot now), visit: bool (it should go and sit on it) }.
-func update(delta: float, player_pos: Vector2, player_speed: float, view_center: Vector2, view_yaw: float, bond: float) -> Dictionary:
+## `player_heading` is the bearing the player faces (radians, 0 north, clockwise), `view_yaw` the camera's.
+func update(delta: float, player_pos: Vector2, player_speed: float, player_heading: float, view_center: Vector2, view_yaw: float, bond: float) -> Dictionary:
 	var out := { "capture": false, "aligned": false, "progress": 0.0, "completed": false, "point": false, "visit": false }
 	var d := player_pos.distance_to(spot)
-	var off := absf(angle_difference(view_yaw, facing))
 	var capture := not done and d <= cfg("capture_radius") and player_speed < cfg("still_speed") \
-			and off <= deg_to_rad(cfg("capture_deg"))
-	var aligned := capture and view_center.distance_to(spot) <= cfg("center_tol") and off <= deg_to_rad(cfg("yaw_tol_deg"))
+			and absf(angle_difference(player_heading, facing)) <= deg_to_rad(cfg("capture_deg"))
+	var aligned := capture and view_center.distance_to(spot) <= cfg("center_tol") \
+			and absf(angle_difference(view_yaw, facing)) <= deg_to_rad(cfg("yaw_tol_deg"))
 	if aligned:
 		held += delta
 	else:

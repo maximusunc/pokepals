@@ -1613,7 +1613,9 @@ they don't facing north, and the whole flow.
    ordinary things only reach a little above the horizon, so the picture sits low and to the right of where you stand:
    the barn wall (150 x 100) 470 ahead, the bales 330, the scarecrow 310, the dry-stone wall 285. The lark's wings are
    on the barn wall and its body and tail run onto the bales; the sun's ring crosses the wall and the stones.
-2. **Lining up:** stand still within 64 of the spot with the view within 35 degrees of south, and the view is drawn
+2. **Lining up:** stand still within 64 of the spot with YOU facing within 35 degrees of south (the way you last walked:
+   walk back down onto it; the camera never turns when you walk toward it, so it can't be the camera's heading that
+   counts), and the view swings round to look south and is drawn
    exactly onto the spot and heading (a "magnet", easing in about a second; lingering is held off, since a lower camera
    would break the picture), so you never have to hit the exact angle yourself. It counts as lined up within 1.5 units
    and 1 degree; held for **2 seconds**. Moving or turning away lets the hold go.

@@ -53,7 +53,9 @@ func update(delta: float) -> void:
 	var pv := PerspectiveView.active
 	if pv == null or _gate == null or _player == null or _flight != null:
 		return
-	var out := _gate.update(delta, _player.position, _player.velocity.length(), pv.proj.center, pv.rig.yaw, _companion.bond_value())
+	var face := _player.facing()
+	var heading := atan2(face.x, -face.y)  # the way you face, as a bearing
+	var out := _gate.update(delta, _player.position, _player.velocity.length(), heading, pv.proj.center, pv.rig.yaw, _companion.bond_value())
 	var want: bool = out["capture"]
 	if want != _magnet_on:
 		_magnet_on = want
