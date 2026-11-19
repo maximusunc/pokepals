@@ -1,7 +1,7 @@
 # The Vale: the companion's own meadow, the hub everyone comes home to.
 # Warm, unhurried, a little sunlit. F major, 72 bpm, two minutes, then it loops.
-# Kalimba ripples under a soft pad; a music-box tune comes and goes; the "c" section is a breath
-# with no tune at all, just the meadow and a few faraway chimes.
+# A soft pad carries it and a muted kalimba ripples slowly underneath; a celesta tune comes and goes;
+# the "c" section is a breath with no tune at all, just the meadow and a few faraway chimes.
 
 title The Vale
 tempo 72
@@ -9,38 +9,38 @@ beats 4
 steps 2        # eighth-note grid: 8 steps a bar
 seed  7
 
-voice pad   kind=pad       octave=4  gain=0.50  pan=0.0   reverb=0.55
+voice pad   kind=pad       octave=4  gain=0.55  pan=0.0   reverb=0.60
 voice bass  kind=bass      octave=2  gain=0.32  pan=0.0   reverb=0.15
-voice harp  kind=kalimba   octave=4  gain=0.38  pan=-0.25 reverb=0.35
-voice bell  kind=musicbox  octave=5  gain=0.52  pan=0.2   reverb=0.45
+voice harp  kind=kalimba   octave=4  gain=0.26  pan=-0.25 reverb=0.55
+voice bell  kind=musicbox  octave=5  gain=0.40  pan=0.2   reverb=0.60
 voice sky   kind=chime     octave=6  gain=0.45  pan=0.35  spread=0.5 reverb=0.8
 
 [intro]
 chords | Fmaj7 | Am7 | Bbmaj7 | Csus4 C |
 pad    | * - - - - - - - |
 bass   | 1 - - - - - - - |
-harp   | 1 . 3 . 2 . 4 3 |
+harp   | 1 . . 3 . . 2 . |
 sky    | . . . . . . . . | . . . . . . E6 - | . . . . . . . . | . . . . C6 - . . |
 
 [a1]
 chords | Fmaj7 | Am7 | Bbmaj7 | Csus4 C |
 pad    | * - - - - - - - |
 bass   | 1 - - - - - 3 - |
-harp   | 1 . 3 . 2 . 4 3 |
+harp   | 1 . . 3 . . 2 . |
 bell   | A4 - - C5 - - F5 - | E5 - - - C5 - A4 - | D5 - - F5 - - E5 D5 | C5 - - - - - . . |
 
 [a2]
 chords | Fmaj7 | Am7 | Bbmaj7 | Gm7 C |
 pad    | * - - - - - - - |
 bass   | 1 - - - - - 3 - |
-harp   | 1 . 3 . 2 . 4 3 |
+harp   | 1 . . 3 . . 2 . |
 bell   | A4 - - C5 - - F5 - | G5 - - - E5 - C5 - | D5 - - C5 - - A4 - | G4 - - - - - . . |
 
 [b]
 chords | Dm7 | Bbmaj7 | F | C | Dm7 | Bbmaj7 | Gm7 | Csus4 C |
 pad    | * - - - - - - - |
 bass   | 1 - - - 3 - 1 - |
-harp   | 1 3 2 4 3 . 2 . |
+harp   | 1 . . 3 . . 2 . |
 bell   | F5 - E5 - D5 - - - | D5 - C5 - - - A4 - | C5 - - A4 - - F4 - | G4 - - - - - . . | F5 - E5 - D5 - A5 - | G5 - - F5 - - D5 - | F5 - - E5 - - D5 - | F5 - - E5 - - . . |
 sky    | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . G6 - . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . |
 
@@ -48,7 +48,7 @@ sky    | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . G6 - . . 
 chords | Bbmaj7 | Am7 | Gm7 | Csus4 | Bbmaj7 | Am7 | Gm7 | Csus4 C |
 pad    | * - - - - - - - |
 bass   | 1 - - - - - - - |
-harp   | 1 . . . 3 . . . |
+harp   | 1 . . . . . . . |
 sky    | . . . . D6 - . . | . . . . . . C6 - | . . . . Bb5 - . . | . . . . . . . . | . . . . F6 - . . | . . . . E6 - . . | . . D6 - . . Bb5 - | . . . . . . . . |
 
 play intro a1 a2 b c a1 a2
