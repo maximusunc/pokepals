@@ -112,6 +112,13 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   `"view": "house"`), `HouseBackWall`, `HouseFurniture`, `HouseDirector`, and the house's floor plates in `WorldArt`.
 > - **Layout:** `tools/gen_home_house.py` writes the template's `house` block; `tools/gen_bazaar.py` makes the carpenter.
 
+> **Background music (2026-11, pilot):** each world can have one looping track, written as a text score
+> (`pokepals/tools/music/scores/<world>.score`) and rendered by `pokepals/tools/gen_music.py`. The synth is
+> numpy only (no samples). The `.ogg` files are committed, like the pixel art. A world asks for its track with
+> a `music` block in its spec (`track`, `volume_db`), and the `Music` autoload (`music_player.gd`) crossfades
+> as you travel. A world with no block is quiet. The gear menu's **Music** item turns it off, saved in
+> `user://settings.json`. Only the Vale has a track so far. See `pokepals/tools/music/README.md`.
+
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
 > server's *first* bit of world *simulation* (a per-world `Server.AmbientPals` sim ticked by

@@ -27,6 +27,7 @@ WorldRouter="*res://scripts/world/world_router.gd"
 PlayerIdentity="*res://scripts/world/player_identity.gd"
 Net="*res://scripts/net/net.gd"
 AssetPacks="*res://scripts/net/asset_packs.gd"
+Music="*res://scripts/presentation/music_player.gd"
 
 [display]
 
