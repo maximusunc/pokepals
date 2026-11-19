@@ -1613,12 +1613,16 @@ they don't facing north, and the whole flow.
    ordinary things only reach a little above the horizon, so the picture sits low and to the right of where you stand:
    the barn wall (150 x 100) 470 ahead, the bales 330, the scarecrow 310, the dry-stone wall 285. The lark's wings are
    on the barn wall and its body and tail run onto the bales; the sun's ring crosses the wall and the stones.
-2. **Lining up:** stand still within 64 of the spot with YOU facing within 35 degrees of south (the way you last walked:
-   walk back down onto it; the camera never turns when you walk toward it, so it can't be the camera's heading that
-   counts), and the view swings round to look south and is drawn
-   exactly onto the spot and heading (a "magnet", easing in about a second; lingering is held off, since a lower camera
-   would break the picture), so you never have to hit the exact angle yourself. It counts as lined up within 1.5 units
-   and 1 degree; held for **2 seconds**. Moving or turning away lets the hold go.
+2. **Lining up:** you can stand anywhere on a strip along the line of sight: from about 124 back from the spot
+   (away from the picture) to 64 on toward it, and 64 either side, still, with YOU facing within 35 degrees of
+   south (the way you last walked: walk back down onto it; the camera never turns when you walk toward it, so it
+   can't be the camera's heading that counts). The view then swings round to look south and its EYE is drawn onto
+   the one point the picture lines up from (220 behind the spot), keeping the usual lens: moving a camera along its
+   own line only changes how big the near things look, so the picture is exactly as from the spot, and you simply
+   look bigger, the camera having come up close behind you (`AlignGate.magnet_view`, `PerspectiveView.set_magnet`
+   with a `back`, `ViewProjection.focal_override`). Lingering is held off. It counts as lined up within 1.5 units
+   and 1 degree; held for **2 seconds**. Moving or turning away lets the hold go. The lark lands beside wherever
+   you stand (the claim's radius covers the whole strip).
 3. **Your companion:** from 320 away (720 when deeply bonded) it stops and looks back toward the spot now and then; within
    260 it trots over and sits on the very spot, once per approach, so you can see where to stand. Hints the first time
    each happens.

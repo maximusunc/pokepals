@@ -16,6 +16,7 @@ static func run_all() -> int:
 	fails += _test_moving_off_lets_go()
 	fails += _test_companion_points_then_sits()
 	fails += _test_held_view_doesnt_linger()
+	fails += _test_long_strip()
 	return fails
 
 
@@ -28,12 +29,14 @@ static func _gate() -> AlignGate:
 	return AlignGate.new({ "spot": [100, 100], "facing_deg": 180.0, "hold_seconds": 2.0 })
 
 
-static func _run(g: AlignGate, secs: float, pos: Vector2, speed: float, center: Vector2, yaw: float) -> Dictionary:
+## `eye`: where the view's eye is (null = settled on the gate's own eye point).
+static func _run(g: AlignGate, secs: float, pos: Vector2, speed: float, eye, yaw: float) -> Dictionary:
 	var out := {}
 	var completed := 0
 	var t := 0.0
+	var e: Vector2 = g.eye_point() if eye == null else eye
 	while t < secs:
-		out = g.update(DT, pos, speed, yaw, center, yaw, 0.5)
+		out = g.update(DT, pos, speed, yaw, e, yaw, 0.5)
 		if out["completed"]:
 			completed += 1
 		t += DT
@@ -43,7 +46,7 @@ static func _run(g: AlignGate, secs: float, pos: Vector2, speed: float, center: 
 
 static func _test_walking_past() -> int:
 	var g := _gate()
-	var out := _run(g, 3.0, Vector2(100, 100), 90.0, Vector2(100, 100), PI)
+	var out := _run(g, 3.0, Vector2(100, 100), 90.0, null, PI)
 	return _check("walking across the spot (even facing south) never captures or completes it", not out["capture"] and out["times"] == 0)
 
 
@@ -58,17 +61,17 @@ static func _test_capture_needs_facing() -> int:
 
 static func _test_hold_completes_once() -> int:
 	var g := _gate()
-	var early := _run(g, 1.5, Vector2(100, 100), 0.0, Vector2(100, 100), PI)
-	var late := _run(g, 1.0, Vector2(100, 100), 0.0, Vector2(100, 100), PI)
-	var after := _run(g, 2.0, Vector2(100, 100), 0.0, Vector2(100, 100), PI)
+	var early := _run(g, 1.5, Vector2(100, 100), 0.0, null, PI)
+	var late := _run(g, 1.0, Vector2(100, 100), 0.0, null, PI)
+	var after := _run(g, 2.0, Vector2(100, 100), 0.0, null, PI)
 	return _check("lined up, it completes after the hold (not before), and only once", early["times"] == 0 and early["aligned"] and late["times"] == 1 and after["times"] == 0 and g.done)
 
 
 static func _test_moving_off_lets_go() -> int:
 	var g := _gate()
-	_run(g, 1.5, Vector2(100, 100), 0.0, Vector2(100, 100), PI)
-	_run(g, 0.1, Vector2(100, 100), 0.0, Vector2(100, 100), PI + 0.2)   # turned a little away
-	var out := _run(g, 1.5, Vector2(100, 100), 0.0, Vector2(100, 100), PI)
+	_run(g, 1.5, Vector2(100, 100), 0.0, null, PI)
+	_run(g, 0.1, Vector2(100, 100), 0.0, null, PI + 0.2)   # turned a little away
+	var out := _run(g, 1.5, Vector2(100, 100), 0.0, null, PI)
 	return _check("turning away lets the hold go back to zero", out["times"] == 0 and not g.done and out["progress"] < 0.8)
 
 
@@ -105,3 +108,24 @@ static func _test_held_view_doesnt_linger() -> int:
 		rig.step(Vector2.ZERO, DT)
 		t += DT
 	return _check("a held view doesn't settle lower; let go, it does", held == 0.0 and rig.linger == 1.0)
+
+
+## A long strip to stand on, along the line of sight: further back (away from the picture) still captures, the same
+## distance off to the side doesn't; and the view it asks for keeps its eye on the one point the picture lines up
+## from, whichever spot on the strip you stand on, with its focus level with you.
+static func _test_long_strip() -> int:
+	var g := AlignGate.new({ "spot": [100, 100], "facing_deg": 180.0, "capture_radius": 40.0, "capture_back": 120.0,
+		"capture_ahead": 60.0, "eye_back": 220.0 })
+	var e := g.eye_point()
+	var back := g.update(DT, Vector2(110, 0), 0.0, PI, e, PI, 0.5)        # 100 back from the spot (north), a little aside
+	var ahead := g.update(DT, Vector2(100, 150), 0.0, PI, e, PI, 0.5)     # 50 toward the picture
+	var aside := g.update(DT, Vector2(200, 100), 0.0, PI, e, PI, 0.5)     # 100 off to the side
+	var too_far := g.update(DT, Vector2(100, -80), 0.0, PI, e, PI, 0.5)   # 180 back
+	var ok: bool = back["capture"] and back["aligned"] and ahead["capture"] and not aside["capture"] and not too_far["capture"]
+	var eyes_agree := true
+	for p in [Vector2(110, 0), Vector2(100, 100), Vector2(90, 150)]:
+		var mv := g.magnet_view(p)
+		var c: Vector2 = mv[0]
+		var eye_of := c - g.forward() * float(mv[1])
+		eyes_agree = eyes_agree and eye_of.distance_to(e) < 0.01 and absf(c.y - p.y) < 0.01
+	return _check("you can stand anywhere along a strip back from the spot (not off to the side), and the view keeps its eye on the one point", ok and eyes_agree)

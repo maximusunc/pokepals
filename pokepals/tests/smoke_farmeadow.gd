@@ -22,6 +22,7 @@ var _phase_frame := 0
 var _fails := 0
 var _start := Vector2.ZERO
 var _spot := Vector2.ZERO
+var _far_checked := false
 
 
 func _process(_delta: float) -> bool:
@@ -74,7 +75,7 @@ func _process(_delta: float) -> bool:
 				# As a player would: come up north of the spot (the camera looking north, as it does along the road),
 				# then walk back DOWN onto it (toward the camera, which never turns it) and stop. Facing south now,
 				# the view should swing round to look south, settle, and after the hold the lark comes.
-				_world._player.position = _spot + Vector2(-20, -60)
+				_world._player.position = _spot + Vector2(-20, -150)   # well back from the spot: the strip reaches here
 				_world._player.velocity = Vector2.ZERO
 				_world._perspective.rig.yaw = 0.0
 				Input.action_press("ui_down")
@@ -86,10 +87,13 @@ func _process(_delta: float) -> bool:
 				_fails += _check(absf(PerspectiveView.view_yaw) < 0.2, "walking back down toward the camera doesn't turn it (%.2f)" % PerspectiveView.view_yaw)
 			var sd = _world._secret_dir
 			var entry: Dictionary = sd._entry
+			if not _far_checked and sd._align != null and sd._align.gate().held > 0.5:
+				_far_checked = true
+				_far_alignment_check()
 			if not entry.is_empty() or _frames - _phase_frame > 60 * 60:
 				var pv: PerspectiveView = _world._perspective
 				_fails += _check(not entry.is_empty() and String(entry.get("label", "")) == "a carved wooden lark", "walked back down onto the spot and standing still, the view turns round to look south, and the lark comes off the farmyard to be found")
-				_fails += _check(not entry.is_empty() and (entry["pos"] as Vector2).distance_to(_spot) < 60.0, "...at your feet")
+				_fails += _check(not entry.is_empty() and (entry["pos"] as Vector2).distance_to(_world._player.position) < 60.0, "...beside you")
 				_fails += _check(not pv._magnet and pv.proj.center.distance_to(_world._player.position) < 70.0, "...and the view is let go again")
 				var bare := 0
 				for c in _world._scenery.get_children():
@@ -278,6 +282,32 @@ func _picture_checks() -> void:
 	_fails += _check(nearest_miss > 30.0, "...and facing north from the same spot, nothing lines up (nearest %.0f px off)" % nearest_miss)
 	pv.proj.center = saved_c
 	pv.proj.yaw = saved_y
+
+
+## Standing well back on the strip, the camera's eye is on the same point as from the spot, only zoomed: every
+## painted thing stands where the picture (scaled about the horizon by the zoom) needs it.
+func _far_alignment_check() -> void:
+	var pv: PerspectiveView = _world._perspective
+	var sky: Dictionary = WorldData.load_json("res://data/hz_skylark.json")
+	var zoom := pv.proj.focal() / float(sky["camera"]["back"])
+	var shift := pv.proj.shift
+	var worst := 0.0
+	for c in _world._scenery.get_children():
+		if not (c is TreeView and (c as TreeView).back_tex != null):
+			continue
+		var t := c as TreeView
+		var id := t.tex.resource_path.get_file().get_basename()
+		for b in sky["objects"]:
+			if b["id"] != id:
+				continue
+			var pr := pv.proj.project(t.position)
+			var xf := pv._card_xform(t, t.position, pr, pv.proj.center + Vector2(pr.x, pr.y))
+			var size := t.tex.get_size()
+			var tl := xf * Vector2(-size.x * 0.5, 6.0 - size.y) - pv.proj.center
+			var r: Array = b["rect"]
+			var want := Vector2(float(r[0]) * zoom, shift + (float(r[1]) - shift) * zoom)
+			worst = maxf(worst, tl.distance_to(want))
+	_fails += _check(_world._player.position.distance_to(_spot) > 100.0 and is_equal_approx(zoom, 1.0) and worst < 2.5, "standing %.0f back from the spot, the picture lines up exactly as from the spot (x%.2f, worst %.2f px)" % [_world._player.position.distance_to(_spot), zoom, worst])
 
 
 func _toggle_checks() -> void:

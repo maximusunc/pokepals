@@ -295,7 +295,7 @@ LARK_AT = (SPOT[0] - 30, SPOT[1] + 18)   # beside you (to your right, looking so
 SECRET = {
     "id": "wooden_lark",
     "position": list(LARK_AT),
-    "radius": 120.0,
+    "radius": 280.0,   # the lark lands beside you wherever you stood on the strip, so the claim reaches all of it
     "prop": {"type": "wooden_lark", "color": [0.62, 0.46, 0.32], "label": "a carved wooden lark", "tags": ["small", "made", "old", "odd"]},
     "lore": "A skylark carved from pale wood, wings up, worn smooth by hands. It's still warm, as if it had been flying.",
     "reveal": {
@@ -303,12 +303,16 @@ SECRET = {
         "spot": list(SPOT),
         "facing_deg": FACING,
         "hold_seconds": 2.0,
+        # Where you can stand: a strip along the line of sight, 60 back from the spot (124 with the radius) to 64 on
+        # toward the picture, 64 either side. Anywhere on it the camera's eye goes to the one point the picture lines
+        # up from (eye_back behind the spot) with the usual lens, so the picture is exactly as from the spot; only you
+        # look bigger, the camera having come up nearer behind you.
+        "capture_back": 60.0, "capture_ahead": 0.0, "eye_back": _cam["back"], "min_back": 90.0,
         "capture_radius": 64.0, "capture_deg": 35.0, "still_speed": 14.0, "center_tol": 1.5, "yaw_tol_deg": 1.0,
         "notice_range_low": 320.0, "notice_range_high": 720.0, "notice_cooldown_low": 16.0, "notice_cooldown_high": 6.0,
         "notice_hold": 2.0, "visit_range": 260.0, "visit_reset": 520.0,
         "lark_screen_x": SKYLARK["lark"]["screen"][0], "lark_screen_y": SKYLARK["lark"]["screen"][1],
         "lark_depth": SKYLARK["lark"]["depth"], "lark_span": SKYLARK["lark"]["span"],
-        "land": list(LARK_AT),
         "bare": {b["id"]: b["bare"] for b in SKYLARK["objects"]},
         "lines": {
             "notice": "Your companion stops and looks back the way you came, as if something over there was looking at it.",

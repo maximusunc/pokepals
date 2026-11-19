@@ -55,11 +55,16 @@ func update(delta: float) -> void:
 		return
 	var face := _player.facing()
 	var heading := atan2(face.x, -face.y)  # the way you face, as a bearing
-	var out := _gate.update(delta, _player.position, _player.velocity.length(), heading, pv.proj.center, pv.rig.yaw, _companion.bond_value())
+	var out := _gate.update(delta, _player.position, _player.velocity.length(), heading, pv.eye(), pv.rig.yaw, _companion.bond_value())
 	var want: bool = out["capture"]
+	if want:
+		# the view's focus level with you on the line, its eye on the one point the picture lines up from
+		var mv := _gate.magnet_view(_player.position)
+		pv.set_magnet(true, mv[0], _gate.facing, mv[1])
+	elif _magnet_on:
+		pv.set_magnet(false)
 	if want != _magnet_on:
 		_magnet_on = want
-		pv.set_magnet(want, _gate.spot, _gate.facing)
 		if want and not _found:
 			_tell("settle")
 	if _found:
@@ -87,12 +92,15 @@ func _lift_the_lark(pv: PerspectiveView) -> void:
 	var proj := pv.proj
 	var screen := Vector2(float(_reveal.get("lark_screen_x", -8.0)), float(_reveal.get("lark_screen_y", -9.0)))
 	var z := float(_reveal.get("lark_depth", 380.0))
-	var f := proj.focal()
-	var foot := proj.center - proj.forward() * proj.back
-	var ground := foot + proj.forward() * z + proj.right() * (screen.x * z / f)
-	var y_foot := proj.shift + f * proj.height / z
-	var lift := (y_foot - screen.y) * z / f
-	var land := WorldData.to_vec2(_reveal.get("land", [_gate.spot.x, _gate.spot.y + 28.0]))
+	# The picture was laid out for the camera standing on the spot (focal = eye_back with no tilt). From anywhere
+	# else on the line the eye is the same point and only the zoom differs, so the painted lark's place in the
+	# world comes out the same: work it out with the spot camera's focal, from the eye.
+	var f := _gate.cfg("eye_back") * cos(proj.pitch) + proj.height * sin(proj.pitch)
+	var eye := _gate.eye_point()
+	var ground := eye + proj.forward() * z + proj.right() * (screen.x * z / f)
+	var lift := (proj.shift + f * proj.height / z - screen.y) * z / f
+	# it lands beside you (to your right on screen, a step ahead), wherever on the line you stand
+	var land := _player.position + proj.right() * 28.0 + proj.forward() * 14.0
 	_flight = LarkFlight.new()
 	_flight.name = "LarkFlight"
 	_flight.start(ground, lift, float(_reveal.get("lark_span", 60.0)) * z / f, land)

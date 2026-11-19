@@ -393,16 +393,26 @@ const MAGNET_RATE := 3.0
 
 # A view a world wants you to see exactly (Farmeadow's picture, which only lines up from one spot): while it's
 # set, the focus eases onto `center` instead of you, the heading onto `yaw`, and lingering holds off.
+# `back`, if given, is how far behind the focus the camera stands meanwhile (the eye kept on one point while the
+# focus is wherever you are on the line), eased in and back out again.
 var _magnet := false
 var _magnet_center := Vector2.ZERO
 var _magnet_yaw := 0.0
+var _magnet_back := -1.0
+var _back_bias := 0.0
 
 
-func set_magnet(on: bool, center := Vector2.ZERO, yaw := 0.0) -> void:
+func set_magnet(on: bool, center := Vector2.ZERO, yaw := 0.0, back := -1.0) -> void:
 	_magnet = on
 	_magnet_center = center
 	_magnet_yaw = yaw
+	_magnet_back = back
 	rig.hold_linger = on
+
+
+## Where the camera's eye is now (the focus minus `back` along the heading).
+func eye() -> Vector2:
+	return proj.center - proj.forward() * proj.back
 
 
 func _follow(delta: float) -> void:
@@ -413,6 +423,16 @@ func _follow(delta: float) -> void:
 		rig.yaw = wrapf(rig.yaw + angle_difference(rig.yaw, _magnet_yaw) * k, -PI, PI)
 		view_yaw = rig.yaw
 		proj.yaw = rig.yaw
+	var want_bias := (_magnet_back - proj.back) if _magnet and _magnet_back > 0.0 else 0.0
+	_back_bias = lerpf(_back_bias, want_bias, 1.0 - exp(-FOLLOW_SPEED * delta))
+	if absf(_back_bias - want_bias) < 0.01:
+		_back_bias = want_bias
+	# While the camera stands nearer or farther than usual, the lens stays the usual one: what's far off (the
+	# picture) stays exactly as it was, and only the near things (you) look bigger or smaller.
+	proj.focal_override = 0.0
+	if _back_bias != 0.0:
+		proj.focal_override = proj.focal()
+	proj.back += _back_bias
 	if proj.center.distance_to(target) > SNAP:
 		proj.center = target
 	else:
@@ -449,6 +469,7 @@ func _project() -> void:
 	_mat.set_shader_parameter("view_size", _view_size())
 	_mat.set_shader_parameter("zoom", zoom)
 	_mat.set_shader_parameter("cam", Vector4(proj.height, proj.back, proj.pitch, proj.shift))
+	_mat.set_shader_parameter("focal", proj.focal_override)
 	_mat.set_shader_parameter("far", proj.far)
 	_mat.set_shader_parameter("near_center", nf[0])
 	_mat.set_shader_parameter("near_size", nf[1])

@@ -28,6 +28,10 @@ var shift := 52.0
 var yaw := 0.0
 var far := 1450.0  # draw distance: ground farther than this (along F, from the focus) is sky/haze
 var center := Vector2.ZERO  # the focus point C, in world space
+## A fixed lens (> 0): the focal length, instead of the focus's depth. Normally the focus draws at native size;
+## with a fixed lens, moving the camera along its line changes nothing but how big the near things are (Farmeadow's
+## picture, which must stay put while the camera comes up behind you).
+var focal_override := 0.0
 
 
 ## Settings from a dictionary ({height, back, pitch_deg, shift, far}); missing keys keep their values.
@@ -62,6 +66,8 @@ func right() -> Vector2:
 
 ## The focal length: the depth of the focus point, so the focus draws at scale 1.
 func focal() -> float:
+	if focal_override > 0.0:
+		return focal_override
 	return back * cos(pitch) + height * sin(pitch)
 
 

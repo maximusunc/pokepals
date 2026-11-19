@@ -498,7 +498,7 @@
 			400,
 			-1002
 		],
-		"radius": 120.0,
+		"radius": 280.0,
 		"prop": {
 			"type": "wooden_lark",
 			"color": [
@@ -523,6 +523,10 @@
 			],
 			"facing_deg": 180.0,
 			"hold_seconds": 2.0,
+			"capture_back": 60.0,
+			"capture_ahead": 0.0,
+			"eye_back": 220.0,
+			"min_back": 90.0,
 			"capture_radius": 64.0,
 			"capture_deg": 35.0,
 			"still_speed": 14.0,
@@ -539,10 +543,6 @@
 			"lark_screen_y": 57.0,
 			"lark_depth": 470.0,
 			"lark_span": 38.0,
-			"land": [
-				400,
-				-1002
-			],
 			"bare": {
 				"hz_barnwall": "res://assets/sprites/hz_barnwall_bare.png",
 				"hz_scarecrow": "res://assets/sprites/hz_scarecrow_bare.png",

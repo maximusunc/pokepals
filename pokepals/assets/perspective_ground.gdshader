@@ -10,6 +10,7 @@ uniform sampler2D far_tex : filter_nearest, repeat_disable;
 uniform vec2 view_size;      // the viewport in canvas units
 uniform float zoom = 1.0;
 uniform vec4 cam;            // eye height, back (camera foot to focus), pitch (radians), lens shift
+uniform float focal = 0.0;   // a fixed lens (ViewProjection.focal_override), or 0: the focus's depth
 uniform float far = 1250.0;  // draw distance ahead of the focus
 // The rects each texture covers, in the view's frame (x along screen-right, y toward the camera; focus at 0).
 uniform vec2 near_center;
@@ -49,7 +50,7 @@ void fragment() {
 	float back = cam.y;
 	float cp = cos(cam.z);
 	float sp = sin(cam.z);
-	float f = back * cp + h * sp;
+	float f = focal > 0.0 ? focal : back * cp + h * sp;
 	vec2 v = (UV * view_size - view_size * 0.5) / zoom;
 	float horizon_y = cam.w - f * sp / cp;
 	vec4 sky = mix(sky_low, sky_top, sqrt(clamp((horizon_y - v.y) / (view_size.y / zoom * 0.6), 0.0, 1.0)));
