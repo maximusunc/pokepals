@@ -263,6 +263,25 @@ func peer_at(world_pos: Vector2, radius: float) -> String:
 	return best
 
 
+## peer_at for a perspective view: the player whose drawn body (its middle, lifted off its feet and scaled by
+## depth) is nearest a screen position, within `radius` measured at that player's own scale.
+func peer_at_screen(screen_pos: Vector2, radius: float) -> String:
+	var best := ""
+	var best_d := INF
+	for peer_id in _remote_pairs:
+		var rp: Node2D = _remote_pairs[peer_id]["player"]
+		if not is_instance_valid(rp):
+			continue
+		var feet := PerspectiveView.to_screen(rp, rp.position)
+		if feet.z <= 0.0:
+			continue
+		var d := screen_pos.distance_to(Vector2(feet.x, feet.y - 14.0 * feet.z)) / feet.z
+		if d <= radius and d < best_d:
+			best = peer_id
+			best_d = d
+	return best
+
+
 ## Every remote player + companion node (whose footsteps glow on a world that asks for it).
 func remote_actors() -> Array:
 	var out: Array = []

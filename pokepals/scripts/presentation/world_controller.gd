@@ -110,6 +110,8 @@ var _gateway_hidden := false
 var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
 var _ambient_life: AmbientLife
+# The perspective ("inside") view: on for a world whose spec asks for it, or from the gear menu's dev item.
+var _perspective: PerspectiveView
 # F-2/C-1 — a form-verb order in flight: the object index + verb the companion was sent to PERFORM, and
 # whether its world effect has fired yet. The controller watches the companion approach (Ruin-referee
 # style) and applies the effect once it arrives, so the brain never touches world state. Cleared when
@@ -412,6 +414,14 @@ func _build_world(cached: Dictionary) -> void:
 	# this point — on a cold first visit we sit on the loading screen with no companion/interactables set
 	# up yet — those callbacks early-return, so they never touch half-built state.
 	_world_built = true
+	# The perspective ("inside") view, for a world whose spec has a `view` block asking for it (Horizon). Any
+	# world can be looked at this way from the gear menu's dev item (or P); `-- --inside` starts with it on.
+	_perspective = PerspectiveView.new()
+	_perspective.name = "Perspective"
+	add_child(_perspective)
+	_perspective.setup(self, _world_art, _scenery, _camera, _player, _companion, data.get("view", {}), _style.entity("ambient_life"))
+	if PerspectiveView.wants(data) or OS.get_cmdline_user_args().has("--inside"):
+		_perspective.set_on(true)
 
 
 ## Create the per-mechanic directors as children of this node and hand each the scene refs it drives.
@@ -1139,6 +1149,9 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "welcome", "label": "Welcome" })
 		items.append({ "id": "music", "label": "Music: On" if Music.enabled else "Music: Off" })
 		items.append({ "id": "leave", "label": "Leave game" })
+	# Dev: look at any world in the perspective view, or back top-down (P on a keyboard does the same).
+	if _perspective != null:
+		items.append({ "id": "perspective", "label": "Top-down view (dev)" if _perspective.is_on() else "Inside view (dev)" })
 	items.append({ "id": "dbg", "label": "DBG" })
 	return items
 
@@ -1182,6 +1195,7 @@ func _on_gear_item(id: String) -> void:
 		"music": Music.toggle()
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
+		"perspective": _perspective.set_on(not _perspective.is_on())
 
 
 # ============================================================================================
@@ -1421,6 +1435,8 @@ func _unhandled_input(event: InputEvent) -> void:
 		# The hotbar (U-9): 1-5 pick a slot, F uses what's selected.
 		elif event.physical_keycode == KEY_F:
 			_fishing_dir.use_item()
+		elif event.physical_keycode == KEY_P and _perspective != null:
+			_perspective.set_on(not _perspective.is_on())
 		elif event.physical_keycode >= KEY_1 and event.physical_keycode <= KEY_5:
 			_fishing_dir.select_slot(int(event.physical_keycode - KEY_1))
 
@@ -1493,9 +1509,11 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	# Loftreach: a tap while your companion's eyes are up in the sky brings it home (and does nothing else)
 	if _secret_dir.on_world_tap():
 		return
-	var world: Vector2 = get_viewport().get_canvas_transform().affine_inverse() * screen_pos
+	# The ground under the tap (in a perspective world, the ground seen there; see PerspectiveView.to_world).
+	var world := PerspectiveView.to_world(self, screen_pos)
 	# A tap on another player opens their card (Befriend, Invite home, …) instead of ordering the companion.
-	var peer := _presence_dir.peer_at(world, PLAYER_TAP_RADIUS)
+	# In perspective a player stands UP off the ground, so they're picked where they're drawn on screen.
+	var peer := _presence_dir.peer_at_screen(screen_pos, PLAYER_TAP_RADIUS) if PerspectiveView.active != null else _presence_dir.peer_at(world, PLAYER_TAP_RADIUS)
 	if peer != "":
 		_social_dir.tap_player(peer)
 		return

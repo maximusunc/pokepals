@@ -98,6 +98,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "the painted lark lines up from one spot on the player's screen, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "align", "spot" => [430, -1020], "facing_deg" => 180.0, "hold_seconds" => 2.0}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})

@@ -53,6 +53,8 @@ func _init() -> void:
 	failures += TestWorldPortals.run_all()
 	failures += TestPackLogic.run_all()
 	failures += TestFishing.run_all()
+	failures += TestViewProjection.run_all()
+	failures += TestAlignGate.run_all()
 
 	print("")
 	if failures == 0:

@@ -219,7 +219,7 @@ defmodule Server.AmbientPals do
       end
 
     walls =
-      for key <- ["hedges", "walls"], w <- list(Map.get(core, key)),
+      for key <- ["hedges", "walls", "fences"], w <- list(Map.get(core, key)),
           do: %{a: vec(Map.get(w, "from", [0, 0])), b: vec(Map.get(w, "to", [0, 0])), r: num(Map.get(w, "thickness", 28.0)) * 0.5}
 
     trees ++ border ++ landmarks ++ props ++ ponds ++ walls

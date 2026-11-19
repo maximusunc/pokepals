@@ -82,7 +82,7 @@ static func perceive(context: Dictionary, s: CompanionSelf, cfg: Dictionary) -> 
 		"dist_to_player": companion_pos.distance_to(player_pos),
 		"player_moving": player_velocity.length() >= 1.0,
 		"follow_near": follow_near,
-		"follow_point": _follow_point(companion_pos, player_pos, player_velocity, follow_near),
+		"follow_point": _follow_point(companion_pos, player_pos, player_velocity, follow_near, float(context.get("follow_side", 0.0))),
 		"has_interaction": has_interaction,
 		"interaction_point": interaction_point,
 		"interaction_id": interaction_id,
@@ -118,11 +118,17 @@ static func effective_follow_near(cfg: Dictionary, bond: float) -> float:
 ## A resting point a comfortable follow_near from the player, on the side the
 ## companion should occupy: directly behind the player's heading when moving, or on
 ## its current side when the player is still. This makes it trail rather than
-## overlap.
-static func _follow_point(companion_pos: Vector2, player_pos: Vector2, velocity: Vector2, follow_near: float) -> Vector2:
+## overlap. `side` (radians, optional) turns the spot from straight behind toward
+## whichever side the companion is already on, so it walks beside the player instead.
+static func _follow_point(companion_pos: Vector2, player_pos: Vector2, velocity: Vector2, follow_near: float, side := 0.0) -> Vector2:
 	var behind: Vector2
 	if velocity.length() >= 1.0:
 		behind = -velocity.normalized()
+		if side != 0.0:
+			var h := velocity.normalized()
+			var rel := companion_pos - player_pos
+			var cs := h.x * rel.y - h.y * rel.x
+			behind = behind.rotated(-side if cs >= 0.0 else side)
 	else:
 		behind = companion_pos - player_pos
 		if behind.length() < 1.0:

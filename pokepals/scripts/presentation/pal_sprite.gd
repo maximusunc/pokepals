@@ -32,6 +32,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 		return
 	tex = BrickLook.for_actor(ci, tex, cfg.get("frame", [32, 32]))   # a brick world draws everyone rebuilt out of bricks
 	var look: Vector2 = params.get("look", Vector2.DOWN)
+	look = look.rotated(-PerspectiveView.view_yaw)  # SPIKE (Horizon): face relative to the view
 	var speed: float = params.get("speed", 0.0)
 	var t: float = params.get("time", 0.0)
 	var bounce: float = params.get("bounce", 0.0)

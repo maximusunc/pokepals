@@ -417,6 +417,37 @@ not a blocker** — pick it up if/when a shared world wants it.
 > secret: `tools/gen_thimblewick_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Thimblewick").
 
+> **Farmeadow and the perspective view (2026-11):** the first world that looks like **a different game**: the same world
+> logic seen **from inside**, in fake 3D (still Godot 2D). A rolling meadow and one long road (3600x3600): you arrive at its
+> south end and walk north past fences, haystacks, copses and windmills to the ruin of a keep you can see from the start.
+> Reached through the Gateway (featured). **Secret:** a skylark (and a ring for the sun) painted across a little farmyard in a
+> field (an old barn wall, a scarecrow, straw bales, a dry-stone wall), which only joins up into one picture from one spot,
+> looking **south** (back the way you came): stand still there and the view settles exactly (`PerspectiveView.set_magnet`),
+> hold it two seconds and the painted lark lifts off (`LarkFlight`) and lands beside you as a carved wooden lark. Your companion looks back toward the spot as you near it, then sits on it. New
+> reveal type `align` (server: "this world, standing at it"). Pure `AlignGate` (`scripts/world`, tested) over
+> `AlignDirector` (`mechanics/`); `gen_horizon.py` paints the farmyard for `data/view.json`'s camera from the spot (a
+> depth buffer decides which thing is in front), writes plain backs (a card's `"back"` art) and `data/hz_skylark.json`.
+> - **Opt-in per world:** a spec `view` block (`{"projection": "perspective"}`), deep-merged over `data/view.json`. Any world
+>   can be looked at this way from the gear menu's dev item (or P).
+> - **The camera is pure logic:** `ViewProjection` (a pinhole camera: eye height, distance behind you, tilt, lens shift, draw
+>   distance; world <-> screen) and `ViewRig` (it swings round behind the way you walk, never when you step back toward it,
+>   and settles lower when you stand still). Both in `scripts/world`, tested.
+> - **Only the drawing changes** (`PerspectiveView`): the flat layer (WorldArt) is rendered top-down into two SubViewports and
+>   shown through `assets/perspective_ground.gdshader` with a sky and a 360-degree **backdrop** of hills and clouds; every
+>   Scenery child gets its DRAWN transform overridden just before drawing (projected, scaled by depth; y-sort follows), so
+>   positions, collision, the brain and the server never know. The joystick moves you relative to the screen; sprites face
+>   relative to the view; your companion walks beside you.
+> - **Taps and prompts** go through `PerspectiveView.to_world` / `to_screen` (another player is picked where they're drawn;
+>   the rod's line uses `local_of`).
+> - **Upright art seen from any side:** tree kinds with `"angles"` (the windmill from 8 bearings) or `"card": true` (fences, a
+>   signpost: both ends projected), landmarks drawn past the draw distance, a tree or building between you and the camera
+>   fades. A tree entry may carry a 4th value: the bearing its front faces.
+> - **Off in perspective:** AmbientLife's flat life (butterflies come back as `FlutterView`s in the scenery), garlands, steam;
+>   fog, reflections, the tide and sky islands are top-down only.
+> - Art: `pokepals/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; layout and lore: `tools/gen_farmeadow_world.py`.
+>   Every finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Farmeadow"). The other
+>   skin-world ideas are issues #157-#160.
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

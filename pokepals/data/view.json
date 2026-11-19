@@ -1,0 +1,19 @@
+{
+  "_doc": "The perspective ('inside') view a world can opt into with a `view` block in its spec ({\"projection\": \"perspective\", ...}), deep-merged over this. Camera numbers are world units (see ViewProjection): height = eye height, back = how far behind you the camera stands, pitch_deg = tilt down, shift = lens shift down the screen, far = draw distance ahead of you. `linger_camera` is where standing still settles it. Swing and linger feed ViewRig. Textures: the flat ground is rendered into a sharp near texture (out to near_reach ahead of you) and a wide far one.",
+  "camera": { "height": 53.0, "back": 220.0, "pitch_deg": 0.0, "shift": 52.0, "far": 1250.0 },
+  "linger_camera": { "height": 36.0, "back": 210.0, "pitch_deg": 0.0, "shift": 39.0, "far": 1540.0 },
+  "swing": { "rate": 2.0, "sideways": 0.25, "max_deg": 115.0 },
+  "linger": { "after": 2.5, "down_rate": 0.45, "up_rate": 2.5 },
+  "companion_side_deg": 70.0,
+  "near_reach": 220.0,
+  "near_tex": [1024, 512],
+  "far_tex": [1024, 512],
+  "sky": {
+    "top": [0.45, 0.66, 0.90],
+    "low": [0.86, 0.90, 0.92],
+    "beyond": [0.27, 0.44, 0.21],
+    "land_haze": [0.62, 0.70, 0.60],
+    "haze_from": 0.6,
+    "haze_max": 0.85
+  }
+}

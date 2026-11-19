@@ -1,0 +1,88 @@
+{
+ "_comment": "Farmeadow's skylark picture (tools/gen_horizon.py): the things it's painted across, each standing square to the secret's spot (a card facing north), with its depth ahead of the spot camera's foot, the screen x of its middle, its size, and the rect it covers on screen (from the view's centre, y down) as the perspective camera sees it from the spot looking south. Painted for this camera.",
+ "camera": {
+  "height": 53.0,
+  "back": 220.0,
+  "pitch_deg": 0.0,
+  "shift": 52.0,
+  "far": 1250.0
+ },
+ "lark": {
+  "screen": [
+   68.0,
+   57.0
+  ],
+  "depth": 470.0,
+  "span": 38.0,
+  "coverage": {
+   "lark": 1.0,
+   "sun": 0.952
+  }
+ },
+ "objects": [
+  {
+   "id": "hz_barnwall",
+   "depth": 470.0,
+   "x": 76.0,
+   "w": 150,
+   "h": 100,
+   "rect": [
+    40.89,
+    30.0,
+    70.21,
+    46.81
+   ],
+   "sprite": "res://assets/sprites/hz_barnwall.png",
+   "back": "res://assets/sprites/hz_barnwall_back.png",
+   "bare": "res://assets/sprites/hz_barnwall_bare.png"
+  },
+  {
+   "id": "hz_scarecrow",
+   "depth": 310.0,
+   "x": 44.0,
+   "w": 30,
+   "h": 74,
+   "rect": [
+    33.35,
+    37.1,
+    21.29,
+    52.52
+   ],
+   "sprite": "res://assets/sprites/hz_scarecrow.png",
+   "back": "res://assets/sprites/hz_scarecrow_back.png",
+   "bare": "res://assets/sprites/hz_scarecrow_bare.png"
+  },
+  {
+   "id": "hz_bales",
+   "depth": 330.0,
+   "x": 62.0,
+   "w": 66,
+   "h": 44,
+   "rect": [
+    40.0,
+    58.0,
+    44.0,
+    29.33
+   ],
+   "sprite": "res://assets/sprites/hz_bales.png",
+   "back": "res://assets/sprites/hz_bales_back.png",
+   "bare": "res://assets/sprites/hz_bales_bare.png"
+  },
+  {
+   "id": "hz_drywall",
+   "depth": 285.0,
+   "x": 112.0,
+   "w": 86,
+   "h": 30,
+   "rect": [
+    78.81,
+    69.75,
+    66.39,
+    23.16
+   ],
+   "sprite": "res://assets/sprites/hz_drywall.png",
+   "back": "res://assets/sprites/hz_drywall_back.png",
+   "bare": "res://assets/sprites/hz_drywall_bare.png"
+  }
+ ]
+}

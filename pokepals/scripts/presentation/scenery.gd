@@ -34,6 +34,10 @@ func _process(delta: float) -> void:
 	var vis := ViewCull.visible_world_rect(self, CULL_MARGIN)
 	var cull := vis.has_area()  # false in headless / before the camera exists → tick them all
 	_tick_buildings(delta, vis, cull)
+	# In a perspective world the visible ground is a long wedge, not a rect: the view culls and ticks the grove.
+	if PerspectiveView.active != null:
+		PerspectiveView.active.tick_trees(_trees, _time)
+		return
 	for tree in _trees:
 		if cull and not vis.has_point(tree.position):
 			if tree.visible:
@@ -108,7 +112,13 @@ func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	for t in data.get("trees", []):
 		var kind := String(t[2]) if (t is Array and t.size() > 2) else "tree"
 		_spawn_tree(WorldData.to_vec2(t), false, _art_for(arts, style, kind, "tree"), style, wind_strength, wind_speed)
-		_spec_trees.append(_trees[_trees.size() - 1])
+		var tv: TreeView = _trees[_trees.size() - 1]
+		_spec_trees.append(tv)
+		# An optional 4th entry: the bearing (degrees, 0 north, clockwise) its front faces (see TreeView.facing).
+		if t is Array and t.size() > 3:
+			tv.facing = deg_to_rad(float(t[3]))
+		if tv.has_meta("card"):
+			tv.set_meta("card", tv.facing)
 	for p in border_pts:
 		_spawn_tree(p, false, _art_for(arts, style, "tree", "tree"), style, wind_strength, wind_speed)
 
@@ -145,7 +155,18 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 			"canopy": SpriteSlot.resolve(vc, "canopy"),
 			"glow": WorldData.to_color(vc["glow"]) if vc.has("glow") else Color(0, 0, 0, 0),
 		})
+	# Perspective worlds: a kind drawn from several bearings ("angles": [paths, frame 0 = its front, then
+	# clockwise]), or a flat one foreshortened by the angle it's seen at ("card": true). See TreeView.facing.
+	var angles: Array = []
+	for path in cfg.get("angles", []):
+		if ResourceLoader.exists(String(path)):
+			angles.append(load(String(path)))
+	var back_path := String(cfg.get("back", ""))
 	var art := {
+		"back": load(back_path) if back_path != "" and ResourceLoader.exists(back_path) else null,
+		"tex_scale": float(cfg.get("tex_scale", 0.0)),  # world units per texel, when a kind's art isn't 1:1 (Farmeadow's boards)
+		"angles": angles,
+		"card": bool(cfg.get("card", false)),
 		"variants": variants,
 		"glow_radius": float(cfg.get("glow_radius", 0.0)),
 		"glow_y": float(cfg.get("glow_y", -24.0)),
@@ -170,7 +191,10 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	# Crisp pixel art when the 640x360 view is scaled up to the window. A glowing growth (Nocthollow's)
 	# keeps linear filtering, or its soft halo would turn blocky.
 	# Smooth @2x art (Bobbledown's) is drawn at half size and stays linear too.
-	if bool(art.get("hd", false)):
+	if float(art.get("tex_scale", 0.0)) > 0.0:
+		tree.tex_scale = float(art["tex_scale"])
+		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	elif bool(art.get("hd", false)):
 		tree.tex_scale = 0.5
 	elif float(art["glow_radius"]) <= 0.0:
 		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -180,6 +204,10 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 	tree.wind_strength = wind_strength
 	tree.wind_speed = wind_speed
 	tree.phase = _phase_for(pos)
+	tree.angle_frames = art.get("angles", [])
+	tree.back_tex = art.get("back")
+	if bool(art.get("card", false)):
+		tree.set_meta("card", tree.facing)
 	add_child(tree)
 	_trees.append(tree)
 

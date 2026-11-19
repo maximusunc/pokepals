@@ -133,9 +133,20 @@ func path_value(p: Vector2) -> float:
 	return _r[y * _mw + x]
 
 
+var _extra := 0.0  # how far past the world's bounds the ground is drawn (extend)
+
+
+## Draw the ground this far past the world's edge (a perspective view sees on to the horizon; the shader
+## carries the terrain on out there). 0 = just the world, as always.
+func extend(margin: float) -> void:
+	if margin != _extra:
+		_extra = margin
+		queue_redraw()
+
+
 func _draw() -> void:
 	if _rect.has_area():
-		draw_rect(_rect, Color.WHITE)
+		draw_rect(_rect.grow(_extra), Color.WHITE)
 
 
 const SLOTS := ["grass", "lush", "meadow", "dirt", "sand", "path", "worn"]

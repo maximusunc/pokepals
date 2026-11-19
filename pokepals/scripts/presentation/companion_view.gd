@@ -25,6 +25,9 @@ const POINT_VIS_RATE := 8.0  # per-sec ease of the point's visual intensity towa
 # friend's companion lands ~20 Hz and we glide toward it at 60 fps so its motion stays smooth.
 const REMOTE_LERP_RATE := 14.0
 
+## SPIKE (Horizon): turn the follow spot from straight behind you toward your side by this angle (radians),
+## so in the "inside" perspective view your companion walks beside you, in frame. 0 = the usual trailing.
+var follow_side := 0.0
 var velocity := Vector2.ZERO
 
 var _brain: CompanionBrain
@@ -424,6 +427,7 @@ func _process(delta: float) -> void:
 		"companion_pos": position,
 		"player_pos": _player.position,
 		"player_velocity": _player.velocity,
+		"follow_side": follow_side,
 		"delta": delta,
 		"events": _events,
 		"time": _time,

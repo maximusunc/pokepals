@@ -77,11 +77,16 @@ void fragment() {
 	float jitter = (vnoise(p * 0.11 + seed + 5.0) - 0.5) * 0.34;
 	float fray = d * edge + jitter * 0.12;
 	vec2 uv = (p + 0.5 - bounds.xy) / bounds.zw;
-	if (texture(noise_lush, uv).r + fray > thresholds.x) { slot = 1; kind = 1; }
-	if (texture(noise_meadow, uv).r + fray > thresholds.y) { slot = 2; kind = 2; }
-	if (texture(noise_dirt, uv).r + fray > thresholds.z) { slot = 3; kind = 3; }
+	// Past the world's edge (a perspective view draws the ground on to the horizon, GroundLayer.extend) the
+	// noise fields are mirrored, so the patches carry on with no seam, and the mask is empty: no paths, shores
+	// or shade out there. Inside the bounds both are exactly as before.
+	vec2 nuv = abs(mod(uv + 1.0, 2.0) - 1.0);
+	bool outside = uv.x < 0.0 || uv.y < 0.0 || uv.x > 1.0 || uv.y > 1.0;
+	if (texture(noise_lush, nuv).r + fray > thresholds.x) { slot = 1; kind = 1; }
+	if (texture(noise_meadow, nuv).r + fray > thresholds.y) { slot = 2; kind = 2; }
+	if (texture(noise_dirt, nuv).r + fray > thresholds.z) { slot = 3; kind = 3; }
 
-	vec4 m = texture(mask, uv);
+	vec4 m = outside ? vec4(0.0) : texture(mask, uv);
 
 	// a sandy band hugging the water
 	if (m.g + jitter * 0.6 + d * 0.2 > 0.5) { slot = 4; kind = 4; }
@@ -99,7 +104,7 @@ void fragment() {
 
 	// broad light/dark CLUMPING from world-space noise (the tiles carry only fine grain, so this
 	// never repeats), dithered at its edges like everything else
-	float cl = texture(noise_clump, uv).r + d * 0.07 + jitter * 0.1;
+	float cl = texture(noise_clump, nuv).r + d * 0.07 + jitter * 0.1;
 	if (cl > clump_cut.y) { shade = min(shade + 1, 3); }
 	else if (cl < clump_cut.x) { shade = max(shade - 1, 0); }
 

@@ -14,7 +14,14 @@ extends RefCounted
 ## World-space rect the camera can currently see, grown by `margin` (so tall motifs whose feet
 ## sit just off-screen still draw their canopy). Returns an empty Rect2 when the framing is
 ## degenerate — callers should check `rect.has_area()` and skip culling when it's false.
+## SPIKE (Horizon): while a perspective view is up, the visible world is a long trapezoid running off to
+## the horizon, not the camera's rect; PerspectiveView sets its bounding box here each frame.
+static var override_rect := Rect2()
+
+
 static func visible_world_rect(ci: CanvasItem, margin: float) -> Rect2:
+	if override_rect.has_area():
+		return override_rect.grow(margin)
 	if ci == null or not ci.is_inside_tree():
 		return Rect2()
 	var screen: Vector2 = ci.get_viewport_rect().size

@@ -54,7 +54,9 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	# half-thickness radius (a capsule). resolve() pushes bodies off the nearest point of the
 	# segment, so one entry blocks a whole long hedge run rather than a string of circles.
 	# A souk's WALLS (the Bazaar's lane) are the same kind of segment solid as the maze's hedges.
-	for h in world_data.get("hedges", []) + world_data.get("walls", []):
+	# A world's FENCES (Farmeadow's) are the same segments with nothing drawn for them: the fence you see is a
+	# row of upright panels (tree kinds), and this is what actually stops you between them.
+	for h in world_data.get("hedges", []) + world_data.get("walls", []) + world_data.get("fences", []):
 		solids.append({
 			"a": WorldData.to_vec2(h["from"]),
 			"b": WorldData.to_vec2(h["to"]),
