@@ -240,6 +240,9 @@ func _build_world(cached: Dictionary) -> void:
 		_fishing_dir.add_water(_tide_covers)
 	_apply_atmosphere(data.get("atmosphere", {}))
 	_setup_daycycle(_style.daycycle())
+	# This world's background music (its spec's "music" block; none fades to quiet). The Music autoload
+	# outlives the scene reload a world hop does, so it crossfades from the last world's track.
+	Music.play_world(data.get("music", {}))
 
 	# C-3 — the form hint layer. Light whatever the worn form can act on now, and re-light it every
 	# time the form shifts (instructed OR drifted — companion_view emits form_changed for both), so
@@ -1144,6 +1147,7 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "bag", "label": "Bag" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
 		items.append({ "id": "welcome", "label": "Welcome" })
+		items.append({ "id": "music", "label": "Music: On" if Music.enabled else "Music: Off" })
 		items.append({ "id": "leave", "label": "Leave game" })
 	# Dev: look at any world in the perspective view, or back top-down (P on a keyboard does the same).
 	if _perspective != null:
@@ -1188,6 +1192,7 @@ func _on_gear_item(id: String) -> void:
 		"journal": _social_dir.open_journal()
 		"bag": open_sheet(BagPanel.new())
 		"welcome": _open_cards([], false)
+		"music": Music.toggle()
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
 		"perspective": _perspective.set_on(not _perspective.is_on())
