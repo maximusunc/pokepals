@@ -64,8 +64,8 @@ right), `spread` (random pan per note), `reverb` (how much goes to the room).
 |---|---|
 | `pad` | a warm, slowly swelling sustained chord |
 | `bass` | a round, soft low note |
-| `kalimba` | a thumb-piano pluck |
-| `musicbox` | a bright, ringing music-box or celesta tine |
+| `kalimba` | a muted thumb-piano with a rounded, unplucked onset |
+| `musicbox` | a soft, long-ringing celesta tine |
 | `chime` | a faint, glassy, faraway chime |
 
 To give a world its own sound, add an instrument in `synth.py`. Each one is a short function that
@@ -76,7 +76,7 @@ returns one note.
 Put a `music` block in the world's seed spec (`server/priv/world_seeds/<world>.json`):
 
 ```json
-"music": { "track": "res://assets/music/vale.ogg", "volume_db": -12 }
+"music": { "track": "res://assets/music/vale.ogg", "volume_db": -18 }
 ```
 
 `volume_db` is the listening level in the game. Every file peaks at -1 dBFS, so this is the knob for

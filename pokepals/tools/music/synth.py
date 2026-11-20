@@ -66,17 +66,18 @@ def bass(midi, dur, vel, rng):
     return 0.5 * vel * out * env
 
 
-def _modal(f, partials, length, vel, click=0.0, rng=None):
-    """Sum of decaying sines: partials = [(ratio, amp, decay_seconds), ...]."""
+def _modal(f, partials, length, vel, click=0.0, rng=None, attack=0.004):
+    """Sum of decaying sines: partials = [(ratio, amp, decay_seconds), ...]. `attack` is the onset
+    ramp in seconds: a few ms is a pluck, a few tens of ms rounds it off into a soft touch."""
     t = _t(length)
     out = np.zeros_like(t)
     for ratio, amp, decay in partials:
         if f * ratio > 16000:
             continue
         out += amp * np.exp(-t / decay) * np.sin(2 * np.pi * f * ratio * t)
-    # a soft 4 ms onset so nothing ticks
-    n = min(len(t), int(0.004 * SR))
-    out[:n] *= np.linspace(0, 1, n)
+    # an eased onset so nothing ticks (and, when long enough, nothing plucks)
+    n = min(len(t), int(attack * SR))
+    out[:n] *= np.sin(np.linspace(0, np.pi / 2, n)) ** 2
     if click > 0 and rng is not None:
         k = int(0.006 * SR)
         noise = rng.standard_normal(k) * np.exp(-np.arange(k) / (0.0015 * SR))
@@ -85,19 +86,21 @@ def _modal(f, partials, length, vel, click=0.0, rng=None):
 
 
 def kalimba(midi, dur, vel, rng):
-    """A thumb-piano pluck: a warm fundamental and a couple of quick, slightly inharmonic overtones."""
+    """A muted thumb-piano: a warm fundamental with a rounded (not plucked) onset and only a faint
+    trace of the tine's inharmonic overtones, so it ripples under the music instead of ticking."""
     f = hz(midi)
-    decay = 1.6 * (440.0 / f) ** 0.25
-    return 0.32 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.08, decay * 0.3),
-                             (5.4, 0.12, 0.08), (8.9, 0.04, 0.03)], decay * 4, vel, 0.03, rng)
+    decay = 1.8 * (440.0 / f) ** 0.25
+    return 0.34 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.06, decay * 0.3),
+                             (5.4, 0.03, 0.06)], decay * 4, vel, 0.0, rng, attack=0.03)
 
 
 def musicbox(midi, dur, vel, rng):
-    """A music-box / celesta tine: bright, bell-like, long ringing fundamental."""
+    """A soft celesta tine: bell-like and long-ringing, but with a rounded onset and its bright upper
+    partials turned well down, so the tune floats rather than chimes."""
     f = hz(midi)
-    decay = 2.4 * (523.0 / f) ** 0.4
-    return 0.24 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.28, decay * 0.45), (3.0, 0.06, decay * 0.2),
-                             (4.07, 0.1, 0.25), (6.8, 0.04, 0.08)], decay * 3.5, vel, 0.015, rng)
+    decay = 2.6 * (523.0 / f) ** 0.4
+    return 0.26 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.18, decay * 0.45), (3.0, 0.03, decay * 0.2),
+                             (4.07, 0.03, 0.2)], decay * 3.5, vel, 0.0, rng, attack=0.02)
 
 
 def chime(midi, dur, vel, rng):

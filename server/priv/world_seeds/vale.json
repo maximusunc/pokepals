@@ -26,7 +26,7 @@
 	],
 	"ground_color": [0.34, 0.46, 0.36],
 	"_music_comment": "Background music, a looping track rendered from tools/music/scores/vale.score by tools/gen_music.py. volume_db is the listening level (the file itself peaks at -1 dBFS). A world with no music block is quiet.",
-	"music": { "track": "res://assets/music/vale.ogg", "volume_db": -12 },
+	"music": { "track": "res://assets/music/vale.ogg", "volume_db": -18 },
 	"_atmosphere_comment": "Presentation-only mood knobs — none of this touches game logic. Tuned toward DUSK so the world reads dim and the warm centres (the Commons fire, the finding, the portals) glow against it — the whole point of the tightened footprint. day_tint is a global color-wash (CanvasModulate); vignette darkens the screen edges; wind drives the gentle sway of flowers/canopies/grass; ground_noise mottles the flat ground; pollen is the count of drifting motes (read here as mist) that follow the camera; glow.pulse_speed breathes the lantern/crystal/portal light.",
 	"atmosphere": {
 		"day_tint": [0.80, 0.78, 0.94],
