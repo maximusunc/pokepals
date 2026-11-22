@@ -116,8 +116,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 > (`pokepals/tools/music/scores/<world>.score`) and rendered by `pokepals/tools/gen_music.py`. The synth is
 > numpy only (no samples). The `.ogg` files are committed, like the pixel art. A world asks for its track with
 > a `music` block in its spec (`track`, `volume_db`), and the `Music` autoload (`music_player.gd`) crossfades
-> as you travel. A world with no block is quiet. The gear menu's **Music** item turns it off, saved in
-> `user://settings.json`. Only the Vale has a track so far. See `pokepals/tools/music/README.md`.
+> as you travel. A world with no block is quiet. Every file is rendered to -16 LUFS, and `volume_db: -22` plays it at
+> about -38 LUFS, quiet background. The gear menu's **Sound** sheet (`SoundPanel`) has a volume slider whose middle is
+> that level; it's saved in `user://settings.json`. Only the Vale has a track so far. See
+> `pokepals/tools/music/README.md`.
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the

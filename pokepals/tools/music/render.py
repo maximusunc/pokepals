@@ -74,7 +74,7 @@ def render(text):
 
     out -= out.mean(axis=1, keepdims=True)
     peak = np.max(np.abs(out))
-    out *= 0.89 / peak  # -1 dBFS peak; the game sets the listening level (volume_db in the spec)
+    out *= 0.89 / peak  # -1 dBFS peak for now; gen_music.py then sets its loudness (TARGET_LUFS)
     return sc, out
 
 

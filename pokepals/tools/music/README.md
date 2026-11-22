@@ -76,13 +76,19 @@ returns one note.
 Put a `music` block in the world's seed spec (`server/priv/world_seeds/<world>.json`):
 
 ```json
-"music": { "track": "res://assets/music/vale.ogg", "volume_db": -18 }
+"music": { "track": "res://assets/music/vale.ogg", "volume_db": -22 }
 ```
 
-`volume_db` is the listening level in the game. Every file peaks at -1 dBFS, so this is the knob for
-balancing worlds against each other. The `Music` autoload (`scripts/presentation/music_player.gd`)
-crossfades between worlds. A world with no `music` block fades to quiet. The gear menu's **Music**
-item turns it off or on, and the choice is saved in `user://settings.json`.
+`volume_db` is the listening level in the game. `gen_music.py` brings every file to the same
+loudness, **-16 LUFS** (perceived loudness, measured with ffmpeg's `ebur128`), so `volume_db` means the
+same thing in every world: **-22** plays a track at about **-38 LUFS**, quiet background. For scale,
+console games aim their *whole* sound (dialogue, effects and music together) at about -24 LUFS, and
+handhelds at about -18. Start new worlds at -22 and nudge from there.
+
+The `Music` autoload (`scripts/presentation/music_player.gd`) crossfades between worlds, and a world
+with no `music` block fades to quiet. The gear menu's **Sound** sheet has a volume slider. Its middle
+(the default) is the level the world asks for, the right end is 12 dB louder and the left end is off.
+The choice is saved in `user://settings.json`.
 
 For a world other than the Vale, check after a pack build that its track went into that world's pack
 (`tools/packs`), not the base.

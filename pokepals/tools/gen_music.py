@@ -10,6 +10,7 @@ score and re-run. See tools/music/README.md for the score format.
 """
 
 import json
+import re
 import subprocess
 import sys
 import tempfile
@@ -27,6 +28,21 @@ from synth import SR  # noqa: E402
 SCORES = ROOT / "tools" / "music" / "scores"
 OUT = ROOT / "assets" / "music"
 QUALITY = "3"  # Vorbis quality (~112 kbps stereo): soft synth music hides compression well
+
+# Every track file is brought to the same LOUDNESS, not just the same peak, so worlds match and a spec's
+# volume_db means the same thing everywhere. LUFS is perceived loudness over the whole track (ITU-R
+# BS.1770, measured here by ffmpeg's ebur128 filter). -16 LUFS is a healthy file level, the mobile
+# reference; the game turns it well down (volume_db), since music is background, not the whole mix.
+TARGET_LUFS = -16.0
+PEAK_CEILING = 0.89  # -1 dBFS
+
+
+def measure_lufs(wav):
+    """Integrated loudness of a .wav, in LUFS (ffmpeg's ebur128 summary)."""
+    res = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(wav), "-af", "ebur128",
+                          "-f", "null", "-"], capture_output=True, text=True, check=True)
+    m = re.findall(r"I:\s+(-?[\d.]+) LUFS", res.stderr)
+    return float(m[-1])
 
 
 def write_wav(path, out):
@@ -48,12 +64,18 @@ def main(argv):
         with tempfile.TemporaryDirectory() as tmp:
             wav = Path(tmp) / f"{name}.wav"
             write_wav(wav, out)
+            gain = 10 ** ((TARGET_LUFS - measure_lufs(wav)) / 20)
+            if np.max(np.abs(out)) * gain > PEAK_CEILING:
+                raise SystemExit(f"{name}: reaching {TARGET_LUFS} LUFS would clip; soften its loudest moments")
+            out = out * gain
+            write_wav(wav, out)
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), "-c:a", "libvorbis",
                             "-q:a", QUALITY, "-map_metadata", "-1", "-fflags", "+bitexact",
                             "-flags:a", "+bitexact", str(ogg)], check=True)
             if keep_wav:
                 write_wav(OUT / f"{name}.wav", out)
         info = stats(sc, out)
+        info["lufs"] = round(measure_lufs(ogg), 1)
         info["ogg_kb"] = round(ogg.stat().st_size / 1024)
         print(json.dumps({name: info}, indent=1))
 
