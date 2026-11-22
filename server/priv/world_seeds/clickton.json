@@ -11,6 +11,7 @@
 		{"id": "the_skyline", "min": [-1000, -760], "max": [1000, -505]}
 	],
 	"bounds": { "min": [-1000, -760], "max": [1000, 760] },
+	"music": { "track": "res://assets/music/clickton.ogg", "volume_db": -22 },
 	"border": { "ring": false },
 	"collision": { "tree_radius": 7, "great_tree_radius": 14, "pond_blocks": false, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.30, 0.62, 0.30],

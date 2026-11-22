@@ -30,6 +30,10 @@
     330
    ]
   },
+  "music": {
+   "track": "res://assets/music/home.ogg",
+   "volume_db": -22
+  },
   "border": {
    "ring": true,
    "spacing": 120,

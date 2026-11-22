@@ -10,6 +10,7 @@
 		{"id": "forgotten_alley", "min": [-430, 80], "max": [-320, 330], "tint": [0.4, 0.42, 0.52]}
 	],
 	"bounds": { "min": [-620, -700], "max": [1160, 570] },
+	"music": { "track": "res://assets/music/bazaar.ogg", "volume_db": -22 },
 	"border": { "ring": false },
 	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.52, 0.40, 0.30],

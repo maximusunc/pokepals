@@ -300,6 +300,7 @@ def main():
              "tint": [0.96, 0.86, 0.52]},
         ],
         "bounds": {"min": [round(-half, 1), round(-half, 1)], "max": [round(half, 1), round(half, 1)]},
+        "music": {"track": "res://assets/music/maze.ogg", "volume_db": -22},  # tools/music/scores/maze.score
         "collision": {"body_radius": 6, "margin": 2},
         "ground_color": [0.40, 0.52, 0.34],
         "atmosphere": {

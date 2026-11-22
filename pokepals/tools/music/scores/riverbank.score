@@ -1,0 +1,44 @@
+# The Riverbank: a gentle stream, stones and driftwood. Flowing, unhurried, a little bright.
+# G major, 76 bpm. A harp ripples like moving water; a wooden flute wanders over it.
+
+title The Riverbank
+tempo 76
+beats 4
+steps 2
+seed  11
+
+voice pad    kind=pad    octave=4  gain=0.45  reverb=0.6
+voice bass   kind=bass   octave=2  gain=0.28  reverb=0.15
+voice harp   kind=harp   octave=4  gain=0.22  pan=-0.3  reverb=0.5
+voice flute  kind=flute  octave=5  gain=0.32  pan=0.2   reverb=0.55
+voice sky    kind=chime  octave=6  gain=0.30  pan=0.3   spread=0.5 reverb=0.8
+
+[intro]
+chords | Gmaj7 | Em7 | Cmaj7 | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+harp   | 1 . 2 . 3 . 4 . |
+sky    | . . . . . . . . | . . . . B6 - . . | . . . . . . . . | . . . . . . A6 - |
+
+[a]
+chords | Gmaj7 | Em7 | Cmaj7 | D | Gmaj7 | Bm7 | Cmaj7 | Dsus4 D |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 2 . 3 . 4 . |
+flute  | D5 - - B4 - - G4 - | E5 - - D5 - - B4 - | C5 - - E5 - - G5 - | F#5 - - - - - . . | D5 - - B4 - - G4 - | F#5 - - D5 - - B4 - | C5 - E5 - D5 - C5 - | A4 - - - - - . . |
+
+[b]
+chords | Am7 | D | Bm7 | Em7 | Cmaj7 | D | Gmaj7 | Gmaj7 |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 3 . 2 . 3 . |
+flute  | C5 - - - E5 - D5 - | D5 - - - A4 - - - | D5 - - - F#5 - E5 - | E5 - - - B4 - - - | E5 - - G5 - - E5 - | F#5 - - - A5 - - - | G5 - - - - - - - | . . . . . . . . |
+
+[c]
+chords | Cmaj7 | Gmaj7 | Am7 | Dsus4 D |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+harp   | 1 . . . 3 . . . |
+sky    | . . . . E6 - . . | . . . . . . D6 - | . . C6 - . . . . | . . . . . . . . |
+
+play intro a b c a

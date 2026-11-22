@@ -1,0 +1,46 @@
+# The Bazaar: a sun-baked souk under strung lights. Warm, a little exotic, never busy.
+# D dorian, 84 bpm. A low drone, a soft hand drum like a slow heartbeat, an oud picking, a reed singing.
+
+title The Bazaar
+tempo 84
+beats 4
+steps 2
+seed  23
+
+voice drone  kind=drone  octave=2  gain=0.30  reverb=0.3
+voice pad    kind=pad    octave=4  gain=0.28  reverb=0.55
+voice drum   kind=drum   octave=2  gain=0.30  reverb=0.2
+voice oud    kind=koto   octave=3  gain=0.26  pan=-0.25 reverb=0.4
+voice reed   kind=reed   octave=5  gain=0.28  pan=0.2   reverb=0.45
+
+[intro]
+chords | Dm | C | Dm | G |
+drone  | D2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+drum   | D2 . . . . . A1 . |
+oud    | 1 . 3 2 . 1 . 3 |
+
+[a]
+chords | Dm | C | Dm | G | Dm | C | Dm | G |
+drone  | D2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+drum   | D2 . . . . . A1 . |
+oud    | 1 . 3 2 . 1 . 3 |
+reed   | D5 - E5 F5 - - E5 D5 | E5 - - - C5 - - - | A4 - C5 D5 - - F5 E5 | D5 - - - B4 - - - | D5 - E5 F5 - - G5 A5 | G5 - E5 - C5 - - - | D5 - F5 E5 - - D5 C5 | D5 - - - - - . . |
+
+[b]
+chords | Fmaj7 | C | Am7 | Dm | Fmaj7 | C | G | Dm |
+drone  | D2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+drum   | D2 . . . . . A1 . |
+oud    | 1 . 2 . 3 . 2 . |
+reed   | A5 - - G5 F5 - - - | E5 - - D5 C5 - - - | E5 - - D5 C5 - A4 - | D5 - - - - - . . | C6 - - A5 G5 - F5 - | G5 - - E5 C5 - - - | B4 - D5 - G5 - F5 E5 | D5 - - - - - . . |
+
+[c]
+chords | Dm | C | G | Dm |
+drone  | D2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+drum   | D2 . . . . . . . |
+oud    | 1 . . . 3 . . . |
+
+play intro a b c a

@@ -45,6 +45,10 @@
 			986.0
 		]
 	},
+	"music": {
+		"track": "res://assets/music/maze.ogg",
+		"volume_db": -22
+	},
 	"collision": {
 		"body_radius": 6,
 		"margin": 2

@@ -13,6 +13,7 @@
 		{"id": "north_fields", "min": [-500, -1200], "max": [350, -250], "tint": [0.8, 0.84, 1.0]}
 	],
 	"bounds": { "min": [-1600, -1200], "max": [1600, 1200] },
+	"music": { "track": "res://assets/music/drifthallow.ogg", "volume_db": -22 },
 	"border": { "ring": true, "spacing": 120, "inset": 24, "jitter": 34, "rows": 2, "row_gap": 60 },
 	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.62, 0.70, 0.84],

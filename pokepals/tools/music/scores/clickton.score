@@ -1,0 +1,35 @@
+# Clickton: a small city made entirely of colourful bricks. Tidy, toy-like and cheerful, kept small.
+# C major, 100 bpm. A toy piano tune, little off-beat chords, a soft walking bass.
+
+title Clickton
+tempo 100
+beats 4
+steps 2
+seed  71
+
+voice pad    kind=pad       octave=4  gain=0.32  reverb=0.5
+voice bass   kind=bass      octave=2  gain=0.30  reverb=0.15
+voice plink  kind=toypiano  octave=4  gain=0.18  pan=-0.3 reverb=0.4
+voice toy    kind=toypiano  octave=5  gain=0.30  pan=0.15 reverb=0.45
+
+[intro]
+chords | C | Am | F | G |
+pad    | * - - - - - - - |
+bass   | 1 . . . 3 . . . |
+plink  | . . 1 . . . 3 . |
+
+[a]
+chords | C | Am | F | G | C | Am | Dm7 | G |
+pad    | * - - - - - - - |
+bass   | 1 . . . 3 . . . |
+plink  | . . 1 . . . 3 . |
+toy    | E5 - G5 - C6 - G5 - | A5 - - - E5 - - - | F5 - A5 - C6 - A5 - | G5 - - - - - . . | E5 - G5 - C6 - D6 - | C6 - A5 - E5 - - - | F5 - - A5 - - D5 - | G5 - - - B4 - . . |
+
+[b]
+chords | F | G | Em | Am | F | G | C | C |
+pad    | * - - - - - - - |
+bass   | 1 . . . 3 . . . |
+plink  | . . 1 . . . 3 . |
+toy    | A5 - - G5 F5 - - - | G5 - - F5 E5 - D5 - | E5 - - D5 B4 - - - | C5 - - - A4 - - - | F5 - - E5 D5 - - - | D5 - - E5 F5 - G5 - | E5 - - - C5 - - - | . . . . . . . . |
+
+play intro a b a b

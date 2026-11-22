@@ -401,6 +401,7 @@ out.append('\t"view": %s,' % json.dumps(VIEW))
 out.append('\t"chopping": false,')
 out.append('\t"regions": [\n%s\n\t],' % block(region_objs))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/farmeadow.ogg", "volume_db": -22 },')  # tools/music/scores/farmeadow.score
 out.append('\t"border": { "ring": true, "spacing": 130, "inset": 24, "jitter": 34, "rows": 1 },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.46, 0.62, 0.34],')

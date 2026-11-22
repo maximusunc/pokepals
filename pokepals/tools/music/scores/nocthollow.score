@@ -1,0 +1,34 @@
+# Nocthollow: a bioluminescent night on another planet. Everything glows and hums.
+# Eb lydian, 56 bpm. Glass tones bloom over a lush pad; high sparkles drift like the glowing spores.
+
+title Nocthollow
+tempo 56
+beats 4
+steps 2
+seed  53
+
+voice drone  kind=drone  octave=2  gain=0.26  reverb=0.4
+voice pad    kind=pad    octave=4  gain=0.46  reverb=0.7
+voice glass  kind=glass  octave=5  gain=0.30  pan=0.15 reverb=0.7
+voice sky    kind=chime  octave=6  gain=0.30  spread=0.7 reverb=0.85
+
+[intro]
+chords | Ebmaj7 | F | Ebmaj7 | F |
+drone  | Eb2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+sky    | . . . . . . A6 - | . . . . . . . . | . . . . D6 - . . | . . . . . . . . |
+
+[a]
+chords | Ebmaj7 | F | Ebmaj7 | F | Cm7 | Abmaj7 | Bbsus4 | Bb |
+drone  | Eb2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+glass  | G5 - - - - - Bb5 - | A5 - - - - - F5 - | G5 - - - D5 - - - | C5 - - - - - - - | Eb5 - - - G5 - - - | C5 - - - Eb5 - - - | F5 - - - - - - - | D5 - - - - - . . |
+sky    | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . A6 - . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . F6 - |
+
+[b]
+chords | Abmaj7 | Bb | Gm7 | Cm7 | Abmaj7 | Bb | Ebmaj7 | F |
+drone  | Eb2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+glass  | C6 - - - Bb5 - - - | D5 - - - F5 - - - | Bb5 - - - G5 - - - | Eb5 - - - - - - - | C5 - - - Eb5 - G5 - | F5 - - - D5 - - - | G5 - - - - - Bb5 - | A5 - - - - - . . |
+
+play intro a b intro

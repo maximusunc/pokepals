@@ -552,6 +552,7 @@ out.append('\t"world_id": "steamhollow",')
 out.append('\t"intro": %s,' % json.dumps("Mist, and lamplight, and the sound of water. You can see about two steps ahead, and that is plenty. Somewhere out here a very small bell is ringing, too softly for you."))
 out.append('\t"regions": [\n%s\n\t],' % block(region_objs))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/steamhollow.ogg", "volume_db": -22 },')  # tools/music/scores/steamhollow.score
 out.append('\t"border": { "ring": true, "spacing": 120, "inset": 24, "jitter": 34, "rows": 2, "row_gap": 60 },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.36, 0.48, 0.41],')

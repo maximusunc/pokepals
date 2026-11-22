@@ -246,6 +246,10 @@
       -330
     ]
   },
+  "music": {
+    "track": "res://assets/music/home.ogg",
+    "volume_db": -22
+  },
   "collision": {
     "body_radius": 6,
     "great_tree_radius": 16,

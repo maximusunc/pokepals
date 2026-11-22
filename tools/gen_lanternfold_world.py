@@ -424,6 +424,7 @@ out.append('\t"world_id": "lanternfold",')
 out.append('\t"intro": %s,' % json.dumps("A world cut from paper, and lit by one great lantern. Everything throws a shadow here, and the cliff keeps them. Follow the lit posts north, to where the light gathers."))
 out.append('\t"regions": [\n%s\n\t],' % block(region_objs))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/lanternfold.ogg", "volume_db": -22 },')  # tools/music/scores/lanternfold.score
 out.append('\t"border": { "ring": true, "spacing": 120, "inset": 24, "jitter": 34, "rows": 2, "row_gap": 60 },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.95, 0.72, 0.42],')

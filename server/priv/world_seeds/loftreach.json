@@ -14,6 +14,7 @@
 		{"id": "rookery", "min": [1261, -883], "max": [1600, -523], "tint": [1.0, 0.98, 0.9]}
 	],
 	"bounds": { "min": [-1700, -1300], "max": [1700, 1300] },
+	"music": { "track": "res://assets/music/loftreach.ogg", "volume_db": -22 },
 	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": false, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.56, 0.78, 0.96],
 	"art": {

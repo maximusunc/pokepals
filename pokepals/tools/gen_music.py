@@ -66,7 +66,10 @@ def main(argv):
             write_wav(wav, out)
             gain = 10 ** ((TARGET_LUFS - measure_lufs(wav)) / 20)
             if np.max(np.abs(out)) * gain > PEAK_CEILING:
-                raise SystemExit(f"{name}: reaching {TARGET_LUFS} LUFS would clip; soften its loudest moments")
+                # A very sparse track (a few notes in a lot of quiet) can't reach the target without
+                # clipping: keep it at the ceiling instead, a little under the target, and say so.
+                gain = PEAK_CEILING / np.max(np.abs(out))
+                print(f"{name}: peak-limited, so it sits a little under {TARGET_LUFS} LUFS", file=sys.stderr)
             out = out * gain
             write_wav(wav, out)
             subprocess.run(["ffmpeg", "-loglevel", "error", "-y", "-i", str(wav), "-c:a", "libvorbis",

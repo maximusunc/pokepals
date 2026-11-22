@@ -8,6 +8,7 @@
 	],
 	"_bounds_comment": "A wide strip, taller than the 360px viewport so the camera never reveals void at the edges: woods + dry bank up top, river along the bottom. Long to walk down; the camera tracks sideways as you go.",
 	"bounds": { "min": [-160, -230], "max": [2600, 170] },
+	"music": { "track": "res://assets/music/riverbank.ogg", "volume_db": -22 },
 	"border": { "ring": false },
 	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": false, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.55, 0.60, 0.42],

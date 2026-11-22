@@ -11,6 +11,7 @@ for the full format; in short:
     voice pad   kind=pad      octave=4  gain=0.55 pan=0.0
     voice bass  kind=bass     octave=2  gain=0.6
     voice harp  kind=kalimba  octave=4  gain=0.5  pan=-0.3
+    voice echo  kind=flute    octave=4  gain=0.2  delay=4      (delay: every note 4 grid steps late)
 
     [A]                                   a section; its length is its number of chord bars
     chords | Fmaj7 | Am7 | Bbmaj7 | Csus4 C |
@@ -105,7 +106,8 @@ class Score:
     def _parse(self, text):
         section = None
         for raw in text.splitlines():
-            line = raw.split("#", 1)[0].rstrip()
+            # A comment is a '#' at the start of a line or after a space (so C#5 and F# are notes).
+            line = re.sub(r"(^|\s)#.*$", "", raw).rstrip()
             if not line.strip():
                 continue
             head, _, rest = line.strip().partition(" ")
@@ -187,6 +189,9 @@ class Score:
             bar0 += n_bars
         st = self.step_seconds
         for e in out:
+            # A voice's `delay` (in grid steps) shifts all its notes later: an echo, a reflection. Notes
+            # pushed past the end come round at the start (render folds the overhang onto the loop).
+            e["step"] += self.voices[e["voice"]].get("delay", 0.0)
             e["start"] = e.pop("step") * st
             e["dur"] = e.pop("steps") * st
         return out

@@ -1,0 +1,36 @@
+# Ebbmere: tidal flats, wet sand holding the sky, a lighthouse. The harmony breathes like the tide:
+# each chord is held for two bars, the pad swelling in and drawing back out. A low flute calls now
+# and then, like a far-off bird. A major, 64 bpm.
+
+title Ebbmere
+tempo 64
+beats 4
+steps 2
+seed  157
+
+voice pad    kind=pad    octave=4  gain=0.48  reverb=0.65
+voice bass   kind=bass   octave=2  gain=0.26  reverb=0.2
+voice harp   kind=harp   octave=4  gain=0.20  pan=-0.25 reverb=0.5
+voice flute  kind=flute  octave=5  gain=0.28  pan=0.25  reverb=0.65
+
+[tide]
+chords | Amaj7 | Amaj7 | F#m7 | F#m7 | Dmaj7 | Dmaj7 | Esus4 | E |
+pad    | * - - - - - - - | - - - - - - - - | * - - - - - - - | - - - - - - - - | * - - - - - - - | - - - - - - - - | * - - - - - - - | * - - - - - - - |
+bass   | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | 1 - - - - - - - |
+harp   | 1 . . 2 . . 3 . |
+
+[a]
+chords | Amaj7 | Amaj7 | F#m7 | F#m7 | Dmaj7 | Dmaj7 | Esus4 | E |
+pad    | * - - - - - - - | - - - - - - - - | * - - - - - - - | - - - - - - - - | * - - - - - - - | - - - - - - - - | * - - - - - - - | * - - - - - - - |
+bass   | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | 1 - - - - - - - |
+harp   | 1 . . 2 . . 3 . |
+flute  | C#5 - - - - - E5 - | A5 - - - - - - - | A5 - - - G#5 - F#5 - | C#5 - - - - - - - | D5 - - - F#5 - A5 - | C#6 - - - B5 - A5 - | B5 - - - - - - - | G#5 - - - - - . . |
+
+[b]
+chords | Dmaj7 | Dmaj7 | C#m7 | C#m7 | Bm7 | Bm7 | Esus4 | E |
+pad    | * - - - - - - - | - - - - - - - - | * - - - - - - - | - - - - - - - - | * - - - - - - - | - - - - - - - - | * - - - - - - - | * - - - - - - - |
+bass   | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | - - - - - - - - | 1 - - - - - - - | 1 - - - - - - - |
+harp   | 1 . . 2 . . 3 . |
+flute  | F#5 - - - E5 - - - | A4 - - - - - - - | G#5 - - - E5 - - - | C#5 - - - - - - - | D5 - - - F#5 - - - | A5 - - - B5 - - - | A5 - - - - - - - | . . . . . . . . |
+
+play tide a b a
