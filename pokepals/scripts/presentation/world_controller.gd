@@ -1147,7 +1147,7 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "bag", "label": "Bag" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
 		items.append({ "id": "welcome", "label": "Welcome" })
-		items.append({ "id": "music", "label": "Music: On" if Music.enabled else "Music: Off" })
+		items.append({ "id": "sound", "label": "Sound" })
 		items.append({ "id": "leave", "label": "Leave game" })
 	# Dev: look at any world in the perspective view, or back top-down (P on a keyboard does the same).
 	if _perspective != null:
@@ -1192,7 +1192,7 @@ func _on_gear_item(id: String) -> void:
 		"journal": _social_dir.open_journal()
 		"bag": open_sheet(BagPanel.new())
 		"welcome": _open_cards([], false)
-		"music": Music.toggle()
+		"sound": open_sheet(SoundPanel.new())
 		"leave": _on_leave_pressed()
 		"dbg": _debug.toggle()
 		"perspective": _perspective.set_on(not _perspective.is_on())
