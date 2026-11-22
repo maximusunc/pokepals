@@ -1,0 +1,28 @@
+# Steamhollow: a bathhouse village lost in fog. Lanterns, hot water, a faint bell somewhere.
+# D minor pentatonic, 58 bpm. A silk-string koto, a breathy flute, a far bowl, plenty of mist (reverb).
+
+title Steamhollow
+tempo 58
+beats 4
+steps 2
+seed  101
+
+voice pad    kind=pad    octave=4  gain=0.40  reverb=0.7
+voice koto   kind=koto   octave=4  gain=0.22  pan=-0.3 reverb=0.55
+voice flute  kind=flute  octave=5  gain=0.28  pan=0.2  reverb=0.65
+voice bowl   kind=bowl   octave=3  gain=0.24  pan=0.1  reverb=0.75
+
+[b]
+chords | Bbmaj7 | Am7 | Gm7 | Am7 |
+pad    | * - - - - - - - |
+koto   | 1 . . . . . . . | . . . . 3 . . . | 1 . . . . . . . | . . . . . . . . |
+bowl   | D3 - - - - - - - | . . . . . . . . | . . . . . . . . | . . . . . . . . |
+
+[a]
+chords | Dm7 | Cadd9 | Dm7 | Am7 | Bbmaj7 | C | Dm7 | Am7 |
+pad    | * - - - - - - - |
+koto   | 1 . . 3 . 2 . . |
+flute  | A4 - - - C5 - D5 - | D5 - - - - - . . | F5 - - - G5 - A5 - | E5 - - - - - . . | D5 - - - F5 - - - | E5 - - - C5 - - - | D5 - - - - - - - | . . . . . . . . |
+bowl   | D3 - - - - - - - | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . |
+
+play b a b a

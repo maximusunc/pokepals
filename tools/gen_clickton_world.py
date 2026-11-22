@@ -506,6 +506,7 @@ out.append('\t"world_id": "clickton",')
 out.append('\t"intro": %s,' % json.dumps("Everything here is made of bricks, and so, you notice, are you. Touch things. Look low down. One of the bricks is not like the others."))
 out.append('\t"regions": [\n%s\n\t],' % block(region_objs))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/clickton.ogg", "volume_db": -22 },')  # tools/music/scores/clickton.score
 out.append('\t"border": { "ring": false },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 14, "pond_blocks": false, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.30, 0.62, 0.30],')

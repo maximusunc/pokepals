@@ -1,0 +1,35 @@
+# Lanternfold: a shadow-puppet world of paper cut-outs, lit by one great lantern. A storybook tale,
+# warm amber. D minor, 72 bpm. A small reed sings the tale over a harp.
+
+title Lanternfold
+tempo 72
+beats 4
+steps 2
+seed  139
+
+voice pad   kind=pad   octave=4  gain=0.38  reverb=0.55
+voice bass  kind=bass  octave=2  gain=0.28  reverb=0.15
+voice harp  kind=harp  octave=4  gain=0.22  pan=-0.25 reverb=0.45
+voice reed  kind=reed  octave=5  gain=0.28  pan=0.2   reverb=0.5
+
+[intro]
+chords | Dm | Bb | F | A |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+harp   | 1 . 3 . 2 . 3 . |
+
+[a]
+chords | Dm | Bb | F | C | Dm | Bb | Gm | A |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 3 . 2 . 3 . |
+reed   | A4 - D5 - F5 - - E5 | D5 - - - Bb4 - - - | C5 - F5 - A5 - - G5 | E5 - - - C5 - - - | A4 - D5 - F5 - A5 - | Bb5 - - A5 - - F5 - | G5 - - F5 E5 - D5 - | C#5 - - - E5 - . . |
+
+[b]
+chords | Gm | Dm | Bb | F | Gm | Dm | Bb A | Dm |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 3 . 2 . 3 . |
+reed   | D5 - - - G5 - Bb5 - | A5 - - - F5 - D5 - | D5 - - - F5 - Bb5 - | A5 - - - - - . . | Bb5 - - A5 G5 - - - | F5 - - E5 D5 - - - | D5 - F5 - E5 - C#5 - | D5 - - - - - . . |
+
+play intro a b a

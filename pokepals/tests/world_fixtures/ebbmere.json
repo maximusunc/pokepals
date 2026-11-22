@@ -13,6 +13,7 @@
 		{"id": "greywater", "min": [-1800, -1300], "max": [1800, -700], "tint": [0.84, 0.9, 0.94]}
 	],
 	"bounds": { "min": [-1800, -1300], "max": [1800, 1300] },
+	"music": { "track": "res://assets/music/ebbmere.ogg", "volume_db": -22 },
 	"border": { "ring": false },
 	"collision": { "tree_radius": 7, "great_tree_radius": 18, "pond_blocks": false, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.84, 0.78, 0.66],

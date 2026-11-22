@@ -110,7 +110,148 @@ def chime(midi, dur, vel, rng):
                          6.0, vel, 0.0, rng)
 
 
-VOICES = {"pad": pad, "bass": bass, "kalimba": kalimba, "musicbox": musicbox, "chime": chime}
+# ------------------------------------------------------------ more instruments, for the other worlds
+# Every one keeps a rounded onset (no pluck snap, no click), so each world's music stays background.
+
+def _phase(f, t, vib_depth=0.0, vib_rate=5.0, vib_delay=0.35, rng=None):
+    """Running phase of a tone at f Hz with an optional gentle vibrato that eases in after vib_delay."""
+    if vib_depth <= 0:
+        return 2 * np.pi * f * t
+    ramp = np.clip((t - vib_delay) / 0.6, 0, 1)
+    off = rng.uniform(0, 6.28) if rng is not None else 0.0
+    inst = f * (1.0 + vib_depth * ramp * np.sin(2 * np.pi * vib_rate * t + off))
+    return 2 * np.pi * np.cumsum(inst) / SR
+
+
+def _breath(n, f, rng, amount):
+    """A little band of air around the note (flutes): noise, shaped round f in the frequency domain."""
+    spec = np.fft.rfft(rng.standard_normal(n))
+    fr = np.fft.rfftfreq(n, 1 / SR)
+    spec *= np.exp(-((fr - f * 1.5) / (f * 0.9)) ** 2)
+    noise = np.fft.irfft(spec, n)
+    return amount * noise / (np.max(np.abs(noise)) + 1e-9)
+
+
+def flute(midi, dur, vel, rng):
+    """A soft wooden flute: nearly pure, a breath of air, a slow vibrato that comes in on long notes."""
+    tail = 0.5
+    t = _t(dur + tail)
+    f = hz(midi)
+    ph = _phase(f, t, 0.0045, 4.8, 0.35, rng)
+    out = np.sin(ph) + 0.22 * np.sin(2 * ph) + 0.06 * np.sin(3 * ph)
+    out += _breath(len(t), f, rng, 0.06)
+    env = _env_adsr(len(t), 0.12, 0.3, 0.82, tail, dur)
+    return 0.3 * vel * out * env
+
+
+def reed(midi, dur, vel, rng):
+    """A mellow reed (a small shawm or a far accordion): mostly odd harmonics, rounded onset."""
+    tail = 0.45
+    t = _t(dur + tail)
+    f = hz(midi)
+    ph = _phase(f, t, 0.003, 5.5, 0.3, rng)
+    out = np.sin(ph) + 0.1 * np.sin(2 * ph) + 0.28 * np.sin(3 * ph) + 0.1 * np.sin(5 * ph) + 0.04 * np.sin(7 * ph)
+    env = _env_adsr(len(t), 0.09, 0.3, 0.8, tail, dur)
+    return 0.26 * vel * out * env
+
+
+def strings(midi, dur, vel, rng):
+    """A slow string-section swell: warmer and more alive than the pad (each voice wavers a little)."""
+    tail = 3.0
+    t = _t(dur + tail)
+    f = hz(midi)
+    out = np.zeros_like(t)
+    for detune in (-0.0012, 0.0, 0.0012):
+        ph = _phase(f * (1 + detune), t, 0.0035, 4.6 + rng.uniform(-0.4, 0.4), 0.2, rng)
+        for k in range(1, 8):
+            if f * k > 5000:
+                break
+            out += np.sin(k * ph + rng.uniform(0, 6.28)) / k ** 1.6
+    env = _env_adsr(len(t), 2.0, 1.0, 0.85, tail, dur)
+    return 0.13 * vel * out * env
+
+
+def glass(midi, dur, vel, rng):
+    """A glass harmonica: a pure tone that blooms slowly, with a slow shimmer from two near-unisons."""
+    tail = 2.8
+    t = _t(dur + tail)
+    f = hz(midi)
+    out = np.sin(2 * np.pi * f * t) + 0.7 * np.sin(2 * np.pi * (f + 0.9) * t + 1.0)
+    out += 0.12 * np.sin(2 * np.pi * 2 * f * t)
+    env = _env_adsr(len(t), 0.35, 0.6, 0.75, tail, dur)
+    return 0.2 * vel * out * env
+
+
+def marimba(midi, dur, vel, rng):
+    """A soft-mallet wooden bar (bubbly, round): the bar's 4:1 overtone barely there."""
+    f = hz(midi)
+    decay = 0.9 * (440.0 / f) ** 0.3
+    return 0.34 * _modal(f, [(1.0, 1.0, decay), (3.93, 0.12, decay * 0.15), (9.2, 0.02, 0.03)],
+                         decay * 4, vel, 0.0, rng, attack=0.018)
+
+
+def toypiano(midi, dur, vel, rng):
+    """A toy piano struck gently: tines of metal, slightly out of true, warm rather than tinny."""
+    f = hz(midi)
+    decay = 1.2 * (523.0 / f) ** 0.35
+    return 0.26 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.22, decay * 0.4), (3.02, 0.06, decay * 0.25),
+                             (4.21, 0.04, 0.12)], decay * 3.5, vel, 0.0, rng, attack=0.016)
+
+
+def koto(midi, dur, vel, rng):
+    """A plucked silk string (koto, oud): harmonic partials that die high-first, a soft-fingered onset."""
+    f = hz(midi)
+    decay = 1.7 * (330.0 / f) ** 0.3
+    return 0.3 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.32, decay * 0.5), (3.0, 0.14, decay * 0.3),
+                            (4.0, 0.06, decay * 0.2), (5.0, 0.03, decay * 0.1)], decay * 4, vel, 0.0, rng,
+                        attack=0.02)
+
+
+def harp(midi, dur, vel, rng):
+    """A harp, or a nylon-string guitar played softly: round and ringing."""
+    f = hz(midi)
+    decay = 2.2 * (330.0 / f) ** 0.3
+    return 0.3 * _modal(f, [(1.0, 1.0, decay), (2.0, 0.22, decay * 0.5), (3.0, 0.06, decay * 0.3)],
+                        decay * 4, vel, 0.0, rng, attack=0.022)
+
+
+def bowl(midi, dur, vel, rng):
+    """A singing bowl / temple bell, far off: long, inharmonic, with a slow beating hum."""
+    f = hz(midi)
+    out = _modal(f, [(1.0, 1.0, 6.0), (2.71, 0.45, 4.0), (5.15, 0.15, 2.2), (8.4, 0.04, 1.0)], 12.0, vel,
+                 0.0, rng, attack=0.06)
+    t = _t(12.0)
+    out *= 1.0 + 0.25 * np.sin(2 * np.pi * 0.7 * t)
+    return 0.16 * out
+
+
+def drone(midi, dur, vel, rng):
+    """A low held tone that breathes in and out: the floor under a world's music."""
+    tail = 3.5
+    t = _t(dur + tail)
+    f = hz(midi)
+    swell = 0.85 + 0.15 * np.sin(2 * np.pi * 0.07 * t + rng.uniform(0, 6.28))
+    out = (np.sin(2 * np.pi * f * t) + 0.35 * np.sin(2 * np.pi * 2 * f * t + 0.5)
+           + 0.08 * np.sin(2 * np.pi * 3 * f * t)) * swell
+    env = _env_adsr(len(t), 3.0, 1.0, 0.9, tail, dur)
+    return 0.32 * vel * out * env
+
+
+def drum(midi, dur, vel, rng):
+    """A soft frame drum, hand not stick: a low round thump that sinks a little in pitch."""
+    n = int(0.6 * SR)
+    t = np.arange(n) / SR
+    f = hz(midi)
+    inst = f * (1.0 + 0.4 * np.exp(-t / 0.03))
+    out = np.sin(2 * np.pi * np.cumsum(inst) / SR) * np.exp(-t / 0.22)
+    a = int(0.008 * SR)
+    out[:a] *= np.sin(np.linspace(0, np.pi / 2, a)) ** 2
+    return 0.45 * vel * out
+
+
+VOICES = {"pad": pad, "bass": bass, "kalimba": kalimba, "musicbox": musicbox, "chime": chime,
+          "flute": flute, "reed": reed, "strings": strings, "glass": glass, "marimba": marimba,
+          "toypiano": toypiano, "koto": koto, "harp": harp, "bowl": bowl, "drone": drone, "drum": drum}
 
 
 # ---------------------------------------------------------------------------------------------- room

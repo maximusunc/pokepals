@@ -21,6 +21,7 @@
 		{"id": "sp_grv", "min": [-1280, -600], "max": [-1020, -400], "tint": [0.4, 0.5, 0.46], "gloom": 0.35}
 	],
 	"bounds": {"min": [-1850, -1110], "max": [1395, 1428]},
+	"music": { "track": "res://assets/music/the-ruin.ogg", "volume_db": -22 },
 	"_border_comment": "A dense jittered ring of old trees crowding the whole bounds, so the ruin sits in a wood and the open ground around it is sealed.",
 	"border": {"ring": true, "spacing": 70, "inset": 14, "jitter": 16, "rows": 3, "row_gap": 36},
 	"collision": {"tree_radius": 9, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2},

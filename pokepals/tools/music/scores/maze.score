@@ -1,0 +1,36 @@
+# The Maze: hedge walls, wrong turns, a seed at its heart. Curious and gently playful; the tune
+# itself turns back on itself like a path in the hedges.
+# G major with a lydian lean (C major chords over a G-major scale), 80 bpm.
+
+title The Maze
+tempo 80
+beats 4
+steps 2
+seed  41
+
+voice pad   kind=pad       octave=4  gain=0.40  reverb=0.55
+voice bass  kind=bass      octave=2  gain=0.28  reverb=0.15
+voice harp  kind=harp      octave=4  gain=0.19  pan=-0.25 reverb=0.45
+voice bell  kind=musicbox  octave=5  gain=0.28  pan=0.2   reverb=0.55
+
+[c]
+chords | Cmaj7 | D | Cmaj7 | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+harp   | 1 . . . 3 . . . |
+
+[a]
+chords | Cmaj7 | D | Cmaj7 | D | Am7 | Bm7 | Cmaj7 | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 2 . 3 . 2 . |
+bell   | E5 - G5 - F#5 - D5 - | F#5 - - - A5 - - - | G5 - E5 - F#5 - B4 - | A4 - - - - - . . | C5 - E5 - D5 - A4 - | B4 - D5 - F#5 - - - | E5 - G5 - B5 - G5 - | F#5 - - - - - . . |
+
+[b]
+chords | Em7 | Cmaj7 | Gmaj7 | D | Em7 | Cmaj7 | Am7 | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 2 . 3 . 2 . |
+bell   | B4 - - - E5 - G5 - | G5 - - - E5 - - - | D5 - - - B4 - D5 - | F#5 - - - - - . . | B5 - - - G5 - E5 - | E5 - - - G5 - B4 - | C5 - - - E5 - A5 - | F#5 - - - - - . . |
+
+play c a b c a

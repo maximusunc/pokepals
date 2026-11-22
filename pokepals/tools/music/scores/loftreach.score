@@ -1,0 +1,38 @@
+# Loftreach: grassy islands floating in open sky, rope bridges, kites, and the wind going one way.
+# Airy and open. G lydian, 80 bpm. A flute on the wind, a harp, and wind chimes scattered high.
+
+title Loftreach
+tempo 80
+beats 4
+steps 2
+seed  163
+
+voice pad    kind=pad    octave=4  gain=0.40  reverb=0.6
+voice bass   kind=bass   octave=2  gain=0.24  reverb=0.2
+voice harp   kind=harp   octave=4  gain=0.20  pan=-0.3 reverb=0.5
+voice flute  kind=flute  octave=5  gain=0.30  pan=0.15 reverb=0.6
+voice wind   kind=chime  octave=6  gain=0.24  spread=0.9 reverb=0.8
+
+[intro]
+chords | Gmaj7 | A | Gmaj7 | A |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+harp   | 1 . 3 . 5 . 3 . |
+wind   | . . . . B6 - . . | . . E6 - . . . . | . . . . . . . . | . . . . . . C#7 - |
+
+[a]
+chords | Gmaj7 | A | Gmaj7 | A | Em7 | D | Cmaj7 | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 3 . 5 . 3 . |
+flute  | D5 - - - B4 - - - | C#5 - - - E5 - - - | F#5 - - - D5 - - - | E5 - - - - - . . | G5 - - - E5 - B4 - | A4 - - - F#5 - - - | E5 - - - G5 - - - | F#5 - - - - - . . |
+wind   | . . . . . . . . | . . . . . . . . | . . . . . . D7 - | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . A6 - . . |
+
+[b]
+chords | Em7 | Cmaj7 | D | Bm7 | Em7 | Cmaj7 | Am7 | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . 3 . 5 . 3 . |
+flute  | B5 - - - G5 - - - | E5 - - - G5 - - - | F#5 - - - A5 - - - | D5 - - - - - . . | B5 - - - A5 - G5 - | E5 - - - - - G5 - | A5 - - - C6 - - - | F#5 - - - - - . . |
+
+play intro a b a intro

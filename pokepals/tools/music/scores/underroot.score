@@ -1,0 +1,31 @@
+# Underroot: caves beneath the great tree, very dark and perfectly quiet. Hushed, safe-dark, not
+# scary: two low held tones, a dark pad, and the odd drop of water ringing in the tunnels.
+# C# minor, 50 bpm.
+
+title Underroot
+tempo 50
+beats 4
+steps 2
+seed  127
+
+voice lo    kind=drone  octave=2  gain=0.30  reverb=0.45
+voice fifth kind=drone  octave=2  gain=0.18  reverb=0.45
+voice pad   kind=pad    octave=3  gain=0.34  reverb=0.75
+voice drip  kind=chime  octave=6  gain=0.22  spread=0.8 reverb=0.9
+voice bowl  kind=bowl   octave=3  gain=0.20  reverb=0.8
+
+[a]
+chords | C#m | Amaj7 | F#m | G#sus4 | C#m | Amaj7 | Emaj7 | G#sus4 |
+lo     | C#2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+fifth  | . . . . . . . . | G#2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+drip   | . . . G#5 . . . . | . . . . . . . . | . . E5 . . . . . | . . . . . . D#5 . | . . . . C#6 . . . | . . . . . . . . | B5 . . . . . . . | . . . . . . . . |
+
+[b]
+chords | Amaj7 | F#m | C#m | G#sus4 |
+lo     | C#2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+bowl   | C#3 - - - - - - - | . . . . . . . . | . . . . . . . . | . . . . . . . . |
+drip   | . . . . . . . . | . . . . . A5 . . | . . . . . . . . | . . G#5 . . . . . |
+
+play a b a b

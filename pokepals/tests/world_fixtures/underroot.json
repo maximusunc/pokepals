@@ -14,6 +14,7 @@
 		{"id": "cairn_row", "min": [420, 300], "max": [1400, 1050], "tint": [0.72, 0.72, 0.78]}
 	],
 	"bounds": { "min": [-1400, -1050], "max": [1400, 1050] },
+	"music": { "track": "res://assets/music/underroot.ogg", "volume_db": -22 },
 	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.17, 0.14, 0.13],
 	"art": {

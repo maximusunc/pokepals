@@ -497,6 +497,7 @@ out.append('\t"world_id": "loftreach",')
 out.append('\t"intro": %s,' % json.dumps("Islands in open sky, joined by ropes, with the wind going one way. Everything here leans toward something far off. Mind the edge."))
 out.append('\t"regions": [\n%s\n\t],' % block(REGIONS))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/loftreach.ogg", "volume_db": -22 },')  # tools/music/scores/loftreach.score
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": false, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.56, 0.78, 0.96],')
 out.append('\t"art": %s,' % json.dumps(ART, indent="\t").replace("\n", "\n\t"))

@@ -387,6 +387,7 @@ out.append('\t"world_id": "drifthallow",')
 out.append('\t"intro": %s,' % json.dumps("Snow, and the blue light before the dark. Nothing here needs doing. Walk, and look back at where you've been."))
 out.append('\t"regions": [\n%s\n\t],' % block(region_objs))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/drifthallow.ogg", "volume_db": -22 },')  # tools/music/scores/drifthallow.score
 out.append('\t"border": { "ring": true, "spacing": 120, "inset": 24, "jitter": 34, "rows": 2, "row_gap": 60 },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.62, 0.70, 0.84],')

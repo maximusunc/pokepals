@@ -467,6 +467,7 @@ out.append('\t"_comment": %s,' % json.dumps(HEADER))
 out.append('\t"world_id": "bazaar",')
 out.append('\t"regions": [\n%s\n\t],' % block(regions))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/bazaar.ogg", "volume_db": -22 },')  # tools/music/scores/bazaar.score
 out.append('\t"border": { "ring": false },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.52, 0.40, 0.30],')

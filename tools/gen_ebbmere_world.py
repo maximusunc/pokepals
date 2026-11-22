@@ -550,6 +550,7 @@ out.append('\t"world_id": "ebbmere",')
 out.append('\t"intro": %s,' % json.dumps("The sea has gone out and left its floor lying about. Walk on it while it lasts."))
 out.append('\t"regions": [\n%s\n\t],' % block(region_objs))
 out.append('\t"bounds": { "min": %s, "max": %s },' % (json.dumps(list(BOUNDS_MIN)), json.dumps(list(BOUNDS_MAX))))
+out.append('\t"music": { "track": "res://assets/music/ebbmere.ogg", "volume_db": -22 },')  # tools/music/scores/ebbmere.score
 out.append('\t"border": { "ring": false },')
 out.append('\t"collision": { "tree_radius": 7, "great_tree_radius": 18, "pond_blocks": false, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": [0.84, 0.78, 0.66],')

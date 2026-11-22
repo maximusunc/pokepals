@@ -1,0 +1,35 @@
+# Farmeadow: a rolling meadow and one long road, windmills, an old keep far off. A walking song,
+# folk-like and open. D major, 72 bpm. A wooden flute over a softly picked guitar.
+
+title Farmeadow
+tempo 72
+beats 4
+steps 2
+seed  181
+
+voice pad    kind=pad    octave=4  gain=0.38  reverb=0.55
+voice bass   kind=bass   octave=2  gain=0.28  reverb=0.15
+voice guitar kind=harp   octave=3  gain=0.22  pan=-0.3 reverb=0.4
+voice flute  kind=flute  octave=5  gain=0.30  pan=0.2  reverb=0.55
+
+[intro]
+chords | D | G | D | A |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+guitar | 1 . 3 . 2 . 3 . |
+
+[a]
+chords | D | G | D | A | D | G | Em7 A | D |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+guitar | 1 . 3 . 2 . 3 . |
+flute  | F#5 - - E5 D5 - - - | B4 - - D5 G5 - - - | F#5 - - E5 D5 - A4 - | E5 - - - - - . . | F#5 - - E5 D5 - - - | B4 - - D5 G5 - B5 - | G5 - - F#5 E5 - C#5 - | D5 - - - - - . . |
+
+[b]
+chords | G | D | Bm7 | A | G | D | Em7 | A |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+guitar | 1 . 3 . 2 . 3 . |
+flute  | B5 - - A5 G5 - - - | A5 - - F#5 D5 - - - | D5 - - F#5 B5 - - - | A5 - - - E5 - - - | D5 - - G5 B5 - - - | A5 - - F#5 D5 - F#5 - | E5 - - - G5 - - - | E5 - - - - - . . |
+
+play intro a b a

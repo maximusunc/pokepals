@@ -1,0 +1,29 @@
+# Thimblewick: a tiny cottage garden seen at beetle size, on a warm late afternoon. A small, dainty
+# waltz. F major, 3/4, 108 bpm. A soft oom-pah-pah under a music-box tune.
+
+title Thimblewick
+tempo 108
+beats 3
+steps 2        # 6 steps a bar
+seed  173
+
+voice pad   kind=pad       octave=4  gain=0.32  reverb=0.5
+voice bass  kind=bass      octave=2  gain=0.28  reverb=0.15
+voice pah   kind=harp      octave=4  gain=0.16  pan=-0.25 reverb=0.4
+voice bell  kind=musicbox  octave=5  gain=0.32  pan=0.2   reverb=0.5
+
+[a]
+chords | F | F | C7 | C7 | C7 | C7 | F | F | F | F | Bb | Bb | F | C7 | F | F |
+pad    | * - - - - - |
+bass   | 1 - . . . . |
+pah    | . . * . * . |
+bell   | A5 - - - C6 - | A5 - - - F5 - | G5 - - - E5 - | C5 - - - - - | Bb5 - - - G5 - | E5 - - - C5 - | A5 - - - G5 - | F5 - - - - - | A5 - - - C6 - | F6 - - - C6 - | D6 - - - Bb5 - | G5 - - - - - | A5 - - - F5 - | G5 - - - E5 - | F5 - - - - - | . . . . . . |
+
+[b]
+chords | Dm | Dm | Gm | Gm | C7 | C7 | F | F |
+pad    | * - - - - - |
+bass   | 1 - . . . . |
+pah    | . . * . * . |
+bell   | F5 - - A5 - D6 | C6 - - - A5 - | Bb5 - - - D5 - | G5 - - - - - | E5 - - G5 - Bb5 | C6 - - - Bb5 - | A5 - - - - - | . . . . . . |
+
+play a b a b

@@ -1,0 +1,26 @@
+# Drifthallow: a snowfield at blue hour. Hushed and sparse: a few celesta notes with a lot of
+# quiet between them, like falling snow. D lydian, 60 bpm.
+
+title Drifthallow
+tempo 60
+beats 4
+steps 2
+seed  83
+
+voice pad  kind=pad       octave=4  gain=0.44  reverb=0.7
+voice bass kind=drone     octave=2  gain=0.20  reverb=0.4
+voice cel  kind=musicbox  octave=5  gain=0.30  pan=0.15 reverb=0.7
+voice sky  kind=chime     octave=6  gain=0.26  spread=0.6 reverb=0.85
+
+[b]
+chords | Gmaj7 | Dmaj7 | Gmaj7 | A |
+pad    | * - - - - - - - |
+sky    | . . . . . . . . | . . . . G#6 - . . | . . . . . . . . | . . . . . . E6 - |
+
+[a]
+chords | Dmaj7 | E | Dmaj7 | E | Bm7 | Gmaj7 | Em7 | Asus4 A |
+pad    | * - - - - - - - |
+bass   | D2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . |
+cel    | F#5 - - - . . . . | G#5 - - - . . . . | A5 - - - . . C#6 - | B5 - - - . . . . | D5 - - - . . F#5 - | B4 - - - . . . . | G5 - - - . . E5 - | E5 - - - . . . . |
+
+play b a b a

@@ -15,6 +15,7 @@
 		{ "id": "meadow", "min": [-280, 360], "max": [120, 580], "tint": [0.74, 0.84, 0.48] }
 	],
 	"bounds": { "min": [-780, -560], "max": [780, 700] },
+	"music": { "track": "res://assets/music/vale.ogg", "volume_db": -22 },
 	"_border_comment": "A procedural, jittered treeline just inside the bounds so the world feels enclosed rather than ending at the void — here it reads as the drifting mist where the world softens and ends. Presentation-only (world_art builds it); seeded, so it's identical every run.",
 	"border": { "ring": true, "spacing": 132, "inset": 18, "jitter": 34, "rows": 2, "row_gap": 62 },
 	"_collision_comment": "Barriers. tree_radius/great_tree_radius are the blocking circles for trees and landmark great-trees; pond_blocks makes water solid (the southern still water is the world's edge); body_radius is how big the player/companion are for collision; margin stops them a touch short of things. Tall props (bench, signpost, lantern, crystal, log, berry_bush) block by default — any prop can override with its own \"solid\": true/false and \"collision_radius\".",

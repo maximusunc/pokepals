@@ -1,0 +1,37 @@
+# Bobbledown: a soft, round, pastel world that was breathed, not built. Bubbly and a little silly,
+# but soft-edged. Bb major, 92 bpm. Two soft-mallet marimbas bounce; bubbles pop high above.
+
+title Bobbledown
+tempo 92
+beats 4
+steps 2
+seed  61
+
+voice pad   kind=pad      octave=4  gain=0.38  reverb=0.55
+voice bass  kind=bass     octave=2  gain=0.30  reverb=0.15
+voice bub   kind=marimba  octave=4  gain=0.21  pan=-0.25 reverb=0.4
+voice tune  kind=marimba  octave=5  gain=0.27  pan=0.2   reverb=0.45
+voice pop   kind=chime    octave=6  gain=0.28  spread=0.8 reverb=0.7
+
+[c]
+chords | Bbmaj7 | Gm7 | Ebmaj7 | F |
+pad    | * - - - - - - - |
+bub    | 1 . . . 3 . . . |
+pop    | . . . . . . F6 - | . . D6 - . . . . | . . . . . . G6 - | . . . . C7 - . . |
+
+[a]
+chords | Bbmaj7 | Gm7 | Ebmaj7 | F | Bbmaj7 | Gm7 | Cm7 F | Bb |
+pad    | * - - - - - - - |
+bass   | 1 . . 3 . . 1 . |
+bub    | 1 . 3 . 5 . 3 . |
+tune   | D5 - F5 - Bb5 - - - | G5 - - - D5 - - - | Eb5 - G5 - Bb5 - G5 - | F5 - - - - - . . | D5 - F5 - Bb5 - C6 - | Bb5 - G5 - D5 - - - | C5 - Eb5 - G5 - F5 - | Bb4 - - - - - . . |
+
+[b]
+chords | Ebmaj7 | F | Dm7 | Gm7 | Ebmaj7 | F | Gm7 | F |
+pad    | * - - - - - - - |
+bass   | 1 . . 3 . . 1 . |
+bub    | 1 . 3 . 5 . 3 . |
+tune   | G5 - - Bb5 - - G5 - | A5 - - - F5 - - - | F5 - - A5 - - D5 - | D5 - - - Bb4 - - - | Eb5 - G5 - Bb5 - G5 - | C6 - - - A5 - - - | Bb5 - - G5 - - D5 - | C5 - - - - - . . |
+pop    | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . F6 - . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . |
+
+play c a b c a

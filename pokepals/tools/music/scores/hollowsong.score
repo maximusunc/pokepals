@@ -1,0 +1,31 @@
+# Hollowsong: an echo canyon at sunset. Warm stone, long shadows, and every sound comes back.
+# E dorian, 66 bpm. A flute over a drone, and a quieter flute that answers it half a bar later, an
+# octave down: the canyon's echo. A low guitar picks now and then.
+
+title Hollowsong
+tempo 66
+beats 4
+steps 2
+seed  113
+
+voice drone  kind=drone  octave=2  gain=0.30  reverb=0.4
+voice pad    kind=pad    octave=4  gain=0.28  reverb=0.7
+voice pick   kind=harp   octave=3  gain=0.20  pan=-0.3 reverb=0.6
+voice flute  kind=flute  octave=5  gain=0.32  pan=0.2  reverb=0.8
+voice echo   kind=flute  octave=4  gain=0.12  pan=-0.4 reverb=0.9 delay=4
+
+[b]
+chords | Am7 | Em7 | Am7 | Bm7 |
+drone  | E2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+pick   | 1 . . . 3 . . . |
+
+[a]
+chords | Em7 | D | Cmaj7 | D | Em7 | Bm7 | Cmaj7 | D |
+drone  | E2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+pick   | 1 . . . . . 3 . |
+flute  | B4 - - - E5 - - - | F#5 - - - D5 - - - | E5 - - - G5 - - - | A5 - - - - - . . | B5 - - - A5 - G5 - | F#5 - - - D5 - - - | E5 - - - - - - - | . . . . . . . . |
+echo   | B3 - - - E4 - - - | F#4 - - - D4 - - - | E4 - - - G4 - - - | A4 - - - - - . . | B4 - - - A4 - G4 - | F#4 - - - D4 - - - | E4 - - - - - - - | . . . . . . . . |
+
+play b a b a

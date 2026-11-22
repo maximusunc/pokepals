@@ -1,0 +1,30 @@
+# Stillglass: a mirror lake so still it keeps a second copy of everything. The tune is its own
+# reflection (each four-bar phrase reads the same backwards), and a quieter glass an octave down
+# answers it half a bar late, like the lake. E lydian, 54 bpm.
+
+title Stillglass
+tempo 54
+beats 4
+steps 2
+seed  149
+
+voice drone   kind=drone  octave=2  gain=0.22  reverb=0.45
+voice pad     kind=pad    octave=4  gain=0.44  reverb=0.7
+voice glass   kind=glass  octave=5  gain=0.30  pan=0.2   reverb=0.7
+voice mirror  kind=glass  octave=4  gain=0.12  pan=-0.3  reverb=0.85 delay=4
+voice sky     kind=chime  octave=6  gain=0.24  spread=0.6 reverb=0.85
+
+[b]
+chords | Amaj7 | Emaj7 | Amaj7 | Bsus4 |
+drone  | E2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+sky    | . . . . . . . . | . . . . D#6 - . . | . . . . . . . . | . . . . . . . . |
+
+[a]
+chords | Emaj7 | F# | Emaj7 | F# | C#m7 | Amaj7 | Emaj7 | Bsus4 |
+drone  | E2 - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - | - - - - - - - - |
+pad    | * - - - - - - - |
+glass  | G#5 - - - B5 - - - | A#5 - - - F#5 - - - | F#5 - - - A#5 - - - | B5 - - - G#5 - - - | E5 - - - G#5 - - - | C#6 - - - - - - - | C#6 - - - - - - - | G#5 - - - E5 - - - |
+mirror | G#4 - - - B4 - - - | A#4 - - - F#4 - - - | F#4 - - - A#4 - - - | B4 - - - G#4 - - - | E4 - - - G#4 - - - | C#5 - - - - - - - | C#5 - - - - - - - | G#4 - - - E4 - - - |
+
+play b a b a

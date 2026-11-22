@@ -51,7 +51,11 @@ def render(text):
         start = e["start"] + (0.0 if kind == "pad" else rng.normal(0.0, 0.007))
         pan = float(np.clip(v.get("pan", 0.0) + v.get("spread", 0.0) * rng.uniform(-1, 1), -1, 1))
         gl, gr = np.cos((pan + 1) * np.pi / 4), np.sin((pan + 1) * np.pi / 4)
-        sig = sum(fn(m, e["dur"], vel / np.sqrt(len(e["midi"])), rng) for m in e["midi"])
+        # A whole chord on a ringing instrument: each note rings for its own time, so pad to the longest.
+        parts = [fn(m, e["dur"], vel / np.sqrt(len(e["midi"])), rng) for m in e["midi"]]
+        sig = np.zeros(max(len(x) for x in parts))
+        for x in parts:
+            sig[: len(x)] += x
         i0 = max(0, int(start * SR))
         i1 = min(n, i0 + len(sig))
         sig = sig[: i1 - i0]

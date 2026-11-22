@@ -13,6 +13,7 @@
 		{"id": "bellbloom_meadow", "min": [560, 600], "max": [2200, 1700], "tint": [1.0, 0.5, 0.9]}
 	],
 	"bounds": { "min": [-2250, -1750], "max": [2250, 1750] },
+	"music": { "track": "res://assets/music/nocthollow.ogg", "volume_db": -22 },
 	"border": { "ring": true, "spacing": 120, "inset": 24, "jitter": 34, "rows": 2, "row_gap": 60 },
 	"collision": { "tree_radius": 7, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.06, 0.07, 0.17],

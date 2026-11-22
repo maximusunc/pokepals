@@ -1,0 +1,35 @@
+# Home: your own place, where your finds are kept and a friend's companion naps. Gentle and familiar,
+# a little lullaby of coming back. C major, 66 bpm. A music box over a pad and a slow harp.
+
+title Home
+tempo 66
+beats 4
+steps 2
+seed  191
+
+voice pad   kind=pad       octave=4  gain=0.46  reverb=0.6
+voice bass  kind=bass      octave=2  gain=0.26  reverb=0.15
+voice harp  kind=harp      octave=4  gain=0.20  pan=-0.25 reverb=0.5
+voice bell  kind=musicbox  octave=5  gain=0.32  pan=0.2   reverb=0.55
+
+[intro]
+chords | Cmaj7 | Am7 | Fmaj7 | G |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+harp   | 1 . . 3 . . 2 . |
+
+[a]
+chords | Cmaj7 | Am7 | Fmaj7 | G | Cmaj7 | Em7 | Fmaj7 | Gsus4 G |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . . 3 . . 2 . |
+bell   | E5 - - - G5 - C6 - | B5 - - - A5 - - - | A5 - - - G5 - F5 - | D5 - - - - - . . | E5 - - - G5 - C6 - | D6 - - - B5 - G5 - | A5 - - - C6 - A5 - | G5 - - - - - . . |
+
+[b]
+chords | Fmaj7 | G | Em7 | Am7 | Fmaj7 | G | Cmaj7 | Cmaj7 |
+pad    | * - - - - - - - |
+bass   | 1 - - - 3 - - - |
+harp   | 1 . . 3 . . 2 . |
+bell   | C6 - - - A5 - - - | B5 - - - G5 - - - | G5 - - - E5 - - - | C5 - - - - - . . | A5 - - - C6 - - - | D6 - - - B5 - - - | C6 - - - - - - - | . . . . . . . . |
+
+play intro a b a

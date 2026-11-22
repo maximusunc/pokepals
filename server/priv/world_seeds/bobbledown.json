@@ -14,6 +14,7 @@
 		{"id": "pillow_dunes", "min": [560, 700], "max": [1850, 1450], "tint": [1.0, 0.88, 0.8]}
 	],
 	"bounds": { "min": [-1900, -1500], "max": [1900, 1500] },
+	"music": { "track": "res://assets/music/bobbledown.ogg", "volume_db": -22 },
 	"border": { "ring": true, "spacing": 110, "inset": 24, "jitter": 30, "rows": 2, "row_gap": 56 },
 	"collision": { "tree_radius": 8, "great_tree_radius": 18, "pond_blocks": true, "body_radius": 6, "margin": 2 },
 	"ground_color": [0.90, 0.95, 0.93],

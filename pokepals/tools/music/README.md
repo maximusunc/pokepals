@@ -56,7 +56,10 @@ Chords: a root (`C`, `F#`, `Bb`) plus one of: nothing (major), `m`, `6`, `m6`, `
 `maj9`, `m9`, `add9`, `sus2`, `sus4`, `7sus4`.
 
 Voice options: `kind` (below), `octave` (used by chord tones and `*`), `gain`, `pan` (-1 left to 1
-right), `spread` (random pan per note), `reverb` (how much goes to the room).
+right), `spread` (random pan per note), `reverb` (how much goes to the room), `delay` (every note this
+many grid steps late: an echo, as in Hollowsong, or a reflection, as in Stillglass).
+
+A `#` starts a comment only at the start of a line or after a space, so `C#5` and `F#` are notes.
 
 ## Instruments (`kind`)
 
@@ -67,13 +70,56 @@ right), `spread` (random pan per note), `reverb` (how much goes to the room).
 | `kalimba` | a muted thumb-piano with a rounded, unplucked onset |
 | `musicbox` | a soft, long-ringing celesta tine |
 | `chime` | a faint, glassy, faraway chime |
+| `flute` | a soft wooden flute, with breath and a slow vibrato on long notes |
+| `reed` | a mellow reed, like a small shawm or a far-off accordion |
+| `strings` | a slow string-section swell |
+| `glass` | a glass harmonica: a pure tone that blooms slowly and shimmers |
+| `marimba` | a soft-mallet wooden bar, round and bubbly |
+| `toypiano` | a toy piano struck gently |
+| `koto` | a plucked silk string (koto, oud) with a soft-fingered onset |
+| `harp` | a harp or a softly played nylon-string guitar |
+| `bowl` | a singing bowl or far temple bell: long and humming |
+| `drone` | a low held tone that breathes in and out |
+| `drum` | a soft frame drum played by hand |
+
+Every instrument has a rounded onset (no pluck snap, no click), so the music stays in the background.
 
 To give a world its own sound, add an instrument in `synth.py`. Each one is a short function that
 returns one note.
 
+## The worlds' tracks
+
+Every world has its own score, named after its seed file (`home.score` is every player's home). Each
+one says at the top what it's for. They loop after 80 to 120 seconds.
+
+| World | Key, tempo | Instruments |
+|---|---|---|
+| The Vale | F major, 72 | pad, kalimba, music box, chimes |
+| Home | C major, 66 | pad, harp, music box |
+| Riverbank | G major, 76 | pad, harp, flute, chimes |
+| Bazaar | D dorian, 84 | drone, hand drum, oud, reed |
+| The Ruin | A minor, 60 | drone, singing bowl, glass, chimes |
+| The Maze | G major (lydian lean), 80 | pad, harp, music box |
+| Nocthollow | Eb lydian, 56 | drone, pad, glass, chimes |
+| Bobbledown | Bb major, 92 | two marimbas, bubble chimes |
+| Clickton | C major, 100 | toy pianos, walking bass |
+| Drifthallow | D lydian, 60 | sparse celesta, pad, chimes |
+| Dozewood | Ab major, 3/4, 54 | strings, harp, music-box lullaby |
+| Steamhollow | D minor pentatonic, 58 | koto, flute, singing bowl |
+| Hollowsong | E dorian, 66 | drone, flute and its echo, low guitar |
+| Underroot | C# minor, 50 | two drones, dark pad, water drips |
+| Lanternfold | D minor, 72 | harp, reed |
+| Stillglass | E lydian, 54 | glass and its reflection, pad |
+| Ebbmere | A major, 64 | a pad that breathes like the tide, harp, flute |
+| Loftreach | G lydian, 80 | flute, harp, wind chimes |
+| Thimblewick | F major, 3/4, 108 | oom-pah-pah, music-box waltz |
+| Farmeadow | D major, 72 | flute, guitar |
+
 ## Hooking a track to a world
 
-Put a `music` block in the world's seed spec (`server/priv/world_seeds/<world>.json`):
+Put a `music` block in the world's seed spec (`server/priv/world_seeds/<world>.json`). Most seeds are
+written by a generator (`tools/gen_<world>_world.py`, `tools/gen_bazaar.py`, `tools/generate_maze.py`),
+so add it there too. A home's comes from the `base` of `server/priv/home/home.json`.
 
 ```json
 "music": { "track": "res://assets/music/vale.ogg", "volume_db": -22 }

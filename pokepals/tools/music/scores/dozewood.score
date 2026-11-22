@@ -1,0 +1,35 @@
+# Dozewood: a drowsy forest at a long lilac dusk, everything at half speed. A lullaby in 3/4.
+# Ab major, 54 bpm. Slow strings, a harp turning over, a music-box lullaby.
+
+title Dozewood
+tempo 54
+beats 3
+steps 2        # 6 steps a bar
+seed  97
+
+voice str   kind=strings   octave=4  gain=0.46  reverb=0.65
+voice bass  kind=bass      octave=2  gain=0.26  reverb=0.2
+voice harp  kind=harp      octave=3  gain=0.20  pan=-0.25 reverb=0.5
+voice cel   kind=musicbox  octave=5  gain=0.30  pan=0.2   reverb=0.6
+
+[intro]
+chords | Ab | Fm7 | Db | Eb |
+str    | * - - - - - |
+bass   | 1 - - - - - |
+harp   | 1 . 2 . 3 . |
+
+[a]
+chords | Ab | Fm7 | Db | Eb | Ab | Fm7 | Bbm7 | Eb |
+str    | * - - - - - |
+bass   | 1 - - - - - |
+harp   | 1 . 2 . 3 . |
+cel    | C5 - - Eb5 - - | Ab5 - - - - - | F5 - - Ab5 - - | G5 - - - - - | C5 - - Eb5 - - | Ab5 - - C6 - - | Bb5 - - Ab5 - F5 | G5 - - - - - |
+
+[b]
+chords | Db | Eb | Cm7 | Fm7 | Db | Eb | Ab | Ab |
+str    | * - - - - - |
+bass   | 1 - - - - - |
+harp   | 1 . 2 . 3 . |
+cel    | Ab5 - - F5 - - | G5 - - Eb5 - - | Eb5 - - G5 - - | C5 - - - - - | Db5 - - F5 - - | Bb5 - - G5 - - | Ab5 - - - - - | . . . . . . |
+
+play intro a b a
