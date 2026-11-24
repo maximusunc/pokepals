@@ -364,6 +364,11 @@ func cached_spec_core(world_id: String) -> Dictionary:
 	return cached_spec(world_id).get("core", {})
 
 
+## A world's display name from the catalog ("The Vale"), as it came with its spec; "" if we don't know it.
+func cached_world_name(world_id: String) -> String:
+	return String(_world_specs.get(world_id, {}).get("name", ""))
+
+
 ## The content etag of the cached spec for a world, or "" if we don't have it. This is the cache
 ## validator we echo back on join (known_etag) so an unchanged world isn't re-downloaded.
 func cached_etag(world_id: String) -> String:
@@ -927,7 +932,7 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var etag := String(payload.get("etag", ""))
 			var spec: Variant = payload.get("spec", {})
 			if wid != "" and spec is Dictionary:
-				var entry := { "etag": etag, "version": version, "spec": spec }
+				var entry := { "etag": etag, "version": version, "spec": spec, "name": String(payload.get("name", "")) }
 				_world_specs[wid] = entry
 				_persist_spec(wid, entry)
 				world_spec_received.emit(wid, version, spec)
@@ -1175,6 +1180,7 @@ func _load_disk_cache() -> void:
 					"etag": String(p.get("etag", "")),
 					"version": int(p.get("version", 0)),
 					"spec": p.get("spec", {}),
+					"name": String(p.get("name", "")),
 				}
 		fname = dir.get_next()
 	dir.list_dir_end()
