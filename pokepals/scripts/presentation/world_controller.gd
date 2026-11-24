@@ -54,9 +54,10 @@ const MOMENT_FADE_OUT := 1.2
 @onready var _camera: CameraRig = $Camera2D
 @onready var _hint: Label = $UI/HintLabel
 @onready var _joystick: VirtualJoystick = $UI/Joystick
-# The three HUD zones (see scripts/presentation/{examine_prompt,companion_radial,gear_menu}.gd):
-# a diegetic examine bubble over the nearby object, the bottom-right companion action radial, and
-# the top-right system/meta gear menu. They replace the old scatter of free-floating buttons.
+# The HUD's zones (see scripts/presentation/{examine_prompt,companion_radial,gear_menu,hotbar,use_button}.gd):
+# a diegetic examine bubble over the nearby object; the top-left Menu button + where-you-are chip (its
+# sheet slides in from the right); the companion column down the right edge; the item bar (hotbar + bag)
+# at the bottom centre; and the Use button alone in the bottom-right corner.
 @onready var _examine_prompt: ExaminePrompt = $UI/ExaminePrompt
 @onready var _radial: CompanionRadial = $UI/CompanionRadial
 @onready var _gear: GearMenu = $UI/GearMenu
@@ -365,10 +366,11 @@ func _build_world(cached: Dictionary) -> void:
 	# Diegetic Examine bubble: floats over the nearby prop and, when tapped, examines (Space/Enter also
 	# work via _unhandled_input). The contextual set is pushed each frame in _process.
 	_examine_prompt.pressed.connect(_try_interact)
-	# Companion radial: Pet / Call always, Go look when the Ruin has a ward to open (see _process).
+	# Companion column: Call / Pet always, Go look and a world's own trick where they apply (see _process).
 	# Desktop convenience keys stay: C calls, E pets (_unhandled_input).
 	_radial.action_selected.connect(_on_radial_action)
-	# Gear menu: New Companion / Return / Leave / DBG, each gated in _process.
+	# The menu sheet: Bag, Wardrobe, Journal, Friends, Sound, Guide, Return, Leave and the developer tools,
+	# each gated in _process.
 	_gear.item_selected.connect(_on_gear_item)
 	# Keep the two menus mutually exclusive — opening one dismisses the other.
 	_radial.opened.connect(_gear.close)
@@ -1067,7 +1069,6 @@ func _process(delta: float) -> void:
 	# with a ward still to open, or a world whose secret the companion leads you to (Underroot); then one entry per drawable FORM the player can instruct it into
 	# (F-1's temporary picker — the proper contextual UI comes with the tap-an-object item). The
 	# chip's dot warms with the live bond.
-	_radial.set_bond(_companion.bond_value())
 	var radial_actions: Array = [
 		{ "id": "pet", "label": "Pet", "enabled": true },
 		{ "id": "call", "label": "Call", "enabled": true },
@@ -1080,11 +1081,15 @@ func _process(delta: float) -> void:
 	for sp in _companion.available_form_species():
 		radial_actions.append({ "id": "form:" + String(sp), "label": String(sp).capitalize(), "enabled": true })
 	_radial.set_actions(radial_actions)
+	_refresh_companion_art()
 
 	# Gear menu: the meta actions, each shown only when it applies — New Companion once fully bonded,
 	# Return-to-the-Vale in a world that declares one while connected, Leave while in a session, DBG
 	# always (dev).
 	_gear.set_items(_gather_gear_items())
+	_gear.set_place(_place_name(), _presence_dir.peer_count() + 1)
+	_gear.set_profile(Net.my_name(), Net.friend_code())
+	_layout_hint()
 
 	# Native creatures: keep each examinable one's spot current (the server walks them about), and let
 	# them notice whoever is near — a shy one shrinks back, a friendly one turns and bobs.
@@ -1152,8 +1157,74 @@ func _gather_gear_items() -> Array:
 	# Dev: look at any world in the perspective view, or back top-down (P on a keyboard does the same).
 	if _perspective != null:
 		items.append({ "id": "perspective", "label": "Top-down view (dev)" if _perspective.is_on() else "Inside view (dev)" })
-	items.append({ "id": "dbg", "label": "DBG" })
+	items.append({ "id": "dbg", "label": "Debug readout" })
 	return items
+
+
+## Fit the hint pill to its words and keep it centred just above the item bar. Only re-laid when the
+## words (or the screen) change.
+var _hint_laid := ""
+func _layout_hint() -> void:
+	var view := get_viewport().get_visible_rect().size
+	var key := _hint.text + "|" + str(view)
+	if key == _hint_laid:
+		return
+	_hint_laid = key
+	_hint.visible = _hint.text != ""
+	if _hint.text == "":
+		return
+	var font := _hint.get_theme_font("font")
+	if font == null:
+		return
+	var one_line := font.get_string_size(_hint.text, HORIZONTAL_ALIGNMENT_LEFT, -1, 11).x + 26.0
+	var w := minf(one_line, minf(400.0, view.x - 140.0))
+	# The words' height when wrapped to the pill's inside width, plus the pill's own top and bottom.
+	var text_h := font.get_multiline_string_size(_hint.text, HORIZONTAL_ALIGNMENT_CENTER, w - 24.0, 11).y
+	var h := text_h + 9.0
+	_hint.custom_minimum_size = Vector2(w, h)
+	_hint.size = Vector2(w, h)
+	_hint.position = Vector2(round((view.x - w) * 0.5), round(view.y - 82.0 - h))
+
+
+## The corner chip's name for where we are: the catalog's name for the world ("The Vale"), or your home.
+func _place_name() -> String:
+	if is_in_own_home():
+		return "Your home"
+	var n := Net.cached_world_name(WorldRouter.current_world)
+	return n
+
+
+## The companion's picture on the column's portrait, in the menu sheet, and in the shapes row: a frame
+## of the animal it's wearing, facing right. Only redone when the shape it wears changes.
+var _art_form := "~"
+func _refresh_companion_art() -> void:
+	var form := _companion.companion_form_payload()
+	var species := String(form.get("species", ""))
+	var key := species + ":" + str(form.get("variant", 0)) + ":" + str(_companion.available_form_species())
+	if key == _art_form:
+		return
+	_art_form = key
+	var cur := _pal_frame(species, int(form.get("variant", 0)))
+	_radial.set_portrait(cur.get("tex"), cur.get("region", Rect2()))
+	_gear.set_portrait(cur.get("tex"), cur.get("region", Rect2()))
+	var sheets := {}
+	for sp in _companion.available_form_species():
+		sheets[sp] = _pal_frame(String(sp), int(form.get("variant", 0)) if sp == species else 0)
+	_radial.set_shape_art(species, sheets)
+
+
+## One standing frame of a pal sheet, facing right: { tex, region }, or {} when there's no such art.
+func _pal_frame(species: String, variant: int) -> Dictionary:
+	if species == "":
+		return {}
+	var info := PalView.sheet_info(species, variant)
+	if info.is_empty() or not (info.get("tex") is Texture2D):
+		return {}
+	var sheet: Dictionary = info["sheet"]
+	var frame: Vector2 = Vector2(sheet.get("frame", Vector2(32, 32))) if sheet.get("frame") is Vector2 else Vector2(32, 32)
+	var rows: Dictionary = sheet.get("rows", {})
+	var row := int(rows.get("right", 0))
+	return { "tex": info["tex"], "region": Rect2(Vector2(0, float(row) * frame.y), frame) }
 
 
 ## The Return item's label — the world may override it via its "return" block (see _setup_contents),
@@ -1453,10 +1524,17 @@ func _install_item_hud() -> void:
 	_use_button.name = "UseButton"
 	_use_button.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	$UI.add_child(_use_button)
-	_use_button.attach_to(_radial)
-	# Under the radial, so its fanned-out arc draws over them.
+	# Under the companion column, so its shapes row (and its tap-away) sit over them.
 	$UI.move_child(_hotbar, _radial.get_index())
 	$UI.move_child(_use_button, _radial.get_index())
+	# The bag at the end of the item bar opens the same sheet as the menu's Bag tile.
+	_hotbar.bag_pressed.connect(func() -> void:
+		if _world_built and Net.is_active():
+			open_sheet(BagPanel.new()))
+	# The walking stick reaches out of its corner to meet your thumb, but never takes a press meant for
+	# the HUD (it reads input before the GUI does).
+	_joystick.avoid = _hotbar.tap_targets() + _use_button.tap_targets() + _examine_prompt.tap_targets() \
+		+ _gear.tap_targets() + _radial.tap_targets()
 
 
 ## Set up the single WORLD-TAP CATCHER: a full-screen surface placed UNDER all the HUD (moved to the
@@ -1478,6 +1556,21 @@ func _install_world_tap_catcher() -> void:
 	# The status labels are display-only — make sure they never swallow a world tap.
 	_hint.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	_goal_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	# The hint line is a small dark pill just above the item bar (see _layout_hint), clear of the corners.
+	var pill := StyleBoxFlat.new()
+	pill.bg_color = UiStyle.DARK_PILL_BG
+	pill.set_corner_radius_all(11)
+	pill.content_margin_left = 12
+	pill.content_margin_right = 12
+	pill.content_margin_top = 4
+	pill.content_margin_bottom = 5
+	pill.anti_aliasing = true
+	_hint.add_theme_stylebox_override("normal", pill)
+	_hint.add_theme_color_override("font_color", UiStyle.PAPER)
+	_hint.add_theme_constant_override("outline_size", 0)
+	UiStyle.set_font(_hint, 600, 11)
+	_hint.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	_hint.set_anchors_preset(Control.PRESET_TOP_LEFT)
 
 
 ## A tap that fell through every HUD control down to the world-catcher is a COMPANION ORDER. Left mouse

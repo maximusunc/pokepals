@@ -405,18 +405,23 @@ func _refresh_use() -> void:
 	if item.is_empty():
 		_use.set_item("", "", Color.WHITE)   # an empty hand: nothing to use
 		_use.set_ready(false)
+		_use.set_verb("")
 		_invalidate_ready()
 		return
 	if String(item.get("key", "")) == AXE_KEY:
-		_use.set_ready(harvest != null and harvest.can_chop())
+		var can := harvest != null and harvest.can_chop()
+		_use.set_ready(can)
+		_use.set_verb("Chop" if can else "Find a tree")
 		_invalidate_ready()
 		return
 	if String(item.get("key", "")) != ROD_KEY:
 		_use.set_ready(not item.is_empty())
+		_use.set_verb("" if String(item.get("key", "")) == LANTERN_KEY else "Use")
 		_invalidate_ready()
 		return
 	if _phase != "":
 		_use.set_ready(_phase in ["wait", "bite", "cast"])
+		_use.set_verb({ "wait": "Reel in", "cast": "Reel in", "bite": "Reel!" }.get(_phase, ""))
 		_invalidate_ready()
 		return
 	# Whether a cast would land is a line search, so it isn't redone every frame: only once you've moved or
@@ -429,7 +434,9 @@ func _refresh_use() -> void:
 	_ready_pos = pos
 	_ready_face = face
 	_ready_age = 0.0
-	_use.set_ready(_allowed and _water != null and _water.cast_point(pos, face) != null)
+	var lands := _allowed and _water != null and _water.cast_point(pos, face) != null
+	_use.set_ready(lands)
+	_use.set_verb("Cast" if lands else ("Find water" if _allowed else "No fishing here"))
 
 
 ## Forget the last "would a cast land?" answer, so the next _refresh_use asks again.

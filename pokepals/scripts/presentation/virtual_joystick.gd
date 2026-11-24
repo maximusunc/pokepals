@@ -1,11 +1,11 @@
 class_name VirtualJoystick
 extends Control
-## A DEDICATED thumbstick fixed in the BOTTOM-LEFT corner — the walking control. Unlike a floating
-## stick, it lives in one place: a press that lands within its base region grabs the knob and the
-## pointer drags it (clamped to max_radius) to steer; a press ANYWHERE ELSE is left untouched, so it
-## falls through to the world, which reads it as a companion order (see world_controller). It reports
-## a normalized `direction` the player controller adds to its input, and is always visible so the
-## control is discoverable.
+## The walking thumbstick, at home in the BOTTOM-LEFT corner. At rest it's only a faint dashed ring, so
+## it doesn't sit on the scenery. A press anywhere in the corner's reach (a generous circle round that
+## resting spot) brings the stick to the thumb: its base centres where you pressed and dragging steers
+## (clamped to max_radius). Let go and it settles back to its corner. A press ANYWHERE ELSE is left
+## untouched, so it falls through to the world, which reads it as a companion order (see
+## world_controller). It reports a normalized `direction` the player controller adds to its input.
 ##
 ## Touch only: on a plain desktop (no touchscreen) it hides itself and does nothing; the keyboard
 ## (WASD/arrows) walks there.
@@ -13,6 +13,8 @@ extends Control
 @export var max_radius := 70.0
 @export var margin := 30.0        # gap from the bottom-left corner to the base's edge
 @export var grab_pad := 22.0      # extra radius past the base that still counts as grabbing the stick
+@export var reach := 60.0         # how much further out from the corner a press still brings the stick
+@export var ghost_radius := 44.0  # the faint ring drawn at rest
 
 var direction := Vector2.ZERO
 ## Off while a menu is up over the live world: the stick lets go and ignores presses (it reads input in
@@ -23,10 +25,15 @@ var enabled := true:
 		if not enabled and _active:
 			_release()
 
+## HUD controls a press must never be taken from (the item bar, an Examine bubble, an open menu's
+## tap-away): a press over any visible one is left to the GUI.
+var avoid: Array = []
+
 var _use_mouse := false           # desktop (no touchscreen): the stick is hidden and inert
 var _active := false
 var _touch_index := -1
-var _center := Vector2.ZERO       # base center in screen coords (from _layout)
+var _home := Vector2.ZERO         # the stick's resting spot in the corner (from _layout)
+var _center := Vector2.ZERO       # the base's centre now: home at rest, under the thumb while held
 var _knob := Vector2.ZERO
 
 
@@ -55,17 +62,23 @@ func _notification(what: int) -> void:
 
 
 func _layout() -> void:
-	_center = Vector2(margin + max_radius, size.y - margin - max_radius)
+	_home = Vector2(margin + max_radius, size.y - margin - max_radius)
 	if not _active:
+		_center = _home
 		_knob = _center
 	queue_redraw()
 
 
-## True if a screen point is within the stick's grab region (base + a little pad). Gates both
+## True if a screen point is within the stick's grab region (the corner's reach). Gates both
 ## grabbing the knob and swallowing the emulated mouse twin of a touch, so a press on the stick
 ## never doubles as a companion command.
 func contains_point(point: Vector2) -> bool:
-	return point.distance_to(_center) <= max_radius + grab_pad
+	if point.distance_to(_home) > max_radius + grab_pad + reach:
+		return false
+	for c in avoid:
+		if is_instance_valid(c) and (c as Control).is_visible_in_tree() and (c as Control).get_global_rect().has_point(point):
+			return false
+	return true
 
 
 func _input(event: InputEvent) -> void:
@@ -99,6 +112,9 @@ func _handle_touch(event: InputEvent) -> void:
 ## companion order.
 func _grab(at: Vector2) -> void:
 	_active = true
+	# The base comes to the thumb, kept far enough in that most of its ring stays on screen.
+	var inset := max_radius * 0.6
+	_center = Vector2(clampf(at.x, inset, maxf(inset, size.x - inset)), clampf(at.y, inset, maxf(inset, size.y - inset)))
 	_move(at)
 	get_viewport().set_input_as_handled()
 
@@ -116,13 +132,21 @@ func _release() -> void:
 	_active = false
 	_touch_index = -1
 	direction = Vector2.ZERO
+	_center = _home
 	_knob = _center
 	queue_redraw()
 
 
 func _draw() -> void:
-	# Base well + a rim, then the knob. Brighter while actively steering.
-	var base_a := 0.16 if _active else 0.10
-	draw_circle(_center, max_radius, Color(1, 1, 1, 0.06))
-	draw_arc(_center, max_radius, 0.0, TAU, 48, Color(1, 1, 1, base_a), 2.0, true)
-	draw_circle(_knob, 26.0, Color(1, 1, 1, 0.22 if _active else 0.16))
+	if _active:
+		# Held: the base well and rim under the thumb, and the knob.
+		draw_circle(_center, max_radius, Color(1, 1, 1, 0.08))
+		draw_arc(_center, max_radius, 0.0, TAU, 48, Color(1, 1, 1, 0.55), 2.0, true)
+		draw_circle(_knob, 24.0, Color(1, 1, 1, 0.7))
+		return
+	# At rest: a faint dashed ring and a soft knob, just enough to say "walk from here".
+	var n := 22
+	for i in n:
+		var a := TAU * float(i) / float(n)
+		draw_arc(_home, ghost_radius, a, a + TAU / float(n) * 0.5, 4, Color(1, 1, 1, 0.32), 2.0, true)
+	draw_circle(_home, 17.0, Color(1, 1, 1, 0.18))
