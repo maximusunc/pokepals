@@ -162,7 +162,7 @@ func _draw_bar() -> void:
 	bb.set_corner_radius_all(8)
 	bb.anti_aliasing = true
 	_bar.draw_style_box(bb, bag)
-	HudIcons.draw(_bar, "bag", bag.get_center(), 22.0, UiStyle.PAPER, 2.0, UiStyle.INK)
+	HudIcons.draw(_bar, "bag", bag.get_center(), 22.0, UiStyle.PAPER)
 	# The selected item's name, in a small dark pill above its slot's bar.
 	var label_text := _selected_name()
 	if label_text != "":

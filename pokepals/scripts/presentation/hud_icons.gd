@@ -29,23 +29,18 @@ static func draw(ci: CanvasItem, id: String, c: Vector2, size: float, color: Col
 			ci.draw_arc(P.call(12, 12), 9.0 * k, 0.0, TAU, 32, color, w, true)
 			_poly(ci, [P.call(15.5, 8.5), P.call(13.5, 13.5), P.call(8.5, 15.5), P.call(10.5, 10.5), P.call(15.5, 8.5)], color, w)
 		"bag":
-			# A backpack seen from the front: a solid body with a rounded top, a grab loop, the shoulder
-			# straps curving out at its sides (the thing a padlock never has), and a front pocket cut
-			# out of the body in the colour behind it.
-			var body := PackedVector2Array()
-			for i in 13:
-				var a := PI + PI * float(i) / 12.0
-				body.append(P.call(12.0 + 5.5 * cos(a), 9.5 + 5.5 * sin(a)))
-			body.append_array([P.call(17.5, 19.5), P.call(16.5, 20.5), P.call(7.5, 20.5), P.call(6.5, 19.5)])
-			ci.draw_colored_polygon(body, color)
-			ci.draw_arc(P.call(12, 3.6), 1.9 * k, PI, TAU, 8, color, w, true)
-			# the straps: from the shoulders, out and down the sides
-			_poly(ci, [P.call(7.2, 7.0), P.call(4.4, 10.5), P.call(4.4, 16.5), P.call(6.5, 17.5)], color, w)
-			_poly(ci, [P.call(16.8, 7.0), P.call(19.6, 10.5), P.call(19.6, 16.5), P.call(17.5, 17.5)], color, w)
-			var cut := bg if bg.a > 0.0 else Color(color, 0.0)
-			if cut.a > 0.0:
-				_poly(ci, [P.call(8.8, 14.2), P.call(15.2, 14.2), P.call(15.2, 18.6), P.call(8.8, 18.6), P.call(8.8, 14.2)], cut, w * 0.85)
-				ci.draw_line(P.call(8.8, 16.4), P.call(15.2, 16.4), cut, w * 0.85, true)
+			# A backpack, traced from Lucide's "backpack" icon (lucide.dev, ISC License, Copyright (c)
+			# Lucide Contributors 2022; portions Copyright (c) Cole Bemis 2013-2022 as part of Feather,
+			# MIT): the body with rounded shoulders, two strap lines across it, the front pocket, and the
+			# carry handle on top.
+			var body: Array = _arc(P, 8, 10, 4, PI, PI * 1.5) + _arc(P, 16, 10, 4, PI * 1.5, TAU) \
+				+ _arc(P, 18, 20, 2, 0.0, PI * 0.5) + _arc(P, 6, 20, 2, PI * 0.5, PI)
+			body.append(body[0])
+			_poly(ci, body, color, w)
+			ci.draw_line(P.call(8, 10), P.call(16, 10), color, w, true)
+			ci.draw_line(P.call(8, 18), P.call(16, 18), color, w, true)
+			_poly(ci, [P.call(8, 22)] + _arc(P, 10, 16, 2, PI, PI * 1.5) + _arc(P, 14, 16, 2, PI * 1.5, TAU) + [P.call(16, 22)], color, w)
+			_poly(ci, [P.call(9, 6)] + _arc(P, 11, 4, 2, PI, PI * 1.5) + _arc(P, 13, 4, 2, PI * 1.5, TAU) + [P.call(15, 6)], color, w)
 		"wardrobe":
 			_poly(ci, [P.call(9, 4), P.call(4, 7), P.call(6, 11), P.call(8, 10), P.call(8, 20), P.call(16, 20),
 				P.call(16, 10), P.call(18, 11), P.call(20, 7), P.call(15, 4)], color, w)
@@ -105,6 +100,15 @@ static func draw(ci: CanvasItem, id: String, c: Vector2, size: float, color: Col
 		"up":
 			ci.draw_line(P.call(12, 20), P.call(12, 5), color, w, true)
 			_poly(ci, [P.call(7, 10), P.call(12, 5), P.call(17, 10)], color, w)
+
+
+## Points along a circle on the grid (centre cx, cy, radius r) from angle a0 to a1, for rounded corners.
+static func _arc(P: Callable, cx: float, cy: float, r: float, a0: float, a1: float) -> Array:
+	var out: Array = []
+	for i in 7:
+		var a := lerpf(a0, a1, float(i) / 6.0)
+		out.append(P.call(cx + r * cos(a), cy + r * sin(a)))
+	return out
 
 
 static func _poly(ci: CanvasItem, pts: Array, color: Color, w: float) -> void:
