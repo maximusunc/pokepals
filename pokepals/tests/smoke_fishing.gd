@@ -68,7 +68,7 @@ func _process(_delta: float) -> bool:
 					_rod_post = e
 			_ok(not _rod_post.is_empty(), "the Vale has the rod's post, examinable")
 			_ok(_fish._water != null and _fish._water.has_water(), "the Vale's water is known")
-			_ok(not _world._hotbar.visible and not _world._use_button.visible, "no hotbar or use button before you have anything")
+			_ok(not _world._hotbar.shows_slots() and not _world._use_button.visible, "no hotbar slots or use button before you have anything (only the bag)")
 			_server("inventory", { "items": [] })
 			_server("hotbar", { "slots": [null, null, null, null, null] })
 			_next()
@@ -84,7 +84,7 @@ func _process(_delta: float) -> bool:
 			_next()
 		2:
 			_ok(not _fish._rest.visible, "taken: the post is empty (for you)")
-			_ok(_world._hotbar.visible and _world._use_button.visible, "the hotbar and the use button appear")
+			_ok(_world._hotbar.shows_slots() and _world._use_button.visible, "the hotbar slots and the use button appear")
 			_ok(_fish._rod.is_held(), "the rod is in your hand")
 			_ok(_world._presence_dir._held == "rod", "friends are told you hold a rod")
 			_ok(_world.hint_text().contains("hotbar"), "a hint says where it went")

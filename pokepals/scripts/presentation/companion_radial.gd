@@ -1,44 +1,48 @@
 class_name CompanionRadial
 extends Control
-## The bottom-right companion "chip" and its fan-out action arc. The chip is always there in the
-## fixed corner (with a small dot that warms as the bond grows); tapping it fans the companion's
-## actions out from the corner on two arcs: what it can do close in, the shapes it can take further
-## out, spaced so no two buttons touch. Because the chip is anchored, the arcs are always in the
-## same place no matter where the companion has wandered — the actions come to a spot you know,
-## rather than chasing a roaming pet around the screen.
+## The COMPANION COLUMN down the right edge: everything you ask of your companion, each one tap, kept
+## off the busy bottom of the screen. From the top: the companion's portrait (the animal it's wearing
+## right now), then its everyday actions as plain icons (Call, Pet, and Go look where there's somewhere
+## to look), then, below a little divider and lit gold, a world's own trick where that world has one
+## (Howl in Hollowsong, Go up in Loftreach). Tapping the portrait slides a row of the SHAPES it can take
+## out to the left along the top edge; tap one to ask for it (the row closes), or tap the portrait or
+## anywhere else to put it away. Tap only: no holds, no slides.
 ##
-## Pure presentation: the controller pushes the currently-available actions via set_actions() and the
-## live bond via set_bond(); this node only lays them out and reports which one the player tapped
-## (`action_selected`). It owns the open/close toggle itself — one less thing for the controller to track.
+## (The class keeps its old name from when this was a chip that fanned actions out on two arcs.)
+##
+## Pure presentation: the controller pushes what's on offer (set_actions) and the portrait's picture
+## (set_portrait); this node lays them out and reports what was tapped (`action_selected`).
 
 signal action_selected(id: String)
-signal opened  ## fired when the arc fans open, so the controller can close the gear menu
+signal opened  ## the shapes row slid out, so the controller can close the menu sheet
 
-const CHIP_MARGIN := Vector2(14, 14)  # gap from the bottom-right corner
-## The two arcs: companion actions on the inner one, the shapes it can take on the outer one. Each
-## starts at its base radius and only grows if its buttons can't fit along it without touching.
-const INNER_RADIUS := 92.0
-const RING_GAP := 14.0       # the least room between the inner and outer arcs
-const BUTTON_GAP := 10.0     # the least room between any two buttons (a fat-finger margin)
-const ARC_FROM := 178.0      # the arcs sweep from nearly straight left of the chip…
-const ARC_TO := 84.0         # …to just past straight up
-const SLICE_STAGGER := 0.035
+const MARGIN := 10.0
+const WIDTH := 46.0
+const PAD := 4.0
+const PORTRAIT := 38.0
+const ACTION := 34.0
+const GAP := 4.0
+const SHAPE := 38.0
+## The actions that belong to every world, in the column's order; anything else offered (that isn't a
+## shape) is a world's own trick and goes below the divider.
+const CORE := ["call", "pet", "seek"]
+const ICONS := { "call": "call", "pet": "pet", "seek": "look", "howl": "howl", "up": "up" }
 
-var _chip: Button
-var _dot: Panel
 var _catcher: Control
-var _slots: Control
-var _actions: Array = []      # [{id, label}] currently offered (enabled only)
-var _signature := ""          # to skip rebuilding the arc when the offered set is unchanged
+var _column: Control
+var _portrait: HudTile
+var _shapes: Control
+var _actions: Array = []      # [{id, label}] offered (enabled only)
+var _signature := ""
 var _open := false
-var _bond := 0.0
+var _current_form := ""
+var _sheets: Dictionary = {}  # species -> { tex, region } for the shape buttons
 
 
 func _ready() -> void:
-	mouse_filter = Control.MOUSE_FILTER_IGNORE  # empty space falls through to the joystick
+	mouse_filter = Control.MOUSE_FILTER_IGNORE  # empty space falls through to the world
 
-	# Full-screen tap-away catcher, shown only while the arc is open. While visible it also blankets
-	# the joystick (registered as an exclusion), so the world doesn't pan under an open menu.
+	# Tap-away for the shapes row (transparent; the world stays visible behind it).
 	_catcher = Control.new()
 	_catcher.set_anchors_preset(Control.PRESET_FULL_RECT)
 	_catcher.mouse_filter = Control.MOUSE_FILTER_STOP
@@ -46,87 +50,50 @@ func _ready() -> void:
 	_catcher.gui_input.connect(_on_catcher_input)
 	add_child(_catcher)
 
-	# Holds the fanned action buttons (built on open, freed on close).
-	_slots = Control.new()
-	_slots.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_slots.set_anchors_preset(Control.PRESET_FULL_RECT)
-	add_child(_slots)
+	_column = Control.new()
+	_column.mouse_filter = Control.MOUSE_FILTER_STOP  # its gaps don't leak through as world taps
+	_column.draw.connect(_draw_column)
+	add_child(_column)
 
-	# The chip itself — always present, top-most. Positioned manually at the bottom-right corner from
-	# the root's size (see _layout); with default top-left anchors, `position` is plain pixel coords,
-	# which sidesteps the corner-anchor/offset confusion.
-	_chip = Button.new()
-	_chip.text = "Companion"
-	UiStyle.hud_button(_chip, 11, 600, 999, 13.0, 6.0)
-	# Leave room on the right for the bond dot (same on every state so the text doesn't jump on press).
-	for state in ["normal", "hover", "pressed"]:
-		(_chip.get_theme_stylebox(state) as StyleBoxFlat).content_margin_right = 30
-	_chip.pressed.connect(_toggle)
-	add_child(_chip)
+	_portrait = HudTile.new()
+	_portrait.look = "primary"
+	_portrait.radius = PORTRAIT * 0.5
+	_portrait.size = Vector2(PORTRAIT, PORTRAIT)
+	_portrait.pressed.connect(_toggle)
+	_column.add_child(_portrait)
 
-	# The bond dot: a small circle at the chip's right edge that warms with the bond.
-	_dot = Panel.new()
-	_dot.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	_dot.custom_minimum_size = Vector2(10, 10)
-	_dot.size = Vector2(10, 10)
-	_dot.add_theme_stylebox_override("panel", _dot_style(_bond))
-	_chip.add_child(_dot)
+	_shapes = Control.new()
+	_shapes.mouse_filter = Control.MOUSE_FILTER_STOP
+	_shapes.visible = false
+	_shapes.draw.connect(_draw_shapes)
+	add_child(_shapes)
 
 	_layout.call_deferred()
 
 
-## Reflow the chip (and any open arc) whenever the root's size changes — i.e. on window resize.
-## Guarded on is_node_ready(): a Control gets its first NOTIFICATION_RESIZED as its rect resolves,
-## which happens BEFORE _ready() builds _chip/_dot — so an unguarded _layout() would deref a null
-## _chip. The initial layout is handled by the _layout.call_deferred() in _ready(); this only needs
-## to catch later, post-ready resizes.
 func _notification(what: int) -> void:
 	if what == NOTIFICATION_RESIZED and is_node_ready():
 		_layout()
 
 
-## The bond dot's fill: a muted grey-brown when fresh, warming to a soft glow when fully bonded.
-## A round pip with the HUD's soft ink rim, matching the pill it sits in.
-func _dot_style(bond: float) -> StyleBoxFlat:
-	var sb := StyleBoxFlat.new()
-	var cool := Color(0.62, 0.57, 0.52)
-	var warm := Color(0.96, 0.52, 0.36)
-	sb.bg_color = cool.lerp(warm, clampf(bond, 0.0, 1.0))
-	sb.border_color = UiStyle.HUD_BORDER
-	sb.set_border_width_all(1)
-	sb.set_corner_radius_all(999)
-	return sb
-
-
-func _layout() -> void:
-	var sz := _chip.get_combined_minimum_size()
-	_chip.size = sz
-	_chip.position = Vector2(size.x - sz.x - CHIP_MARGIN.x, size.y - sz.y - CHIP_MARGIN.y)
-	# Park the dot at the chip's right edge, vertically centered.
-	_dot.position = Vector2(sz.x - 22, (sz.y - _dot.size.y) * 0.5)
-	if _open:
-		_build_slices()
-
-
-## The companion chip's rect on screen (the use button sits just left of it).
-func chip_rect() -> Rect2:
-	if _chip == null:
-		return Rect2(size - Vector2(110, 40), Vector2(96, 26))
-	return Rect2(_chip.position, _chip.size)
-
-
-## The controller's live bond reading (0..1), for the chip dot.
-func set_bond(bond: float) -> void:
-	if is_equal_approx(bond, _bond):
+## The animal on the portrait: its sheet and the frame to show (null for none).
+func set_portrait(tex: Texture2D, region: Rect2) -> void:
+	if _portrait == null:
 		return
-	_bond = bond
-	if _dot != null:
-		_dot.add_theme_stylebox_override("panel", _dot_style(_bond))
+	_portrait.set_sprite(tex, region, (PORTRAIT - 6.0) / maxf(region.size.y, 1.0))
 
 
-## The actions to offer right now. Each entry: { id, label, enabled }. Disabled ones are dropped
-## (contextual actions like "Go look" simply aren't in the list when unavailable). If the offered set
-## changed while the arc is open, it re-fans; if closed, the next open picks up the new set.
+## The shape it's wearing (highlighted in the shapes row) and, per species on offer, the picture of it:
+## { species: { tex, region } }.
+func set_shape_art(current: String, sheets: Dictionary) -> void:
+	_current_form = current
+	_sheets = sheets
+	if _open:
+		_build_shapes()
+
+
+## What to offer right now. Each entry: { id, label, enabled }; disabled ones are left out ("Go look" is
+## only there when there's somewhere to look). Ids "form:<species>" are the shapes.
 func set_actions(actions: Array) -> void:
 	var offered: Array = []
 	var sig := ""
@@ -138,25 +105,107 @@ func set_actions(actions: Array) -> void:
 		return
 	_signature = sig
 	_actions = offered
-	if _open:
-		_build_slices()
+	_layout()
 
+
+## The column's rect on screen (the use button keeps below it).
+func chip_rect() -> Rect2:
+	if _column == null:
+		return Rect2(size - Vector2(56, 200), Vector2(WIDTH, 190))
+	return Rect2(_column.position, _column.size)
+
+
+func _layout() -> void:
+	if _column == null:
+		return
+	for c in _column.get_children():
+		if c != _portrait:
+			c.queue_free()
+	var core: Array = []
+	var tricks: Array = []
+	for a in _actions:
+		var id := String(a["id"])
+		if id.begins_with("form:"):
+			continue
+		if id in CORE:
+			core.append(a)
+		else:
+			tricks.append(a)
+	core.sort_custom(func(x: Dictionary, y: Dictionary) -> bool: return CORE.find(String(x["id"])) < CORE.find(String(y["id"])))
+	var x_mid := WIDTH * 0.5
+	_portrait.position = Vector2(x_mid - PORTRAIT * 0.5, PAD)
+	var y := PAD + PORTRAIT + GAP + 2.0 + GAP  # the divider under the portrait
+	for a in core:
+		_action_button(String(a["id"]), String(a["label"]), Vector2(x_mid - ACTION * 0.5, y), false)
+		y += ACTION + GAP
+	if not tricks.is_empty():
+		y += 2.0 + GAP  # a second divider
+		for a in tricks:
+			_action_button(String(a["id"]), String(a["label"]), Vector2(x_mid - ACTION * 0.5, y), true)
+			y += ACTION + GAP
+	_column.size = Vector2(WIDTH, y - GAP + PAD)
+	_column.position = Vector2(size.x - MARGIN - WIDTH, MARGIN)
+	_column.set_meta("dividers", [PAD + PORTRAIT + GAP + 1.0] + \
+		([PAD + PORTRAIT + GAP * 2.0 + 2.0 + float(core.size()) * (ACTION + GAP) + 1.0] if not tricks.is_empty() else []))
+	_column.queue_redraw()
+	if _open:
+		_build_shapes()
+
+
+func _action_button(id: String, label: String, at: Vector2, trick: bool) -> void:
+	var b := HudTile.new()
+	b.look = "gold" if trick else "ghost"
+	b.icon = String(ICONS.get(id, ""))
+	if b.icon == "":
+		b.text = label.substr(0, 1)  # an action with no drawn icon yet still gets a tappable letter
+	b.icon_size = 19.0
+	b.radius = ACTION * 0.5
+	b.glow = trick
+	b.size = Vector2(ACTION, ACTION)
+	b.position = at
+	b.tooltip_text = label  # names the icon on a desktop (hover); nothing on screen otherwise
+	b.pressed.connect(func() -> void:
+		_close()
+		action_selected.emit(id))
+	_column.add_child(b)
+
+
+func _draw_column() -> void:
+	var sb := UiStyle.hud_box(int(WIDTH * 0.5))
+	sb.anti_aliasing = true
+	_column.draw_style_box(sb, Rect2(Vector2.ZERO, _column.size))
+	for dy in _column.get_meta("dividers", []):
+		_column.draw_line(Vector2(WIDTH * 0.5 - 12.0, dy), Vector2(WIDTH * 0.5 + 12.0, dy), UiStyle.DIVIDER, 2.0)
+
+
+# ── the shapes row ──
 
 func _toggle() -> void:
 	if _open:
 		_close()
 	else:
-		_open_arc()
+		_open_row()
 
 
-func _open_arc() -> void:
+func _open_row() -> void:
+	if _shape_ids().is_empty():
+		return
 	_open = true
 	_catcher.visible = true
-	_build_slices()
+	_portrait.selected = true
+	_build_shapes()
+	_shapes.visible = true
+	_shapes.modulate.a = 0.0
+	var from := _shapes.position + Vector2(16, 0)
+	var to := _shapes.position
+	_shapes.position = from
+	var tw := _shapes.create_tween().set_parallel(true).set_trans(Tween.TRANS_CUBIC).set_ease(Tween.EASE_OUT)
+	tw.tween_property(_shapes, "position", to, 0.16)
+	tw.tween_property(_shapes, "modulate:a", 1.0, 0.14)
 	opened.emit()
 
 
-## Close the arc if it's open (public so the controller can dismiss it when the gear menu opens).
+## Put the shapes row away if it's out (public so the controller can dismiss it when the menu opens).
 func close() -> void:
 	_close()
 
@@ -166,112 +215,54 @@ func _close() -> void:
 		return
 	_open = false
 	_catcher.visible = false
-	for c in _slots.get_children():
+	_portrait.selected = false
+	_shapes.visible = false
+	for c in _shapes.get_children():
 		c.queue_free()
 
 
-## Fan the offered actions out from the chip on two arcs: what the companion can DO (Pet, Call, Go look)
-## close in, and the SHAPES it can take further out. Positions come from arc_layout (no two buttons
-## touch), and each button pops out from the chip with a short staggered tween so it reads as a fan.
-func _build_slices() -> void:
-	for c in _slots.get_children():
-		c.queue_free()
-	# Chip center in screen space. _slots is a full-rect container at the origin, so a child's
-	# `position` is already screen coordinates.
-	var chip_sz := _chip.get_combined_minimum_size()
-	var origin := Vector2(size.x - CHIP_MARGIN.x - chip_sz.x * 0.5, size.y - CHIP_MARGIN.y - chip_sz.y * 0.5)
-	var rings: Array = [[], []]  # buttons per ring: [actions, shapes]
-	for a in _actions:
-		var btn := _make_slice(String(a["id"]), String(a["label"]))
-		_slots.add_child(btn)
-		btn.size = btn.get_combined_minimum_size()
-		rings[1 if String(a["id"]).begins_with("form:") else 0].append(btn)
-	if (rings[0] as Array).is_empty():
-		rings.pop_front()
-	var sizes: Array = rings.map(func(ring: Array) -> Array: return ring.map(func(b: Button) -> Vector2: return b.size))
-	var chip_rect := Rect2(Vector2(size.x - CHIP_MARGIN.x - chip_sz.x, size.y - CHIP_MARGIN.y - chip_sz.y), chip_sz)
-	var placed := CompanionRadial.arc_layout(origin, sizes, chip_rect)
-	var k := 0
-	for r in rings.size():
-		for i in (rings[r] as Array).size():
-			var btn: Button = rings[r][i]
-			var bsz := btn.size
-			btn.pivot_offset = bsz * 0.5  # scale from the button's center for a clean pop
-			btn.position = origin - bsz * 0.5
-			btn.modulate.a = 0.0
-			btn.scale = Vector2(0.7, 0.7)
-			var tw := btn.create_tween().set_parallel(true).set_trans(Tween.TRANS_BACK).set_ease(Tween.EASE_OUT)
-			var delay := k * SLICE_STAGGER
-			tw.tween_property(btn, "position", placed[r][i], 0.2).set_delay(delay)
-			tw.tween_property(btn, "scale", Vector2.ONE, 0.2).set_delay(delay)
-			tw.tween_property(btn, "modulate:a", 1.0, 0.16).set_delay(delay)
-			k += 1
-
-
-## Where each button goes (its top-left), ring by ring. `sizes` is one Array of button sizes per ring,
-## innermost first; `chip` is the chip's rect, kept clear too. Pure (sizes in, positions out), so it's
-## unit-tested. Each button is walked along its arc from ARC_FROM toward ARC_TO until it clears every
-## button already placed by BUTTON_GAP; if a ring runs out of arc, its radius grows and it's laid again.
-## So nothing ever overlaps, however many shapes the companion can take.
-static func arc_layout(origin: Vector2, sizes: Array, chip: Rect2) -> Array:
+func _shape_ids() -> Array:
 	var out: Array = []
-	var placed: Array = [chip]  # rects to keep clear of, grown as buttons are laid
-	var radius := INNER_RADIUS
-	for ring in sizes:
-		var fit := false
-		var positions: Array = []
-		var rects: Array = []
-		while not fit:
-			positions = []
-			rects = []
-			fit = true
-			var ang := ARC_FROM
-			for sz in ring:
-				var spot := _clear_spot(origin, radius, sz, ang, placed + rects)
-				if spot.is_empty():
-					fit = false
-					radius += 6.0
-					break
-				ang = float(spot["angle"])
-				positions.append(spot["pos"])
-				rects.append(Rect2(spot["pos"], sz))
-		out.append(positions)
-		placed += rects
-		# The next ring starts just beyond this one's farthest-reaching button.
-		var reach := radius
-		for rc in rects:
-			reach = maxf(reach, ((rc as Rect2).get_center() - origin).length() + maxf((rc as Rect2).size.x, (rc as Rect2).size.y) * 0.5)
-		radius = reach + RING_GAP
+	for a in _actions:
+		if String(a["id"]).begins_with("form:"):
+			out.append(String(a["id"]))
 	return out
 
 
-## The first angle from `from` toward ARC_TO where a button of size `sz` on the arc of `radius` clears
-## every rect in `avoid` by BUTTON_GAP: { angle, pos }, or {} if it runs out of arc.
-static func _clear_spot(origin: Vector2, radius: float, sz: Vector2, from: float, avoid: Array) -> Dictionary:
-	var ang := from
-	while ang >= ARC_TO:
-		var center := origin + Vector2(cos(deg_to_rad(ang)), -sin(deg_to_rad(ang))) * radius
-		var rect := Rect2(center - sz * 0.5, sz)
-		var clear := true
-		for o in avoid:
-			if (o as Rect2).grow(BUTTON_GAP).intersects(rect):
-				clear = false
-				break
-		if clear:
-			return { "angle": ang, "pos": rect.position }
-		ang -= 1.0
-	return {}
+func _build_shapes() -> void:
+	for c in _shapes.get_children():
+		c.queue_free()
+	var ids := _shape_ids()
+	var n := ids.size()
+	var w := PAD * 2.0 + float(n) * SHAPE + float(maxi(n - 1, 0)) * GAP
+	_shapes.size = Vector2(w, SHAPE + PAD * 2.0)
+	_shapes.position = Vector2(_column.position.x - 8.0 - w, _column.position.y + _portrait.position.y + PORTRAIT * 0.5 - _shapes.size.y * 0.5)
+	for i in n:
+		var id: String = ids[i]
+		var species := id.substr(5)
+		var b := HudTile.new()
+		b.look = "tile"
+		b.radius = SHAPE * 0.5
+		b.size = Vector2(SHAPE, SHAPE)
+		b.position = Vector2(PAD + float(i) * (SHAPE + GAP), PAD)
+		b.selected = species == _current_form
+		b.tooltip_text = species.capitalize()
+		var art: Dictionary = _sheets.get(species, {})
+		if art.get("tex") is Texture2D:
+			var region: Rect2 = art["region"]
+			b.set_sprite(art["tex"], region, (SHAPE - 4.0) / maxf(region.size.y, 1.0))
+		else:
+			b.text = species.capitalize().substr(0, 3)
+		b.pressed.connect(func() -> void:
+			_close()
+			action_selected.emit(id))
+		_shapes.add_child(b)
 
 
-func _make_slice(id: String, label: String) -> Button:
-	var btn := Button.new()
-	btn.text = label
-	btn.mouse_filter = Control.MOUSE_FILTER_STOP
-	UiStyle.hud_button(btn, 11, 600, 999, 14.0, 8.0)
-	btn.pressed.connect(func() -> void:
-		action_selected.emit(id)
-		_close())
-	return btn
+func _draw_shapes() -> void:
+	var sb := UiStyle.hud_box(int(_shapes.size.y * 0.5))
+	sb.anti_aliasing = true
+	_shapes.draw_style_box(sb, Rect2(Vector2.ZERO, _shapes.size))
 
 
 func _on_catcher_input(event: InputEvent) -> void:
@@ -282,7 +273,6 @@ func _on_catcher_input(event: InputEvent) -> void:
 		accept_event()
 
 
-## The interactive Controls the joystick must exclude. The catcher (full-screen while open) covers the
-## fanned slices too, so we only register the two persistent ones.
+## The interactive Controls the joystick must exclude.
 func tap_targets() -> Array:
-	return [_chip, _catcher]
+	return [_column, _catcher]

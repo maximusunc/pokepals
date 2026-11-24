@@ -95,6 +95,18 @@ not a blocker** — pick it up if/when a shared world wants it.
 > pockets, `world_controller._mist_pockets`) and glows everywhere else. The hotbar's selected slot survives
 > portals (`Net.hotbar_selected`).
 
+> **The HUD (2026-11):** one job per corner, tap only. **Top-left:** the Menu button and a chip naming where
+> you are ("The Vale · 2 here"); the menu is a sheet that slides in from the right (your name and friend code,
+> Bag / Wardrobe / Journal as the big tiles, Friends / Sound / Guide, Return where offered, Leave set apart, and
+> a folded **Developer** row for New Companion, the inside view and the debug readout) (`GearMenu`). **Right
+> edge:** the companion column (`CompanionRadial`): its portrait, then Call, Pet and Go look as icons, then a
+> world's own trick lit gold (Howl, Go up); tapping the portrait slides the shapes out along the top. **Bottom
+> centre:** the item bar (`Hotbar`), with the Bag at its end and the selected item's name above. **Bottom-right:**
+> the Use button alone, with what a tap does beside it ("Cast", "Find water") (`UseButton`). **Bottom-left:** the
+> joystick, a faint ring that comes to your thumb (`VirtualJoystick`). Messages show in a dark pill above the item
+> bar. No bond readout anywhere: the bond is felt, not shown. Built from `HudTile` + `HudIcons` (line icons).
+> `tests/shot_hud.gd` screenshots it. Design canvas: the "Kithbound HUD Redesign" artifact.
+
 > **Home building (2026-11):** chop wood, then have a house built at home (docs/usable-items-design.md, "Home
 > building"; issue #141). **Pick up** river stones and driftwood on the Riverbank (the spec's `pickups`; examine one).
 > The tinker makes an **axe** from 3 driftwood + 2 stones. With it selected, **Use** beside a tree fells it: +2 **wood**,
