@@ -87,12 +87,15 @@ func _draw() -> void:
 	match look:
 		"tile", "round":
 			var bg := Color("fff3dc") if selected else UiStyle.HUD_BG
-			_box(r, bg.darkened(0.08) if _down else bg, UiStyle.GOLD if selected else UiStyle.HUD_BORDER, 2, rad, 4)
+			_fill = bg.darkened(0.08) if _down else bg
+			_box(r, _fill, UiStyle.GOLD if selected else UiStyle.HUD_BORDER, 2, rad, 4)
 		"primary":
 			var bg := Color("ffe7be")
-			_box(r, bg.darkened(0.08) if _down else bg, UiStyle.INK, 2, rad, 4)
+			_fill = bg.darkened(0.08) if _down else bg
+			_box(r, _fill, UiStyle.INK, 2, rad, 4)
 		"quiet":
-			_box(r, UiStyle.PILL_BG.darkened(0.06) if _down else UiStyle.PILL_BG, UiStyle.PILL_BORDER, 2, rad)
+			_fill = UiStyle.PILL_BG.darkened(0.06) if _down else UiStyle.PILL_BG
+			_box(r, _fill, UiStyle.PILL_BORDER, 2, rad)
 		"dark":
 			_box(r, UiStyle.INK.lightened(0.12) if _down else UiStyle.INK, Color(0, 0, 0, 0), 0, rad)
 			ink = UiStyle.PAPER

@@ -29,11 +29,23 @@ static func draw(ci: CanvasItem, id: String, c: Vector2, size: float, color: Col
 			ci.draw_arc(P.call(12, 12), 9.0 * k, 0.0, TAU, 32, color, w, true)
 			_poly(ci, [P.call(15.5, 8.5), P.call(13.5, 13.5), P.call(8.5, 15.5), P.call(10.5, 10.5), P.call(15.5, 8.5)], color, w)
 		"bag":
-			# A satchel: a rounded body, the flap folding down to a clasp, and a handle on top.
-			_poly(ci, [P.call(5, 10), P.call(5, 18.5), P.call(6.5, 20), P.call(17.5, 20), P.call(19, 18.5), P.call(19, 10), P.call(5, 10)], color, w)
-			_poly(ci, [P.call(5, 10), P.call(12, 14.5), P.call(19, 10)], color, w)
-			ci.draw_circle(P.call(12, 15.2), w * 0.9, color)
-			ci.draw_arc(P.call(12, 10), 3.6 * k, PI, TAU, 12, color, w, true)
+			# A backpack seen from the front: a solid body with a rounded top, a grab loop, the shoulder
+			# straps curving out at its sides (the thing a padlock never has), and a front pocket cut
+			# out of the body in the colour behind it.
+			var body := PackedVector2Array()
+			for i in 13:
+				var a := PI + PI * float(i) / 12.0
+				body.append(P.call(12.0 + 5.5 * cos(a), 9.5 + 5.5 * sin(a)))
+			body.append_array([P.call(17.5, 19.5), P.call(16.5, 20.5), P.call(7.5, 20.5), P.call(6.5, 19.5)])
+			ci.draw_colored_polygon(body, color)
+			ci.draw_arc(P.call(12, 3.6), 1.9 * k, PI, TAU, 8, color, w, true)
+			# the straps: from the shoulders, out and down the sides
+			_poly(ci, [P.call(7.2, 7.0), P.call(4.4, 10.5), P.call(4.4, 16.5), P.call(6.5, 17.5)], color, w)
+			_poly(ci, [P.call(16.8, 7.0), P.call(19.6, 10.5), P.call(19.6, 16.5), P.call(17.5, 17.5)], color, w)
+			var cut := bg if bg.a > 0.0 else Color(color, 0.0)
+			if cut.a > 0.0:
+				_poly(ci, [P.call(8.8, 14.2), P.call(15.2, 14.2), P.call(15.2, 18.6), P.call(8.8, 18.6), P.call(8.8, 14.2)], cut, w * 0.85)
+				ci.draw_line(P.call(8.8, 16.4), P.call(15.2, 16.4), cut, w * 0.85, true)
 		"wardrobe":
 			_poly(ci, [P.call(9, 4), P.call(4, 7), P.call(6, 11), P.call(8, 10), P.call(8, 20), P.call(16, 20),
 				P.call(16, 10), P.call(18, 11), P.call(20, 7), P.call(15, 4)], color, w)

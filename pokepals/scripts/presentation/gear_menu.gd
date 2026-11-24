@@ -16,7 +16,7 @@ signal item_selected(id: String)
 signal opened  ## the sheet slid open, so the controller can close the companion's shapes row
 
 const MARGIN := 10.0
-const BUTTON := 36.0
+const BUTTON := 44.0
 const CHIP_H := 28.0
 const PAD := 12.0
 const TILE_H := 58.0
@@ -64,7 +64,7 @@ func _ready() -> void:
 	_menu_btn = HudTile.new()
 	_menu_btn.look = "round"
 	_menu_btn.icon = "menu"
-	_menu_btn.icon_size = 20.0
+	_menu_btn.icon_size = 24.0
 	_menu_btn.size = Vector2(BUTTON, BUTTON)
 	_menu_btn.pressed.connect(_toggle)
 	add_child(_menu_btn)
