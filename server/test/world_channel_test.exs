@@ -408,4 +408,168 @@ defmodule Server.WorldChannelTest do
       refute_receive %Phoenix.Socket.Message{topic: ^topic2, event: "states"}, 300
     end
   end
+
+  describe "interest cells (SC-4, a world with a crowd block)" do
+    # A crowd world: 100 px cells, spawn at the origin.
+    defp seed_crowd_world(core \\ %{"player_spawn" => [0, 0]}) do
+      world_id = Ecto.UUID.generate()
+
+      {:ok, _} =
+        Worlds.upsert(%{
+          world_id: world_id,
+          slug: "crowd-#{System.unique_integer([:positive])}",
+          name: "Crowd",
+          display_types: ["2d"],
+          version: 1,
+          listed: false,
+          spec: %{"core" => Map.put(core, "crowd", %{"cell" => 100, "full" => 40, "lite" => 80}), "profiles" => %{"2d" => %{}}}
+        })
+
+      world_id
+    end
+
+    # Each player gets its own stand-in for the WebSocket process (the "transport"), so we can tell which
+    # socket a frame reached: channel pushes AND fastlane frames go to the transport. It forwards them to
+    # the test tagged with the player's name.
+    defp crowd_player(name, world_id) do
+      test = self()
+      transport = spawn_link(fn -> forward(test, name) end)
+      {:ok, socket} = connect(UserSocket, %{"token" => "crowd-#{name}-#{System.unique_integer([:positive])}"})
+      {:ok, _reply, socket} = join(%{socket | transport_pid: transport}, "world:" <> world_id, %{})
+      assert_receive {^name, %Phoenix.Socket.Message{event: "welcome", payload: %{id: id}}}, 1000
+      {socket, id}
+    end
+
+    defp forward(test, name) do
+      receive do
+        msg ->
+          send(test, {name, msg})
+          forward(test, name)
+      end
+    end
+
+    # The ids in the next "states" frame `name` receives within `ms`, or :none.
+    defp next_states(name, ms \\ 500) do
+      receive do
+        {^name, %Phoenix.Socket.Message{event: "states", payload: %{s: entries}}} -> Enum.map(entries, & &1)
+      after
+        ms -> :none
+      end
+    end
+
+    defp entry_of(entries, id), do: Enum.find(entries, &(hd(&1) == id))
+
+    # Drain every "states" frame `name` gets within `ms`; the entries for `id` among them.
+    defp entries_for(name, id, ms \\ 300) do
+      case next_states(name, ms) do
+        :none -> []
+        entries -> Enum.filter(entries, &(hd(&1) == id)) ++ entries_for(name, id, ms)
+      end
+    end
+
+    test "a per-cell broadcast reaches a socket in that cell and not one elsewhere" do
+      w = seed_crowd_world()
+      {a, _} = crowd_player(:a, w)
+      {b, _} = crowd_player(:b, w)
+      push(a, "state", %{"p" => [10, 10]})
+      push(b, "state", %{"p" => [1010, 10]})
+      Process.sleep(150)
+      _ = entries_for(:a, "x", 100)
+      _ = entries_for(:b, "x", 100)
+
+      Phoenix.PubSub.broadcast(Server.PubSub, Server.Interest.topic(w, {0, 0}), %Phoenix.Socket.Broadcast{
+        topic: "world:" <> w,
+        event: "states",
+        payload: %{s: [["probe", 1, 1, nil, nil, nil, nil, nil, nil]]}
+      })
+
+      assert [["probe" | _]] = next_states(:a)
+      assert next_states(:b, 200) == :none
+    end
+
+    test "two players far apart see nothing of each other" do
+      w = seed_crowd_world()
+      {a, id_a} = crowd_player(:a, w)
+      {b, id_b} = crowd_player(:b, w)
+      push(b, "state", %{"p" => [1000, 1000]})
+      push(a, "state", %{"p" => [10, 10]})
+      Process.sleep(100)
+
+      for x <- [20, 30, 40] do
+        push(a, "state", %{"p" => [x, 10]})
+        push(b, "state", %{"p" => [1000 + x, 1000]})
+        Process.sleep(60)
+      end
+
+      assert entries_for(:b, id_a) == []
+      assert entries_for(:a, id_b) == []
+    end
+
+    test "walking up to someone starts delivery with a snapshot; walking away sends the leaving position, then nothing" do
+      w = seed_crowd_world()
+      {a, id_a} = crowd_player(:a, w)
+      {b, id_b} = crowd_player(:b, w)
+      push(a, "state", %{"p" => [10, 10], "t" => 1})
+      push(b, "state", %{"p" => [1000, 10]})
+      Process.sleep(150)
+      _ = entries_for(:b, id_a, 100)
+
+      # b steps into {1, 0}, next to a's cell: a snapshot of a (standing still; no stale stamp) ...
+      push(b, "state", %{"p" => [150, 10]})
+      assert entries_for(:b, id_a) == [[id_a, 10, 10, nil, nil, nil, nil, nil, nil]]
+      # ... and a hears b arrive
+      assert [[^id_b, 150, 10 | _]] = entries_for(:a, id_b)
+
+      # a moves: b hears it now
+      push(a, "state", %{"p" => [20, 10]})
+      assert [[^id_a, 20, 10 | _]] = entries_for(:b, id_a)
+
+      # b walks off to {3, 0}: a hears where b went, once ...
+      push(b, "state", %{"p" => [350, 10]})
+      assert [[^id_b, 350, 10 | _]] = entries_for(:a, id_b)
+      # ... then nothing more, either way
+      push(b, "state", %{"p" => [360, 10]})
+      push(a, "state", %{"p" => [30, 10]})
+      assert entries_for(:a, id_b) == []
+      assert entries_for(:b, id_a) == []
+    end
+
+    test "the join snapshot is the spawn neighbourhood only" do
+      w = seed_crowd_world()
+      {near, id_near} = crowd_player(:near, w)
+      {far, id_far} = crowd_player(:far, w)
+      push(near, "state", %{"p" => [120, 0]})
+      push(far, "state", %{"p" => [900, 900]})
+      Process.sleep(150)
+
+      {_c, _} = crowd_player(:c, w)
+      snap = next_states(:c)
+      assert entry_of(snap, id_near)
+      refute entry_of(snap, id_far)
+    end
+
+    test "with no spawn, a player gets nothing until its first state, then its whole neighbourhood" do
+      w = seed_crowd_world(%{})
+      {a, id_a} = crowd_player(:a, w)
+      push(a, "state", %{"p" => [500, 500]})
+      Process.sleep(150)
+
+      {c, _} = crowd_player(:c, w)
+      assert next_states(:c, 200) == :none
+      push(a, "state", %{"p" => [510, 500]})
+      assert next_states(:c, 200) == :none
+
+      push(c, "state", %{"p" => [420, 420]})
+      snap = next_states(:c)
+      assert [^id_a, 510, 500 | _] = entry_of(snap, id_a)
+    end
+
+    test "presence (join / leave) stays world-wide" do
+      w = seed_crowd_world()
+      {a, _} = crowd_player(:a, w)
+      push(a, "state", %{"p" => [5000, 5000]})
+      {_b, id_b} = crowd_player(:b, w)
+      assert_receive {:a, %Phoenix.Socket.Message{event: "join", payload: %{id: ^id_b}}}, 1000
+    end
+  end
 end

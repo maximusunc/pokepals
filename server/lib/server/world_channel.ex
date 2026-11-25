@@ -27,7 +27,7 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Discoveries, Economy, Fishing, Friends, HomePasses, Homes, HomeWorld, Hotbar, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
+  alias Server.{Discoveries, Economy, Fishing, Friends, HomePasses, Homes, HomeWorld, Hotbar, Interest, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
   @shop_currency "coins"
@@ -182,11 +182,27 @@ defmodule Server.WorldChannel do
       circuits -> push(socket, "circuits", %{boards: Server.Circuit.snapshot(world_id, circuits)})
     end
 
-    # Where everyone already here is right now, as one bundle in the same form as the live ticks.
-    case Map.delete(World.snapshot(world_id), user_id) do
-      peers when map_size(peers) == 0 -> :ok
-      peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
-    end
+    # Where everyone already here is right now, as one bundle in the same form as the live ticks. In a
+    # crowd world (SC-4) only the neighbourhood of where we'll stand: we follow that one cell from now on.
+    socket =
+      case Interest.config(get_in(definition.spec, ["core"])) do
+        nil ->
+          case Map.delete(World.snapshot(world_id), user_id) do
+            peers when map_size(peers) == 0 -> :ok
+            peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
+          end
+
+          socket
+
+        %{cell: size} = interest ->
+          socket = assign(socket, interest: interest, cell: nil)
+          spawn_p = socket.assigns[:resume_p] || get_in(definition.spec, ["core", "player_spawn"])
+
+          case Interest.cell_for(%{"p" => spawn_p}, size) do
+            nil -> socket
+            cell -> enter_cell(socket, cell)
+          end
+      end
 
     # The ambient pals' current positions, so a late joiner sees them where they are right now rather
     # than snapping in from their home spots on the next tick. Empty (skipped) in worlds without pals.
@@ -306,6 +322,21 @@ defmodule Server.WorldChannel do
 
   def handle_in("state", payload, socket) do
     World.update_transform(socket.assigns.world_id, socket.assigns.user_id, payload)
+
+    # A crowd world (SC-4): follow the cell this packet puts us in. Sent AFTER the transform, so the world
+    # process has our move before the snapshot call in enter_cell reaches it.
+    socket =
+      case socket.assigns[:interest] do
+        %{cell: size} ->
+          case Interest.cell_for(payload, size) do
+            nil -> socket
+            cell when cell == socket.assigns.cell -> socket
+            cell -> enter_cell(socket, cell)
+          end
+
+        _ ->
+          socket
+      end
 
     # Note where we are, for Server.Whereabouts (written out on a timer and on leaving, not per packet).
     case Whereabouts.position(payload) do
@@ -1017,6 +1048,28 @@ defmodule Server.WorldChannel do
   end
 
   defp resume(_payload, _user_id, _world_id), do: {:ok, nil}
+
+  # SC-4: our player now stands in `new` (a crowd world). We keep exactly one cell subscription: the new
+  # cell's topic, with the same fastlane sender Phoenix gives the channel topic on join, so the world's
+  # per-cell bundles go straight to our socket, encoded once per cell. Order matters:
+  #   1. subscribe to the new cell first, so no tick falls between the two cells;
+  #   2. ask the world for the players in the cells that just came into view, and push them as one
+  #      snapshot bundle (our transform was cast before this call, so the world has our move; every tick
+  #      it sent before answering went to the old cell, which we still hear);
+  #   3. only then unsubscribe from the old cell.
+  defp enter_cell(socket, new) do
+    %{world_id: world_id, user_id: user_id, cell: old} = socket.assigns
+    sender = {Phoenix.Channel.Server, {socket.transport_pid, socket.serializer, __intercepts__()}}
+    :ok = Phoenix.PubSub.subscribe(Server.PubSub, Interest.topic(world_id, new), sender: sender)
+
+    case world_id |> World.snapshot_cells(Interest.newly_visible(old, new)) |> Map.delete(user_id) do
+      peers when map_size(peers) == 0 -> :ok
+      peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
+    end
+
+    if old != nil, do: Phoenix.PubSub.unsubscribe(Server.PubSub, Interest.topic(world_id, old))
+    assign(socket, :cell, new)
+  end
 
   # Write our latest position out to Server.Whereabouts, if it's changed since we last did.
   defp save_whereabouts(socket) do
