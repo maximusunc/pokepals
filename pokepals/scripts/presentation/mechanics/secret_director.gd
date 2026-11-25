@@ -60,6 +60,9 @@ extends Node
 ##     sent up (the radial's Go up), your companion rises, the camera with it, and from high above the high clouds make a
 ##     picture that points the way; once it has looked at the islet and the bridge's head, a hidden rope bridge comes
 ##     down (SkyDirector over the pure SkyView / SkyRealm). Examining the nest claims. Once found, going up stays a toy.
+##   * `misprint`: one character of a world made of text is the wrong one (Glyphfall's ampersand in the grass).
+##     Only your companion notices: it stops and looks (MisprintDirector over the pure GlyphNotice). Walk to
+##     where it looks and the glyph shines and can be examined; the page draws it, so its prop type is unseen.
 ##   * `circuit`: nothing shows until a ribbon board is closed: your companion lays one ribbon of light through
 ##     every node of the sector that lost its power (CircuitDirector, whose boards are shared and the server's),
 ##     and the spark is waiting in the middle (Ohmstead's steady spark). The boards stay to be played once found.
@@ -89,6 +92,7 @@ var _lights: MereLights
 var _tracks: TracksDirector
 var _doze: DozeDirector
 var _listen: ListenDirector
+var _misprint: MisprintDirector   # Glyphfall's wrong glyph
 var _align: AlignDirector  # Farmeadow: the skylark picture that lines up from one spot
 var _howl: HowlDirector
 var _cliffs: Array = []        # the world's building views (a cliff holds the cave)
@@ -177,6 +181,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_listen):
 		_listen.queue_free()
 	_listen = null
+	if is_instance_valid(_misprint):
+		_misprint.queue_free()
+	_misprint = null
 	if is_instance_valid(_howl):
 		if is_instance_valid(_howl.ripples()):
 			_howl.ripples().queue_free()
@@ -270,6 +277,15 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			add_child(_listen)
 			_listen.setup(_host, _companion, _world_art, _player)
 			_listen.configure(secret)
+		"misprint":
+			# The wrong glyph stands in the grass from the start, but it is only grass to you until your
+			# companion has stopped and looked, and you have walked to where it is looking.
+			_misprint = MisprintDirector.new()
+			_misprint.name = "MisprintDirector"
+			add_child(_misprint)
+			_misprint.setup(_host, _companion, _world_art, _player)
+			_misprint.configure(secret)
+			_misprint.glyph_found.connect(_on_glyph_found)
 		"echo":
 			# Nothing to see yet: a wolf has to howl, and you have to find where the canyon answers wrong.
 			_start_howl(secret, false)
@@ -479,6 +495,12 @@ func _on_cave_opened() -> void:
 		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
 
 
+## You have walked to where your companion was looking: the wrong glyph shines, and can be examined.
+func _on_glyph_found() -> void:
+	if _reveal_type() == "misprint" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(String((_secret["reveal"] as Dictionary).get("reveal_line", "")))
+
+
 func _start_doze(secret: Dictionary) -> void:
 	_doze = DozeDirector.new()
 	_doze.name = "DozeDirector"
@@ -512,6 +534,8 @@ func update(delta: float) -> void:
 		_doze.update(delta)
 	if _listen != null:
 		_listen.update(delta)
+	if _misprint != null:
+		_misprint.update(delta)
 	if _howl != null:
 		_howl.update(delta)
 	if _follow != null:
@@ -772,6 +796,8 @@ func _take() -> void:
 		_shadow.finish()
 	if _listen != null:
 		_listen.finish()
+	if _misprint != null:
+		_misprint.finish()
 	if _follow != null:
 		_follow.finish()
 	if _reflection != null:
