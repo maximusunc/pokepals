@@ -79,10 +79,17 @@ defmodule Server.SecretReveal do
       covers the whole world), like `stillness` and `tracks`. Honest about what that means: it can't tell a
       fetched thimble from one that never needed fetching (but the only way to see it is to have it fetched).
 
+    * `circuit`: it appears once a ribbon board has been closed: one ribbon of light laid through every node of
+      it by a companion, node by node (Ohmstead's steady spark, in the sector that lost its power). The board's
+      state is shared and server-authoritative (`Server.Circuit`), so like `tide` the server CAN check this one
+      honestly: the claim is honoured only while that board is closed (`ctx.circuit_closed`). It still relies on
+      `Discoveries.claimable?/3` for "standing at it". A friend who helped, or who walks up while it is lit, may
+      take a spark too: the board was closed in front of them.
+
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
   of flare props this player has touched this visit; `now_ms`: the server's unix time in milliseconds, for
-  the tide).
+  the tide; `circuit_closed`: whether the secret's ribbon board is closed right now).
   """
 
   @doc "Whether `secret`'s reveal condition is met, given what the channel knows."
@@ -101,6 +108,7 @@ defmodule Server.SecretReveal do
       %{"type" => "skyview"} -> true
       %{"type" => "fetch"} -> true
       %{"type" => "align"} -> true
+      %{"type" => "circuit"} -> Map.get(ctx, :circuit_closed, false) == true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
     end

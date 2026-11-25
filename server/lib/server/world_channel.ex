@@ -175,6 +175,13 @@ defmodule Server.WorldChannel do
 
     push(socket, "house", Server.House.status(user_id))
 
+    # Ohmstead's ribbon boards, as they stand right now (shared by everyone in the world; Server.Circuit).
+    # Skipped in worlds without a `circuits` block.
+    case Server.Circuit.config(get_in(definition.spec, ["core"])) do
+      nil -> :ok
+      circuits -> push(socket, "circuits", %{boards: Server.Circuit.snapshot(world_id, circuits)})
+    end
+
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
       peers when map_size(peers) == 0 -> :ok
@@ -240,6 +247,15 @@ defmodule Server.WorldChannel do
 
   # Every so often, save where we're standing (if we've moved since last time), so even a server that
   # goes down without a goodbye remembers roughly where everyone was.
+  # A ribbon board we laid part of was closed (by us or by a friend): our share of what it pays has been
+  # granted; tell our client, with the new balance and what we now carry.
+  def handle_info({:circuit_paid, payload}, socket) do
+    user_id = socket.assigns.user_id
+    push(socket, "circuit_reward", Map.put(payload, :balance, Economy.balance(user_id, @shop_currency)))
+    push(socket, "inventory", inventory_snapshot(user_id))
+    {:noreply, socket}
+  end
+
   def handle_info(:save_whereabouts, socket) do
     Process.send_after(self(), :save_whereabouts, @whereabouts_every_ms)
     {:noreply, save_whereabouts(socket)}
@@ -681,6 +697,61 @@ defmodule Server.WorldChannel do
   # ten it found; the SERVER decides the payout (see @hunt_rewards), mints it, and confirms the new
   # balance — the same server-authoritative discipline as `buy`. The grant is honoured only in a world
   # that actually carries the hunt, so the reward can't be claimed from the Vale or the bazaar.
+  # ── Ohmstead's ribbon boards (Server.Circuit): shared by everyone in the world ──
+
+  # Our companion has reached a node: run the ribbon there. The rules are the server's (Circuit.Board); the
+  # result goes to everyone (`circuit`). If that closes an Arcade board, everyone who laid part of it is paid.
+  def handle_in("circuit_run", %{"board" => board_id, "node" => node}, socket)
+      when is_binary(board_id) and is_integer(node) do
+    %{world_id: world_id, user_id: user_id, definition: definition} = socket.assigns
+    circuits = Server.Circuit.config(get_in(definition.spec, ["core"]))
+
+    case circuits && Server.Circuit.run(world_id, circuits, board_id, node, user_id) do
+      {:ok, view, :extended} ->
+        broadcast!(socket, "circuit", view)
+
+      {:ok, view, {:closed, info}} ->
+        broadcast!(socket, "circuit", view)
+        pay_circuit(circuits, board_id, info)
+
+      {:error, reason} ->
+        push(socket, "circuit_refused", %{board: board_id, node: node, reason: to_string(reason)})
+
+      nil ->
+        :ok
+    end
+
+    {:noreply, socket}
+  end
+
+  # Wind the ribbon back to a lit node (naming its head takes one node off).
+  def handle_in("circuit_wind", %{"board" => board_id, "node" => node}, socket)
+      when is_binary(board_id) and is_integer(node) do
+    %{world_id: world_id, definition: definition} = socket.assigns
+    circuits = Server.Circuit.config(get_in(definition.spec, ["core"]))
+
+    case circuits && Server.Circuit.wind(world_id, circuits, board_id, node) do
+      {:ok, view} -> broadcast!(socket, "circuit", view)
+      {:error, reason} -> push(socket, "circuit_refused", %{board: board_id, node: node, reason: to_string(reason)})
+      nil -> :ok
+    end
+
+    {:noreply, socket}
+  end
+
+  # Put the whole ribbon out (a Call): only someone who laid part of it may.
+  def handle_in("circuit_clear", %{"board" => board_id}, socket) when is_binary(board_id) do
+    %{world_id: world_id, user_id: user_id, definition: definition} = socket.assigns
+    circuits = Server.Circuit.config(get_in(definition.spec, ["core"]))
+
+    case circuits && Server.Circuit.clear(world_id, circuits, board_id, user_id) do
+      {:ok, view} -> broadcast!(socket, "circuit", view)
+      _ -> :ok
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_in("hunt_complete", %{"found" => found}, socket) when is_integer(found) do
     user_id = socket.assigns.user_id
     amount = hunt_reward_amount(socket.assigns.definition, found)
@@ -738,7 +809,8 @@ defmodule Server.WorldChannel do
 
     # How it becomes findable (Server.SecretReveal): a door that must be open, a perfect hunt this visit.
     reveal_ctx = %{wards: World.wards(world_id), hunt_found: Map.get(socket.assigns, :hunt_found, 0), hunt_goal: core["goal"] || %{},
-      touched: Map.get(socket.assigns, :touched, MapSet.new()), now_ms: System.system_time(:millisecond)}
+      touched: Map.get(socket.assigns, :touched, MapSet.new()), now_ms: System.system_time(:millisecond),
+      circuit_closed: circuit_secret_closed?(world_id, core["secret"])}
 
     if Discoveries.claimable?(core, secret_id, pos) and Server.SecretReveal.met?(core["secret"], reveal_ctx) do
       # S-4: was the companion beside us, and which friends were near (about a screen away)?
@@ -1037,6 +1109,43 @@ defmodule Server.WorldChannel do
   end
 
   # Tell the gatherer what they got (and the fresh inventory), or why not.
+  # Whether the ribbon board a `circuit` secret names is closed right now (false for any other secret).
+  defp circuit_secret_closed?(world_id, %{"reveal" => %{"type" => "circuit", "board" => board_id}})
+       when is_binary(board_id),
+       do: Server.Circuit.closed?(world_id, board_id)
+
+  defp circuit_secret_closed?(_world_id, _secret), do: false
+
+  # A ribbon board was closed: grant everyone who laid part of it what the board pays (nothing for the dark
+  # sector, whose prize is the secret), and tell each of them on their own topic, wherever their channel is.
+  defp pay_circuit(circuits, board_id, %{by: by, time_ms: time_ms}) do
+    {coins, sparks} = Server.Circuit.reward(circuits, board_id)
+
+    for user_id <- by, coins > 0 or sparks > 0 do
+      if coins > 0 do
+        Economy.grant_currency(user_id, @shop_currency, coins,
+          txn_type: "reward",
+          context: %{"source" => "circuit", "board" => board_id}
+        )
+      end
+
+      if sparks > 0 do
+        Economy.grant_stack(user_id, Server.Circuit.spark_id(), sparks,
+          txn_type: "reward",
+          context: %{"source" => "circuit", "board" => board_id}
+        )
+      end
+
+      Phoenix.PubSub.broadcast(
+        Server.PubSub,
+        Friends.user_topic(user_id),
+        {:circuit_paid, %{board: board_id, coins: coins, sparks: sparks, time_ms: time_ms, currency: @shop_currency}}
+      )
+    end
+
+    :ok
+  end
+
   defp harvest_answer(socket, node, {:ok, item, n}) do
     user_id = socket.assigns.user_id
     d = Enum.find(Server.Harvest.item_defs() ++ Fishing.item_defs(), &(&1.item_def_id == item))

@@ -127,6 +127,13 @@ defmodule Server.SecretRevealTest do
     refute SecretReveal.met?(%{"reveal" => %{"type" => "touch_all", "props" => []}}, %{touched: MapSet.new()})
   end
 
+  test "the steady spark can only be taken while its ribbon board is closed" do
+    secret = %{"reveal" => %{"type" => "circuit", "board" => "sector"}}
+    refute SecretReveal.met?(secret, %{})
+    refute SecretReveal.met?(secret, %{circuit_closed: false})
+    assert SecretReveal.met?(secret, %{circuit_closed: true})
+  end
+
   test "an unknown reveal type is never met" do
     refute SecretReveal.met?(%{"reveal" => %{"type" => "made_up"}}, %{})
   end

@@ -68,7 +68,10 @@ defmodule Server.Seeds do
       tags: ["garden", "tiny", "giant", "flowers", "rabbit", "explore", "cozy", "secret"], accent: [0.92, 0.84, 0.46], featured: true},
     %{world_id: "15151515-1515-1515-1515-151515151515", slug: "farmeadow", name: "Farmeadow", file: "farmeadow.json",
       blurb: "A rolling meadow and one long road, and you're seeing it from inside. Windmills, haystacks, hills all round the horizon, and an old keep at the far end of the road.",
-      tags: ["meadow", "road", "windmills", "perspective", "inside", "explore", "cozy"], accent: [0.74, 0.86, 0.52], featured: true}
+      tags: ["meadow", "road", "windmills", "perspective", "inside", "explore", "cozy"], accent: [0.74, 0.86, 0.52], featured: true},
+    %{world_id: "16161616-1616-1616-1616-161616161616", slug: "ohmstead", name: "Ohmstead", file: "ohmstead.json",
+      blurb: "Behind the scenery, where the worlds are drawn: a glowing grid in the dark, and you as an outline of light. One sector has lost its power, and the Arcade deals a new board every day.",
+      tags: ["grid", "neon", "machine", "arcade", "puzzle", "together", "explore", "cozy", "secret"], accent: [0.37, 0.95, 1.0], featured: true}
   ]
 
   # The currency the bazaar shop charges in.
@@ -103,7 +106,7 @@ defmodule Server.Seeds do
     seed_worlds()
 
     summary =
-      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs()) + length(Server.Crafting.item_defs()) + length(Server.Harvest.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
+      "Seeded #{length(@item_defs) + length(Server.Fishing.item_defs()) + length(Server.Crafting.item_defs()) + length(Server.Harvest.item_defs()) + length(Server.Circuit.item_defs())} item definitions, #{length(@seed_worlds)} worlds, and the demo account."
 
     summary
   end
@@ -115,6 +118,8 @@ defmodule Server.Seeds do
     Server.Crafting.seed_definitions()
     # The axe, river stones and wood live with the harvesting rules (Server.Harvest).
     Server.Harvest.seed_definitions()
+    # The spark, what Ohmstead's Arcade pays in (Server.Circuit).
+    Server.Circuit.seed_definitions()
 
     for attrs <- @item_defs do
       %ItemDefinition{}
