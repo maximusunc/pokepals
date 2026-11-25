@@ -138,3 +138,30 @@ static func _thimble(ci: CanvasItem, p: Vector2, k: float, t: float) -> void:
 	var g := fposmod(t * 0.45, 1.6)
 	if g < 1.0:
 		ci.draw_circle(p + Vector2(-4.6 + g * 1.6, -2.0 - g * 12.0) * k, 1.2 * k, Color(1, 1, 1, 0.9 * (1.0 - g)))
+
+
+## Ohmstead's secret: one small spark that holds perfectly still (everything else there breathes or flickers;
+## this doesn't, which is the point of it, so it takes no clock). A four-pointed star with a white heart.
+static func draw_spark(ci: CanvasItem, p: Vector2, k: float, tint: Color) -> void:
+	SoftGlow.draw(ci, p, 22.0 * k, Color(tint.r, tint.g, tint.b, 0.30))
+	SoftGlow.draw(ci, p, 9.0 * k, Color(1.0, 1.0, 1.0, 0.55))
+	var long := 7.0 * k
+	var short := 1.6 * k
+	ci.draw_colored_polygon(PackedVector2Array([p + Vector2(0, -long), p + Vector2(short, 0), p + Vector2(0, long), p + Vector2(-short, 0)]), tint)
+	ci.draw_colored_polygon(PackedVector2Array([p + Vector2(-long, 0), p + Vector2(0, -short), p + Vector2(long, 0), p + Vector2(0, short)]), tint)
+	ci.draw_circle(p, 1.8 * k, Color.WHITE)
+
+
+## Its keepsake at home: the spark in a little glass jar with a cork, on a saucer, still not flickering.
+static func draw_kept_spark(ci: CanvasItem, p: Vector2, tint: Color) -> void:
+	ci.draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.08, 0.12, 0.22), true, -1.0, true)
+	ci.draw_circle(p + Vector2(0, 5), 8.0, Color(0.62, 0.66, 0.74), true, -1.0, true)
+	ci.draw_arc(p + Vector2(0, 5), 8.0, 0.1, PI - 0.1, 12, Color(0.42, 0.46, 0.56), 1.0, true)
+	var glass := Color(0.80, 0.92, 1.0)
+	var jar := Rect2(p + Vector2(-6, -14), Vector2(12, 18))
+	ci.draw_rect(jar, Color(glass.r, glass.g, glass.b, 0.16))
+	draw_spark(ci, p + Vector2(0, -5), 0.62, tint)
+	ci.draw_rect(jar, Color(glass.r, glass.g, glass.b, 0.85), false, 1.0)
+	ci.draw_line(jar.position + Vector2(2, 2), jar.position + Vector2(2, 10), Color(1, 1, 1, 0.6), 1.0)
+	ci.draw_rect(Rect2(p + Vector2(-4, -17), Vector2(8, 3)), Color(0.66, 0.48, 0.30))
+

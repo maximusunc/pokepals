@@ -88,6 +88,7 @@ var _fishing_dir: FishingDirector
 var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
 var _firefly_dir: FireflyDirector   # the firefly glades by Steamhollow's and Underroot's secrets (no-op elsewhere)
 var _harvest_dir: HarvestDirector   # chopping trees with an axe, picking up stones and driftwood (home building)
+var _circuit_dir: CircuitDirector   # Ohmstead's ribbon boards (no-op elsewhere)
 var _house_dir: HouseDirector       # your house at home: being built, then finished (home building; no-op elsewhere)
 var _lantern_radius := 220.0  # the pocket a FRIEND's lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
@@ -349,6 +350,19 @@ func _build_world(cached: Dictionary) -> void:
 		_world_art.add_child(trail)
 		trail.setup(fp, _walkers)
 
+	# OHMSTEAD: no prints on the grid; a step lights the cell underfoot and sends a ring out along the lines.
+	if _world_art.grid_ground() != null:
+		_world_art.grid_ground().set_walkers(_walkers)
+	# ...its runners, carrying light along the bright lines (where they are is a pure function of the clock)...
+	var runners_cfg: Dictionary = data.get("runners", {})
+	if not runners_cfg.is_empty():
+		var runners := GridRunners.new()
+		runners.name = "GridRunners"
+		_world_art.add_child(runners)
+		runners.setup(runners_cfg, _walkers)
+	# ...and its ribbon boards (the sector with no power, and the Arcade).
+	_circuit_dir.configure(data)
+
 	# STEAMHOLLOW: steam rising off the hot springs, and the drifting mist that limits how far you can see.
 	_setup_mist(data)
 	# STILLGLASS: the mirror lake draws everything near its north bank again, upside down, in the water.
@@ -507,6 +521,12 @@ func _create_directors() -> void:
 	_house_dir = HouseDirector.new()
 	add_child(_house_dir)
 	_house_dir.setup(self, _player, _companion, _world_art, _scenery, _style, _home_dir)
+
+	# Ohmstead's ribbon boards (the dark sector, and the Arcade's two): taps on their nodes direct the companion.
+	_circuit_dir = CircuitDirector.new()
+	add_child(_circuit_dir)
+	_circuit_dir.setup(self, _companion, _world_art, _player)
+	_secret_dir.bind_circuits(_circuit_dir)
 
 	# The fish tank at home, for rare fish (only a home has one).
 	_tank_dir = TankDirector.new()
@@ -990,6 +1010,10 @@ func _apply_atmosphere(atmo: Dictionary) -> void:
 	if mat != null:
 		mat.set_shader_parameter("strength", float(vig.get("strength", 0.34)))
 		mat.set_shader_parameter("tint", WorldData.to_color(vig.get("color", [0.06, 0.05, 0.10])))
+		# Ohmstead: faint scanlines across the whole picture, in the same full-screen pass as the vignette.
+		var scan: Dictionary = atmo.get("scanlines", {})
+		mat.set_shader_parameter("scan_strength", float(scan.get("strength", 0.0)))
+		mat.set_shader_parameter("scan_px", maxf(2.0, float(scan.get("spacing", 3.0))))
 
 	var pol: Dictionary = atmo.get("pollen", {})
 	_pollen.amount = maxi(1, int(pol.get("amount", 34)))
@@ -1127,6 +1151,7 @@ func _process(delta: float) -> void:
 	_tank_dir.update(delta)
 	_firefly_dir.update(delta)
 	_harvest_dir.update(delta)
+	_circuit_dir.update(delta)
 	_house_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()
 	_use_button.suppressed = _encounter_dir.is_searching()
@@ -1612,6 +1637,9 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	# Ebbmere: a tap on a buried spot the tide has uncovered is an order to dig, ahead of anything it snaps to.
 	if _secret_dir.on_spot_tap(world):
+		return
+	# Ohmstead: a tap on a ribbon board's node sends the companion there (or winds the ribbon back to it).
+	if _circuit_dir.on_tap(world):
 		return
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:

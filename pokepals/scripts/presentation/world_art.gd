@@ -34,6 +34,8 @@ var _fizz_color := Color(1, 1, 1)
 # sandy shores are drawn by a shader child instead of the gradient + stretched noise + stroked paths
 # below, and the ground is dressed with clustered pixel DETAILS from a sprite atlas.
 var _ground: GroundLayer = null
+# Ohmstead's ground (GridGround): one shader, a glowing grid on the dark, in place of any floor of ours.
+var _grid: GridGround = null
 var _detail_tex: Texture2D = null
 var _detail_rects := {}   # name -> Rect2 in the atlas (tools/gen_ground.py's index)
 var _details: Array = []  # [ { pos, rect, phase, sway, tint } ] — ground litter, under the water pass
@@ -610,6 +612,11 @@ static func _poly_box(pts: PackedVector2Array) -> Rect2:
 	return box
 
 
+## Ohmstead's grid ground, if this world has one (so its footsteps and its dark sector can be handed to it).
+func grid_ground() -> GridGround:
+	return _grid
+
+
 ## ---- the pixel-art ground ---------------------------------------------------------------------
 
 ## If the art direction asks for it (the "ground" entity, render "pixel"), put the GroundLayer shader
@@ -629,6 +636,15 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	_glow_cells.clear()
 	_understory.clear()
 	_detail_tex = null
+	if _grid != null:
+		_grid.queue_free()
+		_grid = null
+	if GridGround.wanted(_style):
+		_grid = GridGround.new()
+		_grid.name = "GridGround"
+		add_child(_grid)
+		_grid.build(_bounds, _style)
+		return
 	if not GroundLayer.wanted(_style):
 		return
 	var cfg := _style.entity("ground")
@@ -1239,7 +1255,7 @@ func _draw() -> void:
 	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
 	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
 	# (With the pixel ground, the GroundLayer child draws the floor, the paths and the shores instead.)
-	if _ground == null and _sky_layer == null:
+	if _ground == null and _sky_layer == null and _grid == null:
 		if _ground_grad != null:
 			draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
 		else:
@@ -2576,6 +2592,12 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 		"kept_thimble":
 			# its keepsake at home: the thimble standing on a spool of red cotton
 			FindDraw.draw_kept_thimble(self, p, _time)
+		"steady_spark":
+			# Ohmstead's secret: the one thing in the machine that doesn't flicker
+			FindDraw.draw_spark(self, p + Vector2(0, -4), 1.0, color)
+		"kept_steady_spark":
+			# its keepsake at home: the spark in a little glass jar
+			FindDraw.draw_kept_spark(self, p, color)
 		"teacup":
 			# Thimblewick's pond: a cup-and-saucer ring drawn round the tea, centred on the pond
 			_draw_teacup(p)

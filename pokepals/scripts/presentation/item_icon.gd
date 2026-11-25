@@ -24,6 +24,8 @@ static func draw(ci: CanvasItem, key: String, kind: String, c: Vector2, size: fl
 		draw_wood(ci, c, s, tint, alpha)
 	elif key == "driftwood":
 		draw_driftwood(ci, c, s, tint, alpha)
+	elif key == "spark":
+		draw_spark(ci, c, s, tint, alpha)
 	elif key == "old_boot":
 		_draw_boot(ci, c, s, tint, alpha)
 	elif key == "sea_glass":
@@ -140,3 +142,18 @@ static func draw_wood(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha :
 	ci.draw_circle(c + Vector2(5, 0.5) * s, 4.8 * s, Color(tint.darkened(0.3), alpha))
 	ci.draw_circle(c + Vector2(5, 0.5) * s, 4.0 * s, Color(0.90, 0.76, 0.54, alpha))
 	ci.draw_arc(c + Vector2(5, 0.5) * s, 2.2 * s, 0.0, TAU, 10, Color(0.70, 0.52, 0.32, alpha), 0.8 * s, true)
+
+
+## A spark (Ohmstead's Arcade pays in them): a small four-pointed star with a white heart.
+static func draw_spark(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha: float) -> void:
+	var long := 9.0 * s
+	var short := 2.2 * s
+	var col := Color(tint, alpha)
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -long), c + Vector2(short, 0), c + Vector2(0, long), c + Vector2(-short, 0)]), INK * Color(1, 1, 1, alpha))
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-long, 0), c + Vector2(0, -short), c + Vector2(long, 0), c + Vector2(0, short)]), INK * Color(1, 1, 1, alpha))
+	var l2 := long - 1.6 * s
+	var s2 := short - 0.8 * s
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(0, -l2), c + Vector2(s2, 0), c + Vector2(0, l2), c + Vector2(-s2, 0)]), col)
+	ci.draw_colored_polygon(PackedVector2Array([c + Vector2(-l2, 0), c + Vector2(0, -s2), c + Vector2(l2, 0), c + Vector2(0, s2)]), col)
+	ci.draw_circle(c, 1.6 * s, Color(1, 1, 1, alpha))
+

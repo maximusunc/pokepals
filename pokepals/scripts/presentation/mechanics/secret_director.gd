@@ -60,6 +60,9 @@ extends Node
 ##     sent up (the radial's Go up), your companion rises, the camera with it, and from high above the high clouds make a
 ##     picture that points the way; once it has looked at the islet and the bridge's head, a hidden rope bridge comes
 ##     down (SkyDirector over the pure SkyView / SkyRealm). Examining the nest claims. Once found, going up stays a toy.
+##   * `circuit`: nothing shows until a ribbon board is closed: your companion lays one ribbon of light through
+##     every node of the sector that lost its power (CircuitDirector, whose boards are shared and the server's),
+##     and the spark is waiting in the middle (Ohmstead's steady spark). The boards stay to be played once found.
 ##   * `fetch`: the thimble is behind a gap in the garden fence too small for you. In a small, quick shape (a rabbit)
 ##     your companion, sent with "Go look", squeezes through, is gone a few seconds and comes back carrying the best
 ##     find its bond has earned from that gap, setting it at your feet; the silver thimble is the deepest one
@@ -96,6 +99,7 @@ var _reflection: ReflectionDirector
 var _tide: TideDirector
 var _sky: SkyDirector
 var _fetch: FetchDirector
+var _circuits: CircuitDirector   # Ohmstead's ribbon boards (the world controller's; a `circuit` secret waits on one)
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -110,6 +114,22 @@ func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: Pl
 	Net.secret_found.connect(_on_secret_found)
 	Net.secret_refused.connect(_on_secret_refused)
 	Net.discoveries_received.connect(_on_discoveries)
+
+
+## The world's ribbon boards (Ohmstead): a `circuit` secret appears when the board it names is closed.
+func bind_circuits(circuits: CircuitDirector) -> void:
+	_circuits = circuits
+	_circuits.board_closed.connect(_on_board_closed)
+
+
+## A ribbon board was closed (by us or by a friend): if it is the one our secret waits on, the spark is there.
+func _on_board_closed(board_id: String, fresh: bool) -> void:
+	if _reveal_type() != "circuit" or _secret.is_empty() or not _entry.is_empty():
+		return
+	var reveal: Dictionary = _secret["reveal"]
+	if String(reveal.get("board", "")) == board_id:
+		# closed in front of us, or already lit when we arrived (someone closed it a little while ago)
+		_reveal(String(reveal.get("reveal_line" if fresh else "lit_line", "")))
 
 
 ## Fold this world's secret (if it has one, and we haven't found it) into the world's props, as an
@@ -254,6 +274,8 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		"align":
 			# Nothing to see yet but painted boards: they have to be seen from the one spot, facing south, and held.
 			_start_align(secret, false)
+		"circuit":
+			pass  # appears once the ribbon board it names is closed (_on_board_closed; see after_world_drawn)
 		_:
 			combined.append(_secret_prop())
 
@@ -699,6 +721,8 @@ func _on_discoveries(ids: Array) -> void:
 		_secret = {}   # found on another device: the walking reflection stays, the stone doesn't come
 		if _reflection != null:
 			_reflection.finish()
+	if not _secret.is_empty() and _reveal_type() == "circuit" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the boards stay to be played, the spark doesn't come
 	if not _secret.is_empty() and _reveal_type() == "dream" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the nap and the dream stay, the prop doesn't come
 	if not _entry.is_empty() and not is_taken(_entry) and ids.has(String(_entry["secret"]["id"])):

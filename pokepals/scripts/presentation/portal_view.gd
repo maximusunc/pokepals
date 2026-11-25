@@ -56,6 +56,19 @@ func setup(p_kind: String, p_color: Color, style: ArtStyle) -> void:
 	_motes = int(cfg.get("motes", 16 if big else 7))
 	if cfg.has("frame_tint"):
 		_frame_tint = WorldData.to_color(cfg["frame_tint"])
+	# Ohmstead: a doorway drawn as linework, like everything else there (the art block's portal "wire": the
+	# wire_actor shader's colours and knobs). The stone ring and its swirl become outlines of light.
+	if cfg.has("wire"):
+		var wire: Dictionary = cfg["wire"]
+		var wmat := ShaderMaterial.new()
+		wmat.shader = OtherworldLook.WIRE_SHADER
+		for key in ["line_color", "inner_color", "fill_color"]:
+			if wire.has(key):
+				wmat.set_shader_parameter(key, WorldData.to_color(wire[key]))
+		for key in ["line_cut", "edge", "keep", "pulse_speed"]:
+			if wire.has(key):
+				wmat.set_shader_parameter(key, float(wire[key]))
+		material = wmat
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	# The halo is drawn by a linear-filtered child BEHIND this node, so the soft light stays smooth
 	# while the stonework stays crisp pixel art.
