@@ -260,7 +260,9 @@ func render_world(data: Dictionary, style: ArtStyle = null) -> void:
 		groups[key]["segs"].append({ "from": WorldData.to_vec2(p["from"]), "to": WorldData.to_vec2(p["to"]) })
 	for key in groups:
 		var g: Dictionary = groups[key]
-		for pts in PathShape.curves(g["segs"]):
+		# "path_meander" (world px, default 9): how far a trail wanders off its authored line. 0 keeps a path
+		# ruled straight (Glyphfall's paths are lines of writing).
+		for pts in PathShape.curves(g["segs"], float(data.get("path_meander", 9.0))):
 			_paths.append({ "pts": pts, "color": g["color"], "glow": g["glow"], "box": _poly_box(pts) })
 
 	# Hedge walls (the maze): segments with a thickness, drawn as tall rounded green walls.
@@ -2598,6 +2600,9 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 		"kept_steady_spark":
 			# its keepsake at home: the spark in a little glass jar
 			FindDraw.draw_kept_spark(self, p, color)
+		"kept_ampersand":
+			# Glyphfall's keepsake at home: the stray "and", in brass, on a little block
+			FindDraw.draw_kept_ampersand(self, p, color)
 		"teacup":
 			# Thimblewick's pond: a cup-and-saucer ring drawn round the tea, centred on the pond
 			_draw_teacup(p)

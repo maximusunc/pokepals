@@ -165,3 +165,22 @@ static func draw_kept_spark(ci: CanvasItem, p: Vector2, tint: Color) -> void:
 	ci.draw_line(jar.position + Vector2(2, 2), jar.position + Vector2(2, 10), Color(1, 1, 1, 0.6), 1.0)
 	ci.draw_rect(Rect2(p + Vector2(-4, -17), Vector2(8, 3)), Color(0.66, 0.48, 0.30))
 
+
+
+## Glyphfall's keepsake at home: the stray ampersand, in warm brass, standing on a little wooden block. (In its
+## own world it is a character on the page and is never drawn here.) Three strokes make the "&".
+static func draw_kept_ampersand(ci: CanvasItem, p: Vector2, tint: Color) -> void:
+	ci.draw_circle(p + Vector2(0, 6), 10.0, Color(0.10, 0.08, 0.06, 0.20), true, -1.0, true)
+	ci.draw_rect(Rect2(p + Vector2(-8, 2), Vector2(16, 5)), Color(0.46, 0.33, 0.22))
+	ci.draw_rect(Rect2(p + Vector2(-8, 2), Vector2(16, 1)), Color(0.62, 0.46, 0.30))
+	var dark := Color(tint.r * 0.55, tint.g * 0.5, tint.b * 0.4)
+	var o := p + Vector2(0, -7)
+	for pass_i in 2:
+		var col := dark if pass_i == 0 else tint
+		var w := 3.4 if pass_i == 0 else 1.8
+		# the upper loop, the lower bowl, and the tail that crosses out to the right
+		ci.draw_arc(o + Vector2(-0.5, -4.5), 2.6, -PI * 1.15, PI * 0.45, 10, col, w, true)
+		ci.draw_arc(o + Vector2(-1.2, 3.0), 3.8, PI * 0.05, PI * 1.5, 12, col, w, true)
+		ci.draw_line(o + Vector2(-2.8, -3.2), o + Vector2(5.2, 6.8), col, w, true)
+		ci.draw_line(o + Vector2(2.6, 3.0), o + Vector2(5.2, 0.4), col, w, true)
+	ci.draw_circle(o + Vector2(-1.6, -6.0), 0.8, Color(1, 1, 1, 0.85))

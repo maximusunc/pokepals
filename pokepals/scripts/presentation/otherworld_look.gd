@@ -13,6 +13,8 @@ extends Node2D
 ##     (BrickLook) and nothing else changes;
 ##   * OR, if the look carries a `wire` (Ohmstead), the actor is redrawn as glowing linework instead
 ##     (assets/wire_actor.gdshader), a person in one colour and a companion in another;
+##   * OR, if the look carries a `glyph` (Glyphfall), the actor is drawn as it is but MARKED in the picture
+##     (assets/glyph_actor.gdshader), so the page of text written over the world can write it smaller;
 ##   * OR, if the look carries a `bubble` (Bobbledown), a soap bubble round each of them instead of
 ##     the glow (VisitorBubble): you're just a visitor in a bubble world.
 ##
@@ -21,6 +23,7 @@ extends Node2D
 
 const SHADER := preload("res://assets/otherworld_actor.gdshader")
 const WIRE_SHADER := preload("res://assets/wire_actor.gdshader")
+const GLYPH_SHADER := preload("res://assets/glyph_actor.gdshader")
 const COLOR_KEYS := ["shadow_mult", "light_mult", "cast", "line_glow"]
 const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation", "line_amount", "line_cut", "pulse_speed"]
 
@@ -68,6 +71,16 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 		halo.motes = 0
 		halo.strength = float(wcfg.get("aura_strength", 0.6))
 		actor.add_child(halo)
+		return
+	# Glyphfall: a `glyph` look only marks the actor's pixels for the page of text drawn over the world.
+	if look.has("glyph"):
+		var gcfg: Dictionary = look["glyph"]
+		var gmat := ShaderMaterial.new()
+		gmat.shader = GLYPH_SHADER
+		for key in ["mark", "lift"]:
+			if gcfg.has(key):
+				gmat.set_shader_parameter(key, float(gcfg[key]))
+		actor.material = gmat
 		return
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER
