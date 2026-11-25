@@ -27,6 +27,8 @@ defmodule Server.Application do
       Server.HomePasses,
       # Felled trees and taken pickups, shared per world until they grow back (Server.Harvest).
       Server.Harvest,
+      # Ohmstead's ribbon boards, shared per world (Server.Circuit).
+      Server.Circuit,
       # The HTTP/WebSocket listener (Phoenix Channels over Bandit). Bind/port come from config.
       Server.Endpoint
     ]

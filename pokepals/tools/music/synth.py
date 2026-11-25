@@ -249,9 +249,59 @@ def drum(midi, dur, vel, rng):
     return 0.45 * vel * out
 
 
+def _square(f, t, top=2400.0):
+    """A band-limited square wave: odd harmonics only, rolled off above `top` Hz, so it is hollow and
+    electronic without the harsh edge of a raw one (and nothing aliases)."""
+    out = np.zeros_like(t)
+    n = 1
+    while f * n < 9000:
+        out += (1.0 / n) / (1.0 + (f * n / top) ** 2) * np.sin(2 * np.pi * f * n * t)
+        n += 2
+    return out
+
+
+def pulse(midi, dur, vel, rng):
+    """An arcade sequencer's note (Ohmstead): a hollow square wave, short and plucked, doubled a hair
+    out of tune for width, with the edge taken off."""
+    tail = 0.3
+    t = _t(dur + tail)
+    f = hz(midi)
+    out = _square(f, t) + 0.5 * _square(f * 1.004, t)
+    env = _env_adsr(len(t), 0.006, 0.15, 0.26, tail, max(dur - 0.03, 0.05))
+    return 0.20 * vel * out * env
+
+
+def synthbass(midi, dur, vel, rng):
+    """A synth bass: a saw whose top closes as the note rings, like a filter sweeping shut."""
+    tail = 0.45
+    t = _t(dur + tail)
+    f = hz(midi)
+    out = np.zeros_like(t)
+    for n in range(1, 11):
+        out += (1.0 / n) * np.exp(-t * (n - 1) * 2.4) * np.sin(2 * np.pi * f * n * t)
+    env = _env_adsr(len(t), 0.012, 0.3, 0.6, tail, max(dur - 0.05, 0.1))
+    return 0.40 * vel * out * env
+
+
+def synthlead(midi, dur, vel, rng):
+    """A soft synth lead: a rounded saw with a slow vibrato on held notes, eased in so it sings."""
+    tail = 0.6
+    t = _t(dur + tail)
+    f = hz(midi)
+    ph = _phase(f, t, 0.004, 5.2, 0.3, rng)
+    out = np.zeros_like(t)
+    for n in range(1, 8):
+        if f * n > 7000:
+            break
+        out += (1.0 / n ** 1.4) * np.sin(n * ph)
+    env = _env_adsr(len(t), 0.05, 0.3, 0.7, tail, max(dur - 0.05, 0.1))
+    return 0.22 * vel * out * env
+
+
 VOICES = {"pad": pad, "bass": bass, "kalimba": kalimba, "musicbox": musicbox, "chime": chime,
           "flute": flute, "reed": reed, "strings": strings, "glass": glass, "marimba": marimba,
-          "toypiano": toypiano, "koto": koto, "harp": harp, "bowl": bowl, "drone": drone, "drum": drum}
+          "toypiano": toypiano, "koto": koto, "harp": harp, "bowl": bowl, "drone": drone, "drum": drum,
+          "pulse": pulse, "synthbass": synthbass, "synthlead": synthlead}
 
 
 # ---------------------------------------------------------------------------------------------- room

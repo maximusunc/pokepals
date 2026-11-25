@@ -39,6 +39,7 @@ var volume := DEFAULT_VOLUME
 var _players: Array[AudioStreamPlayer] = []
 var _active := 0  # index into _players of the one playing (or fading in) the current track
 var _track := ""  # the current world's track path ("" = none)
+var _loaded := ""  # the track the active player was actually started with ("" until one starts)
 var _world_db := DEFAULT_DB  # the current world's volume_db, before the slider
 var _tweens: Array = [null, null]
 
@@ -68,8 +69,10 @@ func play_world(cfg: Dictionary) -> void:
 	var track := String(cfg.get("track", ""))
 	_world_db = float(cfg.get("volume_db", DEFAULT_DB))
 	if track == _track:
-		# Same music in the next world (or the same world rebuilt): carry on, just settle the level.
-		if is_on() and track != "" and _players[_active].playing:
+		# Same music in the next world (or the same world rebuilt): carry on, just settle the level. Only if
+		# what is playing really IS this track: if it could not be started last time (a file that was not
+		# there), the player still fading out is the PREVIOUS world's music, and must not be faded back in.
+		if is_on() and track != "" and _players[_active].playing and _loaded == track:
 			_fade(_active, _level_db(), FADE_IN)
 		elif is_on() and track != "":
 			_start(track)
@@ -115,7 +118,11 @@ func _start(track: String) -> void:
 	var stream: Resource = load(track)
 	if stream is AudioStreamOggVorbis:
 		(stream as AudioStreamOggVorbis).loop = true  # the scores are rendered to loop seamlessly
+	if not (stream is AudioStream):
+		push_warning("Music: %s is not a sound" % track)
+		return
 	_active = 1 - _active
+	_loaded = track
 	var p := _players[_active]
 	p.stream = stream as AudioStream
 	p.volume_db = SILENT_DB

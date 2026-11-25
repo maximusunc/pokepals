@@ -11,6 +11,8 @@ extends Node2D
 ##     light on the ground beneath it, and a few motes of light orbiting it;
 ##   * OR, if the look carries a `brick` (Clickton), the actor is rebuilt out of studded bricks instead
 ##     (BrickLook) and nothing else changes;
+##   * OR, if the look carries a `wire` (Ohmstead), the actor is redrawn as glowing linework instead
+##     (assets/wire_actor.gdshader), a person in one colour and a companion in another;
 ##   * OR, if the look carries a `bubble` (Bobbledown), a soap bubble round each of them instead of
 ##     the glow (VisitorBubble): you're just a visitor in a bubble world.
 ##
@@ -18,12 +20,14 @@ extends Node2D
 ## actor_look never calls this, so the meadow worlds look exactly as before.
 
 const SHADER := preload("res://assets/otherworld_actor.gdshader")
+const WIRE_SHADER := preload("res://assets/wire_actor.gdshader")
 const COLOR_KEYS := ["shadow_mult", "light_mult", "cast", "line_glow"]
 const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation", "line_amount", "line_cut", "pulse_speed"]
 
 var color := Color(0.5, 0.95, 1.0)
 var radius := 26.0
 var motes := 3
+var strength := 1.0
 var _time := 0.0
 
 
@@ -39,6 +43,31 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 		actor.set_meta("brick_cell", int(bcfg.get("cell", 2)))
 		actor.set_meta("brick_quantize", float(bcfg.get("quantize", 0.3)))
 		actor.queue_redraw()
+		return
+	# Ohmstead: a `wire` look redraws the actor as glowing linework (assets/wire_actor.gdshader), a person in one
+	# colour and a companion in another, with a small halo of that colour behind it and nothing else.
+	if look.has("wire"):
+		var wcfg: Dictionary = look["wire"]
+		var who: Dictionary = wcfg.get("companion" if actor is CompanionView else "player", {})
+		var wmat := ShaderMaterial.new()
+		wmat.shader = WIRE_SHADER
+		for key in ["line_color", "inner_color", "fill_color"]:
+			if who.has(key):
+				wmat.set_shader_parameter(key, WorldData.to_color(who[key]))
+			elif wcfg.has(key):
+				wmat.set_shader_parameter(key, WorldData.to_color(wcfg[key]))
+		for key in ["line_cut", "edge", "keep", "pulse_speed"]:
+			if wcfg.has(key):
+				wmat.set_shader_parameter(key, float(wcfg[key]))
+		actor.material = wmat
+		var halo := OtherworldLook.new()
+		halo.name = "OtherworldAura"
+		halo.show_behind_parent = true
+		halo.color = WorldData.to_color(who.get("line_color", [1.0, 0.55, 0.9]))
+		halo.radius = float(wcfg.get("aura_radius", 16.0)) * size
+		halo.motes = 0
+		halo.strength = float(wcfg.get("aura_strength", 0.6))
+		actor.add_child(halo)
 		return
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER
@@ -69,8 +98,8 @@ func _process(delta: float) -> void:
 func _draw() -> void:
 	var breathe := 0.86 + 0.14 * sin(_time * 1.4)
 	# a pool of light on the ground under the feet, then the aura around the body
-	SoftGlow.draw(self, Vector2(0, 6), radius * 0.8, Color(color.r, color.g, color.b, 0.32 * breathe), 0.4)
-	SoftGlow.draw(self, Vector2(0, -radius * 0.4), radius * breathe, Color(color.r, color.g, color.b, 0.20))
+	SoftGlow.draw(self, Vector2(0, 6), radius * 0.8, Color(color.r, color.g, color.b, 0.32 * breathe * strength), 0.4)
+	SoftGlow.draw(self, Vector2(0, -radius * 0.4), radius * breathe, Color(color.r, color.g, color.b, 0.20 * strength))
 	# a few motes circling lazily, bobbing as they go
 	for k in motes:
 		var a := _time * (0.9 + 0.15 * float(k)) + float(k) * TAU / float(maxi(1, motes))

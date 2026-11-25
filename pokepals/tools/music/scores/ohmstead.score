@@ -1,0 +1,50 @@
+# Ohmstead: the machine behind the Gateway. A grid of light in the dark, and an arcade somewhere in it.
+# A minor, 96 bpm, in sixteenths. Unlike every other world's track this one is plainly ELECTRONIC: a hollow
+# square-wave sequencer line runs through each chord (with a fainter echo of itself off to one side), a synth
+# bass pulses under it, a pad fills the dark, and a soft synth lead sings slowly over the top. No drums and
+# nothing sharp: an arcade heard from the next room.
+
+title Ohmstead
+tempo 96
+beats 4
+steps 4
+seed  157
+
+voice pad   kind=pad        octave=4  gain=0.34  reverb=0.6
+voice bass  kind=synthbass  octave=2  gain=0.40  reverb=0.15
+voice seq   kind=pulse      octave=4  gain=0.30  pan=-0.25 reverb=0.3
+voice echo  kind=pulse      octave=5  gain=0.12  pan=0.4   reverb=0.55 delay=3
+voice lead  kind=synthlead  octave=5  gain=0.30  pan=0.1   reverb=0.6
+voice sky   kind=chime      octave=6  gain=0.20  spread=0.7 reverb=0.85
+
+[intro]
+chords | Am7 | Fmaj7 | Am7 | Fmaj7 |
+pad    | * - - - - - - - - - - - - - - - |
+seq    | 1 . 3 . 2 . 3 . 1' . 3 . 2 . 3 . |
+bass   | 1 - - - - - - - . . . . . . . . |
+
+[a]
+chords | Am7 | Fmaj7 | C | G | Am7 | Fmaj7 | C | Esus4 |
+pad    | * - - - - - - - - - - - - - - - |
+bass   | 1 - - . 1 - . . 1 - - . 1 . 1 . |
+seq    | 1 3 2 3 1' 3 2 3 1 3 2 3 1' 3 2 3 |
+echo   | 1 . . . . . . . 3 . . . . . . . |
+lead   | E5 - - - - - - - - - - - C5 - - - | A5 - - - - - - - - - - - G5 - - - | E5 - - - - - - - G5 - - - - - - - | D5 - - - - - - - - - - - - - - - | C5 - - - - - - - E5 - - - - - - - | A5 - - - - - - - - - - - C6 - - - | G5 - - - - - - - E5 - - - - - - - | E5 - - - - - - - - - - - . . . . |
+
+[b]
+chords | Dm7 | Am7 | Fmaj7 | G | Dm7 | Am7 | Fmaj7 | Esus4 |
+pad    | * - - - - - - - - - - - - - - - |
+bass   | 1 - - . . . 1 - 1 - - . . . 1 . |
+seq    | 1 2 3 1' 3 2 3 1' 1 2 3 1' 3 2 3 2 |
+echo   | 3 . . . . . . . 1 . . . . . . . |
+lead   | F5 - - - - - - - A5 - - - - - - - | E5 - - - - - - - - - - - C5 - - - | A5 - - - - - - - - - - - F5 - - - | G5 - - - - - - - D5 - - - - - - - | F5 - - - - - - - D5 - - - - - - - | E5 - - - - - - - - - - - A5 - - - | C6 - - - - - - - A5 - - - - - - - | B5 - - - - - - - - - - - . . . . |
+sky    | . . . . . . . . . . . . . . . . | . . . . . . . . E6 - - - . . . . | . . . . . . . . . . . . . . . . | . . . . . . . . . . . . D6 - - - | . . . . . . . . . . . . . . . . | . . . . . . . . . . . . . . . . | . . . . E6 - - - . . . . . . . . | . . . . . . . . . . . . . . . . |
+
+[c]
+chords | Fmaj7 | G | Am7 | Am7 | Fmaj7 | G | C | Esus4 |
+pad    | * - - - - - - - - - - - - - - - |
+bass   | 1 - - - - - - - - - - - . . . . |
+seq    | 1 . . 3 . . 2 . 1' . . 3 . . 2 . |
+sky    | . . . . . . . . A6 - - - . . . . | . . . . . . . . . . . . . . . . | . . . . E6 - - - . . . . . . . . | . . . . . . . . . . . . C6 - - - | . . . . . . . . . . . . . . . . | . . . . D6 - - - . . . . . . . . | . . . . . . . . . . . . G6 - - - | . . . . . . . . . . . . . . . . |
+
+play intro a b a c b

@@ -462,6 +462,40 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   Every finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Farmeadow"). The other
 >   skin-world ideas are issues #157-#160.
 
+> **Ohmstead (2026-11):** another world that looks like **a different game**: the machine behind the Gateway, seen
+> from inside (issue #157, the "Vectorgrid" idea). A black void, a glowing grid floor running off into the dark
+> (3200x2432), and everything on it a bright outline; reached through the Gateway (featured). It is also the first
+> world built with a **reason to come back**: the Arcade.
+> - **The look:** the ground is ONE shader over one quad (`GridGround`, `assets/ohm_grid.gdshader`; a `ground` entity
+>   whose render is `"grid"`): thin and bright lines, packets of light running along the bright ones, and no
+>   footprints: a step lights the cell underfoot and sends a ring out along the lines. Visitors are redrawn as
+>   linework (`actor_look.wire`, `assets/wire_actor.gdshader`): a person in magenta, a companion in amber, what you
+>   wear and which animal it is kept as inner lines. The portal gets the same shader (the portal entity's `wire`).
+>   Faint scanlines ride the vignette's full-screen pass (`atmosphere.scanlines`). Trees, props and landmarks are
+>   line art with a baked halo (no bloom pass): `pokepals/tools/gen_ohmstead.py` over `tools/pixelart/ohmstead.py`.
+> - **Runners:** small mint creatures carrying light along the bright lines (the spec's `runners`: closed routes).
+>   Where each one is, is a pure function of the shared clock (`RunnerRoutes`, drawn by `GridRunners`), so everyone
+>   sees them in the same places with nothing simulated or sent. They lean off their line as you pass.
+> - **Ribbon boards** (the spec's `circuits`): a lattice of nodes; your companion lays ONE ribbon of light through
+>   every node, from the amber mark (a live line in) to the white one (the outlet). You DIRECT it: tap a node it can
+>   run straight to and it goes, lighting every node it passes; tap a lit node to wind the ribbon back; a Call puts
+>   it out; a bird flies over and lays nothing. After a while it glances at a good next node, sooner with bond. The
+>   rules are pure (`CircuitBoard`, with an Elixir twin `Server.Circuit.Board` held to the same vectors); the state
+>   is **shared and server-authoritative** (`Server.Circuit`; channel `circuit_run` / `circuit_wind` /
+>   `circuit_clear`, pushes `circuits` on join and `circuit` on change), so friends close a board together.
+>   Client: `CircuitDirector` (`mechanics/`) and `CircuitView`.
+> - **Secret:** a sector in the north-east has lost its power (cold lines, red markers). Close its board and the
+>   power sweeps back; a steady spark is waiting in the middle. New reveal type `circuit`: the server CAN check it
+>   (the board must be closed), still "standing at it". The sector goes dark again 2 minutes later for the next
+>   visitor (an untaken spark goes out with it and comes back on the next close).
+> - **The Arcade:** two more boards, south of the middle. The **table** is dealt fresh by the server a few seconds
+>   after each close; **today's** is one larger board a day (seeded from the UTC date, the same for everyone) and
+>   stays lit once closed. Closing one pays everyone who laid part of it: coins and **sparks** (a new material,
+>   item 260; nothing uses it yet). It says your time and your best (kept on the device, `user://settings.json`).
+> - Layout, lore, the boards and the secret: `tools/gen_ohmstead_world.py`. `tests/e2e_ohmstead.gd` plays it against
+>   a real server; `tests/shot_world.gd` screenshots any world. Every finer choice is listed, open for review, in
+>   `docs/home-world-and-secrets-design.md` ("Ohmstead"). The ribbon race is not built.
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

@@ -162,6 +162,13 @@ signal harvest_received(down: Array, chop_ms: int)
 signal harvested(node_id: String, left_ms: int, by: String)
 signal harvest_got(info: Dictionary)
 signal harvest_refused(node_id: String, reason: String)
+# Ohmstead's ribbon boards (Server.Circuit): how every board of this world stands (pushed on join; also kept,
+# circuit_boards()), one board changing (anyone's move, a fresh deal, the sector losing its power again), a
+# move of ours the rules refused, and what closing a board paid us ({ board, coins, sparks, time_ms, balance }).
+signal circuits_received(boards: Array)
+signal circuit_changed(board: Dictionary)
+signal circuit_refused(board_id: String, node: int, reason: String)
+signal circuit_reward(info: Dictionary)
 # Our house: its status (state "none" / "building" / "built", left_ms, the carpenter's price; pushed on join,
 # also kept, house_status()), the carpenter agreeing to build it (with our new balance), or why not.
 signal house_status_received(status: Dictionary)
@@ -233,6 +240,8 @@ var _recipes: Array = []
 # Home building: what's down in the current world ([{ id, left_ms }] as of _harvest_at, msec ticks), how long a
 # chop takes, and our house's status.
 var _harvest_down: Array = []
+# Ohmstead: this world's ribbon boards as the server last described them (empty in every other world).
+var _circuit_boards: Array = []
 var _harvest_at := 0
 var _chop_ms := 0
 var _house_status: Dictionary = {}
@@ -697,6 +706,38 @@ func house_status() -> Dictionary:
 	return _house_status
 
 
+## Ohmstead: this world's ribbon boards as the server last described them (see circuits_received).
+func circuit_boards() -> Array:
+	return _circuit_boards
+
+
+## Whether a world channel is joined, so the server is there to judge a move (false in an offline test).
+func in_world() -> bool:
+	return _can_send()
+
+
+## Our companion has reached `node` of ribbon board `board_id`: run the ribbon there. The server judges it by
+## the rules and tells everyone (circuit_changed), or refuses it to us (circuit_refused).
+func circuit_run(board_id: String, node: int) -> void:
+	if not _can_send():
+		return
+	_push_event("circuit_run", { "board": board_id, "node": node })
+
+
+## Wind the ribbon of `board_id` back to the lit node `node` (its head: one node comes off).
+func circuit_wind(board_id: String, node: int) -> void:
+	if not _can_send():
+		return
+	_push_event("circuit_wind", { "board": board_id, "node": node })
+
+
+## Put the whole ribbon of `board_id` out (only someone who laid part of it may).
+func circuit_clear(board_id: String) -> void:
+	if not _can_send():
+		return
+	_push_event("circuit_clear", { "board": board_id })
+
+
 ## Start chopping tree `index` (only sent while a chop takes time). See chop().
 func chop_start(index: int) -> void:
 	if not _can_send():
@@ -841,6 +882,7 @@ func _switch_to_world() -> void:
 	_joined = false
 	_join_in_flight = true
 	_harvest_down = []   # what's felled is per world: the new one tells us its own on join
+	_circuit_boards = []
 	_world_join_ref = _next_ref()
 	var join_payload := { "known_etag": _desired_known_etag }
 	if _resume_pending:
@@ -1045,6 +1087,24 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			_harvest_at = Time.get_ticks_msec()
 			_chop_ms = int(payload.get("chop_ms", 0))
 			harvest_received.emit(_harvest_down, _chop_ms)
+		"circuits":
+			var bs: Variant = payload.get("boards", [])
+			_circuit_boards = (bs as Array).duplicate(true) if bs is Array else []
+			circuits_received.emit(_circuit_boards)
+		"circuit":
+			var cid := String(payload.get("id", ""))
+			var replaced := false
+			for i in _circuit_boards.size():
+				if String((_circuit_boards[i] as Dictionary).get("id", "")) == cid:
+					_circuit_boards[i] = payload.duplicate(true)
+					replaced = true
+			if not replaced:
+				_circuit_boards.append(payload.duplicate(true))
+			circuit_changed.emit(payload)
+		"circuit_refused":
+			circuit_refused.emit(String(payload.get("board", "")), int(payload.get("node", -1)), String(payload.get("reason", "")))
+		"circuit_reward":
+			circuit_reward.emit(payload)
 		"harvested":
 			harvested.emit(String(payload.get("id", "")), int(payload.get("left_ms", 0)), String(payload.get("by", "")))
 		"harvest_got":

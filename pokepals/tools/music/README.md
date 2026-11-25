@@ -81,6 +81,9 @@ A `#` starts a comment only at the start of a line or after a space, so `C#5` an
 | `bowl` | a singing bowl or far temple bell: long and humming |
 | `drone` | a low held tone that breathes in and out |
 | `drum` | a soft frame drum played by hand |
+| `pulse` | an arcade sequencer's note: a hollow square wave, short and plucked |
+| `synthbass` | a synth bass: a saw whose top closes as the note rings |
+| `synthlead` | a soft synth lead with a slow vibrato on held notes |
 
 Every instrument has a rounded onset (no pluck snap, no click), so the music stays in the background.
 
@@ -114,6 +117,7 @@ one says at the top what it's for. They loop after 80 to 120 seconds.
 | Loftreach | G lydian, 80 | flute, harp, wind chimes |
 | Thimblewick | F major, 3/4, 108 | oom-pah-pah, music-box waltz |
 | Farmeadow | D major, 72 | flute, guitar |
+| Ohmstead | A minor, 96 | a square-wave sequencer and its echo, synth bass, pad, synth lead |
 
 ## Hooking a track to a world
 
