@@ -86,6 +86,13 @@ defmodule Server.SecretReveal do
       `Discoveries.claimable?/3` for "standing at it". A friend who helped, or who walks up while it is lit, may
       take a spark too: the board was closed in front of them.
 
+    * `misprint`: one character of a world made of text is the wrong one, and only the player's companion
+      notices it (Glyphfall's stray ampersand, in the grass). The noticing (it stops and looks, again and
+      again as you close in) and the glyph catching the light all happen on the player's own screen
+      (`GlyphNotice` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `listen`. Honest about what that means: it can't tell a glyph the companion showed
+      you from one you stumbled on (but a client only offers it once its companion has looked).
+
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
   of flare props this player has touched this visit; `now_ms`: the server's unix time in milliseconds, for
@@ -108,6 +115,7 @@ defmodule Server.SecretReveal do
       %{"type" => "skyview"} -> true
       %{"type" => "fetch"} -> true
       %{"type" => "align"} -> true
+      %{"type" => "misprint"} -> true
       %{"type" => "circuit"} -> Map.get(ctx, :circuit_closed, false) == true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false
