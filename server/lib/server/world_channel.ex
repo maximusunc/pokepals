@@ -1112,7 +1112,7 @@ defmodule Server.WorldChannel do
   # Whether the ribbon board a `circuit` secret names is closed right now (false for any other secret).
   defp circuit_secret_closed?(world_id, %{"reveal" => %{"type" => "circuit", "board" => board_id}})
        when is_binary(board_id),
-       do: Server.Circuit.closed?(world_id, board_id)
+       do: Server.Circuit.claimable?(world_id, board_id)
 
   defp circuit_secret_closed?(_world_id, _secret), do: false
 

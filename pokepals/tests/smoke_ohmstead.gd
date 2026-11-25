@@ -135,6 +135,16 @@ func _process(_delta: float) -> bool:
 	fails += _check(is_equal_approx(grid.sector_power(0), 1.0), "the power sweeps back across the sector")
 	fails += _check(cd.on_tap(model.pos_of(3, origin, spacing)) and model.path.size() == sol.size(), "a closed board takes no more moves")
 
+	# The sector loses its power again (the server's word, two minutes on) before the spark was taken.
+	cd._on_board({ "id": "sector", "kind": "fixed", "cols": 5, "rows": 4, "holes": [15, 16], "source": 10, "sink": 17, "path": [], "closed": false, "seq": 50 })
+	fails += _check(not _has_secret_entry() and not bool(cd.board("sector")["closed"]), "when the sector goes dark again, the untaken spark goes out with it")
+	for _i in 40:
+		cd.update(0.1)
+	fails += _check(is_equal_approx(grid.sector_power(0), 0.0), "and the power drains back out of the sector")
+	var relit: Dictionary = { "id": "sector", "kind": "fixed", "cols": 5, "rows": 4, "holes": [15, 16], "source": 10, "sink": 17, "path": sol, "closed": true, "seq": 51 }
+	cd._on_board(relit)
+	fails += _check(_has_secret_entry(), "closing it again brings the spark back")
+
 	# The server's word: the Arcade's table is dealt, played by someone else, and closed.
 	var table := { "id": "table", "kind": "dealt", "cols": 5, "rows": 4, "holes": [0, 19], "source": 1, "sink": 18, "path": [], "closed": false, "seq": 1 }
 	cd._on_boards([table])
@@ -174,7 +184,7 @@ func _lay(cd, model: CircuitBoard, origin: Vector2, spacing: float, nodes: Array
 
 func _has_secret_entry() -> bool:
 	for e in _world._interactables:
-		if String(e.get("kind", "")) == "secret":
+		if String(e.get("kind", "")) == "secret" and not bool(e.get("_taken", false)):
 			return true
 	return false
 

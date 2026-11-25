@@ -7,7 +7,8 @@ defmodule Server.Circuit do
   Three kinds of board (the spec's `circuits.boards[].kind`):
 
     * `fixed`: authored in the spec (holes, source, sink). The dark sector, whose closing is Ohmstead's secret.
-      Once closed it stays lit for `relight_s`, then loses its power again so the next visitor can close it.
+      Once closed it stays lit for `relight_s`, then loses its power again so the next visitor can close it
+      (what it holds can still be taken for a few seconds after, `claimable?/2`).
     * `dealt`: the Arcade's table. Dealt here from a seed; `deal_s` after it is closed, a fresh one is dealt.
     * `daily`: the Arcade's board of the day. Dealt from the date (UTC), so it is the same board for everyone;
       once closed it stays closed until the day turns.
@@ -32,6 +33,7 @@ defmodule Server.Circuit do
 
   @spark_id 260
   @stale_ms 300_000
+  @claim_grace_ms 20_000
   @tick_ms 30_000
   @max_coins 50
   @max_sparks 5
@@ -114,6 +116,13 @@ defmodule Server.Circuit do
   @doc "Whether `board_id` of `world_id` is closed right now (the secret's check)."
   @spec closed?(String.t(), String.t()) :: boolean()
   def closed?(world_id, board_id), do: GenServer.call(__MODULE__, {:closed?, world_id, board_id})
+
+  @doc """
+  Whether what `board_id` holds may be taken right now (the secret's check): the board is closed, or it lost
+  its power again within the last `@claim_grace_ms` (so a claim made as the lights went down is still good).
+  """
+  @spec claimable?(String.t(), String.t()) :: boolean()
+  def claimable?(world_id, board_id), do: GenServer.call(__MODULE__, {:claimable?, world_id, board_id})
 
   @doc "Forget every board (tests)."
   def reset, do: GenServer.call(__MODULE__, :reset)
@@ -200,6 +209,17 @@ defmodule Server.Circuit do
     {:reply, closed, state}
   end
 
+  def handle_call({:claimable?, world_id, board_id}, _from, state) do
+    ok =
+      case state[{world_id, board_id}] do
+        %{closed_ms: ms} when ms != nil -> true
+        %{reopened_ms: ms} when ms != nil -> now() - ms <= @claim_grace_ms
+        _ -> false
+      end
+
+    {:reply, ok, state}
+  end
+
   def handle_call(:reset, _from, _state), do: {:reply, :ok, %{}}
 
   # The Arcade's table: a fresh board, a little after the last one was closed.
@@ -220,7 +240,7 @@ defmodule Server.Circuit do
   def handle_info({:relight_over, key, seq}, state) do
     case state[key] do
       %{kind: "fixed", seq: ^seq} = e ->
-        e = %{cleared(e) | closed_ms: nil, time_ms: nil}
+        e = %{cleared(e) | closed_ms: nil, time_ms: nil, reopened_ms: now()}
         announce(e)
         {:noreply, Map.put(state, key, e)}
 
@@ -296,6 +316,7 @@ defmodule Server.Circuit do
       laid: [],
       started_ms: nil,
       closed_ms: nil,
+      reopened_ms: nil,
       time_ms: nil,
       last_ms: now(),
       seq: 0,

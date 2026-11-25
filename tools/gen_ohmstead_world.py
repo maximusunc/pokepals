@@ -121,7 +121,7 @@ CIRCUITS = {
     "boards": [
         {"id": "sector", "kind": "fixed", "origin": list(SECTOR_ORIGIN), "cols": SECTOR_COLS, "rows": SECTOR_ROWS,
          "holes": SECTOR_BOARD["holes"], "source": SECTOR_BOARD["source"], "sink": SECTOR_BOARD["sink"],
-         "sector": SECTOR_RECT, "relight_s": 600, "label": "the dark sector"},
+         "sector": SECTOR_RECT, "relight_s": 120, "label": "the dark sector"},
         {"id": "table", "kind": "dealt", "origin": list(TABLE_ORIGIN), "cols": TABLE_COLS, "rows": TABLE_ROWS,
          "holes": 2, "deal_s": 5, "label": "the table"},
         {"id": "today", "kind": "daily", "origin": list(DAY_ORIGIN), "cols": DAY_COLS, "rows": DAY_ROWS,
@@ -423,6 +423,7 @@ SECRET = {
     "reveal": {
         "type": "circuit",
         "board": "sector",
+        "dark_line": "The sector's power fades again, and the spark goes out with it. Close the loop once more and it will be back.",
         "lit_line": "Someone closed the loop here a little while ago: the sector is lit, and in the middle of the board something small and steady is waiting.",
         "reveal_line": "The last node takes the light. Power runs back across the sector line by line, and in the middle of the board something small and steady is waiting.",
     },

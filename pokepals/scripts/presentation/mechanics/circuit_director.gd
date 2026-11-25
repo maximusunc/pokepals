@@ -24,6 +24,8 @@ extends Node
 
 ## `fresh`: it closed just now, in front of us (false: it was already closed when we arrived).
 signal board_closed(board_id: String, fresh: bool)
+## A closed board has lost its power again (the dark sector, a while after it was closed).
+signal board_opened(board_id: String)
 
 const SETTINGS_PATH := "user://settings.json"
 
@@ -176,6 +178,7 @@ func _apply(v: Dictionary, quiet: bool) -> void:
 			_on_closed(b)
 	elif not bool(b["closed"]) and was_closed:
 		_sweep_to(id)
+		board_opened.emit(id)
 	if fresh and old != null and not quiet and String(b["kind"]) == "dealt" and _near(b, 360.0):
 		_say("dealt", false)
 

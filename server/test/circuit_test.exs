@@ -166,8 +166,13 @@ defmodule Server.CircuitTest do
       [%{seq: seq} | _] = Circuit.snapshot("w", @circuits)
       send(Circuit, {:relight_over, {"w", "sector"}, seq - 1})
       assert Circuit.closed?("w", "sector"), "a stale timer changes nothing"
+      assert Circuit.claimable?("w", "sector")
       send(Circuit, {:relight_over, {"w", "sector"}, seq})
       refute Circuit.closed?("w", "sector")
+      # ...but a claim made as the lights went down is still good for a few seconds
+      assert Circuit.claimable?("w", "sector")
+      refute Circuit.claimable?("w", "table")
+      refute Circuit.claimable?("elsewhere", "sector")
       assert [%{path: [], closed: false} | _] = Circuit.snapshot("w", @circuits)
     end
 

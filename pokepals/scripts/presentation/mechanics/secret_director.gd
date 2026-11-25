@@ -120,6 +120,7 @@ func setup(host: Node, companion: CompanionView, world_art: WorldArt, player: Pl
 func bind_circuits(circuits: CircuitDirector) -> void:
 	_circuits = circuits
 	_circuits.board_closed.connect(_on_board_closed)
+	_circuits.board_opened.connect(_on_board_opened)
 
 
 ## A ribbon board was closed (by us or by a friend): if it is the one our secret waits on, the spark is there.
@@ -130,6 +131,31 @@ func _on_board_closed(board_id: String, fresh: bool) -> void:
 	if String(reveal.get("board", "")) == board_id:
 		# closed in front of us, or already lit when we arrived (someone closed it a little while ago)
 		_reveal(String(reveal.get("reveal_line" if fresh else "lit_line", "")))
+
+
+## The board lost its power again before we took what it held: the spark goes out with it (and comes back
+## the next time the board is closed). A claim already on its way is left to the server to answer.
+func _on_board_opened(board_id: String) -> void:
+	if _reveal_type() != "circuit" or _secret.is_empty() or _entry.is_empty() or is_taken(_entry) or _claiming:
+		return
+	var reveal: Dictionary = _secret["reveal"]
+	if String(reveal.get("board", "")) != board_id:
+		return
+	_withdraw()
+	var line := String(reveal.get("dark_line", ""))
+	if line != "":
+		_host.show_hint(line)
+
+
+## Take a staged secret back out of the world WITHOUT it having been found, so it can be staged again.
+func _withdraw() -> void:
+	var id := String(_entry["secret"]["id"])
+	for e in _interactables:
+		if String(e.get("kind", "")) == "secret" and String((e.get("secret", {}) as Dictionary).get("id", "")) == id and not is_taken(e):
+			e["_taken"] = true
+			_world_art.take_interactable(int(e["render_index"]))
+	_entry = {}
+	_host.secret_taken()
 
 
 ## Fold this world's secret (if it has one, and we haven't found it) into the world's props, as an
@@ -696,6 +722,11 @@ func _on_secret_refused(_secret_id: String) -> void:
 	# Ebbmere: the sand-dollar was claimed after the lowest water had slipped away (the server checks the clock).
 	if _reveal_type() == "tide" and not _entry.is_empty():
 		_host.show_hint(String((_secret["reveal"] as Dictionary).get("refused_line", "")))
+	# Ohmstead: the sector had already lost its power when the claim arrived: the spark goes out with it.
+	if _reveal_type() == "circuit" and not _entry.is_empty() and not is_taken(_entry) and _circuits != null \
+			and not _circuits.is_closed(String((_secret["reveal"] as Dictionary).get("board", ""))):
+		_withdraw()
+		_host.show_hint(String((_secret["reveal"] as Dictionary).get("dark_line", "")))
 
 
 ## A join's discovery list arrived after we laid the world out (a cold build, or a find made on

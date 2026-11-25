@@ -961,7 +961,7 @@
 					512,
 					448
 				],
-				"relight_s": 600,
+				"relight_s": 120,
 				"label": "the dark sector"
 			},
 			{
@@ -1063,6 +1063,7 @@
 		"reveal": {
 			"type": "circuit",
 			"board": "sector",
+			"dark_line": "The sector's power fades again, and the spark goes out with it. Close the loop once more and it will be back.",
 			"lit_line": "Someone closed the loop here a little while ago: the sector is lit, and in the middle of the board something small and steady is waiting.",
 			"reveal_line": "The last node takes the light. Power runs back across the sector line by line, and in the middle of the board something small and steady is waiting."
 		},

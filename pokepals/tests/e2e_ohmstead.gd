@@ -5,7 +5,9 @@ extends SceneTree
 ##     --script res://tests/e2e_ohmstead.gd -- ws://127.0.0.1:4000/ws <out_dir>
 ## It joins Ohmstead, checks the server described every board, lays the dark sector's ribbon node by node (the
 ## companion is set down on each node, the server judges each run), takes the spark, then closes the Arcade's
-## table by following the hint and checks it paid. Not part of the headless suite (it needs the server).
+## table by following the hint and checks it paid. Not part of the headless suite (it needs the server), and it
+## needs a display: `--headless` runs frames faster than real time, so the claim is sent before the server has
+## heard where you are standing.
 
 const OHMSTEAD_ID := "16161616-1616-1616-1616-161616161616"
 const TIMEOUT := 900   # frames a step may wait
