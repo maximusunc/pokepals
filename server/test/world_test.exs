@@ -70,6 +70,33 @@ defmodule Server.WorldTest do
     refute_receive %Phoenix.Socket.Broadcast{event: "states"}, 200
   end
 
+  test "only changes are sent: a repeated transform is not relayed, but its sender stays present" do
+    w = wid()
+    World.ensure_started(w)
+    Server.Endpoint.subscribe(World.channel_topic(w))
+    World.update_transform(w, "u1", %{"p" => [1, 1], "t" => 100})
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: [["u1", 1, 1 | _]]}}, 500
+
+    # A keepalive: same pose (rounding to the same pixel counts as the same), a newer load-test stamp.
+    World.update_transform(w, "u1", %{"p" => [1.2, 0.9], "t" => 200})
+    refute_receive %Phoenix.Socket.Broadcast{event: "states"}, 200
+    assert World.snapshot(w) == %{"u1" => %{"p" => [1, 1], "t" => 100}}
+
+    # A real change goes out with its own, latest stamp.
+    World.update_transform(w, "u1", %{"p" => [2, 1], "t" => 300})
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: [["u1", 2, 1, nil, nil, nil, nil, nil, nil, 300]]}}, 500
+  end
+
+  test "a changed facing alone is a change" do
+    w = wid()
+    World.ensure_started(w)
+    Server.Endpoint.subscribe(World.channel_topic(w))
+    World.update_transform(w, "u1", %{"p" => [1, 1], "pf" => [1, 0]})
+    assert_receive %Phoenix.Socket.Broadcast{event: "states"}, 500
+    World.update_transform(w, "u1", %{"p" => [1, 1], "pf" => [0, 1]})
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: [["u1", 1, 1, +0.0, 1.0 | _]]}}, 500
+  end
+
   test "junk fields aren't stored or relayed" do
     w = wid()
     World.ensure_started(w)

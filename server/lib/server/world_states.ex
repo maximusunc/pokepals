@@ -70,6 +70,16 @@ defmodule Server.WorldStates do
     %{s: for({id, t} <- transforms, do: entry(id, t))}
   end
 
+  @doc """
+  A SNAPSHOT bundle (who is where right now, pushed on join or when cells come into view): the same
+  format, without the load-test send stamp `t`. A snapshot can hold a pose that was sent seconds ago
+  by someone standing still, so its `t` would read as seconds of latency to a bot.
+  """
+  @spec snapshot_bundle(map()) :: map()
+  def snapshot_bundle(transforms) do
+    %{s: for({id, t} <- transforms, do: entry(id, Map.delete(t, "t")))}
+  end
+
   defp pair([x, y], decimals) when is_number(x) and is_number(y) do
     if abs(x) <= @limit and abs(y) <= @limit, do: [round_to(x, decimals), round_to(y, decimals)], else: nil
   end

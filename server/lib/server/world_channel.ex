@@ -185,7 +185,7 @@ defmodule Server.WorldChannel do
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
       peers when map_size(peers) == 0 -> :ok
-      peers -> push(socket, "states", Server.WorldStates.bundle(peers))
+      peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
     end
 
     # The ambient pals' current positions, so a late joiner sees them where they are right now rather

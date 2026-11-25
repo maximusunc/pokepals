@@ -21,6 +21,11 @@ defmodule Server.World do
   players there are, where it used to be one encode per recipient per movement. Each client skips its
   own entry. The ambient pals ride the same tick (every other one, 10 Hz), sent the same way.
 
+  Only changes are sent (SC-4): a player is marked dirty only when their cleaned transform differs
+  from the stored one, ignoring the load-test stamp `t`. Clients send while they move and once a
+  second otherwise (a keepalive); a keepalive that changes nothing is dropped, but its sender is still
+  stored, so still present.
+
   ── DEFERRED SEAMS (scale — NOT built; flagged):
     * WRITE-BEHIND PERSISTENCE of transient state (Oban) — nothing here is worth persisting yet.
     * CLUSTER-AWARE registry: today `Registry` + `DynamicSupervisor` are NODE-LOCAL, so a given
@@ -137,8 +142,14 @@ defmodule Server.World do
         {:noreply, maybe_start_ticking(%{state | transforms: Map.put_new(state.transforms, user_id, %{})})}
 
       clean ->
-        state = %{state | transforms: Map.put(state.transforms, user_id, clean), dirty: MapSet.put(state.dirty, user_id)}
-        {:noreply, maybe_start_ticking(state)}
+        if same_transform?(Map.get(state.transforms, user_id), clean) do
+          # Only changes are sent (SC-4): a packet that says nothing new (a client's 1 Hz keepalive
+          # while standing still) isn't relayed. The sender is already stored, so still counts as here.
+          {:noreply, maybe_start_ticking(state)}
+        else
+          state = %{state | transforms: Map.put(state.transforms, user_id, clean), dirty: MapSet.put(state.dirty, user_id)}
+          {:noreply, maybe_start_ticking(state)}
+        end
     end
   end
 
@@ -216,6 +227,12 @@ defmodule Server.World do
   def handle_info(_msg, state), do: {:noreply, state}
 
   # --- internals ---
+
+  # Whether a cleaned transform says the same as the stored one. The load-test send stamp `t` changes on
+  # every packet, so it's left out of the comparison: an unchanged pose with a new `t` is not a change
+  # (and isn't stored either); a changed pose is stored with its own, latest `t`.
+  defp same_transform?(nil, _clean), do: false
+  defp same_transform?(old, clean), do: Map.delete(old, "t") == Map.delete(clean, "t")
 
   # Kick off the tick when someone's here. No-op if it's already running, so it's called on every
   # transform.
