@@ -302,7 +302,7 @@ func _build_world(cached: Dictionary) -> void:
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
 	_player.set_solids(solids, bounds_rect, body_radius, margin)
-	_companion.set_solids(solids, bounds_rect, body_radius, margin, SkyRealm.ground_test(data.get("sky", {})))
+	_companion.set_solids(solids, bounds_rect, body_radius, margin, _ground_test(data))
 	# The first-meeting flock (if it comes up this session) walks against the same barriers, and
 	# injects its creatures into the live examine list.
 	_encounter_dir.set_world(_interactables, solids, bounds_rect, body_radius, margin)
@@ -684,6 +684,14 @@ func _bind_inlays(views: Array) -> void:
 			bv.hide_inlay()
 
 
+## Which points the companion may plan a route over, in a world where only part of the map is ground: a sky
+## world's islands and bridges (SkyRealm), or a floating plaza's floors and pool (PlazaRealm). Invalid elsewhere.
+func _ground_test(data: Dictionary) -> Callable:
+	if data.has("sky"):
+		return SkyRealm.ground_test(data["sky"])
+	return PlazaRealm.ground_test(data.get("plaza", {}))
+
+
 func rebuild_solids_dropping(slab_id: String) -> void:
 	var data_copy: Dictionary = _world_data.duplicate(true)
 	for it in data_copy.get("props", []):
@@ -691,7 +699,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 			it["solid"] = false
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(data_copy.get("sky", {})))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(data_copy))
 
 
 ## Rebuild the barriers from the world's data as it stands now (your house was just finished: its furniture
@@ -699,7 +707,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 func rebuild_world_solids() -> void:
 	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(_world_data.get("sky", {})))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(_world_data))
 
 
 ## Loftreach: a hidden bridge is down. Rebuild the barriers and the companion's walkability grid with it open
@@ -714,7 +722,7 @@ func reveal_sky_bridge(bridge_id: String) -> void:
 	sky["revealed"] = revealed
 	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(sky))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(_world_data))
 
 
 ## Whether the tide covers `p` right now (Ebbmere): water to fish in.
