@@ -1686,8 +1686,9 @@ authored one, `holes`, `source`, `sink`. Code: pure `CircuitBoard` (`scripts/wor
 7. **The dark sector's board.** 5 x 4 with two nodes missing (18 nodes), generated once from a seed and written into the
    spec. It has 11 solutions. The dark patch round it is 512 x 448 with eight red markers on its edge.
 8. **When it closes.** Power sweeps back across the patch in 2.4 s (the grid shader's own power level for that rectangle), a
-   ring runs out from the board, and the spark is in the middle. **It stays lit for 10 minutes, then loses power again** so
-   the next visitor can close it. Someone who arrives while it is lit finds the spark there (with its own line) and may take
+   ring runs out from the board, and the spark is in the middle. **It stays lit for 2 minutes, then loses power again** so
+   the next visitor can close it (the owner asked for 2; it was 10). A spark nobody took goes out with the power, with a
+   line saying so, and is back the next time the board is closed; the server still honours a claim for 20 s after. Someone who arrives while it is lit finds the spark there (with its own line) and may take
    it: it was closed in front of them, or just before. The server honours a claim only while the board is closed.
 9. **The find.** `steady_spark`: a small four-pointed star with a white heart that does not flicker or breathe, on purpose
    (everything else here does). Keepsake `kept_steady_spark`: the spark in a little corked jar on a saucer. Qualities:
@@ -1721,8 +1722,11 @@ authored one, `holes`, `source`, `sink`. Code: pure `CircuitBoard` (`scripts/wor
     off their line when someone is within 46 px. They are not examinable and do not change their routes when the sector
     lights.
 19. **Opt-outs.** No fishing and no chopping here (there is no water, and the trees are not wood).
-20. **Music.** `ohmstead.score`: A minor, 100 bpm, a soft tine sequencer and its echo, a round bass, a pad, a glass lead.
-    Rendered and loudness-matched like the others, but **not listened to by the builder**.
+20. **Music.** `ohmstead.score`: A minor, 96 bpm, in sixteenths, and plainly electronic, unlike every other world's:
+    a hollow square-wave sequencer and its echo, a synth bass, a pad, a soft synth lead (three new instruments in
+    `synth.py`: `pulse`, `synthbass`, `synthlead`). The first version used the music-box tine over a pad, the same soft
+    sounds as the Vale's track, and the owner took it for the Vale's music. Rendered and loudness-matched like the others,
+    measurably brighter and busier than the Vale's, but still **not listened to by the builder**.
 21. **Cost.** Under software rendering at 1280 x 720 (a stand-in for a slow GPU, not a web measurement) Ohmstead's frame took
     about 38 ms, the same as Lanternfold and less than Nocthollow (51) or Steamhollow (44). The board view redraws only when
     a board changes; the hint search runs once per change.
@@ -1732,8 +1736,10 @@ authored one, `holes`, `source`, `sink`. Code: pure `CircuitBoard` (`scripts/wor
 **How it was checked.** `tests/test_circuit.gd` (the rules against the shared vectors, the hint, the runners' routes),
 `tests/smoke_ohmstead.gd` (the world offline: the look, the runners, the sector's board played through the director),
 `server/test/circuit_test.exs` and `circuit_channel_test.exs` (the rules, dealing, the shared state, pay, the claim), and
-`tests/e2e_ohmstead.gd`, a dev tool that plays the sector and the table against a real local server. Not run: the web export
-and its world-pack build.
+`tests/e2e_ohmstead.gd`, a dev tool that plays the sector and the table against a real local server. The web export and its world-pack
+build (`tools/packs/build_packs.py`) were run once: every world passed the build's own check, and Ohmstead's art, grid
+shader and music go in its own pack (about 0.9 MB). Run `e2e_ohmstead.gd` with a display, not `--headless`: headless frames
+run faster than the position reports the claim depends on.
 
 ## How we work through it
 

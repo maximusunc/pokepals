@@ -486,8 +486,8 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   Client: `CircuitDirector` (`mechanics/`) and `CircuitView`.
 > - **Secret:** a sector in the north-east has lost its power (cold lines, red markers). Close its board and the
 >   power sweeps back; a steady spark is waiting in the middle. New reveal type `circuit`: the server CAN check it
->   (the board must be closed), still "standing at it". The sector goes dark again 10 minutes later for the next
->   visitor.
+>   (the board must be closed), still "standing at it". The sector goes dark again 2 minutes later for the next
+>   visitor (an untaken spark goes out with it and comes back on the next close).
 > - **The Arcade:** two more boards, south of the middle. The **table** is dealt fresh by the server a few seconds
 >   after each close; **today's** is one larger board a day (seeded from the UTC date, the same for everyone) and
 >   stays lit once closed. Closing one pays everyone who laid part of it: coins and **sparks** (a new material,
