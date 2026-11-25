@@ -1643,8 +1643,8 @@ Ohmstead (working name was Vectorgrid) is one of the "completely different skin"
 Gateway, seen from inside**. A black void, a glowing grid floor running off into the dark, and everything drawn as bright
 outlines with bloom and faint scanlines. It hides **a sector that has lost power**, which you switch back on by having your
 companion **lay one unbroken ribbon of light through every dead node**. It is also the first world designed with a reason to
-come back: **the Arcade**, a games floor with no opponents. Nothing here is built. The pitch below was agreed with the owner;
-everything under "Open" is still to be decided, one item at a time.
+come back: **the Arcade**, a games floor with no opponents. Nothing here is built. The pitch and the details below were agreed
+with the owner; everything under "Open" is still to be decided, one item at a time.
 
 **Look (agreed).** The "Ohmstead World Rendering" design canvas (https://claude.ai/artifact/DCAdhM1EqiUGYjamy6o1ni). Each
 colour has one job: cyan is the world and the grid, magenta is a player (what they wear stays readable as white linework),
@@ -1675,27 +1675,31 @@ ordinary pace while it lays a ribbon, and **you never ride it** (both decided).
 - **A ribbon race** (second, a later build): a track you and your companion run round, each leaving a ribbon. It needs new
   movement, so it follows the Arcade.
 
+**Details decided 2026-11-25:**
+1. **The reveal type** is `circuit`, checked by the server as "this world, standing at it", like `stillness`.
+2. **The find** is a single steady spark.
+3. **Hints:** the companion glances at a good next node, sooner with a deeper bond.
+4. **Forms:** a bird flies above the board and lays nothing, which is the cue to change shape.
+5. **Friends:** a friend's pair can lay part of the same ribbon in the dark sector.
+6. **What the Arcade pays:** coins plus a material found only here, called sparks, for the craft loop.
+7. **Pace:** a board shows your own best time, with no leaderboard and no losing.
+
 **Open (each awaits a decision):**
-1. **The reveal type.** Proposed `circuit`, checked by the server as "this world, standing at it" like `stillness`.
-2. **The find.** Proposed: a single steady spark. Its keepsake drawing, lore and qualities are undecided.
-3. **The board.** How many nodes, whether the authored one has a single solution, and how big the dark sector is.
-4. **Hints.** Proposed: the companion glances at a good next node, sooner with a deeper bond.
-5. **Forms.** Proposed: a bird flies above the board and lays nothing, which is the cue to change shape. Whether any other
-   form differs is undecided.
-6. **Friends.** Proposed: a friend's pair can lay part of the same ribbon in the dark sector. Needs shared state (the Ruin
-   has server-authoritative shared state to copy from) or a relay.
-7. **What the Arcade pays.** Proposed: coins plus a material found only here (working name "sparks") for the craft loop. What
-   sparks make is undecided.
-8. **Pace.** Proposed: a board shows your own best time, with no leaderboard and no losing.
-9. **Board of the day.** Whether a finished one stays lit for everyone until the day turns, and where "done today" is kept.
-10. **Runners.** Whether they are server-simulated ambient pals (`"form": false`), whether they are examinable, and what
-    they do near the dark sector.
-11. **Day-cycle.** None is drawn. Undecided.
-12. **How it plugs in.** Unconfirmed, from the issue: an `actor_look` outline shader for players and companions (the
-    `BrickLook` / `OtherworldLook` pattern), a grid ground shader with a pulse `GlowTrail` style, line-art generators
-    (`tools/gen_ohmstead*.py`) through the world's `art` block, and bloom plus scanlines for the screen.
-13. **Performance.** The budget for bloom, outlines and scanlines on the web build, measured in the worst case.
-14. **The race.** Everything about it.
+1. **The find's details.** The spark's keepsake drawing, lore and qualities.
+2. **The board.** How many nodes, whether the authored one has a single solution, and how big the dark sector is.
+3. **Other forms.** Whether any form besides the bird behaves differently.
+4. **How friends share a ribbon.** It needs shared state (the Ruin has server-authoritative shared state to copy from) or a
+   relay.
+5. **What sparks make.**
+6. **Board of the day.** Whether a finished one stays lit for everyone until the day turns, and where "done today" is kept.
+7. **Runners.** Whether they are server-simulated ambient pals (`"form": false`), whether they are examinable, and what
+   they do near the dark sector.
+8. **Day-cycle.** None is drawn. Undecided.
+9. **How it plugs in.** Unconfirmed, from the issue: an `actor_look` outline shader for players and companions (the
+   `BrickLook` / `OtherworldLook` pattern), a grid ground shader with a pulse `GlowTrail` style, line-art generators
+   (`tools/gen_ohmstead*.py`) through the world's `art` block, and bloom plus scanlines for the screen.
+10. **Performance.** The budget for bloom, outlines and scanlines on the web build, measured in the worst case.
+11. **The race.** Everything about it.
 
 ## How we work through it
 
