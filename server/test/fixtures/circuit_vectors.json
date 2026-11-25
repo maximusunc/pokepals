@@ -1,0 +1,1343 @@
+{
+ "_comment": "The ribbon rules (CircuitBoard on the client, Server.Circuit.Board on the server), as cases both test suites replay. run: light a straight run from the head to `node` (`lit` is what it lights, [] if refused). wind: wind back to `node` (`ok` false if it is not lit; naming the head takes one node off). `path` and `closed` are the state after the step.",
+ "cases": [
+  {
+   "name": "the sector's board, closed by its own solution, one node at a time",
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 10,
+     "lit": [
+      10
+     ],
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 11,
+     "lit": [
+      11
+     ],
+     "path": [
+      10,
+      11
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 6,
+     "lit": [
+      6
+     ],
+     "path": [
+      10,
+      11,
+      6
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 5,
+     "lit": [
+      5
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [
+      0
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 1,
+     "lit": [
+      1
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 2,
+     "lit": [
+      2
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 7,
+     "lit": [
+      7
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 12,
+     "lit": [
+      12
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 13,
+     "lit": [
+      13
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 8,
+     "lit": [
+      8
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 3,
+     "lit": [
+      3
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 4,
+     "lit": [
+      4
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 9,
+     "lit": [
+      9
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 14,
+     "lit": [
+      14
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9,
+      14
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 19,
+     "lit": [
+      19
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9,
+      14,
+      19
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 18,
+     "lit": [
+      18
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9,
+      14,
+      19,
+      18
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 17,
+     "lit": [
+      17
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9,
+      14,
+      19,
+      18,
+      17
+     ],
+     "closed": true
+    }
+   ]
+  },
+  {
+   "name": "the same board with straight runs across several nodes",
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 10,
+     "lit": [
+      10
+     ],
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 11,
+     "lit": [
+      11
+     ],
+     "path": [
+      10,
+      11
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 6,
+     "lit": [
+      6
+     ],
+     "path": [
+      10,
+      11,
+      6
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 5,
+     "lit": [
+      5
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [
+      0
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 2,
+     "lit": [
+      1,
+      2
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 12,
+     "lit": [
+      7,
+      12
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 13,
+     "lit": [
+      13
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 3,
+     "lit": [
+      8,
+      3
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 4,
+     "lit": [
+      4
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 19,
+     "lit": [
+      9,
+      14,
+      19
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9,
+      14,
+      19
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 17,
+     "lit": [
+      18,
+      17
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      5,
+      0,
+      1,
+      2,
+      7,
+      12,
+      13,
+      8,
+      3,
+      4,
+      9,
+      14,
+      19,
+      18,
+      17
+     ],
+     "closed": true
+    }
+   ]
+  },
+  {
+   "name": "what is refused: not the source first, a diagonal, a hole in the way, a lit node, off the board",
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [],
+     "path": [],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 11,
+     "lit": [],
+     "path": [],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 10,
+     "lit": [
+      10
+     ],
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 6,
+     "lit": [],
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 15,
+     "lit": [],
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 12,
+     "lit": [
+      11,
+      12
+     ],
+     "path": [
+      10,
+      11,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 10,
+     "lit": [],
+     "path": [
+      10,
+      11,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 99,
+     "lit": [],
+     "path": [
+      10,
+      11,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": -1,
+     "lit": [],
+     "path": [
+      10,
+      11,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 14,
+     "lit": [
+      13,
+      14
+     ],
+     "path": [
+      10,
+      11,
+      12,
+      13,
+      14
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 11,
+     "lit": [],
+     "path": [
+      10,
+      11,
+      12,
+      13,
+      14
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 13,
+     "lit": [],
+     "path": [
+      10,
+      11,
+      12,
+      13,
+      14
+     ],
+     "closed": false
+    }
+   ]
+  },
+  {
+   "name": "winding back: to an earlier node, the head (one comes off), a node that is not lit, and all the way out",
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 10,
+     "lit": [
+      10
+     ],
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 14,
+     "lit": [
+      11,
+      12,
+      13,
+      14
+     ],
+     "path": [
+      10,
+      11,
+      12,
+      13,
+      14
+     ],
+     "closed": false
+    },
+    {
+     "op": "wind",
+     "node": 12,
+     "ok": true,
+     "path": [
+      10,
+      11,
+      12
+     ],
+     "closed": false
+    },
+    {
+     "op": "wind",
+     "node": 12,
+     "ok": true,
+     "path": [
+      10,
+      11
+     ],
+     "closed": false
+    },
+    {
+     "op": "wind",
+     "node": 3,
+     "ok": false,
+     "path": [
+      10,
+      11
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 1,
+     "lit": [
+      6,
+      1
+     ],
+     "path": [
+      10,
+      11,
+      6,
+      1
+     ],
+     "closed": false
+    },
+    {
+     "op": "wind",
+     "node": 10,
+     "ok": true,
+     "path": [
+      10
+     ],
+     "closed": false
+    },
+    {
+     "op": "wind",
+     "node": 10,
+     "ok": true,
+     "path": [],
+     "closed": false
+    },
+    {
+     "op": "wind",
+     "node": 10,
+     "ok": false,
+     "path": [],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 11,
+     "lit": [],
+     "path": [],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 10,
+     "lit": [
+      10
+     ],
+     "path": [
+      10
+     ],
+     "closed": false
+    }
+   ]
+  },
+  {
+   "name": "a plain 3 by 3: a snake closes it, and winding one node off opens it again",
+   "board": {
+    "cols": 3,
+    "rows": 3,
+    "holes": [],
+    "source": 0,
+    "sink": 8
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [
+      0
+     ],
+     "path": [
+      0
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 2,
+     "lit": [
+      1,
+      2
+     ],
+     "path": [
+      0,
+      1,
+      2
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 5,
+     "lit": [
+      5
+     ],
+     "path": [
+      0,
+      1,
+      2,
+      5
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 3,
+     "lit": [
+      4,
+      3
+     ],
+     "path": [
+      0,
+      1,
+      2,
+      5,
+      4,
+      3
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 6,
+     "lit": [
+      6
+     ],
+     "path": [
+      0,
+      1,
+      2,
+      5,
+      4,
+      3,
+      6
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 8,
+     "lit": [
+      7,
+      8
+     ],
+     "path": [
+      0,
+      1,
+      2,
+      5,
+      4,
+      3,
+      6,
+      7,
+      8
+     ],
+     "closed": true
+    },
+    {
+     "op": "wind",
+     "node": 8,
+     "ok": true,
+     "path": [
+      0,
+      1,
+      2,
+      5,
+      4,
+      3,
+      6,
+      7
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 8,
+     "lit": [
+      8
+     ],
+     "path": [
+      0,
+      1,
+      2,
+      5,
+      4,
+      3,
+      6,
+      7,
+      8
+     ],
+     "closed": true
+    }
+   ]
+  },
+  {
+   "name": "a run cannot pass through the ribbon",
+   "board": {
+    "cols": 3,
+    "rows": 3,
+    "holes": [],
+    "source": 0,
+    "sink": 8
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [
+      0
+     ],
+     "path": [
+      0
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 1,
+     "lit": [
+      1
+     ],
+     "path": [
+      0,
+      1
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 4,
+     "lit": [
+      4
+     ],
+     "path": [
+      0,
+      1,
+      4
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 3,
+     "lit": [
+      3
+     ],
+     "path": [
+      0,
+      1,
+      4,
+      3
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 5,
+     "lit": [],
+     "path": [
+      0,
+      1,
+      4,
+      3
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 6,
+     "lit": [
+      6
+     ],
+     "path": [
+      0,
+      1,
+      4,
+      3,
+      6
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [],
+     "path": [
+      0,
+      1,
+      4,
+      3,
+      6
+     ],
+     "closed": false
+    }
+   ]
+  },
+  {
+   "name": "every node lit but the head is not on the sink: not closed",
+   "board": {
+    "cols": 3,
+    "rows": 3,
+    "holes": [],
+    "source": 0,
+    "sink": 2
+   },
+   "steps": [
+    {
+     "op": "run",
+     "node": 0,
+     "lit": [
+      0
+     ],
+     "path": [
+      0
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 6,
+     "lit": [
+      3,
+      6
+     ],
+     "path": [
+      0,
+      3,
+      6
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 8,
+     "lit": [
+      7,
+      8
+     ],
+     "path": [
+      0,
+      3,
+      6,
+      7,
+      8
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 2,
+     "lit": [
+      5,
+      2
+     ],
+     "path": [
+      0,
+      3,
+      6,
+      7,
+      8,
+      5,
+      2
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 1,
+     "lit": [
+      1
+     ],
+     "path": [
+      0,
+      3,
+      6,
+      7,
+      8,
+      5,
+      2,
+      1
+     ],
+     "closed": false
+    },
+    {
+     "op": "run",
+     "node": 4,
+     "lit": [
+      4
+     ],
+     "path": [
+      0,
+      3,
+      6,
+      7,
+      8,
+      5,
+      2,
+      1,
+      4
+     ],
+     "closed": false
+    }
+   ]
+  }
+ ],
+ "hints": [
+  {
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "path": [],
+   "hint": 10
+  },
+  {
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "path": [
+    10,
+    11,
+    6,
+    5,
+    0,
+    1,
+    2,
+    7,
+    12,
+    13,
+    8,
+    3,
+    4,
+    9,
+    14,
+    19,
+    18
+   ],
+   "hint": 17
+  },
+  {
+   "board": {
+    "cols": 5,
+    "rows": 4,
+    "holes": [
+     15,
+     16
+    ],
+    "source": 10,
+    "sink": 17
+   },
+   "path": [
+    10,
+    11,
+    12,
+    13,
+    14
+   ],
+   "hint": -2
+  },
+  {
+   "board": {
+    "cols": 3,
+    "rows": 3,
+    "holes": [],
+    "source": 0,
+    "sink": 8
+   },
+   "path": [
+    0,
+    1,
+    2,
+    5,
+    4,
+    3,
+    6,
+    7
+   ],
+   "hint": 8
+  },
+  {
+   "board": {
+    "cols": 3,
+    "rows": 3,
+    "holes": [],
+    "source": 0,
+    "sink": 8
+   },
+   "path": [
+    0,
+    3,
+    4
+   ],
+   "hint": -2
+  }
+ ]
+}
