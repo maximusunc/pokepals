@@ -313,10 +313,11 @@ ART = {
                         "dirt": {"scale": 0.006, "threshold": 0.9}},
         },
         "ambient_life": {"butterflies": {"count": 0}, "fireflies": {"count": 0}, "leaves": {"rate": 0.0},
-                         "clouds": {"count": 5, "alpha": 0.16, "speed": 7}},
-        "tree": {"render": "sprite", "variants": tree_variants(["round_a", "oak_a", "round_b", "pine_a", "round_c", "oak_b", "fruit_a"])},
-        "pine": {"render": "sprite", "variants": tree_variants(["pine_a", "pine_b"])},
-        "blossom": {"render": "sprite", "variants": tree_variants(["blossom_a"])},
+                         "clouds": {"count": 0}},
+        "tree": {"render": "sprite", "sway": 0.0, "variants": tree_variants(["round_a", "oak_a", "round_b", "pine_a", "round_c", "oak_b", "fruit_a"])},
+        "pine": {"render": "sprite", "sway": 0.0, "variants": tree_variants(["pine_a", "pine_b"])},
+        "great_tree": {"sway": 0.0},
+        "blossom": {"render": "sprite", "sway": 0.0, "variants": tree_variants(["blossom_a"])},
         # the secret's prop is a character on the page (GlyphPage draws it), so WorldArt never paints it
         "props": {"unseen": ["unseen"]},
     },
@@ -343,14 +344,15 @@ SENTENCES = [
 ATMOSPHERE = {
     "day_tint": [1.0, 1.0, 1.0],
     "vignette": {"strength": 0.30, "color": [0.02, 0.03, 0.05]},
-    "wind": {"strength": 1.2, "speed": 0.8},
+    # No wind: a tree or a tuft that sways underneath makes the characters at its edge flip back and forth.
+    "wind": {"strength": 0.0, "speed": 0.0},
     "pollen": {"amount": 0},
     "region_tint_alpha": 0.0,
     "grass": {"max": 0},
     # THE PAGE: the whole picture written again as monospace characters (GlyphPage). Full colour on a dark page.
     "glyphs": {
         "cell": list(CELL), "page": [0.035, 0.040, 0.060], "bg_tint": 0.10, "actor_bg": 0.42, "ink_floor": 0.5,
-        "lum_lo": 0.10, "lum_hi": 0.72, "grass_gap": 0.3, "sway": 0.07, "water_rate": 1.1, "type_in": 1.6,
+        "lum_lo": 0.10, "lum_hi": 0.72, "grass_gap": 0.3, "sway": 0.025, "water_rate": 0.06, "type_in": 1.6,
         "actor_box": [9, 17, -11],
         # a line of the page is two sentences end to end, so a path does not say the same thing twice in one view
         "sentences": [SENTENCES[i] + SENTENCES[(i + 4) % len(SENTENCES)] for i in range(len(SENTENCES))],

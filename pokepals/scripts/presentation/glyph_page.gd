@@ -22,8 +22,8 @@ extends CanvasLayer
 ##   actor_bg     0.42             ...and under a visitor's cells
 ##   ink_floor    0.5              the dimmest ink, as a fraction of full brightness
 ##   lum_lo/lum_hi 0.10 / 0.72     the brightness range spread over a row's four pairs of characters
-##   sway         0.07             how far grass and leaves lean in the wind, in cell widths
-##   water_rate   1.1              how often a water cell changes its character, per second
+##   sway         0.025            how far grass and leaves lean, in cell widths (a breath, not a wave)
+##   water_rate   0.06             how fast the ripple bands drift across water, radians a second
 ##   actor_box    [9, 17, -11]     half width, half height and y offset of a walker's fine-print box (world px)
 ##   type_in      1.6              seconds the page takes to be written in on arrival (0: at once)
 

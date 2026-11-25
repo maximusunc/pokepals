@@ -216,13 +216,12 @@
 					"rate": 0.0
 				},
 				"clouds": {
-					"count": 5,
-					"alpha": 0.16,
-					"speed": 7
+					"count": 0
 				}
 			},
 			"tree": {
 				"render": "sprite",
+				"sway": 0.0,
 				"variants": [
 					{
 						"trunk": "res://assets/sprites/grove_round_a_trunk.png",
@@ -256,6 +255,7 @@
 			},
 			"pine": {
 				"render": "sprite",
+				"sway": 0.0,
 				"variants": [
 					{
 						"trunk": "res://assets/sprites/grove_pine_a_trunk.png",
@@ -267,8 +267,12 @@
 					}
 				]
 			},
+			"great_tree": {
+				"sway": 0.0
+			},
 			"blossom": {
 				"render": "sprite",
+				"sway": 0.0,
 				"variants": [
 					{
 						"trunk": "res://assets/sprites/grove_blossom_a_trunk.png",
@@ -307,8 +311,8 @@
 			]
 		},
 		"wind": {
-			"strength": 1.2,
-			"speed": 0.8
+			"strength": 0.0,
+			"speed": 0.0
 		},
 		"pollen": {
 			"amount": 0
@@ -333,8 +337,8 @@
 			"lum_lo": 0.1,
 			"lum_hi": 0.72,
 			"grass_gap": 0.3,
-			"sway": 0.07,
-			"water_rate": 1.1,
+			"sway": 0.025,
+			"water_rate": 0.06,
 			"type_in": 1.6,
 			"actor_box": [
 				9,

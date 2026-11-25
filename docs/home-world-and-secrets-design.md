@@ -1789,13 +1789,19 @@ lines, reveal_line }`. Code: pure `GlyphNotice` (`scripts/world`, tested), `Misp
    colours and your companion keeps its animal's. Cost of the mark: soft pixels on a visitor (the shadow under the
    feet) are not drawn in this world. **Ambient pals are not marked:** they show as a few full-size characters in their
    own colour.
-8. **It moves.** Grass and leaves lean from the foot of the character in the wind; water cells keep changing between
-   `~` and `≈`; cloud shadows drift across and dim the characters under them.
+8. **It keeps still.** The first build was restless on a phone (the owner's word: spastic): trees and ground litter
+   swayed in the wind underneath, so the characters at their edges kept flipping; every grass character leaned back and
+   forth; each water cell changed its character at random about once a second; cloud shadows dimmed whole patches. Now
+   this world has no wind, its trees and litter do not sway, there are no cloud shadows, the lean is a third of what it
+   was (barely a breath), and water ripples as slow bands of `≈` drifting across the `~` together. Measured on
+   screenshots a moment apart while standing still, the share of the picture that changed fell from about 2.5% to
+   under 0.1% on land and from 4.4% to about 0.15% by the Inkwell (the ink itself is about 5.5% of the picture). When
+   the camera moves, the characters hold (0.02% changed).
 9. **The arrival.** The page is typed in from the top, a line at a time behind a pale cursor, over 1.6 s (`type_in`).
 10. **The world underneath** is the shared meadow art with its colours tuned by the world's `art` block (olive grass,
     the green tree kinds only, pale sandy paths), and a neutral day tint with no day cycle, so colours stay in their
-    families. No new pixel art. Butterflies, fireflies, pollen and falling leaves are off (single pixels flicker as
-    text); the scattered ground litter stays and gives the grass its variety.
+    families. No new pixel art. Butterflies, fireflies, pollen, falling leaves, wind and cloud shadows are off (anything
+    that moves underneath makes characters flip); the scattered ground litter stays and gives the grass its variety.
 11. **Trees in paragraphs.** In Paragraph Wood the trees stand in six blocks of rows, the first row indented and the
     last one short. Blossom trees ring the title stone in the Heading. The Unwritten is nearly empty on purpose.
 12. **The wrong glyph is an ampersand,** in the grass's own colour, in open grass a way past where a path stops in the

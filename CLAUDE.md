@@ -507,8 +507,10 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   becomes text with no work of its own: trees, props, friends, a fishing line. The cells are pinned to the
 >   **world**, so the text scrolls like a page and never swims. The colour under a cell picks the atlas row
 >   (olive: grass, green: leaves, blue: water, sandy: earth, dark brown: wood, grey: stone, pink: bloom), its
->   brightness picks a pair in the row and a hash of the cell picks one of the pair. Grass leans in the wind,
->   water keeps changing its character, and on arrival the page is typed in from the top behind a cursor.
+>   brightness picks a pair in the row and a hash of the cell picks one of the pair. The page keeps still on
+>   purpose: no wind, tree sway or cloud shadows in this world (anything moving underneath makes characters
+>   flip), grass barely leans, and water ripples in slow bands. On arrival the page is typed in from the top
+>   behind a cursor.
 > - **Paths are sentences:** every cell of earth takes its letter from the spec's
 >   `atmosphere.glyphs.sentences`, a line to each row of the page. Paths are ruled straight (`path_meander: 0`,
 >   a new spec key; the default is 9) so they read.

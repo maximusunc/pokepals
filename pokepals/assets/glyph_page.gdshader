@@ -22,8 +22,8 @@ uniform float ink_floor = 0.5;                 // the dimmest ink (as a fraction
 uniform float lum_lo = 0.10;                   // brightness mapped to the first pair of a row...
 uniform float lum_hi = 0.72;                   // ...and to the last
 uniform float blank_under = 0.03;              // darker than this: no character at all
-uniform float sway = 0.07;                     // how far grass and leaves lean in the wind (cell widths)
-uniform float water_rate = 1.1;                // how often a water cell changes its character (per second)
+uniform float sway = 0.025;                    // how far grass and leaves lean in the wind (cell widths)
+uniform float water_rate = 0.06;               // how fast the ripple bands drift across water (radians a second)
 uniform float wood_under = 0.40;               // a brown darker than this is wood; lighter is earth
 uniform float grass_gap = 0.3;                 // the share of grass cells left empty
 uniform float mark_under = 0.8;                // a cell whose alpha averages under this holds a visitor
@@ -135,7 +135,9 @@ void fragment() {
 	float h = hash(ci);
 	float pick = h;
 	if (row == 2.0) {
-		pick = hash(ci + floor(time * water_rate + h * 7.0));   // water keeps changing its mind
+		// water ripples: slow bands of the second character drift across it together (cells flipping one by
+		// one at random made the whole pond twitch)
+		pick = 0.5 + 0.5 * sin(cc.x * 0.045 + cc.y * 0.11 - time * water_rate + h * 1.4);
 	}
 	float idx = row * atlas_grid.x + level * 2.0 + step(0.5, pick);
 	float gap = 0.0;
