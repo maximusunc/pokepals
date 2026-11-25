@@ -496,6 +496,38 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   a real server; `tests/shot_world.gd` screenshots any world. Every finer choice is listed, open for review, in
 >   `docs/home-world-and-secrets-design.md` ("Ohmstead"). The ribbon race is not built.
 
+> **Glyphfall (2026-11):** the third world that looks like **a different game**: the whole world is drawn in
+> monospace characters, full colour on a dark page (issue #159). The story: somebody described a valley so
+> carefully that the description became the place. Grass is quote marks, water is tildes, trees are clubs and
+> spades, and **the paths are the writer's sentences, which you can read as you walk**. 3200x2400, reached through
+> the Gateway (featured). The HUD and every panel stay as they are everywhere else.
+> - **The look is one layer:** `GlyphPage` (a CanvasLayer that follows the camera, under the vignette and the HUD)
+>   lays one quad over the view. Its shader (`assets/glyph_page.gdshader`) reads the finished picture (the one
+>   screen read in the game) and writes it again a character cell at a time (8x12 world px), so everything
+>   becomes text with no work of its own: trees, props, friends, a fishing line. The cells are pinned to the
+>   **world**, so the text scrolls like a page and never swims. The colour under a cell picks the atlas row
+>   (olive: grass, green: leaves, blue: water, sandy: earth, dark brown: wood, grey: stone, pink: bloom), its
+>   brightness picks a pair in the row and a hash of the cell picks one of the pair. Grass leans in the wind,
+>   water keeps changing its character, and on arrival the page is typed in from the top behind a cursor.
+> - **Paths are sentences:** every cell of earth takes its letter from the spec's
+>   `atmosphere.glyphs.sentences`, a line to each row of the page. Paths are ruled straight (`path_meander: 0`,
+>   a new spec key; the default is 9) so they read.
+> - **Visitors in fine print:** an `actor_look.glyph` (`OtherworldLook`, `assets/glyph_actor.gdshader`) draws
+>   every player and companion as they are but with blending off and a **mark in the picture's alpha**; the page
+>   writes marked pixels at half size in dense letters with a tinted cell behind, so a person stays a person.
+> - **The world underneath** is the shared meadow art, re-coloured by its `art` block so each material falls in
+>   one colour family. Trees stand in **paragraphs** (rows, the first indented, the last short).
+> - **Secret:** one character is the wrong glyph: an ampersand in the grass of the Unwritten, where the path
+>   stops mid-thought, in the grass's own colour. Only your companion notices: it stops and looks, further off
+>   and more often with bond, and more often the nearer you are. Walk to where it looks and the ampersand shines
+>   gold and can be examined; taking it corrects the page. New reveal type `misprint` (server: "this world,
+>   standing at it"). Pure `GlyphNotice` (`scripts/world`, tested) over `MisprintDirector` (`mechanics/`). The
+>   prop's type is `unseen`: the page draws it. Its keepsake at home is a brass "&" on a block.
+> - Atlas: `pokepals/tools/gen_glyphfall.py` (DejaVu Sans Mono Bold, read at bake time; only the rendered
+>   characters are committed). Layout, lore, the sentences and the secret: `tools/gen_glyphfall_world.py`.
+>   `tests/smoke_glyphfall.gd`; look at it with `tests/shot_world.gd`. Every finer choice is listed, open for
+>   review, in `docs/home-world-and-secrets-design.md` ("Glyphfall").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel
