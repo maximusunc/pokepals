@@ -1676,7 +1676,9 @@ authored one, `holes`, `source`, `sink`. Code: pure `CircuitBoard` (`scripts/wor
 4. **Forms.** A bird lays nothing and says why. Every other shape lays the ribbon the same way; no form is faster or reaches
    further. The companion's own form drift is held off while it works.
 5. **The hint.** After 14 s without a move (4 s at full bond) the companion looks at a good next node for 1.8 s and a faint
-   ring marks it. The node comes from a search for a full solution from where the ribbon is, worked out once per change of the
+   ring marks it. The look never holds its body (`listen_toward`, not the hunt's `point_at`): the first version froze it,
+   and a tap during the glance left it unable to move (found by the owner in play, fixed, and now guarded by
+   `tests/smoke_ohmstead_walk.gd`, where the companion walks the boards on its own legs). The node comes from a search for a full solution from where the ribbon is, worked out once per change of the
    board and capped, never per frame. If there is no way on from here it looks back along the ribbon, and a line says the
    ribbon has to be wound back.
 6. **Shared, and the server's.** Every board's state lives in one server process (`Server.Circuit`), keyed by world and
@@ -1735,6 +1737,7 @@ authored one, `holes`, `source`, `sink`. Code: pure `CircuitBoard` (`scripts/wor
 
 **How it was checked.** `tests/test_circuit.gd` (the rules against the shared vectors, the hint, the runners' routes),
 `tests/smoke_ohmstead.gd` (the world offline: the look, the runners, the sector's board played through the director),
+`tests/smoke_ohmstead_walk.gd` (eleven awkward situations with the companion really walking; each must still close),
 `server/test/circuit_test.exs` and `circuit_channel_test.exs` (the rules, dealing, the shared state, pay, the claim), and
 `tests/e2e_ohmstead.gd`, a dev tool that plays the sector and the table against a real local server. The web export and its world-pack
 build (`tools/packs/build_packs.py`) were run once: every world passed the build's own check, and Ohmstead's art, grid

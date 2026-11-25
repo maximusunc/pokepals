@@ -14,7 +14,8 @@ extends Node
 ##     laid part of), a PET is enjoyed and the standing carries on, walking far away lets the ribbon be, and
 ##     the companion's own form drift is held off while it works;
 ##   * has the companion GLANCE at a good next node after a while, sooner with a deeper bond (the hint comes
-##     from CircuitBoard.hint, worked out once per change, never per frame);
+##     from CircuitBoard.hint, worked out once per change, never per frame). The glance is a look that never
+##     holds the body (listen_toward), so nothing a player does during it can leave the companion standing;
 ##   * hands the look to CircuitView (nodes, ribbon, the stretch behind the companion) and to the grid ground
 ##     (the dark sector's power, which sweeps back when its board closes);
 ##   * says the world's lines, and when a board closes: your time, your best (kept on this device), what it paid.
@@ -50,7 +51,6 @@ var _idle := 0.0                   # seconds since the ribbon last changed, for 
 var _hint_node := -1
 var _hint_for := ""                # "<board>:<seq>" the hint was worked out for
 var _hint_show := 0.0
-var _pointing := false
 var _release_in := -1.0
 var _sweep := {}                   # board id -> the sector's power right now (0..1), while it is changing
 var _notice_t := 0.0
@@ -280,6 +280,7 @@ func on_tap(world: Vector2) -> bool:
 func _tap_node(b: Dictionary, node: int) -> void:
 	var id := String(b["id"])
 	var model: CircuitBoard = b["model"]
+	_end_glance(b)   # you have decided: the companion stops looking at its own idea
 	if bool(b["closed"]):
 		_say("today_done" if String(b["kind"]) == "daily" else "closed", false)
 		return
@@ -329,9 +330,7 @@ func _release() -> void:
 	_hold = -1
 	_waiting = false
 	_release_in = -1.0
-	if _pointing:
-		_companion.point_at(Vector2.ZERO, 0.0)
-		_pointing = false
+	_hint_show = 0.0
 
 
 func _issue(at: Vector2) -> void:
@@ -450,6 +449,14 @@ func _update_pending(b: Dictionary, model: CircuitBoard, to: Vector2) -> void:
 		_view.set_pending(String(b["id"]), from, to, t)
 
 
+## Stop glancing at the hinted node (the look relaxes by itself) and start the wait for the next glance.
+func _end_glance(b: Dictionary) -> void:
+	_hint_show = 0.0
+	_idle = 0.0
+	if _view != null and not b.is_empty():
+		_view.set_hint(String(b["id"]), -1)
+
+
 ## After a while with no move, the companion glances at a good next node: sooner with a deeper bond.
 func _update_hint(delta: float, b: Dictionary, model: CircuitBoard) -> void:
 	_idle += delta
@@ -458,15 +465,12 @@ func _update_hint(delta: float, b: Dictionary, model: CircuitBoard) -> void:
 	if _hint_show > 0.0:
 		_hint_show -= delta
 		if _hint_node >= 0:
-			_companion.point_at(model.pos_of(_hint_node, b["origin"], _spacing), 0.8)
-			_pointing = true
+			# A LOOK, refreshed each frame and relaxing by itself when we stop: CompanionView.listen_toward turns
+			# the gaze and never holds the body. (point_at, the hunt's tell, FREEZES the body until it is cleared;
+			# used here, a tap or a change of the board during the glance left the companion unable to move.)
+			_companion.listen_toward(model.pos_of(_hint_node, b["origin"], _spacing), 0.8)
 		if _hint_show <= 0.0:
-			if _pointing:
-				_companion.point_at(Vector2.ZERO, 0.0)
-				_pointing = false
-			if _view != null:
-				_view.set_hint(String(b["id"]), -1)
-			_idle = 0.0
+			_end_glance(b)
 		return
 	if _idle < delay:
 		return
