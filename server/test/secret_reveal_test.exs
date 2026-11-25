@@ -103,6 +103,12 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "the Unfinished is seen whole from its two marks on the players' screens, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "facets"}}
+    assert SecretReveal.met?(secret, %{})
+    assert SecretReveal.met?(secret, %{touched: MapSet.new(), circuit_closed: false})
+  end
+
   test "a lantern behind a ward can only be taken once that ward is open" do
     secret = %{"reveal" => %{"type" => "ward_open", "ward" => "paired_hall"}}
     refute SecretReveal.met?(secret, %{wards: []})
