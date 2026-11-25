@@ -1637,69 +1637,103 @@ they don't facing north, and the whole flow.
    made, airy. Found already, the picture still lines up from the spot (a toy), without its lark.
 6. **Words:** the hints, the boards' lore and the keepsake line are in the generator, to be tuned.
 
-## Ohmstead — pitch agreed 2026-11-24, NOT built (issue #157)
+## Ohmstead — built 2026-11, every choice below OPEN for the owner's review (issue #157)
 
 Ohmstead (working name was Vectorgrid) is one of the "completely different skin" worlds: **the machine behind the
 Gateway, seen from inside**. A black void, a glowing grid floor running off into the dark, and everything drawn as bright
-outlines with bloom and faint scanlines. It hides **a sector that has lost power**, which you switch back on by having your
-companion **lay one unbroken ribbon of light through every dead node**. It is also the first world designed with a reason to
-come back: **the Arcade**, a games floor with no opponents. Nothing here is built. The pitch and the details below were agreed
-with the owner; everything under "Open" is still to be decided, one item at a time.
+outlines. It hides **a sector that has lost its power**, which you switch back on by having your companion **lay one
+unbroken ribbon of light through every dead node**, and it is the first world built with a reason to come back: **the
+Arcade**, two more boards with the same play. The pitch was agreed (the look, the story, the ribbon secret, the Arcade then
+a race, no speed-up and no riding), and so were these details: reveal type `circuit`; the find is a single steady spark;
+the companion glances at a good next node, sooner with bond; a bird lays nothing; a friend's pair can lay part of the same
+ribbon; the Arcade pays coins plus sparks; your own best time, no leaderboard. **Everything finer was decided by the builder
+and is listed here for review.** Nothing below changes the pitch; if any of it is wrong, say so and it is data or a small
+edit.
 
-**Look (agreed).** The "Ohmstead World Rendering" design canvas (https://claude.ai/artifact/DCAdhM1EqiUGYjamy6o1ni). Each
-colour has one job: cyan is the world and the grid, magenta is a player (what they wear stays readable as white linework),
-amber is a companion (the only warm colour, and the colour of its ribbon), violet is the portal home, red marks the edge of
-the sector with no power, mint is the runners. No footprints: a step lights the grid cells under it and sends a ring outward.
+**What it is.** `server/priv/world_seeds/ohmstead.json` (and the test fixture) from `tools/gen_ohmstead_world.py`; art from
+`pokepals/tools/gen_ohmstead.py` over `tools/pixelart/ohmstead.py`; catalog id `16161616-1616-1616-1616-161616161616`, slug
+`ohmstead`, listed and featured, with the standard small portal home beside the arrival spot. 3200 x 2432, seven regions: the
+Inlet (where you arrive, south-west), the Arcade, the Cache, the Bus, the Heap, Clock Court and the Dark Sector (north-east).
 
-**Story (agreed).** Every world you have visited is drawn by something, and this is that something. The grid is its circuit
-board, and the light running along the lines is the worlds being kept alive. You and your companion show up as wireframes
-because in here you are seen the way the machine sees you. Its natives are **runners**: small wireframe creatures that carry
-packets of light along the grid lines and step politely round you, busy and not hostile. One sector has gone dark; its lines
-are dead and the runners detour round it. We borrow the genre (inside the machine, ribbons of light, games on the grid) and
-none of any film's named things.
+**The secret: reveal type `circuit`.** Spec shape: `secret.reveal` is `{ type, board, reveal_line, lit_line }`, and the board
+it names lives in the spec's `circuits` block with the Arcade's. A board is `{ id, kind, origin, cols, rows }` plus, for an
+authored one, `holes`, `source`, `sink`. Code: pure `CircuitBoard` (`scripts/world`, tested) and its Elixir twin
+`Server.Circuit.Board`, both held to `circuit_vectors.json`; `Server.Circuit` (the shared state); `CircuitDirector`
+(`scripts/presentation/mechanics`) and `CircuitView`; the `circuit` arm of `SecretDirector`.
 
-**The secret (agreed): close the circuit.**
-1. At the edge of the dark sector your companion picks up a charge from a live line.
-2. You **direct** it: tap a dead node and it runs there, laying a solid ribbon of light behind it.
-3. The ribbon has to visit every node and come back to a live line **without crossing itself** (a one-stroke puzzle).
-4. When the loop closes, power sweeps back across the sector, the grid redraws, and the find is at the centre.
+**Judgment calls (all open):**
+1. **The rules of a board.** A lattice of nodes, some missing. The ribbon starts on the **source** (an amber mark, with an
+   arrow coming in from the lattice's edge) and nowhere else. From its head it runs **straight along a row or column** to the
+   node you tap, lighting every node it passes; none may be missing or already lit. That one rule is what makes "a ribbon may
+   not cross itself" true, with no separate check. The board is closed when every node is lit and the head is on the **sink**
+   (a white mark, with an arrow going out). Ending anywhere else is not a failure: you wind back.
+2. **Winding back.** Agreed: "a tap on your companion takes the ribbon back one node". Built as: **tap a lit node and the
+   ribbon winds back to it; tap its head (where your companion is standing) and one node comes off.** Tapping the companion
+   itself is not intercepted.
+3. **A Call puts the ribbon out**, but only if you laid part of it (so a passer-by can't clear a friend's work with a
+   whistle), and the companion comes to you. A Pet is enjoyed and the standing carries on. Walk 520 px away and it lets the
+   ribbon be and follows you; the ribbon stays.
+4. **Forms.** A bird lays nothing and says why. Every other shape lays the ribbon the same way; no form is faster or reaches
+   further. The companion's own form drift is held off while it works.
+5. **The hint.** After 14 s without a move (4 s at full bond) the companion looks at a good next node for 1.8 s and a faint
+   ring marks it. The node comes from a search for a full solution from where the ribbon is, worked out once per change of the
+   board and capped, never per frame. If there is no way on from here it looks back along the ribbon, and a line says the
+   ribbon has to be wound back.
+6. **Shared, and the server's.** Every board's state lives in one server process (`Server.Circuit`), keyed by world and
+   board, and every move is judged there by the same rules. The client says "my companion reached node N"; the server takes
+   its word that the companion is there (companions live on the client) but not that the move is allowed. A ribbon nobody has
+   touched for 5 minutes goes out. A server restart forgets every board, which only means every ribbon is unlaid.
+7. **The dark sector's board.** 5 x 4 with two nodes missing (18 nodes), generated once from a seed and written into the
+   spec. It has 11 solutions. The dark patch round it is 512 x 448 with eight red markers on its edge.
+8. **When it closes.** Power sweeps back across the patch in 2.4 s (the grid shader's own power level for that rectangle), a
+   ring runs out from the board, and the spark is in the middle. **It stays lit for 10 minutes, then loses power again** so
+   the next visitor can close it. Someone who arrives while it is lit finds the spark there (with its own line) and may take
+   it: it was closed in front of them, or just before. The server honours a claim only while the board is closed.
+9. **The find.** `steady_spark`: a small four-pointed star with a white heart that does not flicker or breathe, on purpose
+   (everything else here does). Keepsake `kept_steady_spark`: the spark in a little corked jar on a saucer. Qualities:
+   glowing, small, made. The lore and lines are in the generator, to be tuned.
+10. **The Arcade.** South of the middle, two boards in bright frames with a sign each. **The table**: 5 x 4, two nodes
+    missing, dealt by the server; 5 s after it is closed a different one is dealt. **Today's**: 7 x 4, three nodes missing,
+    seeded from the UTC date, so it is the same board for everyone; once closed it **stays lit until the day turns**. (Four
+    rows, not five: a taller board does not fit the 360-high view with room for the message pill.)
+11. **What it pays.** The table: 5 coins and 1 spark. Today's: 20 coins and 3 sparks. Everyone who laid at least one node of
+    the ribbon is paid the full amount. The numbers are in the spec; the server caps them (50 coins, 5 sparks). The dark
+    sector pays nothing: its prize is the secret. Today's board can only be closed once a day, so it pays once a day, except
+    after a server restart, when it could be closed (and paid) again that day.
+12. **Sparks.** A new material, item 260, shown in the bag with its own icon. **Nothing uses it yet**: what the tinker makes
+    from sparks is still open.
+13. **Your best time.** Counted from the first node lit to the close, for the whole ribbon, whoever laid it. Kept on the
+    device (`user://settings.json`), per board and size, not on the server, so it does not follow you to another device.
+14. **The camera.** While your companion works on a board the view leans toward the board's middle (up to 150 px sideways, 80
+    up or down, and a little lower so the board clears the message pill), and eases back afterwards.
+15. **The look.** The ground is one shader over one quad: thin lines every 32 px, bright ones every 128, a halo on the bright
+    ones, packets of light travelling along them. It is drawn 900 px past the world's bounds and fades out, so there is no
+    border treeline: the world ends in one bright line and then the dark. Trees, props and landmarks are line art with the
+    glow baked into the pixels, because the web build has no bloom pass. Scanlines are one darker screen row in three, in the
+    vignette's existing full-screen pass. Trees do not sway. There is no day-cycle.
+16. **Footsteps.** No prints. Each step lights the grid cell underfoot and sends a ring outward along the lines, magenta for
+    a person and amber for a companion; the shader keeps the last 12.
+17. **Visitors as linework.** One shader on the player and companion nodes: the dark outline every sprite already has, and
+    its silhouette, become the line colour; sharp changes of colour inside become paler inner lines; the rest is a dark fill.
+    The portal home gets the same treatment in violet.
+18. **Runners.** Sixteen, on eight closed routes along the bright lines, none through the dark sector or a board. Where each
+    is, is a pure function of the shared clock, so they are not server-simulated pals and cost the server nothing. They lean
+    off their line when someone is within 46 px. They are not examinable and do not change their routes when the sector
+    lights.
+19. **Opt-outs.** No fishing and no chopping here (there is no water, and the trees are not wood).
+20. **Music.** `ohmstead.score`: A minor, 100 bpm, a soft tine sequencer and its echo, a round bass, a pad, a glass lead.
+    Rendered and loudness-matched like the others, but **not listened to by the builder**.
+21. **Cost.** Under software rendering at 1280 x 720 (a stand-in for a slow GPU, not a web measurement) Ohmstead's frame took
+    about 38 ms, the same as Lanternfold and less than Nocthollow (51) or Steamhollow (44). The board view redraws only when
+    a board changes; the hint search runs once per change.
 
-No fail states: a tap on your companion takes the ribbon back one node, and a Call clears it. The companion runs at its
-ordinary pace while it lays a ribbon, and **you never ride it** (both decided).
+**Not built:** the ribbon race (agreed as a later build; everything about it is still open), and anything that spends sparks.
 
-**Why come back (agreed): the Arcade, then a race.**
-- **The Arcade** (first): a rink that deals circuit boards using the same ribbon mechanic, so the secret teaches it once
-  and the Arcade is where it becomes a game. Boards are generated from a seed, so they never run out. One larger **board of
-  the day** is the same for everyone (a pure function of the date, as Ebbmere's tide is of the time). Every pair on the
-  rink lays ribbons on the same board, so it is solo or together.
-- **A ribbon race** (second, a later build): a track you and your companion run round, each leaving a ribbon. It needs new
-  movement, so it follows the Arcade.
-
-**Details decided 2026-11-25:**
-1. **The reveal type** is `circuit`, checked by the server as "this world, standing at it", like `stillness`.
-2. **The find** is a single steady spark.
-3. **Hints:** the companion glances at a good next node, sooner with a deeper bond.
-4. **Forms:** a bird flies above the board and lays nothing, which is the cue to change shape.
-5. **Friends:** a friend's pair can lay part of the same ribbon in the dark sector.
-6. **What the Arcade pays:** coins plus a material found only here, called sparks, for the craft loop.
-7. **Pace:** a board shows your own best time, with no leaderboard and no losing.
-
-**Open (each awaits a decision):**
-1. **The find's details.** The spark's keepsake drawing, lore and qualities.
-2. **The board.** How many nodes, whether the authored one has a single solution, and how big the dark sector is.
-3. **Other forms.** Whether any form besides the bird behaves differently.
-4. **How friends share a ribbon.** It needs shared state (the Ruin has server-authoritative shared state to copy from) or a
-   relay.
-5. **What sparks make.**
-6. **Board of the day.** Whether a finished one stays lit for everyone until the day turns, and where "done today" is kept.
-7. **Runners.** Whether they are server-simulated ambient pals (`"form": false`), whether they are examinable, and what
-   they do near the dark sector.
-8. **Day-cycle.** None is drawn. Undecided.
-9. **How it plugs in.** Unconfirmed, from the issue: an `actor_look` outline shader for players and companions (the
-   `BrickLook` / `OtherworldLook` pattern), a grid ground shader with a pulse `GlowTrail` style, line-art generators
-   (`tools/gen_ohmstead*.py`) through the world's `art` block, and bloom plus scanlines for the screen.
-10. **Performance.** The budget for bloom, outlines and scanlines on the web build, measured in the worst case.
-11. **The race.** Everything about it.
+**How it was checked.** `tests/test_circuit.gd` (the rules against the shared vectors, the hint, the runners' routes),
+`tests/smoke_ohmstead.gd` (the world offline: the look, the runners, the sector's board played through the director),
+`server/test/circuit_test.exs` and `circuit_channel_test.exs` (the rules, dealing, the shared state, pay, the claim), and
+`tests/e2e_ohmstead.gd`, a dev tool that plays the sector and the table against a real local server. Not run: the web export
+and its world-pack build.
 
 ## How we work through it
 
