@@ -1,0 +1,233 @@
+{
+	"ll_arch": {
+		"foot": 12,
+		"w": 96,
+		"h": 132,
+		"door": {
+			"w": 52,
+			"h": 84
+		}
+	},
+	"ll_arch_view_dusk": {
+		"foot": 12,
+		"w": 96,
+		"h": 132
+	},
+	"ll_arch_view_noon": {
+		"foot": 12,
+		"w": 96,
+		"h": 132
+	},
+	"ll_ball": {
+		"foot": 8,
+		"w": 20,
+		"h": 28,
+		"layers": [
+			"base",
+			"tint",
+			"gloss"
+		]
+	},
+	"ll_bench": {
+		"foot": 8,
+		"w": 56,
+		"h": 36,
+		"layers": [
+			"base",
+			"tint",
+			"gloss"
+		]
+	},
+	"ll_bust_a": {
+		"foot": 0,
+		"w": 40,
+		"h": 56
+	},
+	"ll_bust_b": {
+		"foot": 0,
+		"w": 40,
+		"h": 56
+	},
+	"ll_bust_c": {
+		"foot": 0,
+		"w": 40,
+		"h": 56
+	},
+	"ll_bust_d": {
+		"foot": 0,
+		"w": 40,
+		"h": 56
+	},
+	"ll_chair": {
+		"foot": 8,
+		"w": 20,
+		"h": 38,
+		"layers": [
+			"base",
+			"tint"
+		]
+	},
+	"ll_column": {
+		"foot": 12,
+		"w": 28,
+		"h": 104
+	},
+	"ll_column_broken": {
+		"foot": 12,
+		"w": 28,
+		"h": 56
+	},
+	"ll_cushion": {
+		"foot": 8,
+		"w": 22,
+		"h": 20,
+		"layers": [
+			"base",
+			"tint",
+			"gloss"
+		]
+	},
+	"ll_fern_pot": {
+		"foot": 8,
+		"w": 24,
+		"h": 38,
+		"layers": [
+			"base"
+		]
+	},
+	"ll_fountain_base": {
+		"foot": 44,
+		"w": 176,
+		"h": 96,
+		"anchor": "center"
+	},
+	"ll_fountain_top": {
+		"foot": 44,
+		"w": 176,
+		"h": 150,
+		"anchor": "center"
+	},
+	"ll_great_palm_canopy": {
+		"foot": 12,
+		"w": 112,
+		"h": 192
+	},
+	"ll_great_palm_trunk": {
+		"foot": 12,
+		"w": 112,
+		"h": 192
+	},
+	"ll_lamp": {
+		"foot": 12,
+		"w": 20,
+		"h": 84,
+		"light_y": 62
+	},
+	"ll_lamp_lit": {
+		"foot": 12,
+		"w": 20,
+		"h": 84,
+		"light_y": 62
+	},
+	"ll_lounger": {
+		"foot": 8,
+		"w": 28,
+		"h": 60,
+		"layers": [
+			"base",
+			"tint",
+			"gloss"
+		]
+	},
+	"ll_palm_a_canopy": {
+		"foot": 12,
+		"w": 64,
+		"h": 124
+	},
+	"ll_palm_a_trunk": {
+		"foot": 12,
+		"w": 64,
+		"h": 124
+	},
+	"ll_palm_b_canopy": {
+		"foot": 12,
+		"w": 64,
+		"h": 124
+	},
+	"ll_palm_b_trunk": {
+		"foot": 12,
+		"w": 64,
+		"h": 124
+	},
+	"ll_palm_c_canopy": {
+		"foot": 12,
+		"w": 64,
+		"h": 124
+	},
+	"ll_palm_c_trunk": {
+		"foot": 12,
+		"w": 64,
+		"h": 124
+	},
+	"ll_place_card": {
+		"foot": 8,
+		"w": 12,
+		"h": 18,
+		"layers": [
+			"base",
+			"gloss"
+		]
+	},
+	"ll_planter": {
+		"foot": 8,
+		"w": 36,
+		"h": 44,
+		"layers": [
+			"base"
+		]
+	},
+	"ll_plaque": {
+		"foot": 8,
+		"w": 22,
+		"h": 34,
+		"layers": [
+			"base",
+			"gloss"
+		]
+	},
+	"ll_plinth": {
+		"foot": 12,
+		"w": 36,
+		"h": 40
+	},
+	"ll_pool_rail": {
+		"foot": 8,
+		"w": 20,
+		"h": 34,
+		"layers": [
+			"base"
+		]
+	},
+	"ll_table_set": {
+		"foot": 8,
+		"w": 48,
+		"h": 48,
+		"layers": [
+			"base"
+		],
+		"light_y": 32
+	},
+	"ll_umbrella": {
+		"foot": 12,
+		"w": 60,
+		"h": 84
+	},
+	"ll_urn": {
+		"foot": 8,
+		"w": 22,
+		"h": 38,
+		"layers": [
+			"base"
+		]
+	}
+}
