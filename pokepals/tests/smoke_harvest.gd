@@ -129,6 +129,10 @@ func _process(_delta: float) -> bool:
 			_ok(not hv.can_chop() or hv._target() != 20, "a stump can't be chopped again")
 			# A friend with an axe.
 			_net.emit_signal("peer_joined", "friend")
+			# Puppets are built once a position arrives and the drawing budget has run (SC-2): settle it now.
+			var fp: Vector2 = _world._player.position + Vector2(30, 0)
+			_net.emit_signal("state_received", "friend", { "p": fp, "pf": Vector2.DOWN, "c": fp + Vector2(-20, 10), "cl": Vector2.DOWN })
+			_world._presence_dir.flush_puppets()
 			_net.emit_signal("identity_received", "friend", { "held": "axe" })
 			_wait = 0
 			_step = 5

@@ -260,6 +260,7 @@ func _build_world(cached: Dictionary) -> void:
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
+	_presence_dir.set_crowd(data.get("crowd"))  # who gets drawn in a crowd (SC-2; none = the default budget)
 	_ambient_dir.set_bounds(bounds_rect)  # same clamp for the server-driven ambient pals
 
 	# Barriers: build the solid list once (trees incl. the border ring, tall props, great-trees,

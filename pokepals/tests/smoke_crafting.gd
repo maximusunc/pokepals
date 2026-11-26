@@ -143,6 +143,10 @@ func _process(_delta: float) -> bool:
 			_ok(fish.held_key() == "rod" and not _world._player.get_node("Lantern").visible, "the rod again: the lantern is put away")
 			# A friend with a lantern.
 			_net.emit_signal("peer_joined", "friend")
+			# Puppets are built once a position arrives and the drawing budget has run (SC-2): settle it now.
+			var fp: Vector2 = _world._player.position + Vector2(30, 0)
+			_net.emit_signal("state_received", "friend", { "p": fp, "pf": Vector2.DOWN, "c": fp + Vector2(-20, 10), "cl": Vector2.DOWN })
+			_world._presence_dir.flush_puppets()
 			_net.emit_signal("identity_received", "friend", { "held": "lantern" })
 			_step = 4
 		4:
