@@ -33,8 +33,15 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	var pond_blocks := bool(cfg.get("pond_blocks", true))
 	var organic := PondShape.organic_in(world_data)
 
+	# A tree KIND may have its own radius (the collision block's "kind_radius": a lamp post is thinner than a
+	# palm in its planter); every other tree blocks with tree_radius. A radius of 0 does not block at all.
+	var kind_r: Dictionary = cfg.get("kind_radius", {})
 	for t in world_data.get("trees", []):
-		solids.append({ "center": WorldData.to_vec2(t), "radius": tree_r })
+		var r := tree_r
+		if t is Array and t.size() > 2 and kind_r.has(String(t[2])):
+			r = float(kind_r[String(t[2])])
+		if r > 0.0:
+			solids.append({ "center": WorldData.to_vec2(t), "radius": r })
 	for p in border_pts:
 		solids.append({ "center": p as Vector2, "radius": tree_r })
 	for lm in world_data.get("landmarks", []):
@@ -78,6 +85,9 @@ static func build(world_data: Dictionary, border_pts: Array, cfg: Dictionary) ->
 	# A sky-island world (Loftreach): every island's edge is a fence, bridges cut gaps in it (see SkyRealm).
 	if world_data.has("sky"):
 		solids.append_array(SkyRealm.solids(world_data["sky"]))
+	# A floating plaza (Lingerlong): the outline of its floors and pool is a fence, and past it is sky (PlazaRealm).
+	if world_data.has("plaza"):
+		solids.append_array(PlazaRealm.solids(world_data["plaza"]))
 	return solids
 
 

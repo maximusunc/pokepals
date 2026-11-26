@@ -298,6 +298,40 @@ def synthlead(midi, dur, vel, rng):
     return 0.22 * vel * out * env
 
 
+def epiano(midi, dur, vel, rng):
+    """An electric piano's tine, far off and warm (Lingerlong): a round fundamental, a 2nd harmonic that
+    fades first, a faint bell partial that is gone almost at once, and a slow tremolo, like an old
+    instrument heard from across a sunny square."""
+    f = hz(midi)
+    decay = 2.8 * (330.0 / f) ** 0.35
+    length = decay * 3.5
+    out = _modal(f, [(1.0, 1.0, decay), (2.0, 0.28, decay * 0.35), (3.0, 0.05, decay * 0.2),
+                     (7.1, 0.035, 0.07)], length, vel, 0.0, rng, attack=0.014)
+    t = _t(length)
+    out *= 1.0 + 0.12 * np.sin(2 * np.pi * 4.2 * t + rng.uniform(0, 6.28))
+    return 0.26 * out
+
+
+def haze(midi, dur, vel, rng):
+    """A hazy hum of a pad (Lingerlong): five soft, dark voices each drifting in pitch at its own slow
+    rate, so the chord shimmers and wavers like warm air over marble. It swells in slowly and leans
+    toward a hum: the upper harmonics are rolled well off."""
+    tail = 3.2
+    t = _t(dur + tail)
+    f = hz(midi)
+    out = np.zeros_like(t)
+    for i, cents in enumerate((-9.0, -4.0, 0.0, 4.5, 9.5)):
+        rate = 0.09 + 0.05 * i + rng.uniform(0, 0.03)
+        drift = 1.0 + (cents + 2.5 * np.sin(2 * np.pi * rate * t + rng.uniform(0, 6.28))) / 1731.0
+        ph = 2 * np.pi * np.cumsum(f * drift) / SR + rng.uniform(0, 6.28)
+        for k in range(1, 6):
+            if f * k > 3000:
+                break
+            out += (1.0 / k ** 2.4) * np.sin(k * ph)
+    env = _env_adsr(len(t), 2.4, 1.2, 0.85, tail, dur)
+    return 0.085 * vel * out * env
+
+
 def prism(midi, dur, vel, rng):
     """A crystal bar struck softly, like light catching an edge (Glintwold): a bright, pure tine with a
     near-unison twin, so it shimmers slowly as it rings, and a high glassy overtone that dies first."""
@@ -310,7 +344,8 @@ def prism(midi, dur, vel, rng):
 VOICES = {"pad": pad, "bass": bass, "kalimba": kalimba, "musicbox": musicbox, "chime": chime,
           "flute": flute, "reed": reed, "strings": strings, "glass": glass, "marimba": marimba,
           "toypiano": toypiano, "koto": koto, "harp": harp, "bowl": bowl, "drone": drone, "drum": drum,
-          "pulse": pulse, "synthbass": synthbass, "synthlead": synthlead, "prism": prism}
+          "pulse": pulse, "synthbass": synthbass, "synthlead": synthlead,
+          "epiano": epiano, "haze": haze, "prism": prism}
 
 
 # ---------------------------------------------------------------------------------------------- room

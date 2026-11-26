@@ -1803,6 +1803,44 @@ web export and its pack build were not run for this world. It has not been playe
 `tests/smoke_glintwold_look.gd` (the ground and the visitor look build and their shaders compile),
 `server/test/secret_reveal_test.exs`, and screenshots under a software renderer with `tests/shot_world.gd`.
 
+## Lingerlong — built 2026-11, every choice below OPEN for the owner's review (issue #158)
+
+Lingerlong (working name was Plaza) is the hangout world. The owner asked for the lore, the secret and everything
+else to be decided and built in one go, so nothing here was agreed item by item: every line is a choice to review.
+
+1. **Name.** Lingerlong: a place you linger long in.
+2. **Lore.** It was built as the place to meet. Everyone said "see you there" and then ran a little late, so the plaza
+   decided to wait, and has kept one golden afternoon going so nobody would miss it. The fountain remembers every
+   wish. The busts are of nobody in particular.
+3. **How uncanny.** Cozy-liminal only: wide, empty, glossy and still, but warm. No dark, nothing watching you.
+4. **Look.** Smooth `@2x` art, not pixel. Marble with lilac shadows, brass, teal palms. Visitors are unchanged.
+5. **The floor floats.** The sky is fixed to the screen and the slab has a visible thickness on its south edges.
+6. **Zones by tile colour.** Rose (fountain court), mint (pool deck), lilac (Gallery), peach (Palm Court), dusk blue
+   (the terrace). Tiles are 40 px.
+7. **The pool is walkable.** Ankle deep, wading rings, no fishing. Its north edge is the edge of the world.
+8. **No creatures.** The people are the life, and it keeps the network light in a crowd.
+9. **The middle is kept open** so a crowd has floor. The layout is symmetric and hand-authored.
+10. **The secret.** The Late Arch, as described in CLAUDE.md. Any companion shape works (no form is needed), because
+    this world is for everyone who drops in. Bond lengthens how long it holds the door (7 s to 16 s), shortens its
+    sniff, and widens how far off it notices the arch (260 px to 560 px).
+11. **You cannot fail it.** It comes back out and you ask again. A Call brings it back. The return arch works from
+    either side, in any state, including after a reconnect on the terrace.
+12. **Friends each send their own companion.** A friend's open door is not open for you. You meet on the terrace.
+13. **The keepsake** is the place card: a small folded cream card with a gilt edge. Qualities warm, quiet, crafted.
+14. **Wishes.** 1 coin if you have one, free if you have none. One per player per 1.5 s; the relay to others is capped
+    at 8 a second per world (the wish still counts). The count is kept for good, written to the database every 2 s.
+15. **The fountain's swell** is not shared state: each client adds up the wishes it hears about, so people standing
+    together see about the same thing.
+16. **Sitting** is a pose, not a state: anyone standing still on a seat's anchor is drawn seated. 34 seats: benches,
+    loungers, the pool's edge, the terrace's chair and cushion. On a lounger you sit up, you don't lie down.
+17. **Only your own companion rests beside you.** Friends' companions stand, since the resting pose isn't sent.
+18. **Music.** A slow hum of a track in D major, 60 bpm, 112 s, no drums (`lingerlong.score`).
+19. **Crowd numbers.** Cells of 480 px, 40 players drawn fully, 80 more drawn without companions.
+
+**Known rough edges:** petting your companion while it is inside the picture says it is too far to reach; the halo
+round the open arch is faint against the pale sky; side-facing sitters are hard to tell from front-facing ones;
+nothing was measured on a phone or the web build; the web pack build was not run.
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

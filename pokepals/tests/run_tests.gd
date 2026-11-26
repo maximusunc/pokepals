@@ -29,6 +29,9 @@ func _init() -> void:
 	failures += TestTide.run_all()
 	failures += TestCircuit.run_all()
 	failures += TestSkyRealm.run_all()
+	failures += TestPlazaRealm.run_all()
+	failures += TestDoorwayGate.run_all()
+	failures += TestSeatLogic.run_all()
 	failures += TestSkyView.run_all()
 	failures += TestCompanionSelf.run_all()
 	failures += TestCompanionAttention.run_all()
@@ -55,6 +58,7 @@ func _init() -> void:
 	failures += TestFishing.run_all()
 	failures += TestViewProjection.run_all()
 	failures += TestAlignGate.run_all()
+	failures += TestCrowdBudget.run_all()
 	failures += TestFacetJoin.run_all()
 	failures += TestFacetLight.run_all()
 

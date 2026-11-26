@@ -36,6 +36,8 @@ var _fizz_color := Color(1, 1, 1)
 var _ground: GroundLayer = null
 # Ohmstead's ground (GridGround): one shader, a glowing grid on the dark, in place of any floor of ours.
 var _grid: GridGround = null
+# Lingerlong's ground (PlazaGround): one shader, a marble plaza floating in a pastel sky, in place of any floor of ours.
+var _plaza: PlazaGround = null
 # Glintwold's ground (FacetGround): one shader, flat triangles under a turning light, in place of our floor,
 # paths and water (it draws all three as facets).
 var _facet: FacetGround = null
@@ -100,6 +102,12 @@ var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
 # shine). They're soft, so they wobble like jelly when touched instead of only pulsing.
 var _prop_gloss := {}  # type -> Texture2D
 var _prop_scale := {}  # type -> float (0.5 for @2x art; absent = 1)
+# Per type (the props entity's "foot"): how far above the image's bottom edge a smooth prop's feet are, when it
+# isn't the usual 8 (Lingerlong's art bakes a floor reflection under each thing, so its margin varies).
+var _prop_foot := {}
+# Per type (the props entity's "float"): { height, bob, period } a smooth prop is lifted by and bobs (a beach ball
+# on the water, a card set up on a table), each out of phase by where it is. Drawn from WorldArt's own clock.
+var _prop_float := {}
 # These props still animate (flame/glow), so they blit their baked vessel inside their own
 # draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
 const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true, "carving": true }
@@ -313,6 +321,8 @@ func _load_prop_sprites() -> void:
 	_prop_gloss.clear()
 	_prop_scale.clear()
 	var props_cfg: Dictionary = _style.entity("props")
+	_prop_foot = props_cfg.get("foot", {})
+	_prop_float = props_cfg.get("float", {})
 	_unseen.clear()
 	for t in props_cfg.get("unseen", []):
 		_unseen[String(t)] = true
@@ -321,18 +331,23 @@ func _load_prop_sprites() -> void:
 		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
 		for t in props_cfg.get("types", []) + props_cfg.get("extra_types", []):
 			var ty := String(t)
+			# A world's own prop art may be named for the world rather than for props (Lingerlong's ll_bench_base@2x.png,
+			# not prop_ll_bench_base@2x.png): look beside the prefix for the bare name too.
+			var pre := prefix
+			if not ResourceLoader.exists(pre + ty + "_base@2x.png") and not ResourceLoader.exists(pre + ty + "_base.png"):
+				pre = prefix.get_base_dir() + "/"
 			# smooth @2x art first, then the pixel-art convention
-			var suffix := "@2x.png" if ResourceLoader.exists(prefix + ty + "_base@2x.png") else ".png"
-			var base_path := prefix + ty + "_base" + suffix
+			var suffix := "@2x.png" if ResourceLoader.exists(pre + ty + "_base@2x.png") else ".png"
+			var base_path := pre + ty + "_base" + suffix
 			if not ResourceLoader.exists(base_path):
 				continue
 			_prop_base[ty] = ResourceLoader.load(base_path)
-			var tint_path := prefix + ty + "_tint" + suffix
+			var tint_path := pre + ty + "_tint" + suffix
 			if ResourceLoader.exists(tint_path):
 				_prop_tint[ty] = ResourceLoader.load(tint_path)
 			if suffix != ".png":
 				_prop_scale[ty] = 0.5
-				var gloss_path := prefix + ty + "_gloss" + suffix
+				var gloss_path := pre + ty + "_gloss" + suffix
 				if ResourceLoader.exists(gloss_path):
 					_prop_gloss[ty] = ResourceLoader.load(gloss_path)
 
@@ -645,6 +660,11 @@ func _build_facet_ground(_data: Dictionary) -> void:
 		"regions": _region_tints, "region_alpha": _region_tint_alpha })
 
 
+## Lingerlong's plaza ground, if this world has one (so its wading rings and its evening can be handed to it).
+func plaza_ground() -> PlazaGround:
+	return _plaza
+
+
 ## ---- the pixel-art ground ---------------------------------------------------------------------
 
 ## If the art direction asks for it (the "ground" entity, render "pixel"), put the GroundLayer shader
@@ -667,6 +687,9 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	if _grid != null:
 		_grid.queue_free()
 		_grid = null
+	if _plaza != null:
+		_plaza.queue_free()
+		_plaza = null
 	if _facet != null:
 		_facet.queue_free()
 		_facet = null
@@ -678,6 +701,12 @@ func _build_pixel_ground(data: Dictionary) -> void:
 		_grid.name = "GridGround"
 		add_child(_grid)
 		_grid.build(_bounds, _style)
+		return
+	if PlazaGround.wanted(_style):
+		_plaza = PlazaGround.new()
+		_plaza.name = "PlazaGround"
+		add_child(_plaza)
+		_plaza.build(_bounds, _style, data.get("plaza", {}))
 		return
 	if not GroundLayer.wanted(_style):
 		return
@@ -1289,7 +1318,7 @@ func _draw() -> void:
 	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
 	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
 	# (With the pixel ground, the GroundLayer child draws the floor, the paths and the shores instead.)
-	if _ground == null and _sky_layer == null and _grid == null and _facet == null:
+	if _ground == null and _sky_layer == null and _grid == null and _plaza == null and _facet == null:
 		if _ground_grad != null:
 			draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
 		else:
@@ -2202,7 +2231,8 @@ func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, li
 	var sz := base.get_size() * s
 	# The art's feet sit 8 world px above the image's bottom edge: a larger draw grows that margin too,
 	# so push the image down by the extra, keeping the feet (and the baked shadow) on the ground.
-	var feet := p + Vector2(0, 8.0 + 8.0 * (k - 1.0) - lift)
+	var margin := float(_prop_foot.get(type, 8.0))
+	var feet := p + Vector2(0, margin + margin * (k - 1.0) - lift)
 	var j := sin(wobble * 18.0) * wobble * 0.18
 	# Only a wobbling prop gets its own transform: a transform change breaks draw-call batching, so the
 	# hundreds of props at rest draw in world space and batch together.
@@ -2233,7 +2263,12 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	var col: Color = it["color"]
 	if bool(it.get("opened", false)) and bool((_prop_lights.get(t, {}) as Dictionary).get("ripple", false)):
 		col = RUNG_GOLD
-	_blit_prop_sprite(t, it["pos"], col, 0.0, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
+	var lift := 0.0
+	if _prop_float.has(t):
+		var fl: Dictionary = _prop_float[t]
+		var p: Vector2 = it["pos"]
+		lift = float(fl.get("height", 0.0)) + sin(_time * TAU / maxf(0.5, float(fl.get("period", 4.0))) + _phase_for(p) * 3.0) * float(fl.get("bob", 0.0))
+	_blit_prop_sprite(t, it["pos"], col, lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 
@@ -2632,6 +2667,9 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 		"kept_steady_spark":
 			# its keepsake at home: the spark in a little glass jar
 			FindDraw.draw_kept_spark(self, p, color)
+		"kept_place_card":
+			# Lingerlong's keepsake at home: the place card from the terrace, folded, gold-edged, on a little brass stand
+			FindDraw.draw_kept_place_card(self, p, _time)
 		"offcut":
 			# Glintwold's secret: the Unfinished's last face, a small bright chip on the Turning Floor
 			OffcutDraw.draw_chip(self, p, 1.0, _time)

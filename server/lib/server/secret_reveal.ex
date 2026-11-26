@@ -93,6 +93,12 @@ defmodule Server.SecretReveal do
       `Discoveries.claimable?/3` for "standing at it". A friend who helped, or who walks up while it is lit, may
       take a spark too: the board was closed in front of them.
 
+    * `doorway`: it appears once the player has walked through the arch that runs a little late and come out on
+      the evening it opens on (Lingerlong's place card, on the table for two on the evening terrace). The arch, the
+      evening and the crossing all happen on the player's own screen, so the server only checks "this world,
+      standing at it", like `follow` and `stillness`. Honest about what that means: it can't tell a player who came
+      through the Late Arch from one who stood on the terrace some other way (there is no other way on foot).
+
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
   of flare props this player has touched this visit; `now_ms`: the server's unix time in milliseconds, for
@@ -109,6 +115,7 @@ defmodule Server.SecretReveal do
       %{"type" => type} when type in ["always", "stillness", "tracks", "listen", "echo"] -> true
       %{"type" => "dream"} -> true
       %{"type" => "follow"} -> true
+      %{"type" => "doorway"} -> true
       %{"type" => "shadow"} -> true
       %{"type" => "reflection"} -> true
       %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))

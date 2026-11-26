@@ -26,6 +26,10 @@ static func draw(ci: CanvasItem, key: String, kind: String, c: Vector2, size: fl
 		draw_driftwood(ci, c, s, tint, alpha)
 	elif key == "spark":
 		draw_spark(ci, c, s, tint, alpha)
+	elif key == "coin":
+		draw_coin(ci, c, s, alpha)
+	elif key == "seat":
+		draw_seat(ci, c, s, alpha)
 	elif key == "offcut" or key == "kept_offcut":
 		OffcutDraw.draw_chip(ci, c + Vector2(0, 6) * s, 1.5 * s, 0.0)   # Glintwold's secret, in the bag and the cabinet
 	elif key == "old_boot":
@@ -147,6 +151,33 @@ static func draw_wood(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha :
 
 
 ## A spark (Ohmstead's Arcade pays in them): a small four-pointed star with a white heart.
+## LINGERLONG: a gold coin, a little tilted (the use button's "Toss a coin", and the coin flying to the fountain).
+static func draw_coin(ci: CanvasItem, c: Vector2, s: float, alpha := 1.0, squash := 1.0) -> void:
+	var rx := 7.0 * s * maxf(0.15, absf(squash))
+	var ry := 7.0 * s
+	var rim := PackedVector2Array()
+	var face := PackedVector2Array()
+	for k in 18:
+		var a := TAU * float(k) / 18.0
+		rim.append(c + Vector2(cos(a) * rx, sin(a) * ry))
+		face.append(c + Vector2(cos(a) * rx * 0.72, sin(a) * ry * 0.72))
+	ci.draw_colored_polygon(rim, Color(0.72, 0.52, 0.16, alpha))
+	ci.draw_colored_polygon(face, Color(0.98, 0.80, 0.34, alpha))
+	ci.draw_line(c + Vector2(-rx * 0.3, -ry * 0.35), c + Vector2(rx * 0.1, -ry * 0.45), Color(1, 0.97, 0.8, alpha), 1.2 * s, true)
+
+
+## LINGERLONG: a little bench seen from the front (the use button's "Sit" / "Stand up").
+static func draw_seat(ci: CanvasItem, c: Vector2, s: float, alpha := 1.0) -> void:
+	var wood := Color(0.95, 0.60, 0.71, alpha)
+	var stone := Color(0.96, 0.94, 0.90, alpha)
+	var shade := Color(0.72, 0.65, 0.84, alpha)
+	ci.draw_rect(Rect2(c + Vector2(-9, -3) * s, Vector2(18, 4) * s), wood)
+	ci.draw_rect(Rect2(c + Vector2(-10, 1) * s, Vector2(20, 3) * s), stone)
+	ci.draw_rect(Rect2(c + Vector2(-10, 4) * s, Vector2(20, 1.2) * s), shade)
+	ci.draw_rect(Rect2(c + Vector2(-8, 5) * s, Vector2(3.5, 5) * s), stone)
+	ci.draw_rect(Rect2(c + Vector2(4.5, 5) * s, Vector2(3.5, 5) * s), stone)
+
+
 static func draw_spark(ci: CanvasItem, c: Vector2, s: float, tint: Color, alpha: float) -> void:
 	var long := 9.0 * s
 	var short := 2.2 * s

@@ -79,6 +79,13 @@ signal prop_flared(prop_id: String)
 ## Someone ELSE in our world howled (Hollowsong's echo canyon): where they stood, stamped by the server. The
 ## world layer draws the canyon's answer to it too, so friends see each other's ripples.
 signal howl_heard(x: float, y: float)
+# LINGERLONG: the wishing fountain (Server.Wishes). How many wishes it holds (on joining a world with one);
+# our own wish went in (the new count, whether it cost a coin, our balance) or was turned away ("away",
+# "too_soon", "no_fountain"); and someone ELSE tossed a coin in (who, the new count, whether they paid).
+signal wishes_received(n: int)
+signal wish_made(n: int, paid: bool, balance: int)
+signal wish_refused(reason: String)
+signal wished(by: String, n: int, paid: bool)
 ## A world's spec arrived (and was cached, in memory + on disk): the display-agnostic core +
 ## presentation profiles. The world layer builds (first paint) or rebuilds (the world changed under
 ## us) from it. spec = { "core": {...}, "profiles": { "2d": {...} } }.
@@ -485,6 +492,14 @@ func send_howl() -> void:
 	if not _can_send():
 		return
 	_push_event("howl", {})
+
+
+## LINGERLONG: toss a coin into the wishing fountain. The server judges where we stand and how soon it is, and
+## answers wish_made / wish_refused; everyone else hears wished. A no-op until joined.
+func send_wish() -> void:
+	if not _can_send():
+		return
+	_push_event("wish", {})
 
 
 ## Ask the server for a page of the world directory (the Vale's Gateway): listed worlds matching
@@ -1152,6 +1167,17 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			var hy: Variant = payload.get("y", null)
 			if (hx is float or hx is int) and (hy is float or hy is int):
 				howl_heard.emit(float(hx), float(hy))
+		# LINGERLONG: the wishing fountain
+		"wishes":
+			wishes_received.emit(int(payload.get("n", 0)))
+		"wish_ok":
+			wish_made.emit(int(payload.get("n", 0)), bool(payload.get("paid", false)), int(payload.get("balance", 0)))
+		"wish_refused":
+			wish_refused.emit(String(payload.get("reason", "")))
+		"wished":
+			var wby: Variant = payload.get("by", "")
+			if wby is String:
+				wished.emit(wby, int(payload.get("n", 0)), bool(payload.get("paid", false)))
 		"clock":
 			var server_ms: Variant = payload.get("ms", null)
 			if server_ms is float or server_ms is int:
