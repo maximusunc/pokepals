@@ -30,6 +30,7 @@ func _init() -> void:
 	failures += TestCircuit.run_all()
 	failures += TestSkyRealm.run_all()
 	failures += TestPlazaRealm.run_all()
+	failures += TestSeatLogic.run_all()
 	failures += TestSkyView.run_all()
 	failures += TestCompanionSelf.run_all()
 	failures += TestCompanionAttention.run_all()

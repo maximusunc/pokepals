@@ -217,10 +217,15 @@ def prop(id, type, pos, color, label, lore=None, tags=None, solid=None, radius=N
     return p
 
 
-def seat(id, at, face):
+def seat(id, at, face, off=None):
+    """A seat: `at` is where a sitter stands (its anchor, inside the furniture's collision), `face` the way they look,
+    `off` where they step off to when they get up (clear of the furniture; a step south of the anchor if not given)."""
     fx, fy = face
     n = math.hypot(fx, fy) or 1.0
-    SEATS.append({"id": id, "at": [round(at[0]), round(at[1])], "face": [round(fx / n, 3), round(fy / n, 3)]})
+    if off is None:
+        off = (at[0], at[1] + 22)
+    SEATS.append({"id": id, "at": [round(at[0]), round(at[1])], "face": [round(fx / n, 3), round(fy / n, 3)],
+                  "off": [round(off[0]), round(off[1])]})
 
 
 def bench(id, x, y, lore=None):
@@ -228,14 +233,17 @@ def bench(id, x, y, lore=None):
     prop(id, "ll_bench", (x, y), CUSHION, "a bench", lore, solid=False)
     FENCES.append({"from": [x - 16, y - 7], "to": [x + 16, y - 7], "thickness": 14})
     fx, fy = FOUNTAIN_C[0] - x, FOUNTAIN_C[1] - y
+    face = (fx, fy) if math.hypot(fx, fy) < 400 else (0, 1)
     for k, dx in (("a", -12), ("b", 12)):
-        seat("%s_%s" % (id, k), (x + dx, y - 6), (fx, fy) if math.hypot(fx, fy) < 400 else (0, 1))
+        # you get up off the bench's front (south), or off its back when you were facing north over it
+        off_y = y - 24 if face[1] < -0.3 * math.hypot(*face) else y + 10
+        seat("%s_%s" % (id, k), (x + dx, y - 6), face, (x + dx, off_y))
 
 
 def lounger(id, x, y, face, lore=None):
     prop(id, "ll_lounger", (x, y), CUSHION, "a lounger", lore, solid=False)
     FENCES.append({"from": [x, y - 36], "to": [x, y - 10], "thickness": 18})
-    seat(id, (x, y - 20), face)
+    seat(id, (x, y - 20), face, (x, y + 10) if face[1] >= 0 else (x, y - 56))
 
 
 # The court: benches ring the fountain (all but straight south, where you walk up to it), the plaque in that gap.
@@ -541,6 +549,7 @@ for t in d["trees"] + [lm["position"] for lm in d["landmarks"]]:
     assert on_floor(t[0], t[1]), "every tree stands on a floor: %s" % t
 for s in d["seats"]:
     assert on_ground(*s["at"]), "every seat is on the plaza: %s" % s["id"]
+    assert on_ground(*s["off"]), "and you get up onto the plaza: %s" % s["id"]
 for b in d["buildings"]:
     x, y, w, h = b["rect"]
     assert on_ground(x + w / 2, y + h), "every arch stands on the plaza: %s" % b["id"]
