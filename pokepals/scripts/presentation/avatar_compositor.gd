@@ -19,6 +19,8 @@ extends RefCounted
 static var _recolor_cache: Dictionary = {}   # "sheet|ramp" -> ImageTexture
 static var _recolor_order: Array[String] = []
 const RECOLOR_CACHE_MAX := 64
+static var _sheet_cache: Dictionary = {}     # sheet path -> Texture2D (null: no art)
+const SHEET_CACHE_MAX := 256
 const OUTLINE_CUT := 0.18   # luminance below this stays the authored dark outline
 
 
@@ -35,17 +37,32 @@ const OUTLINE_CUT := 0.18   # luminance below this stays the authored dark outli
 static func load_layers(resolved: Array) -> Array:
 	var out: Array = []
 	for layer in resolved:
-		var path := String(layer.get("sheet", ""))
-		if path == "" or not ResourceLoader.exists(path):
-			continue
-		var tex := ResourceLoader.load(path) as Texture2D
+		var tex := _sheet(String(layer.get("sheet", "")))
 		if tex == null:
 			continue
+		var path := String(layer.get("sheet", ""))
 		var pc: Array = layer.get("palette_color", [])
 		if pc.size() >= 3:
 			tex = _recolored(tex, path, String(layer.get("palette", "")), pc)
 		out.append({ "tex": tex, "cfg": layer, "palette": String(layer.get("palette", "")) })
 	return out
+
+
+## A wardrobe sheet by path, or null when it has no art. Held here once loaded: a dyed layer keeps only its
+## recolored copy, so without this its source sheet would be freed and read from disk again for every avatar
+## that wears it (a crowd arriving would load the same few sheets hundreds of times).
+static func _sheet(path: String) -> Texture2D:
+	if path == "":
+		return null
+	if _sheet_cache.has(path):
+		return _sheet_cache[path]
+	var tex: Texture2D = null
+	if ResourceLoader.exists(path):
+		tex = ResourceLoader.load(path) as Texture2D
+	if _sheet_cache.size() >= SHEET_CACHE_MAX:
+		_sheet_cache.clear()
+	_sheet_cache[path] = tex
+	return tex
 
 
 ## Fetch (or bake + cache) a recolored copy of a grayscale sheet for the given ramp swatch.
