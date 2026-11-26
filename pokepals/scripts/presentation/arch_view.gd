@@ -23,6 +23,7 @@ const DOOR_H := 84.0
 var picture_alpha := 1.0
 var _frame: Texture2D = null
 var _picture: Texture2D = null
+var _picture_name := ""
 var _pictures := {}
 var _foot := 8.0
 var _between: Callable = Callable()
@@ -49,12 +50,14 @@ static func _tex(path: String) -> Texture2D:
 
 ## Show the doorway picture `name` (one of the art entity's pictures), or none ("").
 func set_picture(pic_name: String) -> void:
+	_picture_name = pic_name
 	_picture = _tex(String(_pictures.get(pic_name, ""))) if pic_name != "" else null
 	queue_redraw()
 
 
-func has_picture() -> bool:
-	return _picture != null
+## Which picture the doorway shows ("" for none; it may have no art yet).
+func picture() -> String:
+	return _picture_name
 
 
 ## Draw `fn(ci)` between the doorway picture and the frame every frame while it is set (an invalid Callable clears

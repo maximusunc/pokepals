@@ -90,7 +90,7 @@ func _process(_delta: float) -> bool:
 	var back: BuildingView = _world.arch_view("return_arch")
 	fails += _check(late is ArchView and back is ArchView, "the Late Arch and the terrace's arch stand")
 	if late is ArchView and back is ArchView:
-		fails += _check((late as ArchView).has_picture() and (back as ArchView).has_picture() and not (_world.arch_view("promenade_arch") as ArchView).has_picture(),
+		fails += _check((late as ArchView).picture() == "dusk" and (back as ArchView).picture() == "noon" and (_world.arch_view("promenade_arch") as ArchView).picture() == "",
 			"each with its picture under the frame (and an ordinary arch with none)")
 		fails += _check(late.position.distance_to(WorldData.to_vec2(spec["doorway"]["at"])) < 1.0, "the Late Arch stands where the doorway says")
 	end = _walk(solids, bounds, Vector2(0, 700), Vector2(0, 560))
