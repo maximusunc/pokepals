@@ -1,8 +1,9 @@
 extends SceneTree
 ## Headless smoke test for GLYPHFALL, the world made of text. Loads the real World scene from the test fixture
 ## as if we'd come through the Vale's Gateway and checks what makes it its own place:
-##   * the page: a GlyphPage layer sits over the world, under the vignette and the HUD, with its atlas, its
-##     sentences and the wrong glyph's cell; you and your companion are marked for its fine print;
+##   * the page: a GlyphPage sits in the world over the ground and under everything standing on it, with its
+##     atlas, its sentences, and the world's things known cell by cell (GlyphMap); you, your companion, wild
+##     animals and what you carry share the fine-print material;
 ##   * the secret, played through the real directors: far away your companion notices nothing; in range it stops
 ##     and looks at the glyph; until it has looked the glyph is only grass; walk to where it looked and the
 ##     glyph shines and can be examined; taking it corrects the page;
@@ -49,14 +50,31 @@ func _process(_delta: float) -> bool:
 	fails += _check(page != null, "a page of text lies over the world")
 	if page == null:
 		return _finish(fails)
-	fails += _check(page.get_index() < _world.get_node("Vignette").get_index() and page.get_index() < _world.get_node("UI").get_index(),
-		"...under the vignette and the HUD, which stay as they are")
+	fails += _check(page.get_index() > _world.get_node("WorldArt").get_index() and page.get_index() < _world._scenery.get_index(),
+		"...over the ground, under everything that stands on it, and under the HUD")
 	var mat := (page.get_node("Page") as ColorRect).material as ShaderMaterial
 	fails += _check(mat != null and mat.get_shader_parameter("atlas") is Texture2D, "it has its atlas of characters")
 	var text_size: Vector2 = mat.get_shader_parameter("text_size")
 	fails += _check(is_equal_approx(float(mat.get_shader_parameter("text_on")), 1.0) and int(text_size.y) == (spec["atmosphere"]["glyphs"]["sentences"] as Array).size(),
 		"the paths are written in the writer's sentences (%d lines)" % int(text_size.y))
 	fails += _check(page.special_index("&") >= 0, "the atlas holds the wrong glyph")
+	# The page is the world's data, not the picture: the ground and every thing are known cell by cell.
+	var gm: GlyphMap = page.map()
+	fails += _check(gm != null and gm.thing_count() > 400, "every tree, prop and the portal is a thing on the page (%d)" % (gm.thing_count() if gm != null else 0))
+	if gm != null:
+		fails += _check(gm.ground_at(Vector2(-1060, 700)) == GlyphMap.WATER and gm.ground_at(Vector2(300, 126)) == GlyphMap.PATH
+			and gm.ground_at(glyph) == GlyphMap.GRASS, "the Inkwell is water, the Long Sentence is path, and the wrong glyph stands in grass")
+		var a_tree: Array = spec["trees"][0]
+		var at := Vector2(float(a_tree[0]), float(a_tree[1]))
+		fails += _check(gm.char_at(at) == "║" and gm.char_at(at + Vector2(0, -24)) != "", "a tree is drawn in characters: a trunk under a crown")
+		fails += _check(gm.char_at(glyph) == "", "nothing is stamped over the wrong glyph")
+	var marked_pals := 0
+	for c in _world._scenery.get_children():
+		if c is PalView and (c as PalView).material is ShaderMaterial and ((c as PalView).material as ShaderMaterial).shader == OtherworldLook.GLYPH_SHADER:
+			marked_pals += 1
+	fails += _check(marked_pals >= 1, "wild animals are marked for fine print too (%d)" % marked_pals)
+	var carried := _world._player.get_node_or_null("Rod") as CanvasItem
+	fails += _check(carried != null and carried.use_parent_material, "what you carry is written with you")
 	var pm := _world._player.material as ShaderMaterial
 	var cm := _world._companion.material as ShaderMaterial
 	fails += _check(pm != null and pm.shader == OtherworldLook.GLYPH_SHADER and cm != null and cm.shader == OtherworldLook.GLYPH_SHADER,

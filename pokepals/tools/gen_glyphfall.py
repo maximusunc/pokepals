@@ -1,23 +1,15 @@
 #!/usr/bin/env python3
-"""Bake Glyphfall's art: the GLYPH ATLAS its whole look is drawn from, and its few own props.
+"""Bake Glyphfall's GLYPH ATLAS: every character the world is written in, as one image.
 
-Glyphfall is the world drawn in text characters (issue #159). The world underneath is ordinary pixel art; one
-shader (assets/glyph_page.gdshader, on a GlyphPage layer) redraws the finished picture as monospace characters,
-choosing each character from this atlas by what is under it:
+Glyphfall is the world drawn in text characters (issue #159). One shader (assets/glyph_page.gdshader, on a
+GlyphPage layer) writes the page a character cell at a time, and every character it can write comes from this
+atlas: the grass's tufts, the water's waves, the letters the paths are written in, the dense letters visitors
+are set in, and every character used by the small pictures ("stamps") that trees and props are drawn as
+(tools/gen_glyphfall_world.py authors those; a character it uses must be in CHARS below, and it checks).
 
-  row 0  grass     . , ' ` " ; " v      row 5  stone   . : o ° O o 0 @
-  row 1  leaves    ♠ ♣ (a tree is clubs and spades)   row 6  bloom   ' * * + ✿ * ❀ ✿
-  row 2  water     ~ ≈                  row 7  people  the dense letters visitors and companions are written in
-  row 3  earth     . : · - =            row 8  specials: the wrong glyph (&), a cursor block, and spares
-  row 4  wood      | ! I H #             rows 9-12  the alphabet the paths are written in
-
-Each row runs dark to bright in four pairs; the shader picks the pair by brightness and one of the two by a hash
-of the cell, so a field of grass is not one repeated character.
-
-Writes (each PNG with a .import sidecar, the same recipe as the other bakers):
-  assets/sprites/gf_glyphs.png            the atlas: COLS x ROWS cells of CELL_W x CELL_H px, white on clear
-  data/gf_glyphs.json                     its layout (cols, rows, and each row's characters), read by GlyphPage
-  assets/sprites/prop_<name>_base.png     the world's own props (see PROPS)
+Writes (the PNG with a .import sidecar, the same recipe as the other bakers):
+  assets/sprites/gf_glyphs.png            the atlas: COLS columns of CELL_W x CELL_H px cells, white on clear
+  data/gf_glyphs.json                     its layout: cols, rows, cell size, and `chars` (place 0 is the space)
 
 The font is DejaVu Sans Mono Bold (free; Bitstream Vera licence), read from the system at bake time. Only its
 rendered characters are committed, so the game never needs the font or Python. Requires Pillow (tools-only).
@@ -39,23 +31,11 @@ ROOT = os.path.normpath(os.path.join(HERE, ".."))
 FONT = os.environ.get("GLYPH_FONT", "/usr/share/fonts/truetype/dejavu/DejaVuSansMono-Bold.ttf")
 
 CELL_W, CELL_H = 32, 48          # one character, 4x the 8 x 12 world px it is drawn at
-COLS = 8
-ROWS = [
-    ("grass",  ". , ' ` \" ; \" v"),
-    ("leaves", "♠ ♣ ♣ ♠ ♣ ♣ ♣ ♠"),
-    ("water",  "~ ~ ~ ≈ ≈ ~ ≈ ~"),
-    ("earth",  ". . : . : · = :"),
-    ("wood",   "| ! | I I H # H"),
-    ("stone",  ". : o ° O o 0 @"),
-    ("bloom",  "' * * + ✿ * ❀ ✿"),
-    ("people", ": ; o x % & # @"),
-    ("special", "& █ ? ¶ § _ ^ ·"),
-    # the alphabet the paths are written in; the last cell is the space between words
-    ("letters", "a b c d e f g h"),
-    ("letters", "i j k l m n o p"),
-    ("letters", "q r s t u v w x"),
-    ("letters", "y z , . ' - ? SPACE"),
-]
+COLS = 16
+# Place 0 is the space. Then all of printable ASCII, then the few others the world is drawn with.
+CHARS = [" "] + [chr(c) for c in range(33, 127)] + list("♣♠▲║│─┌┐└┘╔═╗╚╝╵╨☼→✿❀Ω•≈·°◊")
+JOINED = set("║│─┌┐└┘╔═╗╚╝╵╨")   # line-drawing characters, which must reach the edges of their cell
+assert len(CHARS) == len(set(CHARS)) and len(CHARS) <= 255
 
 
 def _save(img, rel):
@@ -69,31 +49,43 @@ def _save(img, rel):
 def glyph_atlas():
     font = ImageFont.truetype(FONT, 40)
     ascent, descent = font.getmetrics()
-    atlas = Image.new("RGBA", (COLS * CELL_W, len(ROWS) * CELL_H), (255, 255, 255, 0))
-    for r, (_, chars) in enumerate(ROWS):
-        cells = chars.split(" ")
-        assert len(cells) == COLS, "row %d needs %d characters" % (r, COLS)
-        for c, ch in enumerate(cells):
-            cov = Image.new("L", (CELL_W, CELL_H), 0)
-            d = ImageDraw.Draw(cov)
-            if ch == "SPACE":
-                continue
-            w = d.textlength(ch, font=font)
-            # centred across the cell, sitting on a shared baseline
-            d.text(((CELL_W - w) / 2.0, (CELL_H - (ascent + descent)) / 2.0), ch, font=font, fill=255)
-            cell = Image.new("RGBA", (CELL_W, CELL_H), (255, 255, 255, 0))
-            cell.putalpha(cov)
-            atlas.paste(cell, (c * CELL_W, r * CELL_H))
-    return atlas
+    def ink(ch):
+        im = Image.new("L", (CELL_W * 2, CELL_H * 2), 0)
+        ImageDraw.Draw(im).text((8, 8), ch, font=font, fill=255)
+        return im.tobytes()
+
+    missing = ink("\uffff")   # what the font draws for a character it does not have
+    rows = (len(CHARS) + COLS - 1) // COLS
+    atlas = Image.new("RGBA", (COLS * CELL_W, rows * CELL_H), (255, 255, 255, 0))
+    for i, ch in enumerate(CHARS):
+        if ch == " ":
+            continue
+        assert ink(ch) != missing, "the font has no %r" % ch
+        cov = Image.new("L", (CELL_W, CELL_H), 0)
+        d = ImageDraw.Draw(cov)
+        w = d.textlength(ch, font=font)
+        # centred across the cell, sitting on a shared baseline
+        d.text(((CELL_W - w) / 2.0, (CELL_H - (ascent + descent)) / 2.0), ch, font=font, fill=255)
+        if ch in JOINED:
+            # a line-drawing character is drawn in the font's own narrower cell and stretched to ours, so
+            # the lines of neighbouring cells meet
+            aw = int(round(w))
+            own = Image.new("L", (aw, CELL_H), 0)
+            ImageDraw.Draw(own).text((0, (CELL_H - (ascent + descent)) / 2.0), ch, font=font, fill=255)
+            cov = own.resize((CELL_W, CELL_H), Image.LANCZOS)
+        cell = Image.new("RGBA", (CELL_W, CELL_H), (255, 255, 255, 0))
+        cell.putalpha(cov)
+        atlas.paste(cell, ((i % COLS) * CELL_W, (i // COLS) * CELL_H))
+    return atlas, rows
 
 
 def export_all():
-    _save(glyph_atlas(), "assets/sprites/gf_glyphs.png")
-    layout = {"cols": COLS, "rows": len(ROWS), "cell": [CELL_W, CELL_H],
-              "row_names": [n for n, _ in ROWS], "chars": [[" " if ch == "SPACE" else ch for ch in c.split(" ")] for _, c in ROWS]}
+    atlas, rows = glyph_atlas()
+    _save(atlas, "assets/sprites/gf_glyphs.png")
+    layout = {"cols": COLS, "rows": rows, "cell": [CELL_W, CELL_H], "chars": CHARS}
     with open(os.path.join(ROOT, "data", "gf_glyphs.json"), "w") as f:
         f.write(json.dumps(layout, ensure_ascii=False, indent="\t") + "\n")
-    print("wrote data/gf_glyphs.json")
+    print("wrote data/gf_glyphs.json (%d characters)" % len(CHARS))
 
 
 if __name__ == "__main__":

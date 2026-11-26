@@ -1858,93 +1858,78 @@ notice_cooldown_low/high, notice_hold, near_radius, near_cooldown_factor, compan
 lines, reveal_line }`. Code: pure `GlyphNotice` (`scripts/world`, tested), `MisprintDirector`
 (`scripts/presentation/mechanics`), the `misprint` arm of `SecretDirector`, and `GlyphPage.set_wrong_glyph`.
 
+**How it got here.** The first build drew the page with a full-screen shader that read the finished pixel picture back
+and chose a character per cell from the colour under it. It worked, but the owner found it restless on a phone and hard
+to read ("it's still kind of hard to see exactly what things should be"). Stilling the wind and averaging each cell
+helped the flicker and not the legibility. A design canvas (the "Glyphfall Legibility" artifact) compared four
+treatments; the owner chose **filled shapes plus drawn things** for the landscape and **fine print on solid colours** for
+visitors, with wild animals in fine print too. The page was then rebuilt from the world's data, which is what is
+described below.
+
 **Judgment calls (all open):**
-1. **How the look is made.** One layer over an ordinary pixel-art world, as the issue suggested: a quad over the view
-   whose shader reads the finished picture and writes it again as characters. This is the first (and only) place the game
-   reads the screen back; every other effect avoided it. It means everything is text with no per-thing work, and "same
-   game, different skin" is literally true: turn `atmosphere.glyphs.enabled` off and the meadow is there underneath.
-2. **Cells are pinned to the world, not the screen.** A tuft of grass keeps its character as you walk and the text
-   scrolls like a page. (A screen-pinned grid makes the characters swim as the camera moves.)
-3. **Cell size: 8 x 12 world px,** which is 80 columns by 30 rows on the 640 x 360 canvas. On a phone that is a
-   character about 2 mm wide. Smaller cells show more of the world's shape but stop reading as letters. It is one
-   number in the spec (`cell`).
-4. **Which character.** The colour under a cell picks a family: olive is grass (`. , ' " ; v`), green is leaves (clubs
-   and spades), blue is water (`~` and `≈`), sandy is earth, dark brown is wood (`| ! I H #`), grey is stone
-   (`. : o O 0 @`), pink and violet are blooms (`* + ✿ ❀`). Brightness picks a pair within the family and a hash of the
-   cell picks one of the pair. 30% of grass cells are left empty so the page has room in it.
-5. **The paths are sentences.** Not in the issue: every cell of earth takes its letter from ten sentences in the spec
-   (the writer describing the valley), a line to each row of the page, so a path running east to west can be read.
-   Paths that run north to south show as columns of letters. The Long Sentence is two lines across the middle of the
-   world. Pond shores and bare dirt are earth too, so they show letters as well. The sentences are in the generator, to
-   be tuned.
-6. **Paths are ruled straight** here (`path_meander: 0`, a new world-spec key; every other world keeps the default 9),
-   or the lines of writing would wobble out of their rows.
-7. **Visitors in fine print.** A person at full cell size is six characters and unreadable. Every player and companion
-   is drawn with a mark in the picture's alpha channel (blending off for those nodes), and the page writes marked
-   pixels at half size (4 x 6) in dense letters (`% & # @`) with a tinted cell behind. You keep your outfit's
-   colours and your companion keeps its animal's. Cost of the mark: soft pixels on a visitor (the shadow under the
-   feet) are not drawn in this world. **Ambient pals are not marked:** they show as a few full-size characters in their
-   own colour.
-8. **It keeps still.** The first build was restless on a phone (the owner's word: spastic), and it took two passes.
-   - *Things moving underneath.* Trees and ground litter swayed in the wind, so the characters at their edges kept
-     flipping; every grass character leaned back and forth; each water cell changed its character at random about once
-     a second; cloud shadows dimmed whole patches. Now this world has no wind, its trees and litter do not sway, there
-     are no cloud shadows, the lean is a third of what it was, and water ripples as slow bands of `≈` drifting across
-     the `~` together. Standing still, the share of the picture that changed between two screenshots a moment apart fell
-     from about 2.5% to under 0.1% on land and from 4.4% to about 0.15% by the Inkwell (the ink itself is about 5.5% of
-     the picture).
-   - *Walking.* The owner still saw plenty of flicker. The page read what was under a cell from four single points,
-     each landing on a pixel or two of litter or dither, so the answer changed with every sub-pixel step of the camera
-     (the first measurement moved the camera by whole pixels and missed it). Now a cell is read as the average of its
-     whole area, from the picture's mip chain. Stepping the camera a third of a pixel at a time at a phone-like scale,
-     the share of the picture that changed hard fell from 0.29 to 0.09% in the meadow, 0.48 to 0.11% in the wood and 0.45
-     to 0.18% by the Inkwell; most of what is left is the edges of letters sliding, not letters changing.
-   - *Visitors.* A person's small letters followed brightness, so they changed every time the figure breathed or
-     bobbed. Now each small cell keeps one of four dense letters and only its colour changes.
-   The cost of the second pass is that the picture's mip chain is built every frame in this world; **not measured on a
-   phone**.
-9. **The arrival.** The page is typed in from the top, a line at a time behind a pale cursor, over 1.6 s (`type_in`).
-10. **The world underneath** is the shared meadow art with its colours tuned by the world's `art` block (olive grass,
-    the green tree kinds only, pale sandy paths), and a neutral day tint with no day cycle, so colours stay in their
-    families. No new pixel art. Butterflies, fireflies, pollen, falling leaves, wind and cloud shadows are off (anything
-    that moves underneath makes characters flip); the scattered ground litter stays and gives the grass its variety.
-11. **Trees in paragraphs.** In Paragraph Wood the trees stand in six blocks of rows, the first row indented and the
-    last one short. Blossom trees ring the title stone in the Heading. The Unwritten is nearly empty on purpose.
-12. **The wrong glyph is an ampersand,** in the grass's own colour, in open grass a way past where a path stops in the
-    middle of a thought (the last sentence is "and the path goes on, and"). The story: the writer stopped on the word
-    "and".
-13. **Noticing.** Within range of the glyph (150 px fresh, 380 px bonded) and with your companion within 150 px of
-    you, it stops and looks at the glyph for 2.6 s (`point_at`, the pose the hunt and Drifthallow use), then walks on.
-    It looks again after 11 s (fresh) to 4 s (bonded), and in under half that when you are within 110 px. There is no
-    arrow or marker; three lines are said once each (first look, a later look, very close).
-14. **Seeing it yourself.** Until your companion has looked at least once the glyph is only grass to you: it does not
-    shine and cannot be examined, even standing on it (but standing there is inside its range, so it looks). After
-    that it warms toward gold from 90 px and at 30 px it is found: it shines, pulses gently, and is examinable.
-15. **Taking it corrects the page.** The ampersand is gone and a blade of grass stands in its cell. Come back after
-    finding it and it is not there. The server checks "this world, standing at it" only: it cannot tell a glyph your
-    companion showed you from one you walked onto.
-16. **The find.** `stray_ampersand`, qualities quiet, small, made. Keepsake `kept_ampersand`: a brass "&" on a little
+1. **The page is data, not a picture.** For each character cell the pure `GlyphMap` knows the ground (grass, water,
+   shore, path) and any thing standing there, worked out once from the spec. One quad in the world, between the ground
+   and everything standing on it, draws that. Nothing is read back from the screen, so the landscape cannot flicker, and
+   the cost fell (about 33 ms a frame under software rendering, against 48 for the first build and 35 for Drifthallow).
+   What it gives up: "the same pixel world underneath" is no longer what you are looking at. The pixel world is still
+   there (turn `atmosphere.glyphs.enabled` off), but a thing only shows on the page if it has a stamp.
+2. **Cells are pinned to the world, 8 x 12 px,** which is 80 columns by 30 rows on the 640 x 360 canvas.
+3. **Things are stamps.** A stamp is a few rows of characters set with its bottom row on the thing's own cell, centred;
+   a space is a gap. It has an ink, optional other inks per character, and a tint in the cell behind each character.
+   They are authored in the generator, one per tree kind and prop type: an oak is a crown of clubs on a trunk, a pine a
+   stack of triangles, a blossom tree a crown of flowers, a bench `┌──┐` on two legs, a lamp a sun on a post, the
+   portal a violet arch with waves in it, and so on (22 stamps). Flowers and the like take each prop's own colour.
+   Things are laid north to south so a nearer one overlaps a farther one.
+4. **A thing with no stamp does not show.** The generator refuses to write a world whose tree kinds or prop types lack
+   one, and checks every character against the atlas. Things added to a world at run time by other features would
+   need a stamp to be seen here; today that means: bushes and stumps of the shared understory are off in this world, a
+   felled tree shows a one-character stump, and **a rod post, pickups or a home's furniture are not handled** because
+   this world has none.
+5. **The ground.** Grass is six tuft characters in three dim olive inks with 62% of cells left empty, so it recedes and
+   things stand out. Water is `~` and `≈` in slow drifting bands on a blue tint. A shore is `.` and `:` on sand, 14 px
+   wide. A path is a warm tinted band carrying the writer's sentences, a line to each row of the page (ten sentences
+   in the generator; the Long Sentence is two lines across the middle). Paths are ruled straight (`path_meander: 0`).
+6. **Visitors in fine print, writing themselves.** Players, companions, wild animals and what they carry share one
+   material that redraws each as quarter-size cells (4 x 6 px): a dense letter (`% & # @`) on a solid block of the
+   colour of its own sprite there, a little more saturated than the sprite. The letter is fixed by the cell's place,
+   so a figure that breathes changes colour under still letters. They are drawn after the page, so a visitor is always
+   in front of a tree (you never walk behind one here). Known roughness: a player is several layered sprites, each cut
+   into cells on its own, so a block can be clipped at a sprite's edge (the shoes are half a cell tall).
+7. **The first-meeting flock is not in fine print.** The wild shape-shifters a new player searches among keep their
+   pixel art if the search ever happens here (it normally happens in the Vale).
+8. **The arrival.** The page is typed in from the top, a line at a time behind a pale cursor, over 1.6 s (`type_in`).
+9. **Trees in paragraphs.** In Paragraph Wood the trees stand in six blocks of rows on the page's own grid (six cells
+   apart, so one clear cell between crowns), the first row indented and the last one short. Blossom trees ring the
+   title stone in the Heading. The Unwritten is nearly empty on purpose.
+10. **The wrong glyph is an ampersand,** in the grass's own dim colour, in open grass a way past where a path stops in
+    the middle of a thought (the last sentence is "and the path goes on, and"). The story: the writer stopped on the
+    word "and". With the grass now sparse and dim it is a little easier to spot unaided than before.
+11. **Noticing.** Within range of the glyph (150 px fresh, 380 px bonded) and with your companion within 150 px of
+    you, it stops and looks at the glyph for 2.6 s, then walks on. It looks again after 11 s (fresh) to 4 s (bonded),
+    and in under half that when you are within 110 px. No arrow or marker; three lines are said once each.
+12. **Seeing it yourself.** Until your companion has looked at least once the glyph cannot be examined, even standing
+    on it. After that it warms toward gold from 90 px and at 30 px it is found: it shines, pulses gently, and is
+    examinable. Taking it corrects the page (grass stands there). The server checks "this world, standing at it" only.
+13. **The find.** `stray_ampersand`, qualities quiet, small, made. Keepsake `kept_ampersand`: a brass "&" on a little
     wooden block, drawn at home in the ordinary art. The lore and lines are in the generator, to be tuned.
-17. **Things that are not text:** the HUD, the message pill, every panel and card, and the vignette (agreed). The
-    examine prompt and a friend's name card are HUD, so they stay normal too.
-18. **Fishing and chopping** are left on (the Inkwell and the footnote ponds are water; the trees are wood). A rod, a
-    line and a stump are redrawn as characters like everything else.
-19. **Music.** `glyphfall.score`: E dorian, 84 bpm, short dry marimba runs like somebody typing with gaps to think in,
-    a koto answering like the bell at the end of a line, a quiet pad and bass. Rendered and loudness-matched like the
-    others, **not listened to by the builder**.
-20. **The font** is DejaVu Sans Mono Bold (free to use), read from the machine when the atlas is baked. Only the
-    rendered characters are committed (a 256 x 624 PNG), not the font.
-21. **Cost.** Under software rendering at 1280 x 720 (a stand-in for a slow GPU, not a web measurement) a Glyphfall
-    frame took about 48 ms, against 38 for Drifthallow and 37 for Ohmstead: the page costs about 10 ms there. Software
-    rendering exaggerates a full-screen shader, so a real GPU should feel it less, but **this has not been measured on
-    the web build or a phone**, which the issue asks for.
+14. **Things that are not text:** the HUD, the message pill, every panel and card, and the vignette (agreed).
+15. **Fishing and chopping** are left on. A rod is written with you; a felled tree becomes a stump within half a second.
+16. **Music.** `glyphfall.score`: E dorian, 84 bpm, short dry marimba runs like somebody typing, a koto like the bell at
+    the end of a line, a quiet pad and bass. **Not listened to by the builder.**
+17. **The font** is DejaVu Sans Mono Bold (free to use), read from the machine when the atlas is baked: 122 characters
+    (printable ASCII and the drawing characters) in a 512 x 384 PNG. Line-drawing characters are stretched to reach
+    the edges of their cell so the lines of neighbouring cells meet.
+18. **A dead end worth recording.** One version tagged visitors' pixels in the framebuffer's alpha (blending off) and
+    had the page read the tag back. The renderer does not honour blending-off reliably: in about half of test runs
+    the player was drawn half-transparent and untagged, and vanished from the page. It also left the tag in the
+    final picture's alpha, which a browser would show through. Do not build on it.
 
-**Not built or not done:** the web export and its world-pack build were not run for this world (no export templates in
-the build sandbox); nothing about packs was changed, so the build should pick the world up by itself. Not played against
-a live server by the builder. Speech or name text inside the world is not turned into glyphs because there is none.
+**Not done:** not measured on a phone (the first build was reported smooth on the owner's; this one does less). Not
+played against a live server by the builder.
 
-**How it was checked.** `tests/test_glyph_notice.gd` (the noticing rules), `tests/smoke_glyphfall.gd` (the world
-offline: the page, the marks, the secret played through the real directors, the corrected page), the full
+**How it was checked.** `tests/test_glyph_map.gd` (the page's data: ground, stamps, overlap, felling),
+`tests/test_glyph_notice.gd` (the noticing rules), `tests/smoke_glyphfall.gd` (the world offline: the page, its things,
+visitors' fine print, the secret played through the real directors, the corrected page), the full
 `run_tests.gd`, `server/test/secret_reveal_test.exs` with the whole server suite, and screenshots of several places, the secret and the
 arrival taken with `tests/shot_world.gd` under a software renderer, looked at by the builder.
 
