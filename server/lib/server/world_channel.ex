@@ -300,7 +300,19 @@ defmodule Server.WorldChannel do
     # process that carries our frames grows the same way (~0.9 MB each there); Phoenix collects it when
     # asked to.
     send(socket.transport_pid, :garbage_collect)
-    {:noreply, save_whereabouts(socket), :hibernate}
+
+    # A periodic save that can't get a database connection (thousands of players saving every 15 s, the
+    # pool busy) is skipped, not fatal: it used to crash the player's channel. The next one catches up.
+    socket =
+      try do
+        save_whereabouts(socket)
+      rescue
+        e in DBConnection.ConnectionError ->
+          Logger.warning("skipped a whereabouts save: #{Exception.message(e)}")
+          socket
+      end
+
+    {:noreply, socket, :hibernate}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
