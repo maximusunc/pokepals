@@ -56,6 +56,7 @@ func _init() -> void:
 	failures += TestFishing.run_all()
 	failures += TestViewProjection.run_all()
 	failures += TestAlignGate.run_all()
+	failures += TestCrowdBudget.run_all()
 
 	print("")
 	if failures == 0:

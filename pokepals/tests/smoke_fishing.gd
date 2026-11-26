@@ -159,6 +159,10 @@ func _process(_delta: float) -> bool:
 			_ok(_fish._rod.is_held(), "back to the rod")
 			# A friend fishing beside us.
 			_net.emit_signal("peer_joined", "friend")
+			# Puppets are built once a position arrives and the drawing budget has run (SC-2): settle it now.
+			var fp: Vector2 = _world._player.position + Vector2(30, 0)
+			_net.emit_signal("state_received", "friend", { "p": fp, "pf": Vector2.DOWN, "c": fp + Vector2(-20, 10), "cl": Vector2.DOWN })
+			_world._presence_dir.flush_puppets()
 			_net.emit_signal("identity_received", "friend", { "held": "rod", "fishing": { "b": [640, 100], "ph": "wait", "n": 0 } })
 			_next()
 		11:
