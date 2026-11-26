@@ -1881,18 +1881,28 @@ lines, reveal_line }`. Code: pure `GlyphNotice` (`scripts/world`, tested), `Misp
    or the lines of writing would wobble out of their rows.
 7. **Visitors in fine print.** A person at full cell size is six characters and unreadable. Every player and companion
    is drawn with a mark in the picture's alpha channel (blending off for those nodes), and the page writes marked
-   pixels at half size (4 x 6) in dense letters (`o x % & # @`) with a tinted cell behind. You keep your outfit's
+   pixels at half size (4 x 6) in dense letters (`% & # @`) with a tinted cell behind. You keep your outfit's
    colours and your companion keeps its animal's. Cost of the mark: soft pixels on a visitor (the shadow under the
    feet) are not drawn in this world. **Ambient pals are not marked:** they show as a few full-size characters in their
    own colour.
-8. **It keeps still.** The first build was restless on a phone (the owner's word: spastic): trees and ground litter
-   swayed in the wind underneath, so the characters at their edges kept flipping; every grass character leaned back and
-   forth; each water cell changed its character at random about once a second; cloud shadows dimmed whole patches. Now
-   this world has no wind, its trees and litter do not sway, there are no cloud shadows, the lean is a third of what it
-   was (barely a breath), and water ripples as slow bands of `≈` drifting across the `~` together. Measured on
-   screenshots a moment apart while standing still, the share of the picture that changed fell from about 2.5% to
-   under 0.1% on land and from 4.4% to about 0.15% by the Inkwell (the ink itself is about 5.5% of the picture). When
-   the camera moves, the characters hold (0.02% changed).
+8. **It keeps still.** The first build was restless on a phone (the owner's word: spastic), and it took two passes.
+   - *Things moving underneath.* Trees and ground litter swayed in the wind, so the characters at their edges kept
+     flipping; every grass character leaned back and forth; each water cell changed its character at random about once
+     a second; cloud shadows dimmed whole patches. Now this world has no wind, its trees and litter do not sway, there
+     are no cloud shadows, the lean is a third of what it was, and water ripples as slow bands of `≈` drifting across
+     the `~` together. Standing still, the share of the picture that changed between two screenshots a moment apart fell
+     from about 2.5% to under 0.1% on land and from 4.4% to about 0.15% by the Inkwell (the ink itself is about 5.5% of
+     the picture).
+   - *Walking.* The owner still saw plenty of flicker. The page read what was under a cell from four single points,
+     each landing on a pixel or two of litter or dither, so the answer changed with every sub-pixel step of the camera
+     (the first measurement moved the camera by whole pixels and missed it). Now a cell is read as the average of its
+     whole area, from the picture's mip chain. Stepping the camera a third of a pixel at a time at a phone-like scale,
+     the share of the picture that changed hard fell from 0.29 to 0.09% in the meadow, 0.48 to 0.11% in the wood and 0.45
+     to 0.18% by the Inkwell; most of what is left is the edges of letters sliding, not letters changing.
+   - *Visitors.* A person's small letters followed brightness, so they changed every time the figure breathed or
+     bobbed. Now each small cell keeps one of four dense letters and only its colour changes.
+   The cost of the second pass is that the picture's mip chain is built every frame in this world; **not measured on a
+   phone**.
 9. **The arrival.** The page is typed in from the top, a line at a time behind a pale cursor, over 1.6 s (`type_in`).
 10. **The world underneath** is the shared meadow art with its colours tuned by the world's `art` block (olive grass,
     the green tree kinds only, pale sandy paths), and a neutral day tint with no day cycle, so colours stay in their

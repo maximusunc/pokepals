@@ -6,10 +6,10 @@ shader_type canvas_item;
 // and the text scrolls like a page. Which glyph: the colour's family picks the atlas row (green: grass or
 // leaves, blue: water, brown: earth or wood, grey: stone, pink: bloom), its brightness picks a pair in the
 // row, and a hash of the cell picks one of the pair. Visitors are written smaller (half-size cells, dense
-// letters, a tinted cell behind) so a person stays a person. One screen read, six taps a pixel, no loops
+// letters, a tinted cell behind) so a person stays a person. One screen read (with its mip chain), two or three taps a pixel, no loops
 // beyond the handful of visitors. Tuned by the world's `atmosphere.glyphs` block.
 
-uniform sampler2D screen_tex : hint_screen_texture, filter_linear, repeat_disable;
+uniform sampler2D screen_tex : hint_screen_texture, filter_linear_mipmap, repeat_disable;
 uniform sampler2D atlas : filter_linear_mipmap, repeat_disable;
 uniform vec2 atlas_grid = vec2(8.0, 9.0);      // columns, rows of the atlas
 uniform vec2 cell = vec2(8.0, 12.0);           // one character, in world px
@@ -51,15 +51,14 @@ float hash(vec2 p) {
 	return fract((q.x + q.y) * q.z);
 }
 
-vec4 tap(vec2 uv) {
-	return texture(screen_tex, clamp(uv, vec2(0.001), vec2(0.999)));
-}
-
-// What is under a cell: four taps round its middle (one would let a single pixel of litter decide).
+// What is under a cell: its whole area averaged, read from the picture's mip chain at the level where one
+// texel is about half a cell (so the smooth filter spans the cell). Four point taps were tried first: each
+// landed on a pixel or two of litter or dither, so the answer changed with every sub-pixel step of the camera
+// and characters flickered as you walked.
 vec4 under(vec2 centre, vec2 size, vec2 w, vec2 suv, vec2 to_uv) {
-	vec2 base = suv + (centre - w) * to_uv;
-	vec2 o = size * 0.25 * to_uv;
-	return (tap(base + o) + tap(base - o) + tap(base + vec2(o.x, -o.y)) + tap(base + vec2(-o.x, o.y))) * 0.25;
+	vec2 uv = clamp(suv + (centre - w) * to_uv, vec2(0.001), vec2(0.999));
+	float level = max(0.0, log2(size.x * px_scale * 0.5));
+	return textureLod(screen_tex, uv, level);
 }
 
 void fragment() {
@@ -140,6 +139,11 @@ void fragment() {
 		pick = 0.5 + 0.5 * sin(cc.x * 0.045 + cc.y * 0.11 - time * water_rate + h * 1.4);
 	}
 	float idx = row * atlas_grid.x + level * 2.0 + step(0.5, pick);
+	if (person > 0.5) {
+		// a visitor's letters do not follow brightness: each small cell keeps one of the four dense letters,
+		// so a figure that breathes or bobs changes colour under its letters and the letters hold still
+		idx = row * atlas_grid.x + 4.0 + floor(h * 3.999);
+	}
 	float gap = 0.0;
 	if (row == 0.0) {
 		gap = step(hash(ci + 17.3), grass_gap);                  // the grass leaves room on the page

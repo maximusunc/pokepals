@@ -564,7 +564,8 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   (olive: grass, green: leaves, blue: water, sandy: earth, dark brown: wood, grey: stone, pink: bloom), its
 >   brightness picks a pair in the row and a hash of the cell picks one of the pair. The page keeps still on
 >   purpose: no wind, tree sway or cloud shadows in this world (anything moving underneath makes characters
->   flip), grass barely leans, and water ripples in slow bands. On arrival the page is typed in from the top
+>   flip), grass barely leans, water ripples in slow bands, and a cell is read as the average of its whole
+>   area (the screen's mip chain) so characters hold as the camera moves by fractions of a pixel. On arrival the page is typed in from the top
 >   behind a cursor.
 > - **Paths are sentences:** every cell of earth takes its letter from the spec's
 >   `atmosphere.glyphs.sentences`, a line to each row of the page. Paths are ruled straight (`path_meander: 0`,
