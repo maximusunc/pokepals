@@ -78,6 +78,14 @@ func end_hold() -> void:
 	zoom = Vector2.ONE
 
 
+## Put the camera straight onto `point` (an arrival somewhere else in the same world, Lingerlong's doorway): no
+## glide, no look-ahead left over from the walk before.
+func snap_to(point: Vector2) -> void:
+	_lead = Vector2.ZERO
+	global_position = _clamp_to_limits(point)
+	reset_smoothing()
+
+
 ## Hand the camera back to the player after a glide_to.
 func release() -> void:
 	_cinematic = false

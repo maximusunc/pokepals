@@ -110,6 +110,8 @@ var _gateway: Dictionary = {}          # this world's Gateway entry in _portals 
 var _gateway_view: PortalView = null
 # LINGERLONG: the wishing fountain (null in every other world). See fountain_view() and arch_view().
 var _fountain_view: FountainView = null
+# LINGERLONG: the Late Arch, a doorway only the companion can open (null in a world without a `doorway` block).
+var _doorway_dir: DoorwayDirector = null
 var _gateway_hidden := false
 var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
@@ -280,6 +282,7 @@ func _build_world(cached: Dictionary) -> void:
 	var building_views := _scenery.add_buildings(data.get("buildings", []), _style)
 	# Lingerlong's wishing fountain stands in the same depth-sorted layer (its words are a prop's, its basin a fence).
 	_fountain_view = _scenery.add_fountain(data["fountain"], _style) if data.has("fountain") else null
+	_setup_doorway(data)   # LINGERLONG: the Late Arch (only with a `doorway` block)
 	_bind_inlays(building_views)
 	# Home building: this world's trees can be chopped (unless it says not), and its stones and driftwood picked up.
 	_harvest_dir.configure(data, _interactables)
@@ -703,6 +706,32 @@ func fountain_view() -> FountainView:
 ## An arch (or any building) by its spec id, e.g. "late_arch" / "return_arch" (an ArchView), or null.
 func arch_view(id: String) -> BuildingView:
 	return _scenery.building(id)
+
+
+# ── LINGERLONG: the Late Arch ────────────────────────────────────────────────────────────────────────────────
+## The doorway only the companion can open (DoorwayDirector over DoorwayGate), in a world whose spec has a `doorway`
+## block naming its two arches. It runs whether or not the secret is found: the door belongs to the world.
+func _setup_doorway(data: Dictionary) -> void:
+	if is_instance_valid(_doorway_dir):
+		_doorway_dir.queue_free()
+	_doorway_dir = null
+	var dw: Dictionary = data.get("doorway", {})
+	var late := arch_view(String(dw.get("arch", ""))) as ArchView
+	var back := arch_view(String(dw.get("back_arch", ""))) as ArchView
+	if dw.is_empty() or late == null or back == null:
+		return
+	_doorway_dir = DoorwayDirector.new()
+	_doorway_dir.name = "DoorwayDirector"
+	add_child(_doorway_dir)
+	_doorway_dir.setup(self, _companion, _player, _world_art)
+	_doorway_dir.configure(dw, late, back, data.get("secret", {}))
+	_secret_dir.bind_doorway(_doorway_dir)
+
+
+## The Late Arch's director (null in every other world), for tests and tools.
+func doorway_director() -> DoorwayDirector:
+	return _doorway_dir if is_instance_valid(_doorway_dir) else null
+# ── end LINGERLONG: the Late Arch ────────────────────────────────────────────────────────────────────────────
 
 
 ## Which points the companion may plan a route over, in a world where only part of the map is ground: a sky
@@ -1154,6 +1183,8 @@ func _process(delta: float) -> void:
 	_hunt_dir.update_detector(delta)
 	_maze_dir.update(delta)
 	_secret_dir.update(delta)
+	if _doorway_dir != null:
+		_doorway_dir.update(delta)
 	_home_dir.update(delta)
 	_ruin.update(delta)
 	# F-2 form-verb order in flight: fire its world effect once the companion reaches the object.
@@ -1669,6 +1700,9 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		return
 	# Ohmstead: a tap on a ribbon board's node sends the companion there (or winds the ribbon back to it).
 	if _circuit_dir.on_tap(world):
+		return
+	# Lingerlong: a tap on the Late Arch sends the companion into its picture.
+	if _doorway_dir != null and _doorway_dir.on_tap(world):
 		return
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:

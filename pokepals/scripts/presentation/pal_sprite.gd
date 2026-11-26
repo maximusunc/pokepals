@@ -23,7 +23,8 @@ const FOOT_Y := 8.0      # feet sit at origin+8, like SpriteActor/SpriteSlot
 
 ## params: look (Vector2 facing/attention), speed (px/s), time (s), bounce (px, +down), squash
 ##         (+pop up / -dip down), offset (Vector2 px nudge, e.g. a shy creature shrinking back), tilt (radians,
-##         a slow head-cock while the companion listens; default 0). cfg:
+##         a slow head-cock while the companion listens; default 0), modulate (a Color the frame is drawn with;
+##         default white: Lingerlong tints a companion standing in a painted evening). cfg:
 ##         frame:[w,h], fps, cols, rows:{down,down_right,right,up_right,up}, fly_row (-1 if none),
 ##         animate_idle (keep cycling while still — floaters), idle_cols (resting-loop frames after
 ##         the motion columns, 0 = none: rest on col 0), idle_fps.
@@ -77,7 +78,7 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var sy := 1.0 + squash
 	var sx := -1.0 if flip else 1.0
 	ci.draw_set_transform(offset + Vector2(0.0, FOOT_Y * (1.0 - sy) + bounce), tilt, Vector2(sx, sy))
-	ci.draw_texture_rect_region(tex, dest, region)
+	ci.draw_texture_rect_region(tex, dest, region, params.get("modulate", Color.WHITE))
 	ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 

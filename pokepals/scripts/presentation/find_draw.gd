@@ -165,3 +165,34 @@ static func draw_kept_spark(ci: CanvasItem, p: Vector2, tint: Color) -> void:
 	ci.draw_line(jar.position + Vector2(2, 2), jar.position + Vector2(2, 10), Color(1, 1, 1, 0.6), 1.0)
 	ci.draw_rect(Rect2(p + Vector2(-4, -17), Vector2(8, 3)), Color(0.66, 0.48, 0.30))
 
+
+## Lingerlong's keepsake at home: the place card from the terrace, a small folded cream card with a gold edge, standing
+## on a little brass stand. The back of the fold leans away in shade, the front catches the light; a line of
+## handwriting on it, and a slow glint along the gold.
+static func draw_kept_place_card(ci: CanvasItem, p: Vector2, t: float) -> void:
+	var cream := Color(1.0, 0.985, 0.955)
+	var gold := Color(0.86, 0.66, 0.30)
+	var brass := Color(0.86, 0.70, 0.36)
+	var ink := Color(0.42, 0.30, 0.44)
+	_ellipse(ci, p + Vector2(0, 3.2), 12.0, 2.6, Color(0.30, 0.22, 0.34, 0.18))      # its shadow
+	_ellipse(ci, p + Vector2(0, 2.0), 10.5, 2.0, brass.darkened(0.28))                # the stand, a thin brass plate
+	_ellipse(ci, p + Vector2(0, 1.4), 10.5, 1.8, brass)
+	ci.draw_line(p + Vector2(-6.0, 0.8), p + Vector2(2.0, 0.6), brass.lightened(0.4), 1.0)
+	# a tent of card: the far face is only a sliver above the fold, in shade; the near face leans toward you
+	var back := PackedVector2Array([p + Vector2(-7.0, -13.5), p + Vector2(7.0, -13.5), p + Vector2(8.0, -10.5), p + Vector2(-8.0, -10.5)])
+	ci.draw_colored_polygon(back, cream.darkened(0.22))
+	var front := PackedVector2Array([p + Vector2(-8.0, -10.5), p + Vector2(8.0, -10.5), p + Vector2(9.0, 0.5), p + Vector2(-9.0, 0.5)])
+	ci.draw_colored_polygon(front, cream)
+	ci.draw_colored_polygon(PackedVector2Array([p + Vector2(3.0, -10.5), p + Vector2(8.0, -10.5), p + Vector2(9.0, 0.5), p + Vector2(4.5, 0.5)]),
+		Color(0.93, 0.86, 0.84, 0.5))                                                    # the shaded side of the lean
+	# its gilt edge, right round the near face, and the fold worn bright
+	ci.draw_polyline(PackedVector2Array([front[0], front[1], front[2], front[3], front[0]]), gold, 0.6)
+	ci.draw_line(front[0], front[1], gold.lightened(0.3), 0.8)
+	# a name in neat handwriting, and a smaller one under it
+	ci.draw_polyline(PackedVector2Array([p + Vector2(-4.6, -5.6), p + Vector2(-3.2, -6.2), p + Vector2(-1.8, -5.5), p + Vector2(-0.4, -6.1),
+		p + Vector2(1.0, -5.5), p + Vector2(2.4, -6.0), p + Vector2(3.6, -5.6)]), Color(ink.r, ink.g, ink.b, 0.7), 0.7)
+	ci.draw_line(p + Vector2(-2.4, -3.0), p + Vector2(1.6, -3.0), Color(ink.r, ink.g, ink.b, 0.5), 0.8)
+	var g := fposmod(t * 0.35, 1.8)
+	if g < 1.0:
+		ci.draw_circle(p + Vector2(-8.0 + g * 16.0, -10.5), 0.9, Color(1, 1, 1, 0.85 * (1.0 - g)))
+
