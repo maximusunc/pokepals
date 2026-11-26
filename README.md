@@ -99,6 +99,7 @@ godot --headless --path pokepals --script res://tests/smoke_thimblewick.gd
 godot --headless --path pokepals --script res://tests/smoke_ohmstead.gd
 godot --headless --path pokepals --script res://tests/smoke_ohmstead_walk.gd   # the companion really walks the boards (~3.5 min)
 godot --headless --path pokepals --script res://tests/smoke_farmeadow.gd
+godot --headless --path pokepals --script res://tests/smoke_glintwold.gd
 godot --headless --path pokepals --script res://tests/smoke_packs.gd
 godot --headless --path pokepals --script res://tests/smoke_harvest.gd
 godot --headless --path pokepals --script res://tests/smoke_carpenter.gd

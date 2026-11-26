@@ -1,0 +1,250 @@
+{
+ "_comment": "Glintwold's art (tools/gen_glintwold.py over tools/lowpoly/glintwold.py): flat-shaded low-poly meshes baked @2x. The world generator deep-merges this with glintwold_look.json (ground, water, actors, day cycle) into the spec's art block. Tree kinds collide like trees (the spec's collision.tree_radius for all of them), so a hill needs its own collision (see the README).",
+ "palette": {
+  "ground_top": [
+   0.651,
+   0.859,
+   0.576
+  ],
+  "ground_bottom": [
+   0.435,
+   0.71,
+   0.478
+  ],
+  "foliage_dark": [
+   0.184,
+   0.498,
+   0.42
+  ],
+  "foliage_mid": [
+   0.243,
+   0.604,
+   0.471
+  ],
+  "foliage_light": [
+   0.545,
+   0.831,
+   0.604
+  ],
+  "bark": [
+   0.478,
+   0.353,
+   0.282
+  ],
+  "water": [
+   0.498,
+   0.827,
+   0.878
+  ],
+  "rim": [
+   1.0,
+   0.957,
+   0.839
+  ],
+  "shadow": [
+   0.227,
+   0.29,
+   0.42
+  ],
+  "grass": [
+   0.561,
+   0.812,
+   0.541
+  ],
+  "water_rim": [
+   0.949,
+   0.89,
+   0.702,
+   0.95
+  ]
+ },
+ "light": {
+  "dir": [
+   -0.62,
+   -0.78
+  ],
+  "shadow_alpha": 0.18,
+  "rim_strength": 0.2
+ },
+ "entities": {
+  "tree": {
+   "render": "sprite",
+   "sway": 0.35,
+   "variants": [
+    {
+     "trunk": "res://assets/sprites/gw_pine_a_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_a_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_pine_b_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_b_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_pine_c_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_c_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_pine_a_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_a_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_pine_b_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_b_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_pine_c_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_c_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_pine_d_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_pine_d_canopy@2x.png"
+    }
+   ]
+  },
+  "great_tree": {
+   "render": "sprite",
+   "sway": 0.2,
+   "variants": [
+    {
+     "trunk": "res://assets/sprites/gw_great_a_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_great_a_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_great_b_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_great_b_canopy@2x.png"
+    }
+   ]
+  },
+  "gw_round": {
+   "render": "sprite",
+   "sway": 0.5,
+   "variants": [
+    {
+     "trunk": "res://assets/sprites/gw_round_gold_a_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_round_gold_a_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_round_gold_b_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_round_gold_b_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_round_rose_a_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_round_rose_a_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_round_rose_b_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_round_rose_b_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_round_teal_a_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_round_teal_a_canopy@2x.png"
+    },
+    {
+     "trunk": "res://assets/sprites/gw_round_teal_b_trunk@2x.png",
+     "canopy": "res://assets/sprites/gw_round_teal_b_canopy@2x.png"
+    }
+   ]
+  },
+  "gw_spire": {
+   "render": "sprite",
+   "sway": 0.0,
+   "variants": [
+    {
+     "sprite": "res://assets/sprites/gw_spire_violet@2x.png"
+    },
+    {
+     "sprite": "res://assets/sprites/gw_spire_aqua@2x.png"
+    },
+    {
+     "sprite": "res://assets/sprites/gw_spire_twin@2x.png"
+    }
+   ]
+  },
+  "gw_hill": {
+   "render": "sprite",
+   "sway": 0.0,
+   "variants": [
+    {
+     "sprite": "res://assets/sprites/gw_hill_long@2x.png"
+    },
+    {
+     "sprite": "res://assets/sprites/gw_hill_peak@2x.png"
+    }
+   ]
+  },
+  "gw_boulder": {
+   "render": "sprite",
+   "sway": 0.0,
+   "variants": [
+    {
+     "sprite": "res://assets/sprites/gw_boulder_a@2x.png"
+    },
+    {
+     "sprite": "res://assets/sprites/gw_boulder_b@2x.png"
+    },
+    {
+     "sprite": "res://assets/sprites/gw_boulder_c@2x.png"
+    }
+   ]
+  },
+  "props": {
+   "extra_types": [
+    "gw_gem",
+    "gw_lamp",
+    "gw_bench",
+    "gw_sign",
+    "gw_cairn",
+    "gw_plinth",
+    "gw_arch",
+    "gw_shardbed",
+    "offcut"
+   ]
+  },
+  "prop_lights": {
+   "gw_gem": {
+    "radius": 18,
+    "y": 3,
+    "alpha": 0.22,
+    "saturate": true
+   },
+   "gw_lamp": {
+    "radius": 30,
+    "y": -13,
+    "alpha": 0.28,
+    "motes": 2
+   },
+   "offcut": {
+    "radius": 16,
+    "y": 4,
+    "alpha": 0.32,
+    "motes": 3,
+    "saturate": true
+   }
+  },
+  "understory": {
+   "density": 0
+  },
+  "ambient_life": {
+   "butterflies": {
+    "count": 0
+   },
+   "leaves": {
+    "rate": 0
+   },
+   "fireflies": {
+    "count": 10,
+    "always": true,
+    "color": [
+     1.0,
+     0.97,
+     0.86
+    ]
+   },
+   "clouds": {
+    "count": 3,
+    "alpha": 0.05,
+    "speed": 7.0
+   }
+  }
+ }
+}

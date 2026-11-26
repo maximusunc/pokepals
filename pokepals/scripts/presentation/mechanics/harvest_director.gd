@@ -20,7 +20,8 @@ const SWING_GAP := 0.5          # s between swings while a chop takes time
 const WALK_OFF := 18.0          # px you can shuffle mid-chop before you stop
 # Tree kinds that aren't wood (keep in step with Server.Harvest's @not_wood).
 const NOT_WOOD := ["picket", "grass", "clover", "daisy", "poppy", "cosmos", "dandelion", "foxglove", "bluebell",
-	"crystal_spire", "bell_flower", "spore_stalk", "bubble_stalk", "lolli", "gumdrop", "pillar", "mound", "fungus"]
+	"crystal_spire", "bell_flower", "spore_stalk", "bubble_stalk", "lolli", "gumdrop", "pillar", "mound", "fungus",
+	"gw_spire", "gw_hill", "gw_boulder"]
 const PICKUP_NAMES := { "stone": "a river stone", "driftwood": "a piece of driftwood" }
 
 var _host: Node
