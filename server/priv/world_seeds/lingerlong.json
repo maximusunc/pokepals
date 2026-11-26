@@ -217,60 +217,60 @@
 			"tree": {
 				"render": "sprite",
 				"sway": 0.45,
-				"foot": 16.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_palm_a_trunk@2x.png",
 				"canopy": "res://assets/sprites/ll_palm_a_canopy@2x.png"
 			},
 			"ll_palm_a": {
 				"render": "sprite",
 				"sway": 0.45,
-				"foot": 16.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_palm_a_trunk@2x.png",
 				"canopy": "res://assets/sprites/ll_palm_a_canopy@2x.png"
 			},
 			"ll_palm_b": {
 				"render": "sprite",
 				"sway": 0.45,
-				"foot": 16.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_palm_b_trunk@2x.png",
 				"canopy": "res://assets/sprites/ll_palm_b_canopy@2x.png"
 			},
 			"ll_palm_c": {
 				"render": "sprite",
 				"sway": 0.45,
-				"foot": 16.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_palm_c_trunk@2x.png",
 				"canopy": "res://assets/sprites/ll_palm_c_canopy@2x.png"
 			},
 			"ll_great_palm": {
 				"render": "sprite",
 				"sway": 0.3,
-				"foot": 26.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_great_palm_trunk@2x.png",
 				"canopy": "res://assets/sprites/ll_great_palm_canopy@2x.png"
 			},
 			"ll_column": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 13.0,
+				"foot": 12.0,
 				"sprite": "res://assets/sprites/ll_column@2x.png"
 			},
 			"ll_column_broken": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 6.0,
+				"foot": 12.0,
 				"sprite": "res://assets/sprites/ll_column_broken@2x.png"
 			},
 			"ll_lamp": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 10.0,
+				"foot": 12.0,
 				"sprite": "res://assets/sprites/ll_lamp@2x.png"
 			},
 			"ll_lamp_lit": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 10.0,
+				"foot": 12.0,
 				"sprite": "res://assets/sprites/ll_lamp_lit@2x.png",
 				"glow": [
 					1.0,
@@ -284,17 +284,17 @@
 			"ll_umbrella": {
 				"render": "sprite",
 				"sway": 0.15,
-				"foot": 10.0,
+				"foot": 12.0,
 				"sprite": "res://assets/sprites/ll_umbrella@2x.png"
 			},
 			"ll_bust_a": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 4.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_plinth@2x.png",
 				"canopy": "res://assets/sprites/ll_bust_a@2x.png",
 				"float": {
-					"rest": 24.0,
+					"rest": 28.0,
 					"height": 14,
 					"bob": 3,
 					"period": 5.0,
@@ -304,11 +304,11 @@
 			"ll_bust_b": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 4.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_plinth@2x.png",
 				"canopy": "res://assets/sprites/ll_bust_b@2x.png",
 				"float": {
-					"rest": 24.0,
+					"rest": 28.0,
 					"height": 14,
 					"bob": 3,
 					"period": 5.0,
@@ -318,11 +318,11 @@
 			"ll_bust_c": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 4.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_plinth@2x.png",
 				"canopy": "res://assets/sprites/ll_bust_c@2x.png",
 				"float": {
-					"rest": 24.0,
+					"rest": 28.0,
 					"height": 14,
 					"bob": 3,
 					"period": 5.0,
@@ -332,11 +332,11 @@
 			"ll_bust_d": {
 				"render": "sprite",
 				"sway": 0.0,
-				"foot": 4.0,
+				"foot": 12.0,
 				"trunk": "res://assets/sprites/ll_plinth@2x.png",
 				"canopy": "res://assets/sprites/ll_bust_d@2x.png",
 				"float": {
-					"rest": 24.0,
+					"rest": 28.0,
 					"height": 14,
 					"bob": 3,
 					"period": 5.0,
@@ -345,7 +345,7 @@
 			},
 			"arch": {
 				"frame": "res://assets/sprites/ll_arch@2x.png",
-				"foot": 17.0,
+				"foot": 12.0,
 				"pictures": {
 					"dusk": "res://assets/sprites/ll_arch_view_dusk@2x.png",
 					"noon": "res://assets/sprites/ll_arch_view_noon@2x.png"
@@ -354,8 +354,8 @@
 			"fountain": {
 				"base": "res://assets/sprites/ll_fountain_base@2x.png",
 				"top": "res://assets/sprites/ll_fountain_top@2x.png",
-				"foot": 14.0,
-				"top_foot": 21.0,
+				"foot": 44.0,
+				"top_foot": 44.0,
 				"water": [
 					0.78,
 					0.94,
@@ -384,18 +384,18 @@
 					"ll_bust_lore"
 				],
 				"foot": {
-					"ll_bench": 4.0,
-					"ll_lounger": 7.0,
-					"ll_planter": 5.0,
-					"ll_fern_pot": 4.0,
-					"ll_plaque": 4.0,
-					"ll_urn": 4.0,
-					"ll_pool_rail": 4.0,
-					"ll_ball": 0.0,
-					"ll_table_set": 6.0,
-					"ll_chair": 4.0,
-					"ll_cushion": 2.0,
-					"ll_place_card": 0.0
+					"ll_bench": 8.0,
+					"ll_lounger": 8.0,
+					"ll_planter": 8.0,
+					"ll_fern_pot": 8.0,
+					"ll_plaque": 8.0,
+					"ll_urn": 8.0,
+					"ll_pool_rail": 8.0,
+					"ll_ball": 8.0,
+					"ll_table_set": 8.0,
+					"ll_chair": 8.0,
+					"ll_cushion": 8.0,
+					"ll_place_card": 8.0
 				},
 				"float": {
 					"ll_ball": {
