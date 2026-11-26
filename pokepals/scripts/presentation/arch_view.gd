@@ -68,6 +68,13 @@ func set_between(fn: Callable) -> void:
 	queue_redraw()
 
 
+## Draw the doorway picture once more over itself, with `mod` (a modulate over 1 brightens it): a door that glows.
+## Only from inside a set_between hook (this node's own drawing).
+func draw_picture_again(mod: Color) -> void:
+	if _picture != null:
+		_blit(_picture, mod)
+
+
 ## The doorway, in this node's space (origin at the feet).
 func doorway_rect() -> Rect2:
 	return Rect2(-DOOR_W * 0.5, -DOOR_H, DOOR_W, DOOR_H)

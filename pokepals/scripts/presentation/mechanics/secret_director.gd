@@ -68,6 +68,10 @@ extends Node
 ##     find its bond has earned from that gap, setting it at your feet; the silver thimble is the deepest one
 ##     (FetchDirector over the pure FetchTrip; Thimblewick). Nothing shows until it is brought. Once found, the
 ##     fetching stays a quiet toy of small finds; only the thimble stops coming.
+##   * `doorway`: the prop (Lingerlong's place card) is simply there, on a terrace no one can walk to: the only way
+##     there is the Late Arch, which opens only while your companion waits inside its picture (DoorwayDirector over
+##     the pure DoorwayGate; the world controller runs it whenever the spec has a `doorway` block, found or not, since
+##     the door is the world's and not the secret's). Being on the terrace IS the reveal, so it is laid out as `always`.
 ## The server checks the conditions it can (an open door, a perfect hunt, the tide) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -100,6 +104,7 @@ var _tide: TideDirector
 var _sky: SkyDirector
 var _fetch: FetchDirector
 var _circuits: CircuitDirector   # Ohmstead's ribbon boards (the world controller's; a `circuit` secret waits on one)
+var _doorway: DoorwayDirector    # Lingerlong's Late Arch (the world controller's; "Go look" sends the companion in)
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -121,6 +126,11 @@ func bind_circuits(circuits: CircuitDirector) -> void:
 	_circuits = circuits
 	_circuits.board_closed.connect(_on_board_closed)
 	_circuits.board_opened.connect(_on_board_opened)
+
+
+## Lingerlong's Late Arch: "Go look" near it sends the companion into the picture (see can_go_look / go_look).
+func bind_doorway(doorway: DoorwayDirector) -> void:
+	_doorway = doorway
 
 
 ## A ribbon board was closed (by us or by a friend): if it is the one our secret waits on, the spark is there.
@@ -302,6 +312,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 			_start_align(secret, false)
 		"circuit":
 			pass  # appears once the ribbon board it names is closed (_on_board_closed; see after_world_drawn)
+		"doorway":
+			# The place card is simply on the terrace: you can only be standing by it if the Late Arch let you in.
+			combined.append(_secret_prop())
 		_:
 			combined.append(_secret_prop())
 
@@ -575,7 +588,8 @@ func _on_stone_surfaced() -> void:
 ## "Go look" is on offer in a world whose secret is led to (Underroot): the radial's entry lights up while
 ## the heart is still to be found, and is greyed once you've reached it.
 func can_go_look() -> bool:
-	return (_follow != null and _follow.can_ask()) or (_fetch != null and _fetch.available())
+	return (_follow != null and _follow.can_ask()) or (_fetch != null and _fetch.available()) \
+		or (_doorway != null and is_instance_valid(_doorway) and _doorway.can_go_look())
 
 
 ## The player chose "Go look": the companion leads (FollowDirector), and you follow.
@@ -584,6 +598,8 @@ func go_look() -> void:
 		_follow.ask()
 	elif _fetch != null:
 		_fetch.ask()
+	elif _doorway != null and is_instance_valid(_doorway):
+		_doorway.ask()
 
 
 ## The pockets where the dark thins round something only just in view (the faint bell, once you are close;
