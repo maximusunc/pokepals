@@ -206,17 +206,15 @@ defmodule Server.WorldChannel do
 
     # The ambient pals' current positions, so a late joiner sees them where they are right now rather
     # than snapping in from their home spots on the next tick. Empty (skipped) in worlds without pals.
-    case World.ambient_snapshot(world_id) do
-      [] -> :ok
-      pals -> push(socket, "ambient_state", %{pals: pals})
-    end
+    # (Only asked of the world process where there are pals / wards at all: each is a call into the one
+    # world process, which a join storm in a busy world would otherwise queue behind everyone's moves.)
+    pals = if ambient_core(definition)["ambient_pals"] in [nil, []], do: [], else: World.ambient_snapshot(world_id)
+    if pals != [], do: push(socket, "ambient_state", %{pals: pals})
 
     # The shared Ruin ward state, so a late joiner sees a gate someone already opened (and the slab
     # already raised). Empty in worlds without a Ruin, so we skip the push there.
-    case World.wards(world_id) do
-      [] -> :ok
-      wards -> push(socket, "ward_state", %{wards: wards})
-    end
+    wards = if ward_defs(definition) == [], do: [], else: World.wards(world_id)
+    if wards != [], do: push(socket, "ward_state", %{wards: wards})
 
     {:noreply, assign(socket, :known, known)}
   end
