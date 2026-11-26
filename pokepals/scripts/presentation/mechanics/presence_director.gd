@@ -237,6 +237,13 @@ func remote_lantern_positions() -> Array:
 	return out
 
 
+## LINGERLONG: where a peer's avatar is drawn right now, or null when they have no puppet here (out of sight, or
+## gone). The wishing fountain throws their coin from there.
+func peer_position(peer_id: String) -> Variant:
+	var rp: Variant = (_remote_pairs.get(peer_id, {}) as Dictionary).get("player")
+	return (rp as Node2D).position if rp != null and is_instance_valid(rp) else null
+
+
 ## A peer's name, or "a wanderer" if their identity hasn't arrived yet.
 func peer_name(peer_id: String) -> String:
 	return String(_peer_names.get(peer_id, "a wanderer"))

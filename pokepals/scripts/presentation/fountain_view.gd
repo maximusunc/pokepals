@@ -33,6 +33,12 @@ var _bowls: Array = []
 var _basin := { "y": 26.0, "rx": 72.0, "ry": 22.0 }
 var _time := 0.0
 var _swell := 0.0
+# LINGERLONG wishes: where coins just went in (local to this node), each { p, t } ageing to SPLASH_LIFE.
+const SPLASH_LIFE := 0.9
+const SPLASH_MAX := 8
+const SWELL_MAX := 3.0
+const SWELL_DECAY := 0.55   # per second
+var _splashes: Array = []
 
 
 func setup(center: Vector2, style: ArtStyle) -> void:
@@ -60,9 +66,22 @@ static func _tex(path: String) -> Texture2D:
 	return load(path) if path != "" and ResourceLoader.exists(path) else null
 
 
-## The jets rise for a moment, by `amount` (about 1 for one wish; several in a row add up, to a limit).
+## The jets rise for a moment, by `amount` (about 0.5 for one wish; several in a row add up, to SWELL_MAX,
+## where the plume stands about three times its height), then settle back at SWELL_DECAY a second.
 func swell(amount := 1.0) -> void:
-	_swell = clampf(_swell + amount, 0.0, 2.5)
+	_swell = clampf(_swell + amount, 0.0, SWELL_MAX)
+
+
+## A coin lands in the basin at `world_pos`: a ring spreads on the water and a few glints wink.
+func splash(world_pos: Vector2) -> void:
+	if _splashes.size() >= SPLASH_MAX:
+		_splashes.pop_front()
+	_splashes.append({ "p": world_pos - position, "t": 0.0 })
+
+
+## Where a coin should land in the basin's water (world space), `u` and `v` in -1..1 across it.
+func basin_point(u: float, v: float) -> Vector2:
+	return position + Vector2(u * float(_basin["rx"]) * 0.62, _front - float(_basin["y"]) + v * float(_basin["ry"]) * 0.5)
 
 
 func swelling() -> float:
@@ -72,7 +91,12 @@ func swelling() -> float:
 func _process(delta: float) -> void:
 	_time += delta
 	if _swell > 0.0:
-		_swell = maxf(0.0, _swell - delta * 0.6)
+		_swell = maxf(0.0, _swell - delta * SWELL_DECAY)
+	if not _splashes.is_empty():
+		for sp in _splashes:
+			sp["t"] += delta
+		while not _splashes.is_empty() and float(_splashes[0]["t"]) > SPLASH_LIFE:
+			_splashes.pop_front()
 	var vis := ViewCull.visible_world_rect(self, 160.0)
 	var on := not vis.has_area() or vis.has_point(position)
 	if on != visible:
@@ -89,6 +113,7 @@ func _draw() -> void:
 	else:
 		_draw_plain_basin(fy)
 	_draw_basin_rings(fy)
+	_draw_splashes()
 	if _top != null:
 		var tz := _top.get_size() * 0.5
 		draw_texture_rect(_top, Rect2(Vector2(-tz.x * 0.5, fy + _top_foot - tz.y), tz), false)
@@ -109,6 +134,24 @@ func _draw_basin_rings(fy: float) -> void:
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
+func _draw_splashes() -> void:
+	var ry_k := float(_basin["ry"]) / float(_basin["rx"])
+	for sp in _splashes:
+		var k := float(sp["t"]) / SPLASH_LIFE
+		var c: Vector2 = sp["p"]
+		draw_set_transform(c, 0.0, Vector2(1.0, ry_k))
+		draw_arc(Vector2.ZERO, 3.0 + 16.0 * k, 0.0, TAU, 20, Color(1, 1, 1, 0.75 * (1.0 - k)), 1.4, true)
+		if k < 0.6:
+			draw_arc(Vector2.ZERO, 2.0 + 8.0 * k, 0.0, TAU, 14, Color(1, 0.93, 0.7, 0.6 * (1.0 - k / 0.6)), 1.0, true)
+		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+		# a few soft glints round it (a coin catching the light on its way down)
+		for g in 4:
+			var a := float(g) * 1.7 + float(sp["p"].x) * 0.13
+			var gp := c + Vector2(cos(a) * (6.0 + 10.0 * k), sin(a) * (2.0 + 4.0 * k) - 3.0 * k)
+			var tw := sin(k * PI) * (0.5 + 0.5 * sin(_time * 14.0 + float(g)))
+			draw_circle(gp, 0.9 + 0.5 * tw, Color(1, 0.96, 0.78, 0.85 * tw), true, -1.0, true)
+
+
 func _draw_water(fy: float) -> void:
 	var lift := 1.0 + _swell * 0.7
 	var spout := Vector2(0, fy - _spout_y)
@@ -117,13 +160,25 @@ func _draw_water(fy: float) -> void:
 	# the plume: up from the spout and back down into the top bowl, a soft column with droplets
 	var h := _jet * lift
 	var top := spout - Vector2(0, h)
-	draw_line(spout, top, Color(col.r, col.g, col.b, 0.42), 4.0, true)
-	draw_line(spout, top + Vector2(0, 4), bright, 1.2, true)
-	for k in DROPS * 2:
-		var t := fposmod(_time * 0.9 + float(k) / float(DROPS * 2), 1.0)
+	# a wish or two thickens the column a little; many together make it a great plume with a crown of spray
+	var thick := 4.0 + _swell * 2.6
+	draw_line(spout, top, Color(col.r, col.g, col.b, 0.42), thick, true)
+	draw_line(spout, top + Vector2(0, 4), bright, 1.2 + _swell * 0.5, true)
+	var drops := DROPS * 2 + int(_swell * 4.0)
+	var spread := 14.0 + _swell * 10.0
+	for k in drops:
+		var t := fposmod(_time * 0.9 + float(k) / float(drops), 1.0)
 		var side := -1.0 if k % 2 == 0 else 1.0
-		var p := top + Vector2(side * (2.0 + 14.0 * t), h * 0.15 * t + (h * 0.85 + 6.0) * t * t)
+		var p := top + Vector2(side * (2.0 + spread * t), h * 0.15 * t + (h * 0.85 + 6.0) * t * t)
 		draw_circle(p, 1.3, Color(1, 1, 1, 0.8 * (1.0 - t)), true, -1.0, true)
+	if _swell > 0.25:
+		var crown := clampf((_swell - 0.25) / 1.5, 0.0, 1.0)
+		draw_circle(top, 2.0 + 3.0 * crown, Color(1, 1, 1, 0.35 * crown), true, -1.0, true)
+		for k in 8:
+			var t := fposmod(_time * 1.3 + float(k) * 0.37, 1.0)
+			var a := -PI * 0.5 + (float(k) - 3.5) * 0.36
+			var p := top + Vector2(cos(a), sin(a)) * (3.0 + 12.0 * crown * t) + Vector2(0, 20.0 * t * t)
+			draw_circle(p, 1.1, Color(1, 1, 1, 0.75 * crown * (1.0 - t)), true, -1.0, true)
 	# each bowl overflows into the one below it (the bottom bowl into the basin), in arcs round its rim
 	var levels: Array = []
 	for b in _bowls:
