@@ -84,6 +84,8 @@ A `#` starts a comment only at the start of a line or after a space, so `C#5` an
 | `pulse` | an arcade sequencer's note: a hollow square wave, short and plucked |
 | `synthbass` | a synth bass: a saw whose top closes as the note rings |
 | `synthlead` | a soft synth lead with a slow vibrato on held notes |
+| `epiano` | a warm electric-piano tine with a slow tremolo, heard from across a square |
+| `haze` | a dark, hazy pad whose voices each drift in pitch: a warm hum more than a chord |
 
 Every instrument has a rounded onset (no pluck snap, no click), so the music stays in the background.
 
@@ -118,6 +120,7 @@ one says at the top what it's for. They loop after 80 to 120 seconds.
 | Thimblewick | F major, 3/4, 108 | oom-pah-pah, music-box waltz |
 | Farmeadow | D major, 72 | flute, guitar |
 | Ohmstead | A minor, 96 | a square-wave sequencer and its echo, synth bass, pad, synth lead |
+| Lingerlong | D major, 60 | a hazy hum, an electric piano turning through each chord, soft bass, a few high chimes |
 
 ## Hooking a track to a world
 
