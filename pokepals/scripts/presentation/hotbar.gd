@@ -4,7 +4,8 @@ extends Control
 ## docs/usable-items-design.md) and, at its end, the BAG. One slot is SELECTED (a gold frame, its item's
 ## name in a little pill above the bar) and the use button in the bottom-right corner uses whatever is in
 ## it; tap another slot to switch, or press 1-5 (the numbers show on a desktop). Empty slots are quiet
-## dashed outlines, so they don't read as buttons. Before you carry anything usable, only the bag shows.
+## dashed outlines, so they don't read as buttons. They show from the start, empty, so a newcomer sees
+## where items will go.
 ##
 ## Pure presentation: FishingDirector pushes the slots (set_slots) and the selection (set_selected); this
 ## node draws them and reports a tapped slot (`slot_selected`) or the bag (`bag_pressed`). The bar's own
@@ -20,12 +21,12 @@ const PAD := 5.0            # the tray's inner margin
 const SEP := 14.0           # the room the divider before the bag takes
 const BOTTOM_MARGIN := 8.0
 const NAME_H := 16.0        # the selected item's name pill above the bar
+const SLOT_COUNT := 5
 
 var _bar: Control
-var _slots: Array = []      # per slot: {} for empty, else { key, name, kind, color, quantity }
+var _slots: Array = [{}, {}, {}, {}, {}]      # per slot: {} for empty, else { key, name, kind, color, quantity }
 var _selected := 0
 var _show_keys := true      # the 1-5 key hints (desktop only)
-var _has_items := false
 ## Kept out of sight regardless (the first-meeting search, when the companion column hides too).
 var suppressed := false:
 	set(value):
@@ -51,13 +52,13 @@ func _notification(what: int) -> void:
 		_layout()
 
 
-## Whether the slots are showing (anything usable carried); the bag is there regardless.
+## Whether the slots are showing (always, empty or not, beside the bag).
 func shows_slots() -> bool:
-	return _has_items
+	return _slots_shown() > 0
 
 
 func _slots_shown() -> int:
-	return _slots.size() if _has_items else 0
+	return _slots.size()
 
 
 func _layout() -> void:
@@ -76,11 +77,8 @@ func _layout() -> void:
 ## The bar's slots: each {} (empty) or { key, name, kind, color, quantity }.
 func set_slots(slots: Array) -> void:
 	_slots = slots.duplicate(true)
-	var any := false
-	for s in _slots:
-		if s is Dictionary and not (s as Dictionary).is_empty():
-			any = true
-	_has_items = any
+	while _slots.size() < SLOT_COUNT:
+		_slots.append({})
 	_layout()
 
 
@@ -179,7 +177,7 @@ func _draw_bar() -> void:
 
 
 func _selected_name() -> String:
-	if not _has_items or _selected < 0 or _selected >= _slots.size():
+	if _selected < 0 or _selected >= _slots.size():
 		return ""
 	var s: Variant = _slots[_selected]
 	if not (s is Dictionary):
