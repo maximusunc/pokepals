@@ -509,6 +509,10 @@ out.append('\t"paths": [\n%s\n\t],' % block(path_objs))
 out.append('\t"landmarks": [\n%s\n\t],' % block(LANDMARKS))
 out.append('\t"trees": [\n%s\n\t],' % block(TREES))
 out.append('\t"props": [\n%s\n\t],' % block(ALL_PROPS))
+# A hill's tree point is its front edge and the mound lies behind it, so the tree radius alone lets you walk
+# through its body. One silent fence segment per hill (fences draw nothing) is what actually stops you.
+FENCES = [{"from": [x - 70, y - 26], "to": [x + 70, y - 26], "thickness": 44} for x, y, kind in TREES if kind == "gw_hill"]
+out.append('\t"fences": [\n%s\n\t],' % block(FENCES))
 out.append('\t"heartstone": %s,' % json.dumps(HEARTSTONE, separators=(", ", ": ")))
 out.append('\t"_secret_comment": %s,' % json.dumps(SECRET_COMMENT))
 out.append('\t"secret": %s,' % json.dumps(SECRET, indent="\t", ensure_ascii=False).replace("\n", "\n\t"))

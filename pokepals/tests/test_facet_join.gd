@@ -69,7 +69,7 @@ static func _test_slides_with_viewer() -> int:
 	# step right: the near shard (depth 0.9) slides left, the far one (-0.8) right, compared to stepping left
 	var near_moves := (right[0] as Vector2).x < (left[0] as Vector2).x
 	var far_moves := (right[1] as Vector2).x > (left[1] as Vector2).x
-	var big := (left[0] as Vector2).length() > 5.0
+	var big := ((right[0] as Vector2) - (left[0] as Vector2)).length() > 8.0   # a step either side of the mark shows plainly
 	var capped := true
 	for o in right:
 		capped = capped and (o as Vector2).length() <= j.cfg("max_offset") + 0.001

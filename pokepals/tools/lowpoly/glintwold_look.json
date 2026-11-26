@@ -181,7 +181,7 @@
    "step_amount": 0.5,
    "ring_speed": 60,
    "lip_cut": 0.75,
-   "lip_dark": 0.14
+   "lip_dark": 0.06
   },
   "portal": {
    "frame_tint": [

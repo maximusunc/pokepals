@@ -345,9 +345,14 @@
 						0.627
 					],
 					[
-						0.984,
-						0.89,
-						0.69
+						0.957,
+						0.812,
+						0.753
+					],
+					[
+						0.788,
+						0.91,
+						0.871
 					],
 					[
 						0.663,
@@ -438,7 +443,9 @@
 				"step_spacing": 22,
 				"step_life": 1.6,
 				"step_amount": 0.5,
-				"ring_speed": 60
+				"ring_speed": 60,
+				"lip_cut": 0.75,
+				"lip_dark": 0.06
 			},
 			"portal": {
 				"frame_tint": [
@@ -451,7 +458,7 @@
 		"actor_look": {
 			"facet": {
 				"cell": 3,
-				"shade": 0.22,
+				"shade": 0.18,
 				"steps": 2,
 				"tilt": 0.9,
 				"light_height": 0.9,
@@ -1233,6 +1240,28 @@
 		{"id": "the_landing_gw_gem_1", "type": "gw_gem", "position": [267, 984], "color": [0.95, 0.76, 0.31], "label": "a gem cluster"},
 		{"id": "the_landing_gw_gem_2", "type": "gw_gem", "position": [-136, 759], "color": [0.95, 0.76, 0.31], "label": "a gem cluster"},
 		{"id": "the_landing_gw_gem_3", "type": "gw_gem", "position": [200, 916], "color": [0.93, 0.56, 0.63], "label": "a gem cluster"}
+	],
+	"fences": [
+		{"from": [754, -938], "to": [894, -938], "thickness": 44},
+		{"from": [1262, -953], "to": [1402, -953], "thickness": 44},
+		{"from": [503, -741], "to": [643, -741], "thickness": 44},
+		{"from": [1169, -514], "to": [1309, -514], "thickness": 44},
+		{"from": [931, -450], "to": [1071, -450], "thickness": 44},
+		{"from": [868, -1184], "to": [1008, -1184], "thickness": 44},
+		{"from": [521, -1022], "to": [661, -1022], "thickness": 44},
+		{"from": [1330, -627], "to": [1470, -627], "thickness": 44},
+		{"from": [1411, -1146], "to": [1551, -1146], "thickness": 44},
+		{"from": [663, -1163], "to": [803, -1163], "thickness": 44},
+		{"from": [704, -729], "to": [844, -729], "thickness": 44},
+		{"from": [442, -492], "to": [582, -492], "thickness": 44},
+		{"from": [1111, -714], "to": [1251, -714], "thickness": 44},
+		{"from": [1084, -1044], "to": [1224, -1044], "thickness": 44},
+		{"from": [-507, -114], "to": [-367, -114], "thickness": 44},
+		{"from": [-426, 277], "to": [-286, 277], "thickness": 44},
+		{"from": [-1268, -41], "to": [-1128, -41], "thickness": 44},
+		{"from": [-1254, -256], "to": [-1114, -256], "thickness": 44},
+		{"from": [1299, 841], "to": [1439, 841], "thickness": 44},
+		{"from": [1269, 1033], "to": [1409, 1033], "thickness": 44}
 	],
 	"heartstone": {"position": [0, -260], "marks": {"you": [-140, -155], "companion": [150, -355]}, "reach": 320, "tolerance": 16, "hold_s": 2.0, "floor_radius": 230},
 	"_secret_comment": "This world's one SECRET (issue #160). reveal.type 'facets': the Unfinished (the 'heartstone' block) hangs in pieces; half answer to where the player stands, half to where the companion stands, and each half slides home only when its viewer stands on its own mark ('heartstone.marks', within 'tolerance'). Both home and held 'hold_s': the stone closes and the offcut falls at 'position'. Any actor on a mark counts, so two friends can close it too. It all happens on the players' screens, so the server honours a claim only here, within 'radius' of 'position'.",
