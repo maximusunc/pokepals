@@ -185,14 +185,13 @@ static func draw_kept_place_card(ci: CanvasItem, p: Vector2, t: float) -> void:
 	ci.draw_colored_polygon(front, cream)
 	ci.draw_colored_polygon(PackedVector2Array([p + Vector2(3.0, -10.5), p + Vector2(8.0, -10.5), p + Vector2(9.0, 0.5), p + Vector2(4.5, 0.5)]),
 		Color(0.93, 0.86, 0.84, 0.5))                                                    # the shaded side of the lean
-	# the gold edge printed round the card, and the fold worn bright
-	ci.draw_polyline(PackedVector2Array([p + Vector2(-6.6, -9.2), p + Vector2(6.6, -9.2), p + Vector2(7.4, -0.8), p + Vector2(-7.4, -0.8),
-		p + Vector2(-6.6, -9.2)]), gold, 0.8, true)
-	ci.draw_line(p + Vector2(-8.0, -10.5), p + Vector2(8.0, -10.5), gold.lightened(0.25), 1.0, true)
+	# its gilt edge, right round the near face, and the fold worn bright
+	ci.draw_polyline(PackedVector2Array([front[0], front[1], front[2], front[3], front[0]]), gold, 0.6)
+	ci.draw_line(front[0], front[1], gold.lightened(0.3), 0.8)
 	# a name in neat handwriting, and a smaller one under it
 	ci.draw_polyline(PackedVector2Array([p + Vector2(-4.6, -5.6), p + Vector2(-3.2, -6.2), p + Vector2(-1.8, -5.5), p + Vector2(-0.4, -6.1),
-		p + Vector2(1.0, -5.5), p + Vector2(2.4, -6.0), p + Vector2(3.6, -5.6)]), Color(ink.r, ink.g, ink.b, 0.7), 0.7, true)
-	ci.draw_line(p + Vector2(-2.4, -3.0), p + Vector2(1.6, -3.0), Color(ink.r, ink.g, ink.b, 0.5), 0.8, true)
+		p + Vector2(1.0, -5.5), p + Vector2(2.4, -6.0), p + Vector2(3.6, -5.6)]), Color(ink.r, ink.g, ink.b, 0.7), 0.7)
+	ci.draw_line(p + Vector2(-2.4, -3.0), p + Vector2(1.6, -3.0), Color(ink.r, ink.g, ink.b, 0.5), 0.8)
 	var g := fposmod(t * 0.35, 1.8)
 	if g < 1.0:
 		ci.draw_circle(p + Vector2(-8.0 + g * 16.0, -10.5), 0.9, Color(1, 1, 1, 0.85 * (1.0 - g)))
