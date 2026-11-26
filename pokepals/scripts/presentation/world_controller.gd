@@ -90,6 +90,9 @@ var _firefly_dir: FireflyDirector   # the firefly glades by Steamhollow's and Un
 var _harvest_dir: HarvestDirector   # chopping trees with an axe, picking up stones and driftwood (home building)
 var _circuit_dir: CircuitDirector   # Ohmstead's ribbon boards (no-op elsewhere)
 var _house_dir: HouseDirector       # your house at home: being built, then finished (home building; no-op elsewhere)
+# LINGERLONG (hangout): the wishing fountain and sitting together (no-ops in a world without a fountain / seats).
+var _wish_dir: WishDirector
+var _seat_dir: SeatDirector
 var _lantern_radius := 220.0  # the pocket a FRIEND's lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
 var _use_button: UseButton
@@ -282,7 +285,12 @@ func _build_world(cached: Dictionary) -> void:
 	var building_views := _scenery.add_buildings(data.get("buildings", []), _style)
 	# Lingerlong's wishing fountain stands in the same depth-sorted layer (its words are a prop's, its basin a fence).
 	_fountain_view = _scenery.add_fountain(data["fountain"], _style) if data.has("fountain") else null
+<<<<<<< HEAD
 	_setup_doorway(data)   # LINGERLONG: the Late Arch (only with a `doorway` block)
+=======
+	_wish_dir.configure(data, _fountain_view)   # LINGERLONG: toss a coin in
+	_seat_dir.configure(data)                   # LINGERLONG: somewhere to sit
+>>>>>>> worktree-agent-a3fe835e5c6db6012
 	_bind_inlays(building_views)
 	# Home building: this world's trees can be chopped (unless it says not), and its stones and driftwood picked up.
 	_harvest_dir.configure(data, _interactables)
@@ -537,6 +545,14 @@ func _create_directors() -> void:
 	_house_dir.setup(self, _player, _companion, _world_art, _scenery, _style, _home_dir)
 
 	# Ohmstead's ribbon boards (the dark sector, and the Arcade's two): taps on their nodes direct the companion.
+	# LINGERLONG: the wishing fountain and the seats offer themselves on the use button (FishingDirector.places).
+	_wish_dir = WishDirector.new()
+	add_child(_wish_dir)
+	_wish_dir.setup(self, _player, _presence_dir, _scenery)
+	_seat_dir = SeatDirector.new()
+	add_child(_seat_dir)
+	_seat_dir.setup(self, _player, _companion, _presence_dir)
+	_fishing_dir.places = [_seat_dir, _wish_dir]
 	_circuit_dir = CircuitDirector.new()
 	add_child(_circuit_dir)
 	_circuit_dir.setup(self, _companion, _world_art, _player)
@@ -1213,6 +1229,8 @@ func _process(delta: float) -> void:
 	_harvest_dir.update(delta)
 	_circuit_dir.update(delta)
 	_house_dir.update(delta)
+	_wish_dir.update(delta)   # LINGERLONG
+	_seat_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()
 	_use_button.suppressed = _encounter_dir.is_searching()
 
@@ -1709,6 +1727,9 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 		_secret_dir.on_ground_tap(world)   # Lanternfold: empty lit ground stands your companion in the shadows
 		return
 	var entry: Dictionary = _interactables[index]
+	# LINGERLONG: a tap on the wishing fountain, close enough, tosses a coin in.
+	if _wish_dir.on_tap(entry):
+		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
 	if _issue_form_order(entry, index):
 		return
@@ -1980,6 +2001,9 @@ func _try_interact() -> void:
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
 	# A prop a secret is waiting on (Bobbledown's chime-bubbles): the SecretDirector tells this part of it.
 	if _secret_dir.on_touched(entry):
+		return
+	# LINGERLONG: the wishing fountain reads its lore and how many wishes it holds.
+	if _wish_dir.examine(entry):
 		return
 	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
 	# handled by the RuinController; if it claims this prop, we're done.

@@ -182,6 +182,10 @@ defmodule Server.WorldChannel do
       circuits -> push(socket, "circuits", %{boards: Server.Circuit.snapshot(world_id, circuits)})
     end
 
+    # LINGERLONG: how many wishes the fountain holds (only in a world with a fountain; Server.Wishes).
+    if Server.Wishes.fountain(get_in(definition.spec, ["core"])) != nil,
+      do: push(socket, "wishes", %{n: Server.Wishes.count(world_id)})
+
     # Where everyone already here is right now, as one bundle in the same form as the live ticks.
     case Map.delete(World.snapshot(world_id), user_id) do
       peers when map_size(peers) == 0 -> :ok
@@ -355,6 +359,41 @@ defmodule Server.WorldChannel do
       {:noreply, assign(socket, :last_howl, now)}
     else
       _ -> {:noreply, socket}
+    end
+  end
+
+  # ── LINGERLONG: the wishing fountain (Server.Wishes) ──
+  # A WISH: toss a coin into the fountain. Only in a world whose spec has a `fountain`, only standing by it (the
+  # server's own last-known position for us), at most once per Wishes.min_gap_ms. One coin if we have one, free
+  # if not. We get `wish_ok` (the new count, whether it cost a coin, our balance); everyone else gets a tiny
+  # `wished` (who, the new count, paid), capped per world per second so a crowd stays cheap (Wishes.relay?).
+  # Refusals: `wish_refused` with "no_fountain", "away" or "too_soon".
+  def handle_in("wish", _payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    fountain = Server.Wishes.fountain(get_in(definition.spec, ["core"]))
+    now = System.monotonic_time(:millisecond)
+
+    cond do
+      fountain == nil ->
+        push(socket, "wish_refused", %{reason: "no_fountain"})
+        {:noreply, socket}
+
+      not Server.Wishes.allow?(Map.get(socket.assigns, :last_wish), now) ->
+        push(socket, "wish_refused", %{reason: "too_soon"})
+        {:noreply, socket}
+
+      not Server.Wishes.near?(fountain, my_position(socket)) ->
+        push(socket, "wish_refused", %{reason: "away"})
+        {:noreply, socket}
+
+      true ->
+        %{n: n, paid: paid, balance: balance} = Server.Wishes.wish(user_id, world_id)
+        push(socket, "wish_ok", %{n: n, paid: paid, balance: balance})
+
+        if Server.Wishes.relay?(world_id, System.system_time(:millisecond)),
+          do: broadcast_from!(socket, "wished", %{by: user_id, n: n, paid: paid})
+
+        {:noreply, assign(socket, :last_wish, now)}
     end
   end
 
@@ -1035,6 +1074,15 @@ defmodule Server.WorldChannel do
   end
 
   # A world id as a catalog UUID (what a discovery remembers it was found in), or nil for a home.
+  # LINGERLONG: where we stand, as the server last heard it: our own latest `state` (kept on the socket, free),
+  # else the world's record of us.
+  defp my_position(socket) do
+    case Map.get(socket.assigns, :last_p) do
+      [_, _] = p -> p
+      _ -> World.snapshot(socket.assigns.world_id) |> Map.get(socket.assigns.user_id, %{}) |> Map.get("p")
+    end
+  end
+
   defp catalog_id(world_id) do
     case Ecto.UUID.cast(world_id) do
       {:ok, uuid} -> uuid

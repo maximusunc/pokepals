@@ -25,6 +25,12 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var facing: Vector2 = params.get("facing", Vector2.DOWN)
 	var speed: float = params.get("speed", 0.0)
 	var t: float = params.get("time", 0.0)
+	# SITTING (Lingerlong's seats, SeatLogic): the standing pose turned the seat's way, lifted onto the seat and
+	# with the legs' lowest rows left out (they'd hang below the seat's edge). No new art.
+	var sit: Dictionary = params.get("sit", {})
+	if not sit.is_empty():
+		facing = sit.get("face", facing)
+		speed = 0.0
 
 	var frame: Array = cfg.get("frame", [32, 32])
 	var fw := int(frame[0])
@@ -61,6 +67,11 @@ static func draw(ci: CanvasItem, tex: Texture2D, params: Dictionary, cfg: Dictio
 	var region := Rect2(col * fw, row * fh, fw, fh)
 	# Anchor bottom-centre at the node origin (feet on the ground), like SpriteSlot.draw.
 	var dest := Rect2(-fw * 0.5, 8.0 - fh, fw, fh)
+	if not sit.is_empty():
+		var clip := clampi(int(sit.get("clip", 0)), 0, fh - 1)
+		region.size.y -= clip
+		dest.size.y -= clip
+		dest.position.y -= float(sit.get("lift", 0.0))
 	if flip:
 		# Mirror around the origin via a scale transform (reliable, unlike a negative Rect2).
 		ci.draw_set_transform(Vector2.ZERO, 0.0, Vector2(-1.0, 1.0))

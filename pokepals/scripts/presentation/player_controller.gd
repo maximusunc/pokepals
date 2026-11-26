@@ -51,6 +51,16 @@ var _applied_identity: Dictionary = {}  # the look last applied from a friend's 
 # puppet does no work at all: it is placed straight at each update and its node stops processing.
 var _remote_awake := true
 
+# ── SITTING (Lingerlong; SeatLogic) ──
+## This world's seats (null in a world without any). Shared by every avatar in it: set by the world when it's built.
+static var seats: SeatLogic = null
+## Fired when the local avatar gets up from a seat (a step on the stick, or stand_up()).
+signal stood_up
+var _seat := -1              # the seat this avatar is drawn sitting on (still, on its anchor), or -1
+var _was_moving := true      # so the seat is looked up only when we stop (not every frame)
+var _sitting := false        # LOCAL: sat down on purpose (held in place, no collision until we get up)
+var _stand_to := Vector2.ZERO
+
 
 ## Mark this avatar a REMOTE puppet. MUST be called after instantiate() and before add_child(),
 ## so the flag is set before _ready runs (no input wiring, no local save load).
@@ -204,6 +214,12 @@ func _process(delta: float) -> void:
 		_process_remote(delta)
 		return
 	var dir := _input_direction()
+	if _sitting:
+		# Held on the seat (its anchor is inside the furniture's collision) until a step gets us up.
+		if dir.length() < 0.2:
+			velocity = Vector2.ZERO
+			return
+		stand_up()
 	var desired := dir * speed
 	# Exponential smoothing -> snappy but not robotic. (1 - e^(-k*dt)) is a
 	# framerate-independent lerp weight.
@@ -252,8 +268,20 @@ var _pose_key := -1
 
 
 func _redraw_if_pose_changed() -> void:
+	# Sitting is a pure function of where we are and whether we're still: looked up once as we stop.
+	var moving := velocity.length() > SpriteActor.MOVE_GATE
+	if moving:
+		_seat = -1
+	elif _was_moving:
+		_seat = seats.seated(position, true) if seats != null else -1
+	_was_moving = moving
 	if not AvatarCompositor.has_drawable(_avatar_layers):
 		queue_redraw()
+		return
+	if _seat >= 0:
+		if _pose_key != -2 - _seat:
+			_pose_key = -2 - _seat
+			queue_redraw()
 		return
 	var f := _facing.normalized() if _facing.length() >= 0.01 else Vector2.DOWN
 	var dir := 3  # down
@@ -269,6 +297,43 @@ func _redraw_if_pose_changed() -> void:
 	if key != _pose_key:
 		_pose_key = key
 		queue_redraw()
+
+
+## LOCAL: sit down on a seat: set onto its anchor `at` (inside the furniture, so no collision while sat) and
+## held there until a step on the stick (or stand_up) sets us down at `stand_to`, in front of it.
+func sit(at: Vector2, stand_to: Vector2) -> void:
+	position = at
+	velocity = Vector2.ZERO
+	_stand_to = stand_to
+	_sitting = true
+	refresh_seat()
+
+
+## LOCAL: get up from the seat we're on (to the spot in front of it).
+func stand_up() -> void:
+	if not _sitting:
+		return
+	_sitting = false
+	position = _stand_to
+	_seat = -1
+	_was_moving = true
+	_redraw_if_pose_changed()
+	stood_up.emit()
+
+
+func is_sitting() -> bool:
+	return _sitting
+
+
+## The seat this avatar is drawn sitting on, or -1.
+func seat_index() -> int:
+	return _seat
+
+
+## Look again for a seat under us now (we were just set down somewhere while already still).
+func refresh_seat() -> void:
+	_was_moving = true
+	_redraw_if_pose_changed()
 
 
 ## Turn to face `dir` while standing (casting a line toward the water). Walking turns you as usual.
@@ -314,6 +379,7 @@ func _draw() -> void:
 			"facing": _facing,
 			"speed": velocity.length(),
 			"time": _time,
+			"sit": seats.seat(_seat) if _seat >= 0 and seats != null and _seat < seats.size() else {},
 		})
 		return
 	VectorActor.draw(self, _style, {
