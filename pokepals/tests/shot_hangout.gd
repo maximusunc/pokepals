@@ -7,7 +7,7 @@ extends SceneTree
 ## it, a coin in the air and the fountain swelling), "lounger" (the Palm Court's loungers), "pool" (the pool's edge
 ## and the deck loungers), "side" (the benches either side of the fountain, sitting side-on).
 
-const LINGERLONG_ID := "17171717-1717-1717-1717-171717171717"
+const LINGERLONG_ID := "18181818-1818-1818-1818-181818181818"
 const LOOKS := [
 	{ "equipped": { "outfit": "base:tank", "hair": "base:hair_long" }, "colors": { "top_color": "clay", "hair_color": "wheat", "skin_tone": "umber" } },
 	{ "equipped": { "hair": "base:hair_spiky", "headwear": "base:headband", "accessory": "base:glasses" }, "colors": { "top_color": "moss", "hair_color": "ember", "skin_tone": "fair" } },

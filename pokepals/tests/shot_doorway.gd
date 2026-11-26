@@ -6,7 +6,7 @@ extends SceneTree
 ## door glowing), doorway_inside_close.png (the same, zoomed in), doorway_arrival.png (just landed on the terrace),
 ## doorway_terrace.png (the terrace laid out, with the home keepsake set beside the table to compare).
 
-const LINGERLONG_ID := "17171717-1717-1717-1717-171717171717"
+const LINGERLONG_ID := "18181818-1818-1818-1818-181818181818"
 const DT := 1.0 / 60.0
 
 var _world: Node

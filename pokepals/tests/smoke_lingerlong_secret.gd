@@ -14,7 +14,7 @@ extends SceneTree
 ## Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_lingerlong_secret.gd
 
-const LINGERLONG_ID := "17171717-1717-1717-1717-171717171717"
+const LINGERLONG_ID := "18181818-1818-1818-1818-181818181818"
 const FIXTURE := "res://tests/world_fixtures/lingerlong.json"
 const DT := 0.05
 

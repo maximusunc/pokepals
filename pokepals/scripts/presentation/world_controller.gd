@@ -372,6 +372,9 @@ func _build_world(cached: Dictionary) -> void:
 		_world_art.plaza_ground().set_walkers(_walkers)
 		_world_art.plaza_ground().set_watch(_player)
 		_world_art.plaza_ground().settle_evening()
+	# GLINTWOLD: no prints on the facets either; the glint underfoot flashes and settles.
+	if _world_art.facet_ground() != null:
+		_world_art.facet_ground().set_walkers(_walkers)
 	# ...its runners, carrying light along the bright lines (where they are is a pure function of the clock)...
 	var runners_cfg: Dictionary = data.get("runners", {})
 	if not runners_cfg.is_empty():

@@ -30,6 +30,8 @@ static func draw(ci: CanvasItem, key: String, kind: String, c: Vector2, size: fl
 		draw_coin(ci, c, s, alpha)
 	elif key == "seat":
 		draw_seat(ci, c, s, alpha)
+	elif key == "offcut" or key == "kept_offcut":
+		OffcutDraw.draw_chip(ci, c + Vector2(0, 6) * s, 1.5 * s, 0.0)   # Glintwold's secret, in the bag and the cabinet
 	elif key == "old_boot":
 		_draw_boot(ci, c, s, tint, alpha)
 	elif key == "sea_glass":

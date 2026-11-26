@@ -86,6 +86,7 @@ A `#` starts a comment only at the start of a line or after a space, so `C#5` an
 | `synthlead` | a soft synth lead with a slow vibrato on held notes |
 | `epiano` | a warm electric-piano tine with a slow tremolo, heard from across a square |
 | `haze` | a dark, hazy pad whose voices each drift in pitch: a warm hum more than a chord |
+| `prism` | a crystal bar struck softly, with a near-unison twin that shimmers as it rings |
 
 Every instrument has a rounded onset (no pluck snap, no click), so the music stays in the background.
 
@@ -121,6 +122,7 @@ one says at the top what it's for. They loop after 80 to 120 seconds.
 | Farmeadow | D major, 72 | flute, guitar |
 | Ohmstead | A minor, 96 | a square-wave sequencer and its echo, synth bass, pad, synth lead |
 | Lingerlong | D major, 60 | a hazy hum, an electric piano turning through each chord, soft bass, a few high chimes |
+| Glintwold | A lydian, 63 | a turning figure on crystal bars (`prism`) and its far glint, harp, pad, bass, chimes |
 
 ## Hooking a track to a world
 

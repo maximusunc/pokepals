@@ -30,6 +30,13 @@ defmodule Server.SecretReveal do
       picture painted across boards in a field lines up (Farmeadow's skylark, seen in its perspective view). The
       lining up happens entirely on the player's own screen (`AlignGate` on the client), so the server only
       checks "this world, standing at it", like `stillness`.
+    * `facets`: it appears once the Unfinished, a great stone hanging in loose pieces on the Turning Floor, has
+      been seen whole: one viewer on each of two unmarked spots on opposite sides of it, held still a moment
+      (Glintwold's offcut, the chip that falls at its foot). Usually that's the player on one mark and their
+      companion, sent there, on the other; with friends about, anyone standing on a mark counts. The sliding
+      pieces, the marks and the holding all happen on the players' own screens (the `heartstone` block, read
+      on the client), so the server only checks "this world, standing at it", like `align`. Honest about what
+      that means: it can't tell a stone seen whole from a walked-up-to floor.
     * `listen`: it is simply there to be found, but only the player's companion can hear where
       (Steamhollow's faint bell, in the fog). The listening (calm, settled beside you, the gaze turning
       toward the sound) happens entirely on the player's own screen (`ListenGuide` on the client), so
@@ -115,6 +122,7 @@ defmodule Server.SecretReveal do
       %{"type" => "skyview"} -> true
       %{"type" => "fetch"} -> true
       %{"type" => "align"} -> true
+      %{"type" => "facets"} -> true
       %{"type" => "circuit"} -> Map.get(ctx, :circuit_closed, false) == true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false

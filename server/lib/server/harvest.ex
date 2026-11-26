@@ -36,9 +36,10 @@ defmodule Server.Harvest do
   @pickup_items %{"stone" => @stone_id, "driftwood" => @driftwood_id}
 
   # Tree kinds that aren't wood: a world's fence pickets (Thimblewick's gaps are its secret), grass and
-  # flower stalks, crystal and glow growths, sweets, stone pillars and mounds, giant mushrooms.
+  # flower stalks, crystal and glow growths, sweets, stone pillars and mounds, giant mushrooms, and
+  # Glintwold's crystal spires, hills and boulders (its pines and round trees are wood).
   @not_wood ~w(picket grass clover daisy poppy cosmos dandelion foxglove bluebell crystal_spire bell_flower
-               spore_stalk bubble_stalk lolli gumdrop pillar mound fungus)
+               spore_stalk bubble_stalk lolli gumdrop pillar mound fungus gw_spire gw_hill gw_boulder)
 
   # How near a tree's trunk (or a pickup) you must stand. Generous: positions arrive at ~20 Hz and the
   # client stands you a body-width off the trunk.

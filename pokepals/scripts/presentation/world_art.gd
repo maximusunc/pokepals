@@ -38,6 +38,9 @@ var _ground: GroundLayer = null
 var _grid: GridGround = null
 # Lingerlong's ground (PlazaGround): one shader, a marble plaza floating in a pastel sky, in place of any floor of ours.
 var _plaza: PlazaGround = null
+# Glintwold's ground (FacetGround): one shader, flat triangles under a turning light, in place of our floor,
+# paths and water (it draws all three as facets).
+var _facet: FacetGround = null
 var _detail_tex: Texture2D = null
 var _detail_rects := {}   # name -> Rect2 in the atlas (tools/gen_ground.py's index)
 var _details: Array = []  # [ { pos, rect, phase, sway, tint } ] — ground litter, under the water pass
@@ -632,6 +635,31 @@ func grid_ground() -> GridGround:
 	return _grid
 
 
+## Glintwold's faceted ground, if this world has one (so its footsteps can be handed to it, and the light read).
+func facet_ground() -> FacetGround:
+	return _facet
+
+
+## The faceted ground draws the floor, the paths, the shores and the water itself, from the same curved paths
+## and organic pond outlines the other grounds use.
+func _build_facet_ground(_data: Dictionary) -> void:
+	var paths: Array = []
+	for p in _paths:
+		paths.append(p["pts"])
+	var ponds: Array = []
+	for pd in _ponds:
+		ponds.append({ "center": pd["center"], "radius": pd["radius"], "seed": PondShape.seed_for(pd["center"]) })
+	var river := {}
+	if not _river.is_empty():
+		var rr: Rect2 = _river["rect"]
+		river = { "rect": rr, "top_seed": _phase_for(rr.position), "bot_seed": _phase_for(rr.end) }
+	_facet = FacetGround.new()
+	_facet.name = "FacetGround"
+	add_child(_facet)
+	_facet.build(_bounds, _style, { "paths": paths, "ponds": ponds, "river": river,
+		"regions": _region_tints, "region_alpha": _region_tint_alpha })
+
+
 ## Lingerlong's plaza ground, if this world has one (so its wading rings and its evening can be handed to it).
 func plaza_ground() -> PlazaGround:
 	return _plaza
@@ -662,6 +690,12 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	if _plaza != null:
 		_plaza.queue_free()
 		_plaza = null
+	if _facet != null:
+		_facet.queue_free()
+		_facet = null
+	if FacetGround.wanted(_style):
+		_build_facet_ground(data)
+		return
 	if GridGround.wanted(_style):
 		_grid = GridGround.new()
 		_grid.name = "GridGround"
@@ -1070,8 +1104,8 @@ func _scatter_grass() -> void:
 	_grass.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC0FFEE
-	if _soft or _grass_max <= 0:
-		return  # a soft world has no blades of grass
+	if _soft or _grass_max <= 0 or _facet != null:
+		return  # a soft world has no blades of grass (nor a faceted one)
 	var count := int(clampf(_bounds.size.x * _bounds.size.y / 26000.0, 40, _grass_max))
 	var base := _style.color("grass")
 	for i in count:
@@ -1284,7 +1318,7 @@ func _draw() -> void:
 	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
 	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
 	# (With the pixel ground, the GroundLayer child draws the floor, the paths and the shores instead.)
-	if _ground == null and _sky_layer == null and _grid == null and _plaza == null:
+	if _ground == null and _sky_layer == null and _grid == null and _plaza == null and _facet == null:
 		if _ground_grad != null:
 			draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
 		else:
@@ -1293,7 +1327,7 @@ func _draw() -> void:
 			draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
 
 	# per-region mood wash, so each named area feels distinct underfoot
-	for rt in ([] if _structure_baked else _region_tints):  # (baked in, under the walls, once baked)
+	for rt in ([] if _structure_baked or _facet != null else _region_tints):  # (baked in once baked; the facets tint themselves)
 		if cull and not vis.intersects(rt["rect"]):
 			continue
 		var c: Color = rt["color"]
@@ -1337,8 +1371,8 @@ func _draw() -> void:
 	# worn paths (or, on a glowing world, luminous veins of moss with a breathing thread of light),
 	# following their curves. On the pixel ground a dirt trail is part of the floor shader instead.
 	for p in _paths:
-		if _ground != null and not p["glow"]:
-			continue
+		if (_ground != null and not p["glow"]) or _facet != null:
+			continue   # (the pixel and faceted grounds draw their own trails)
 		if cull and not vis.intersects((p["box"] as Rect2).grow(8.0)):
 			continue
 		var pts: PackedVector2Array = p["pts"]
@@ -1360,7 +1394,7 @@ func _draw() -> void:
 	# a pixel-art tile, fill the band with tiled water drifting downstream; otherwise the flat
 	# fill with a couple of drifting ripple lines. Either way a soft brighter rim traces the near
 	# (top) bank where land meets water.
-	if not _river.is_empty():
+	if not _river.is_empty() and _facet == null:   # (a faceted ground draws its own water)
 		var rrect: Rect2 = _river["rect"]
 		var top_bank := _river_bank(rrect, rrect.position.y, _phase_for(rrect.position))
 		var bot_bank := _river_bank(rrect, rrect.end.y, _phase_for(rrect.end))
@@ -1390,7 +1424,7 @@ func _draw() -> void:
 	# ripples. Both keep a lighter rim where the bank meets the water — all the water first, then
 	# the (pre-baked, see render_world) shores, so overlapping ponds join without a seam.
 	var shown: Array = []  # the ponds on screen, whose shores the rim pass then draws
-	for pond in _ponds:
+	for pond in ([] if _facet != null else _ponds):   # (a faceted ground draws its own water)
 		var center: Vector2 = pond["center"]
 		var radius: float = pond["radius"]
 		var rmax := radius * 1.25  # the organic bank can bulge past the nominal radius
@@ -2636,6 +2670,12 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 		"kept_place_card":
 			# Lingerlong's keepsake at home: the place card from the terrace, folded, gold-edged, on a little brass stand
 			FindDraw.draw_kept_place_card(self, p, _time)
+		"offcut":
+			# Glintwold's secret: the Unfinished's last face, a small bright chip on the Turning Floor
+			OffcutDraw.draw_chip(self, p, 1.0, _time)
+		"kept_offcut":
+			# its keepsake at home: the chip on a little faceted stand
+			OffcutDraw.draw_kept(self, p, _time)
 		"teacup":
 			# Thimblewick's pond: a cup-and-saucer ring drawn round the tea, centred on the pond
 			_draw_teacup(p)
