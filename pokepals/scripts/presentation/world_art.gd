@@ -2633,6 +2633,9 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 		"kept_steady_spark":
 			# its keepsake at home: the spark in a little glass jar
 			FindDraw.draw_kept_spark(self, p, color)
+		"kept_place_card":
+			# Lingerlong's keepsake at home: the place card from the terrace, folded, gold-edged, on a little brass stand
+			FindDraw.draw_kept_place_card(self, p, _time)
 		"teacup":
 			# Thimblewick's pond: a cup-and-saucer ring drawn round the tea, centred on the pond
 			_draw_teacup(p)
