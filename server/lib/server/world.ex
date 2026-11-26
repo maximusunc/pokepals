@@ -146,6 +146,16 @@ defmodule Server.World do
     :exit, _ -> %{}
   end
 
+  @doc """
+  `snapshot_cells/2` without waiting: the world sends `{:cell_snapshot, tag, transforms}` to `reply_to`
+  once it has handled everything sent to it before this. A channel uses it so that a busy world never
+  blocks the channel (which would then queue its own client's packets). Lost if the world is down.
+  """
+  @spec request_cells(String.t(), [Server.Interest.cell()], pid(), term()) :: :ok
+  def request_cells(world_id, cells, reply_to, tag) do
+    GenServer.cast(via(world_id), {:snapshot_cells, cells, reply_to, tag})
+  end
+
   @doc "Everyone's latest transform in `world_id` right now (`%{user_id => transform}`)."
   @spec snapshot(String.t()) :: %{optional(String.t()) => map()}
   def snapshot(world_id) do
@@ -235,6 +245,11 @@ defmodule Server.World do
     {:noreply, state}
   end
 
+  def handle_cast({:snapshot_cells, cells, reply_to, tag}, state) do
+    send(reply_to, {:cell_snapshot, tag, in_cells(state, cells)})
+    {:noreply, state}
+  end
+
   def handle_cast({:ward, user_id, payload}, state) do
     state = apply_ward_intent(state, user_id, payload)
     broadcast_wards(state)
@@ -244,10 +259,7 @@ defmodule Server.World do
   @impl true
   def handle_call(:snapshot, _from, state), do: {:reply, state.transforms, state}
 
-  def handle_call({:snapshot_cells, cells}, _from, state) do
-    ids = Enum.flat_map(cells, fn c -> state.members |> Map.get(c, MapSet.new()) |> MapSet.to_list() end)
-    {:reply, Map.take(state.transforms, ids), state}
-  end
+  def handle_call({:snapshot_cells, cells}, _from, state), do: {:reply, in_cells(state, cells), state}
 
   def handle_call(:wards, _from, state), do: {:reply, Server.RuinMechanisms.to_list(state.wards), state}
 
@@ -341,6 +353,12 @@ defmodule Server.World do
 
       state
     end
+  end
+
+  # The latest transforms of whoever the world last placed in `cells`.
+  defp in_cells(state, cells) do
+    ids = Enum.flat_map(cells, fn c -> state.members |> Map.get(c, MapSet.new()) |> MapSet.to_list() end)
+    Map.take(state.transforms, ids)
   end
 
   defp move_cell(state, _uid, same, same), do: state

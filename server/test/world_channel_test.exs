@@ -489,6 +489,29 @@ defmodule Server.WorldChannelTest do
       assert next_states(:b, 200) == :none
     end
 
+    test "after stepping out and straight back, a socket follows only its own cell" do
+      w = seed_crowd_world()
+      {b, _} = crowd_player(:b, w)
+      push(b, "state", %{"p" => [10, 10]})
+      push(b, "state", %{"p" => [150, 10]})
+      push(b, "state", %{"p" => [20, 10]})
+      Process.sleep(200)
+      _ = entries_for(:b, "x", 100)
+
+      probe = fn cell ->
+        Phoenix.PubSub.broadcast(Server.PubSub, Server.Interest.topic(w, cell), %Phoenix.Socket.Broadcast{
+          topic: "world:" <> w,
+          event: "states",
+          payload: %{s: [["probe", 1, 1, nil, nil, nil, nil, nil, nil]]}
+        })
+      end
+
+      probe.({1, 0})
+      assert next_states(:b, 200) == :none
+      probe.({0, 0})
+      assert [["probe" | _]] = next_states(:b)
+    end
+
     test "two players far apart see nothing of each other" do
       w = seed_crowd_world()
       {a, id_a} = crowd_player(:a, w)

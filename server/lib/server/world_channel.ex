@@ -270,6 +270,27 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # The world's answer to enter_cell: who stands in the cells that just came into view. Push it, then
+  # leave the cell we came from, unless it's ours again.
+  def handle_info({:cell_snapshot, {:entered, old}, transforms}, socket) do
+    case Map.delete(transforms, socket.assigns.user_id) do
+      peers when map_size(peers) == 0 -> :ok
+      peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
+    end
+
+    subs = Map.get(socket.assigns, :cell_subs, MapSet.new())
+
+    subs =
+      if old != nil and old != socket.assigns.cell and MapSet.member?(subs, old) do
+        Phoenix.PubSub.unsubscribe(Server.PubSub, Interest.topic(socket.assigns.world_id, old))
+        MapSet.delete(subs, old)
+      else
+        subs
+      end
+
+    {:noreply, assign(socket, :cell_subs, subs)}
+  end
+
   def handle_info(:save_whereabouts, socket) do
     Process.send_after(self(), :save_whereabouts, @whereabouts_every_ms)
     # ...and hibernate, which compacts this process's heap (the next packet wakes it). A channel handles a
@@ -1054,26 +1075,31 @@ defmodule Server.WorldChannel do
 
   defp resume(_payload, _user_id, _world_id), do: {:ok, nil}
 
-  # SC-4: our player now stands in `new` (a crowd world). We keep exactly one cell subscription: the new
-  # cell's topic, with the same fastlane sender Phoenix gives the channel topic on join, so the world's
-  # per-cell bundles go straight to our socket, encoded once per cell. Order matters:
+  # SC-4: our player now stands in `new` (a crowd world). We follow one cell topic, our own cell's, with
+  # the same fastlane sender Phoenix gives the channel topic on join, so the world's per-cell bundles go
+  # straight to our socket, encoded once per cell. Order matters:
   #   1. subscribe to the new cell first, so no tick falls between the two cells;
-  #   2. ask the world for the players in the cells that just came into view, and push them as one
-  #      snapshot bundle (our transform was cast before this call, so the world has our move; every tick
-  #      it sent before answering went to the old cell, which we still hear);
-  #   3. only then unsubscribe from the old cell.
+  #   2. ask the world (without waiting) for the players in the cells that just came into view. Our
+  #      transform was cast before the request, so the world has our move by then, and every tick it sent
+  #      before answering went to the old cell, which we still hear;
+  #   3. when the answer comes (handle_info {:cell_snapshot, ...}), push it as one snapshot bundle and only
+  #      then unsubscribe from the old cell (unless we've walked back into it meanwhile).
+  # While an answer is on its way we can hear two cells, so an entry may come twice: harmless.
   defp enter_cell(socket, new) do
-    %{world_id: world_id, user_id: user_id, cell: old} = socket.assigns
-    sender = {Phoenix.Channel.Server, {socket.transport_pid, socket.serializer, __intercepts__()}}
-    :ok = Phoenix.PubSub.subscribe(Server.PubSub, Interest.topic(world_id, new), sender: sender)
+    %{world_id: world_id, cell: old} = socket.assigns
+    subs = Map.get(socket.assigns, :cell_subs, MapSet.new())
 
-    case world_id |> World.snapshot_cells(Interest.newly_visible(old, new)) |> Map.delete(user_id) do
-      peers when map_size(peers) == 0 -> :ok
-      peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
-    end
+    subs =
+      if MapSet.member?(subs, new) do
+        subs
+      else
+        sender = {Phoenix.Channel.Server, {socket.transport_pid, socket.serializer, __intercepts__()}}
+        :ok = Phoenix.PubSub.subscribe(Server.PubSub, Interest.topic(world_id, new), sender: sender)
+        MapSet.put(subs, new)
+      end
 
-    if old != nil, do: Phoenix.PubSub.unsubscribe(Server.PubSub, Interest.topic(world_id, old))
-    assign(socket, :cell, new)
+    World.request_cells(world_id, Interest.newly_visible(old, new), self(), {:entered, old})
+    assign(socket, cell: new, cell_subs: subs)
   end
 
   # Write our latest position out to Server.Whereabouts, if it's changed since we last did.
