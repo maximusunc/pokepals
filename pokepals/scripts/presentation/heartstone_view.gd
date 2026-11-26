@@ -290,13 +290,18 @@ func _draw() -> void:
 		draw_colored_polygon(shadow, SHADOW)
 
 	var whole_bob := sin(_time * 0.8) * 1.5
-	var snapped := _whole and (_anim < 0.0 or _anim >= SNAP_T)
-	if snapped and _whole_tex != null:
+	# the closed stone is one picture once it is done; while the light runs over it, it is still drawn piece by
+	# piece (at home, they rebuild it exactly), so each face can catch the light in turn
+	if _whole and _anim < 0.0 and _whole_tex != null:
 		var g := 1.0 + _sweep_glow(_whole_rect.get_center()) * 0.4
 		draw_texture_rect(_whole_tex, Rect2(_whole_rect.position + Vector2(0, whole_bob), _whole_rect.size), false, Color(g, g, g, 1.0))
 	else:
 		for i in shards.size():
 			_draw_shard(i, whole_bob)
+		# ...and the one picture fades in over them as the light leaves, so there is no pop
+		if _whole and _whole_tex != null and _anim > SWEEP_T - 0.25:
+			var a := clampf((_anim - (SWEEP_T - 0.25)) / 0.4, 0.0, 1.0)
+			draw_texture_rect(_whole_tex, Rect2(_whole_rect.position + Vector2(0, whole_bob), _whole_rect.size), false, Color(1, 1, 1, a))
 	if _anim >= 0.0:
 		_draw_closing()
 
@@ -311,20 +316,27 @@ func _draw_shard(i: int, whole_bob: float) -> void:
 	var tint: Color = TINT_YOU if owner == "you" else TINT_COMPANION
 	var tint_k := 0.0 if _whole or sh.has("tex") else 0.22 * apart + 0.1   # the art comes tinted already
 	var bright := 0.0 if _whole else 0.22 * float(_close[owner]) + 0.35 * float(_pulse[owner])
-	bright += _sweep_glow(sh["home"])
+	var lit := _flash() * 1.6 + _sweep_glow(sh["home"]) * 0.9
 	if sh.has("tex"):
 		var tex: Texture2D = sh["tex"]
-		var g := 1.0 + bright * 0.6
+		var g := 1.0 + bright * 0.6 + lit
 		draw_set_transform(at, rot, Vector2.ONE)
 		draw_texture_rect(tex, sh["rect"], false, Color(g, g, g, 1.0))
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 		return
-	var base: Color = (sh["color"] as Color).lerp(tint, tint_k).lerp(Color.WHITE, clampf(bright, 0.0, 1.0))
+	var base: Color = (sh["color"] as Color).lerp(tint, tint_k).lerp(Color.WHITE, clampf(bright + lit, 0.0, 1.0))
 	var poly := PackedVector2Array()
 	var t := Transform2D(rot, at)
 	for p in sh["poly"]:
 		poly.append(t * p)
 	draw_colored_polygon(poly, base)
+
+
+## The white flash as the pieces meet (0..1).
+func _flash() -> float:
+	if _anim < SNAP_T * 0.7:
+		return 0.0
+	return clampf(1.0 - (_anim - SNAP_T * 0.7) / 0.45, 0.0, 1.0)
 
 
 ## How much the band of light running across the faces lights a point (local) right now (0..1).
@@ -345,12 +357,12 @@ func _draw_closing() -> void:
 	var mid := Vector2(0, _top * 0.52)
 	if _anim >= SNAP_T * 0.6:
 		var f := clampf(1.0 - (_anim - SNAP_T * 0.6) / 0.55, 0.0, 1.0)
-		SoftGlow.draw(self, mid, 110.0 * (1.2 - 0.4 * f), Color(1.0, 0.97, 0.98, 0.75 * f))
-		SoftGlow.draw(self, mid, 46.0, Color(1, 1, 1, 0.9 * f * f))
+		SoftGlow.draw(self, mid, 150.0 * (1.25 - 0.35 * f), Color(1.0, 0.97, 0.98, 0.55 * f))
+		SoftGlow.draw(self, mid, 70.0, Color(1, 1, 1, 0.8 * f * f))
 	if _with_chip and _anim >= CHIP_AT and not _chip_done:
 		var u := clampf((_anim - CHIP_AT) / CHIP_FALL, 0.0, 1.0)
 		var from := Vector2(0, -24)
 		var to := _chip_to - global_position
 		var p := from.lerp(to, u)
 		p.y -= sin(u * PI) * 26.0   # a little arc as it drops away from the stone
-		OffcutDraw.draw_chip(self, p, 0.9, _time)
+		OffcutDraw.draw_chip(self, p, 1.67, _time)

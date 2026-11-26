@@ -59,6 +59,7 @@ uniform float band_wobble = 0.05;    // how much the bands sway, slowly
 uniform float glint_share = 0.06;    // how many water facets ever catch a glint
 uniform float glint_period = 7.0;    // seconds between one facet's glints
 uniform float glint_alpha = 0.6;
+uniform vec3 floor_disc = vec3(0.0);   // a round stone floor: centre x, y and radius (0 = none). Glintwold's Turning Floor
 uniform float cliff = 70.0;          // how deep the island's stone rim shows below its south edge
 uniform float sky_reach = 900.0;     // the sky's bands run from this far above the world to this far below
 uniform float cloud_cell = 560.0;
@@ -222,6 +223,10 @@ void fragment() {
 			}
 		} else if (m.g > shore_cut) {
 			col = RAMP(shore, shore_n, clamp(0.5 + (s - 0.5) * 0.7, 0.0, 0.999));
+		} else if (floor_disc.z > 0.0 && distance(cen, floor_disc.xy) < floor_disc.z) {
+			// the stone floor: the same faces, cut in pale stone, a shade lighter toward the middle
+			float mid = 1.0 - distance(cen, floor_disc.xy) / floor_disc.z;
+			col = RAMP(stone, stone_n, clamp(0.62 + (s - 0.5) * 0.9 + mid * 0.2, 0.0, 0.999));
 		} else if (m.r > path_cut) {
 			col = RAMP(sand, sand_n, clamp(0.5 + (s - 0.5) * 0.8, 0.0, 0.999));
 		} else {

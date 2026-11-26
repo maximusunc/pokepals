@@ -1744,6 +1744,65 @@ build (`tools/packs/build_packs.py`) were run once: every world passed the build
 shader and music go in its own pack (about 0.9 MB). Run `e2e_ohmstead.gd` with a display, not `--headless`: headless frames
 run faster than the position reports the claim depends on.
 
+## Glintwold — built 2026-11, every choice below OPEN for the owner's review (issue #160)
+
+Glintwold (working name was Facet) is one of the "completely different skin" worlds: **a flat-shaded low-poly world**,
+like a stylised VR scene seen from above. The owner asked for it to be built in one go, lore and secret included, so
+nothing below was confirmed first. Every item is a choice to keep, change or drop. Design canvas: the "Glintwold World
+Design" artifact.
+
+1. **Name and lore.** Glintwold was *cut, not grown*. The wold was one dull stone in the dark until a light found it and
+   began to turn round it; wherever the light touched, a face was cut. The light is still turning. Folk call each flat
+   face a *glint*. The cutting stopped one face short, at the Unfinished.
+2. **Different enough from Clickton?** Clickton rebuilds things from one *object* (a brick, with studs). Glintwold has no
+   unit object: it is about *light on planes*, and its shading moves. The two do not look alike in play.
+3. **Smooth output, not pixel.** Clean diagonal edges are the whole look, so the art is `@2x` and antialiased
+   (`tools/lowpoly/`: real small 3D meshes, one fixed camera, one colour per face from a short ramp, hard flat shadows).
+4. **The ground** is one shader over one quad (`FacetGround`, `assets/gw_facet.gdshader`, `render: "facet"`): a jittered
+   field of triangles about 34 px across. Paths, shore and water come from a mask baked once per world and read at each
+   triangle's centre, so a path is a zig-zag ribbon of sand faces and a pond has sharp edges. No footprints: the face
+   underfoot flashes.
+5. **The light turns** once every 10 minutes (`light_period`), a pure function of the shared clock (`FacetLight`), so
+   everyone sees the same shading. The trees' and props' baked shading and shadows do **not** turn with it (they are
+   lit from the upper left for good). Only the ground and the visitors re-shade.
+6. **Water holds the sky in bands**, peach on the far side to aqua on the near, with a white glint on a single face
+   now and then. Overlapping ponds share one set of bands.
+7. **Visitors are recut by a shader** (`assets/facet_actor.gdshader`, `actor_look.facet`), not rebuilt on the CPU like
+   Clickton's bricks: each small triangle takes one colour from the sprite under it and a shade from the turning light.
+   Eyes are kept. The triangle grid sits on the sprite sheet, so faces shimmer a little as a figure walks.
+8. **Not recut:** the portal (it keeps its pixel art with a tinted frame) and the native creatures (their art is
+   already low-poly).
+9. **Layout.** 3400 x 2600, nine regions: the Landing, the Heart, the Tines, the Pinefold, Goldhanger, the Low Tarns, the
+   Brokeback, Cutwater and the Shardfield. 510 trees and 149 props, 18 of them with lore.
+10. **Creatures.** Glintbuck (a shy little deer), cobblet (a friendly stone that waddles), foldwing (a flat folded
+    bird-moth). Server-simulated ambient pals; the companion never shifts into them.
+11. **The secret: the offcut** (reveal type `facets`). The Unfinished hangs in nine shards over a round stone floor. Four
+    answer to where you stand and five to where your companion stands; each half slides home only when its viewer is on
+    its own unmarked mark. Both home and held 2 seconds: it closes, and one chip falls at its foot.
+12. **Direct and delegate.** A tap on the floor stands the companion there (within 34 px of its mark it settles onto
+    it). "Go look" sends it to find its mark by itself: 70 px off with a fresh bond, 6 px with a deep one.
+13. **Anyone can stand in.** Each mark is served by whoever is nearest, so two friends can close it with no companion
+    directing. One body never serves both marks while someone else is there.
+14. **The marks are not drawn.** You find yours by watching your shards close up. The companion glances at its own by
+    bond. The plinth beside the floor carries the only written hint.
+15. **The camera leans** up toward the stone while you are near, or its top would be off screen from your mark.
+16. **Return visits.** The stone hangs apart again and can be closed again, but no second chip falls (as Farmeadow and
+    Hollowsong do it).
+17. **The server** checks only "this world, standing at it". It cannot tell a closed stone from a walked-up-to one.
+18. **Not solid.** You can walk through the Unfinished. Hills are solid (a silent fence each).
+19. **Fishing and chopping.** Both on. Pines and round trees are wood; spires, hills and boulders are not.
+20. **Music.** `glintwold.score`: A lydian, 63 bpm, a new `prism` instrument, a six-step figure against eight-step bars so
+    it comes round every three bars. Rendered and loudness-matched, **not listened to by the builder**.
+
+**Not built or not checked:** the sky and stone rim past the world's edge are drawn by the shader but the camera stays
+inside the bounds, so they were never seen in a screenshot. Water glints are timed and none was caught in a shot. The
+web export and its pack build were not run for this world. It has not been played by a person.
+
+**How it was checked.** `tests/test_facet_join.gd` and `tests/test_facet_light.gd` (the pure rules),
+`tests/smoke_glintwold.gd` (the world offline: stand, hold, reveal, walking off, the return visit),
+`tests/smoke_glintwold_look.gd` (the ground and the visitor look build and their shaders compile),
+`server/test/secret_reveal_test.exs`, and screenshots under a software renderer with `tests/shot_world.gd`.
+
 ## How we work through it
 
 Same as the direction doc: strictly one item at a time. Decide it → record the decision here →

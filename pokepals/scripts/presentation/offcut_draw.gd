@@ -4,12 +4,12 @@ extends RefCounted
 ## could close. A small chip of pale rose stone with one face cut perfectly flat, that catches the light from
 ## every side at once. Drawn in one place so the same figure lies on the Turning Floor (WorldArt's `offcut`),
 ## drops out of the stone as it closes (HeartstoneView), stands at home on a little stand (`kept_offcut`) and
-## shows in the bag and the curio cabinet (ItemIcon). Uses assets/gw_offcut@2x.png when it exists (half size,
-## linear filtering), else a flat-shaded chip of its own. `ci` is any CanvasItem inside its own _draw, `p` the
+## shows in the bag and the curio cabinet (ItemIcon). Uses Glintwold's own prop art (assets/sprites/
+## prop_offcut_base@2x.png, half size, linear filtering) when it exists, else a flat-shaded chip of its own. `ci` is any CanvasItem inside its own _draw, `p` the
 ## chip's feet, `k` a scale, `t` a clock for the slow glint.
 
-const ART := "res://assets/gw_offcut@2x.png"
-const KEPT_ART := "res://assets/gw_offcut_kept@2x.png"
+const ART := "res://assets/sprites/prop_offcut_base@2x.png"
+const KEPT_ART := "res://assets/sprites/prop_kept_offcut_base@2x.png"
 const FACES := [Color(1.0, 0.914, 0.933), Color(0.980, 0.816, 0.863), Color(0.914, 0.663, 0.753), Color(0.718, 0.478, 0.620)]
 const SHADOW := Color(0.227, 0.290, 0.420, 0.18)
 
@@ -26,7 +26,7 @@ static func _tex(path: String) -> Texture2D:
 static func draw_chip(ci: CanvasItem, p: Vector2, k: float, t: float) -> void:
 	var tex := _tex(ART)
 	if tex != null:
-		var sz := tex.get_size() * 0.5 * k
+		var sz := tex.get_size() * 0.3 * k   # (world size is half the @2x art; k 1.67 is the size it lies on the floor)
 		ci.draw_texture_rect(tex, Rect2(p + Vector2(-sz.x * 0.5, -sz.y + 2.0 * k), sz), false)
 		_glint(ci, p + Vector2(0, -sz.y * 0.55), k, t)
 		return

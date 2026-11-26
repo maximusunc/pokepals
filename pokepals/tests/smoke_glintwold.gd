@@ -8,6 +8,7 @@ extends SceneTree
 ##   * standing on both marks and holding (but walking off before the hold is up lets the hold go and the pieces
 ##     drift apart again), then holding the whole time: it closes, and once the chip has dropped the offcut is
 ##     there at the stone's foot to be claimed;
+##   * on a return visit once it is found, the stone hangs in pieces again and still closes, but nothing falls;
 ##   * it gets home to the Gateway like any catalog world.
 ## Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_glintwold.gd
@@ -121,6 +122,24 @@ func _process(_delta: float) -> bool:
 		"the offcut has dropped at the stone's foot, there to be claimed")
 	fails += _check(not view.is_animating() and view.is_whole(), "and the stone stands whole")
 	fails += _check(not dir.can_go_look(), "Go look is no longer offered")
+
+	# A return visit once it is found: the stone is in pieces again and still closes, but nothing falls.
+	var again := FacetsDirector.new()
+	dir.add_child(again)
+	again.setup(_world, comp, _world._world_art, player)
+	again.configure(hs, secret, true)
+	var fell := [0]
+	again.offcut_fell.connect(func(_p: Vector2, _l: String) -> void: fell[0] += 1)
+	player.position = center + Vector2(900, 300)
+	_run(again, 0.2)
+	fails += _check(not again.view().is_whole(), "found already: on a return visit the stone hangs in pieces again")
+	player.position = you_mark
+	comp.position = comp_mark
+	_run(again, float(hs["hold_s"]) + 0.3)
+	for _i in 30:
+		again.view()._process(0.1)
+	fails += _check(again.join().done and again.view().is_whole() and fell[0] == 0, "...and still closes, a quiet toy, but no second offcut falls")
+	again.queue_free()
 
 	var router := root.get_node("/root/WorldRouter")
 	fails += _check(_world._return_world == router.HUB_ID and _world._return_portal == router.HUB_GATEWAY_ID, "the way home is the Vale's Gateway")

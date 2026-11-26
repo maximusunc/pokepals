@@ -500,6 +500,8 @@ out.append('\t"music": { "track": "res://assets/music/glintwold.ogg", "volume_db
 out.append('\t"border": { "ring": true, "spacing": 120, "inset": 24, "jitter": 34, "rows": 2, "row_gap": 60 },')
 out.append('\t"collision": { "tree_radius": 8, "great_tree_radius": 16, "pond_blocks": true, "body_radius": 6, "margin": 2 },')
 out.append('\t"ground_color": %s,' % json.dumps(list(hexc("#8FCF8A"))))
+# The Turning Floor's stone dais, drawn by the facet ground (entities.ground.floor: x, y, radius).
+ART.setdefault("entities", {}).setdefault("ground", {})["floor"] = [HEART[0], HEART[1] + 20, 118]
 out.append('\t"art": %s,' % json.dumps(ART, indent="\t").replace("\n", "\n\t"))
 out.append('\t"atmosphere": %s,' % json.dumps(ATMOSPHERE, separators=(", ", ": ")))
 out.append('\t"player_spawn": %s,' % json.dumps(PLAYER_SPAWN))

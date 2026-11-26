@@ -75,6 +75,9 @@ func build(bounds: Rect2, style: ArtStyle, shapes: Dictionary) -> void:
 			_mat.set_shader_parameter(key, WorldData.to_color(_cfg[key]))
 	for slot in ["grass", "sand", "shore", "water", "stone", "sky"]:
 		_set_ramp(slot, _cfg.get(slot, []))
+	var disc: Array = _cfg.get("floor", [])   # [x, y, radius]: a round stone floor (Glintwold's Turning Floor)
+	if disc.size() >= 3:
+		_mat.set_shader_parameter("floor_disc", Vector3(float(disc[0]), float(disc[1]), float(disc[2])))
 	_mat.set_shader_parameter("bounds", Vector4(bounds.position.x, bounds.position.y, bounds.size.x, bounds.size.y))
 	_spacing = maxf(8.0, float(_cfg.get("step_spacing", 22.0)))
 	_pulses.clear()
