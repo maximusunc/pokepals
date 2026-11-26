@@ -101,6 +101,7 @@ godot --headless --path pokepals --script res://tests/smoke_ohmstead_walk.gd   #
 godot --headless --path pokepals --script res://tests/smoke_farmeadow.gd
 godot --headless --path pokepals --script res://tests/smoke_lingerlong.gd
 godot --headless --path pokepals --script res://tests/smoke_lingerlong_secret.gd   # the Late Arch and the place card
+godot --headless --path pokepals --script res://tests/smoke_hangout.gd             # the wishing fountain and sitting
 godot --headless --path pokepals --script res://tests/smoke_packs.gd
 godot --headless --path pokepals --script res://tests/smoke_harvest.gd
 godot --headless --path pokepals --script res://tests/smoke_carpenter.gd
