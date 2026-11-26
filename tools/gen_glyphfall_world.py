@@ -6,11 +6,12 @@ the description became the place. So the valley IS its description: the grass is
 tildes, the trees are clubs and spades, and the paths are the writer's own sentences, which you can read as
 you walk along them. A modest (3200 x 2400) walk-and-wonder world, no goal and no puzzle.
 
-How it looks is one layer (GlyphPage, assets/glyph_page.gdshader) laid over an ordinary pixel-art world: it
-reads the finished picture and writes it again as monospace characters, choosing each from what is under it.
-So this spec is a normal meadow world, tuned so its colours fall cleanly into the shader's families (olive
-grass, green leaves, blue water, sandy earth), plus an `atmosphere.glyphs` block that turns the page on and
-carries the sentences the paths are written in.
+How it looks: the page is drawn from this spec's own data, not from a picture (GlyphMap works out each
+character cell once; GlyphPage draws it; assets/glyph_page.gdshader). The ground comes from `ponds` and `paths`;
+every tree, prop and the portal is a "stamp", a small picture made of characters, authored below in STAMPS
+and carried in `atmosphere.glyphs`, with the sentences the paths are written in. Visitors are written as fine
+print by their own shader (the art block's actor_look.glyph). The spec is still an ordinary meadow world
+underneath, which is what shows if the page is turned off.
 
 Its one SECRET (docs/home-world-and-secrets-design.md, "Glyphfall"): one character in the world is the wrong
 glyph. Out in the Unwritten, where the description trails off, an ampersand stands among the quote marks of
@@ -216,14 +217,16 @@ def props(region, n, type, label, r=16, solid=None, radius=None, color=WHITE):
 
 # PARAGRAPH WOOD: the trees stand in paragraphs. Each is a block of rows; the first row is indented and the
 # last one stops short, the way a paragraph does. You walk the white space between the lines.
-def paragraph(x0, y0, rows, cols, kind="tree", gap_x=46, gap_y=64, indent=2):
+def paragraph(x0, y0, rows, cols, kind="tree", gap_x=48, gap_y=72, indent=2):
+    # set on the page's own grid (a tree is 5 characters wide: 6 cells apart leaves one clear between crowns)
+    x0, y0 = cell_centre(x0, y0)
     last = random.randint(max(2, cols // 3), cols - 2)
     for r in range(rows):
         start = indent if r == 0 else 0
         end = last if r == rows - 1 else cols
         for c in range(start, end):
-            x = x0 + c * gap_x + random.uniform(-3, 3)
-            y = y0 + r * gap_y + random.uniform(-3, 3)
+            x = x0 + c * gap_x
+            y = y0 + r * gap_y
             if clear(x, y, 10, path_gap=30):
                 placed.append((x, y, 20))
                 TREES.append([round(x), round(y), kind])
@@ -311,7 +314,10 @@ ART = {
             },
             "patches": {"lush": {"scale": 0.0034, "threshold": 0.56}, "meadow": {"scale": 0.0048, "threshold": 0.62},
                         "dirt": {"scale": 0.006, "threshold": 0.9}},
+            # the page is drawn from the world's data, not from the picture: litter underneath would only cost
+            "scatter": {"density": 0.0},
         },
+        "understory": {"density": 0.0},
         "ambient_life": {"butterflies": {"count": 0}, "fireflies": {"count": 0}, "leaves": {"rate": 0.0},
                          "clouds": {"count": 0}},
         "tree": {"render": "sprite", "sway": 0.0, "variants": tree_variants(["round_a", "oak_a", "round_b", "pine_a", "round_c", "oak_b", "fruit_a"])},
@@ -341,6 +347,60 @@ SENTENCES = [
     "and the path goes on, and ",
 ]
 
+# ── THE PAGE (GlyphPage / GlyphMap): how the world is written ────────────────────────────────────────
+def hx(h):
+    h = h.lstrip("#")
+    return [round(int(h[i:i + 2], 16) / 255.0, 3) for i in (0, 2, 4)]
+
+
+LEAF, PINE_INK, BARK, TAN, STONE, GOLD_INK = hx("63d391"), hx("58c7b0"), hx("c98f5c"), hx("e2b07a"), hx("d5d8de"), hx("ffd86a")
+F_LEAF, F_PINE, F_BARK, F_WOOD, F_STONE, F_BLOOM = hx("113620"), hx("0e2c2a"), hx("2b1c10"), hx("3a2616"), hx("2a2c31"), hx("3a1a30")
+TRUNK = {"║": BARK}
+F_TRUNK = {"║": F_BARK}
+# Every THING is a small picture made of characters (a "stamp"): rows of text set with the bottom row on the
+# thing's own cell, centred. A space is a gap. `fg` is its ink, `map` other inks for particular characters,
+# `fill` the tint behind each character (`fillmap` per character). "use_color": the prop's own colour is its ink.
+STAMPS = {
+    "tree": {"rows": [" ♣♣♣ ", "♣♣♣♣♣", " ♣♣♣ ", "  ║  "], "fg": LEAF, "map": TRUNK, "fill": F_LEAF, "fillmap": F_TRUNK},
+    "pine": {"rows": ["  ▲  ", " ▲▲▲ ", "▲▲▲▲▲", "  ║  "], "fg": PINE_INK, "map": TRUNK, "fill": F_PINE, "fillmap": F_TRUNK},
+    "blossom": {"rows": [" ✿✿✿ ", "✿✿✿✿✿", " ✿✿✿ ", "  ║  "], "fg": hx("ff9dc8"), "map": TRUNK, "fill": F_BLOOM, "fillmap": F_TRUNK},
+    "great_tree": {"rows": ["  ♣♣♣  ", " ♣♣♣♣♣ ", "♣♣♣♣♣♣♣", "♣♣♣♣♣♣♣", " ♣♣♣♣♣ ", "  ║║║  ", "  ║║║  "],
+                   "fg": hx("7fe0a4"), "map": TRUNK, "fill": hx("0f3a22"), "fillmap": F_TRUNK},
+    "stump": {"rows": ["╨"], "fg": BARK, "fill": F_BARK},
+    "portal": {"rows": ["╔═══╗", "║ ≈ ║", "║ ≈ ║"], "fg": hx("cdb8ff"), "map": {"≈": hx("9fd0ff")}, "fill": hx("201a3a")},
+    "signpost": {"rows": ["[→]", " │ "], "fg": TAN, "map": {"│": BARK}, "fill": F_WOOD},
+    "bench": {"rows": ["┌──┐", "╵  ╵"], "fg": TAN, "fill": F_WOOD},
+    "wildflowers": {"rows": ["✿ ❀", " ✿ "], "fg": hx("ff9dc8"), "use_color": True, "map": {"❀": GOLD_INK}, "fill": F_BLOOM},
+    "chime_stone": {"rows": ["(◊)"], "fg": hx("c8b4ff"), "map": {"(": STONE, ")": STONE}, "fill": F_STONE},
+    "lantern": {"rows": ["☼", "│"], "fg": GOLD_INK, "map": {"│": hx("9a9aa4")}, "fill": hx("3a2f10")},
+    "notice_board": {"rows": ["╔══╗", "║==║", "╵  ╵"], "fg": TAN, "fill": F_WOOD},
+    "basin": {"rows": ["\\~~/"], "fg": STONE, "map": {"~": hx("79b8f5")}, "fill": F_STONE},
+    "log": {"rows": ["(===)"], "fg": BARK, "fill": F_BARK},
+    "broken_pillar": {"rows": ["┐ ", "║║", "║║"], "fg": STONE, "fill": F_STONE},
+    "column": {"rows": ["╔╗", "║║", "║║", "╚╝"], "fg": STONE, "fill": F_STONE},
+    "mushrooms": {"rows": ["Ω Ω"], "fg": hx("efe8da"), "fill": hx("2e2a25")},
+    "carving": {"rows": ["╔═══╗", "║ G ║", "╚═══╝"], "fg": STONE, "map": {"G": GOLD_INK}, "fill": F_STONE},
+    "crystal": {"rows": ["/◊\\"], "fg": hx("c8b4ff"), "fill": hx("241a3a")},
+    "berry_bush": {"rows": ["(♣•♣)"], "fg": LEAF, "map": {"•": hx("ff6b81")}, "fill": F_LEAF},
+    "crate": {"rows": ["┌──┐", "└──┘"], "fg": TAN, "fill": F_WOOD},
+    "rubble_pile": {"rows": [".:°:."], "fg": STONE},
+}
+GLYPHS = {
+    "cell": list(CELL), "page": [0.035, 0.040, 0.060], "type_in": 1.6,
+    "shore": 14.0, "path_half": 9.0,
+    # the ground: sparse dim grass so things stand out from it, water in bands on blue, a sandy shore, warm paths
+    "grass": {"chars": ".,'`\";", "inks": [hx("4a5424"), hx("59652a"), hx("687530")], "gap": 0.62, "sway": 0.025},
+    "water": {"chars": "~≈", "ink": hx("79b8f5"), "bg": hx("0f2b4d"), "rate": 0.06},
+    "shore_look": {"chars": ".:", "ink": hx("c9ab6b"), "bg": hx("2b2415")},
+    "path": {"ink": hx("f6d898"), "bg": hx("2c2113")},
+    # visitors (players, companions, wild animals): small dense letters on solid blocks of their own colours
+    "print": {"chars": "%&#@", "dark": 0.32, "light": 0.72},
+    "mark_under": 0.8,
+    "stamps": STAMPS,
+    # a line of the page is two sentences end to end, so a path does not say the same thing twice in one view
+    "sentences": [SENTENCES[i] + SENTENCES[(i + 4) % len(SENTENCES)] for i in range(len(SENTENCES))],
+}
+
 ATMOSPHERE = {
     "day_tint": [1.0, 1.0, 1.0],
     "vignette": {"strength": 0.30, "color": [0.02, 0.03, 0.05]},
@@ -350,13 +410,7 @@ ATMOSPHERE = {
     "region_tint_alpha": 0.0,
     "grass": {"max": 0},
     # THE PAGE: the whole picture written again as monospace characters (GlyphPage). Full colour on a dark page.
-    "glyphs": {
-        "cell": list(CELL), "page": [0.035, 0.040, 0.060], "bg_tint": 0.10, "actor_bg": 0.42, "ink_floor": 0.5,
-        "lum_lo": 0.10, "lum_hi": 0.72, "grass_gap": 0.3, "sway": 0.025, "water_rate": 0.06, "type_in": 1.6,
-        "actor_box": [9, 17, -11],
-        # a line of the page is two sentences end to end, so a path does not say the same thing twice in one view
-        "sentences": [SENTENCES[i] + SENTENCES[(i + 4) % len(SENTENCES)] for i in range(len(SENTENCES))],
-    },
+    "glyphs": GLYPHS,
 }
 
 HEADER = ("GLYPHFALL - a world made of text characters (issue #159). Somebody described a valley so carefully that the "
@@ -364,9 +418,9 @@ HEADER = ("GLYPHFALL - a world made of text characters (issue #159). Somebody de
           "and the paths are the writer's sentences, readable as you walk. A walk-and-wonder world (no goal, no puzzle). "
           "Seven regions: the Margin (where you arrive), the Footnotes, the Inkwell, First Lines (the Long Sentence runs "
           "across it), Paragraph Wood (trees set in paragraphs), the Heading and the Unwritten. It is an ordinary meadow "
-          "world underneath; 'atmosphere.glyphs' lays one layer over it (GlyphPage) that writes the finished picture "
-          "again as monospace characters, and its 'art' block tunes the shared meadow art so each material's colour "
-          "picks the right characters. Its secret is one wrong glyph: see the 'secret' block (reveal type 'misprint'). "
+          "world underneath; 'atmosphere.glyphs' is the page drawn over its ground (GlyphPage / GlyphMap): how grass, "
+          "water, shores and paths are written, and a 'stamp' (a small picture made of characters) for every tree kind "
+          "and prop type. Its secret is one wrong glyph: see the 'secret' block (reveal type 'misprint'). "
           "Generated by tools/gen_glyphfall_world.py (atlas: pokepals/tools/gen_glyphfall.py) - edit that and re-run, "
           "don't hand-tune positions.")
 
@@ -454,6 +508,14 @@ for p in d["props"]:
     assert bool(p.get("interactive")) == bool(p.get("lore")), "interactive iff lore: %s" % p["id"]
     x, y = p["position"]
     assert BOUNDS_MIN[0] < x < BOUNDS_MAX[0] and BOUNDS_MIN[1] < y < BOUNDS_MAX[1], p["id"]
+atlas = set(json.load(open("pokepals/data/gf_glyphs.json"))["chars"])
+for name, look in STAMPS.items():
+    used = set("".join(look["rows"])) | set(look.get("map", {})) | set(look.get("fillmap", {}))
+    assert used <= atlas, "stamp %r uses a character the atlas does not have: %r" % (name, used - atlas)
+for t in set(p["type"] for p in d["props"]):
+    assert t in STAMPS, "no stamp for prop type %r: it would not show on the page" % t
+for k in set(t[2] for t in d["trees"]):
+    assert k in STAMPS, "no stamp for tree kind %r" % k
 allowed = set("abcdefghijklmnopqrstuvwxyz ,.'-?")
 for s in SENTENCES:
     assert set(s) <= allowed, "a sentence uses a character the atlas has no letter for: %r" % s

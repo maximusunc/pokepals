@@ -1037,8 +1037,8 @@ func _setup_mist(data: Dictionary) -> void:
 		veil.setup(atmo["fog"], data, _player, _walkers, _mist_pockets)
 
 
-## Glyphfall's page: one layer over the world (under the vignette and the HUD) that redraws the finished
-## picture as monospace characters, only for a world whose atmosphere has a `glyphs` block. Purely
+## Glyphfall's page: one quad in the world, over the ground and under everything that stands on it, that
+## writes the world as monospace characters; only for a world whose atmosphere has a `glyphs` block. Purely
 ## presentation; any other world is untouched.
 func _setup_glyphs(data: Dictionary) -> void:
 	var old := get_node_or_null("GlyphPage")
@@ -1050,8 +1050,8 @@ func _setup_glyphs(data: Dictionary) -> void:
 	_glyph_page = GlyphPage.new()
 	_glyph_page.name = "GlyphPage"
 	add_child(_glyph_page)
-	move_child(_glyph_page, get_node("Vignette").get_index())
-	_glyph_page.setup(data["atmosphere"]["glyphs"], _walkers)
+	move_child(_glyph_page, _scenery.get_index())   # over the ground and props, under everything that stands
+	_glyph_page.setup(data, _scenery)
 
 
 ## The text layer of a glyph world (null anywhere else).

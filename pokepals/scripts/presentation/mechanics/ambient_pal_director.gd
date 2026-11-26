@@ -70,6 +70,9 @@ func spawn_pals(data: Dictionary) -> void:
 			_scenery.add_child(pv)
 			pv.position = home
 			pv.set_remote_state(home, Vector2.DOWN)
+			# Glyphfall: a wild animal is written in fine print like any visitor (marked for the page).
+			if _style != null and _style.actor_look().has("glyph"):
+				OtherworldLook.apply(pv, _style.actor_look(), 0.7)
 			_pals[id] = pv
 			continue
 		var rc := COMPANION_SCENE.instantiate() as CompanionView

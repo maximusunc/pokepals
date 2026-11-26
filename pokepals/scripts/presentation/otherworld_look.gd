@@ -15,8 +15,8 @@ extends Node2D
 ##     (assets/wire_actor.gdshader), a person in one colour and a companion in another;
 ##   * OR, if the look carries a `facet` (Glintwold), the actor is redrawn as flat-shaded triangles
 ##     (assets/facet_actor.gdshader), lit by the ground's turning light;
-##   * OR, if the look carries a `glyph` (Glyphfall), the actor is drawn as it is but MARKED in the picture
-##     (assets/glyph_actor.gdshader), so the page of text written over the world can write it smaller;
+##   * OR, if the look carries a `glyph` (Glyphfall), the actor is redrawn as fine print: small dense letters
+##     on solid blocks of its own colours (assets/glyph_actor.gdshader, one shared material);
 ##   * OR, if the look carries a `bubble` (Bobbledown), a soap bubble round each of them instead of
 ##     the glow (VisitorBubble): you're just a visitor in a bubble world.
 ##
@@ -30,6 +30,7 @@ const FACET_FLOAT_KEYS := ["cell", "light_height", "shade", "steps", "tilt", "ou
 	"min_taps", "keep_eyes", "saturation"]
 static var _facet_mat: ShaderMaterial = null   # shared by every faceted actor (see apply)
 const GLYPH_SHADER := preload("res://assets/glyph_actor.gdshader")
+static var _glyph_mat: ShaderMaterial = null   # shared by every visitor written as fine print
 const COLOR_KEYS := ["shadow_mult", "light_mult", "cast", "line_glow"]
 const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation", "line_amount", "line_cut", "pulse_speed"]
 
@@ -83,15 +84,19 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	# (FacetGround) turns all their light with one write a frame. Nothing else changes.
 	if look.has("facet"):
 		actor.material = _facet_for(look["facet"])
-	# Glyphfall: a `glyph` look only marks the actor's pixels for the page of text drawn over the world.
+		return
+	# Glyphfall: a `glyph` look writes the actor as fine print (small letters on solid blocks of its own
+	# colours), through one material shared by every visitor; GlyphPage keeps its settings.
 	if look.has("glyph"):
-		var gcfg: Dictionary = look["glyph"]
-		var gmat := ShaderMaterial.new()
-		gmat.shader = GLYPH_SHADER
-		for key in ["mark", "lift"]:
-			if gcfg.has(key):
-				gmat.set_shader_parameter(key, float(gcfg[key]))
-		actor.material = gmat
+		actor.material = glyph_material()
+		# What it carries (a rod, a lantern, an axe) is written with it: a child draws with the same mark,
+		# now and whenever one is added.
+		var mark_child := func(n: Node) -> void:
+			if n is CanvasItem:
+				(n as CanvasItem).use_parent_material = true
+		for ch in actor.get_children():
+			mark_child.call(ch)
+		actor.child_entered_tree.connect(mark_child)
 		return
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER
@@ -112,6 +117,14 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	aura.radius = float(look.get("aura_radius", 26.0)) * size
 	aura.motes = int(look.get("motes", 3))
 	actor.add_child(aura)
+
+
+## The shared fine-print material (made on first use; GlyphPage sets its atlas, letters and size).
+static func glyph_material() -> ShaderMaterial:
+	if _glyph_mat == null:
+		_glyph_mat = ShaderMaterial.new()
+		_glyph_mat.shader = GLYPH_SHADER
+	return _glyph_mat
 
 
 ## The shared facet material, or null if no facet look has been applied yet (FacetGround writes its light).
