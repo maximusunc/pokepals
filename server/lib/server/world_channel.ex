@@ -272,7 +272,14 @@ defmodule Server.WorldChannel do
 
   def handle_info(:save_whereabouts, socket) do
     Process.send_after(self(), :save_whereabouts, @whereabouts_every_ms)
-    {:noreply, save_whereabouts(socket)}
+    # ...and hibernate, which compacts this process's heap (the next packet wakes it). A channel handles a
+    # steady stream of short-lived terms (20 packets a second, presence diffs, the join's whole roster),
+    # and with the default GC settings its old heap only grows: measured at ~1.8 MB per channel with
+    # 1000 players in one world, ~0.2 MB of it live. Every 15 s keeps it near the live size. The WebSocket
+    # process that carries our frames grows the same way (~0.9 MB each there); Phoenix collects it when
+    # asked to.
+    send(socket.transport_pid, :garbage_collect)
+    {:noreply, save_whereabouts(socket), :hibernate}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
