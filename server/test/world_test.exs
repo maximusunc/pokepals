@@ -122,7 +122,7 @@ defmodule Server.WorldTest do
     defp ids_from(w) do
       topic = World.channel_topic(w)
       assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "states", payload: %{s: entries}}, 500
-      entries |> Enum.map(&hd/1) |> Enum.sort()
+      entries |> Jason.encode!() |> Jason.decode!() |> Enum.map(&hd/1) |> Enum.sort()
     end
 
     test "nothing goes out on the world-wide topic" do
@@ -164,6 +164,20 @@ defmodule Server.WorldTest do
       World.update_transform(w, "mover", %{"p" => [260, 50]})
       assert ids_from(w) == ["mover"]
       refute_receive %Phoenix.Socket.Broadcast{event: "states"}, 200
+    end
+
+    test "a cell bundle's frame on the wire is the ordinary states format (entries pre-encoded once)" do
+      w = crowd_world()
+      World.update_transform(w, "watch", %{"p" => [10, 10]})
+      Process.sleep(120)
+      watch(w, {0, 0})
+      World.update_transform(w, "m", %{"p" => [20.4, 10], "pf" => [0.5, -0.5], "t" => 7})
+      assert_receive %Phoenix.Socket.Broadcast{event: "states"} = msg, 500
+      {:socket_push, :text, frame} = Phoenix.Socket.V2.JSONSerializer.fastlane!(msg)
+      topic = World.channel_topic(w)
+
+      assert [nil, nil, ^topic, "states", %{"s" => [["m", 20, 10, 0.5, -0.5, nil, nil, nil, nil, 7]]}] =
+               frame |> IO.iodata_to_binary() |> Jason.decode!()
     end
 
     test "snapshot_cells returns who stands in the given cells, and forget clears a player's cell" do

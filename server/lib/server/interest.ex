@@ -77,10 +77,13 @@ defmodule Server.Interest do
   @spec group([{term(), [cell()]}], map()) :: %{optional(cell()) => [term()]}
   def group(moved, occupied) do
     Enum.reduce(moved, %{}, fn {entry, cells}, acc ->
-      cells
-      |> Enum.flat_map(&neighbourhood/1)
-      |> Enum.uniq()
-      |> Enum.reduce(acc, fn c, acc ->
+      targets =
+        case cells do
+          [cell] -> neighbourhood(cell)
+          cells -> cells |> Enum.flat_map(&neighbourhood/1) |> Enum.uniq()
+        end
+
+      Enum.reduce(targets, acc, fn c, acc ->
         if Map.has_key?(occupied, c), do: Map.update(acc, c, [entry], &[entry | &1]), else: acc
       end)
     end)

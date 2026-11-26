@@ -322,7 +322,7 @@ defmodule Server.World do
 
               st = move_cell(st, uid, old, new)
               route = Enum.uniq(for c <- [new, old], c != nil, do: c)
-              {[{Server.WorldStates.entry(uid, t), route} | acc], st}
+              {[{encoded_entry(uid, t), route} | acc], st}
 
             :error ->
               {acc, st}
@@ -339,6 +339,14 @@ defmodule Server.World do
 
       state
     end
+  end
+
+  # One mover's entry, JSON-encoded ONCE for this tick. A mover sits in up to nine (eighteen, crossing a
+  # border) cell bundles, and encoding the bundles from plain lists cost ~9x the encoding; as a
+  # `Jason.Fragment` the fastlane's encoder copies the bytes in as they are. The JSON on the wire is the
+  # same. (The fragment holds a closure, so a bundle crossing to another node needs the same code there.)
+  defp encoded_entry(uid, t) do
+    Jason.Fragment.new(Jason.encode_to_iodata!(Server.WorldStates.entry(uid, t)))
   end
 
   defp move_cell(state, _uid, same, same), do: state

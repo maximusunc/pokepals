@@ -451,7 +451,7 @@ defmodule Server.WorldChannelTest do
     # The ids in the next "states" frame `name` receives within `ms`, or :none.
     defp next_states(name, ms \\ 500) do
       receive do
-        {^name, %Phoenix.Socket.Message{event: "states", payload: %{s: entries}}} -> Enum.map(entries, & &1)
+        {^name, %Phoenix.Socket.Message{event: "states", payload: %{s: entries}}} -> entries |> Jason.encode!() |> Jason.decode!()
       after
         ms -> :none
       end

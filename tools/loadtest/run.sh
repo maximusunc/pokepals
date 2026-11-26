@@ -22,7 +22,7 @@ STEPS="${2:-10 50 100 200 300 500 1000}"
 SECS="${3:-40}"
 URL="${URL:-ws://127.0.0.1:4000/ws}"
 NODE_NAME="${SERVER_NODE:-srv@$(hostname -s)}"
-BOT_ARGS="${BOT_ARGS:-}"
+BOT_ARGS="${BOT_ARGS:-}"   # extra bot flags; RATE (bots joining per second, default 25) sets the ramp
 if [ "$WORLD" = "crowd" ]; then
   WORLD=$(elixir --sname "mkcrowd$$" --cookie loadtest "$HERE/crowd_world.exs" "$NODE_NAME" "${CELL:-480}") || exit 1
   echo "crowd world: $WORLD (cell ${CELL:-480} px)"
@@ -33,7 +33,7 @@ STAMP="$(date +%Y%m%d-%H%M%S)"
 
 printf "%6s %7s %9s %10s %9s %9s %9s %6s %11s %12s %11s\n" bots joined recv/bot/s KB/bot/s p50_ms p95_ms p99_ms util world_mbox relay_mbox_max peers_avg/max
 for N in $STEPS; do
-  RAMP=$(( N / 25 + 3 ))                      # join ~25 bots a second, like a busy evening
+  RAMP=$(( N / ${RATE:-25} + 3 ))             # join ~25 bots a second (RATE), like a busy evening
   PROCS=$(( (N + 149) / 150 )); [ $PROCS -gt 3 ] && PROCS=3
   PER=$(( (N + PROCS - 1) / PROCS ))
   SAMPLES=$(( SECS / 2 ))
