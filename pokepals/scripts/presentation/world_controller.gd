@@ -285,12 +285,9 @@ func _build_world(cached: Dictionary) -> void:
 	var building_views := _scenery.add_buildings(data.get("buildings", []), _style)
 	# Lingerlong's wishing fountain stands in the same depth-sorted layer (its words are a prop's, its basin a fence).
 	_fountain_view = _scenery.add_fountain(data["fountain"], _style) if data.has("fountain") else null
-<<<<<<< HEAD
 	_setup_doorway(data)   # LINGERLONG: the Late Arch (only with a `doorway` block)
-=======
 	_wish_dir.configure(data, _fountain_view)   # LINGERLONG: toss a coin in
 	_seat_dir.configure(data)                   # LINGERLONG: somewhere to sit
->>>>>>> worktree-agent-a3fe835e5c6db6012
 	_bind_inlays(building_views)
 	# Home building: this world's trees can be chopped (unless it says not), and its stones and driftwood picked up.
 	_harvest_dir.configure(data, _interactables)

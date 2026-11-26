@@ -98,9 +98,9 @@ func _fountain_checks() -> void:
 	# a crowd: a friend's puppet stands by the basin and wishes a great many times; never more than MAX coins in the air
 	var pd = _world._presence_dir
 	pd._on_peer_joined("crowd")
-	var rp = pd._remote_pairs["crowd"]["player"]
-	rp.position = Vector2(-40, 360)
-	rp.set_remote_state(rp.position, Vector2.UP)
+	# Puppets are built once a position arrives and the drawing budget has run (SC-2): settle it now.
+	net.emit_signal("state_received", "crowd", { "p": Vector2(-40, 360), "pf": Vector2.UP, "c": Vector2(-60, 370), "cl": Vector2.UP })
+	pd.flush_puppets()
 	for k in 40:
 		net.emit_signal("wished", "crowd", 1206 + k, true)
 	_check(CoinArc._live <= CoinArc.MAX and CoinArc._live >= CoinArc.MAX - 1, "a crowd's wishes keep at most %d coins in the air (%d)" % [CoinArc.MAX, CoinArc._live])
@@ -140,17 +140,19 @@ func _seat_checks_stood() -> void:
 func _remote_begin() -> void:
 	var pd = _world._presence_dir
 	pd._on_peer_joined("sitter")
+	var at: Vector2 = PlayerView.seats.seat(_index("fountain_bench_3_a"))["at"]
+	var net2 := _world.get_node("/root/Net")
+	net2.emit_signal("state_received", "sitter", { "p": at + Vector2(-30, 10), "pf": Vector2.DOWN, "c": at + Vector2(-50, 20), "cl": Vector2.DOWN })
+	pd.flush_puppets()
 	_peer = pd._remote_pairs["sitter"]["player"]
-	var at: Vector2 = PlayerView.seats.seat(_index("palm_lounger_1e"))["at"]
-	_peer.position = at + Vector2(-30, 10)
-	_peer.set_remote_state(at, Vector2.DOWN)
+	net2.emit_signal("state_received", "sitter", { "p": at, "pf": Vector2.DOWN, "c": at + Vector2(-20, 10), "cl": Vector2.DOWN })
 
 
 func _remote_sat() -> void:
-	_check(_peer.seat_index() == _index("palm_lounger_1e"), "a friend still on a lounger's anchor is drawn sitting on it (%s %s %s)" % [_peer.position, _peer.velocity, _peer.seat_index()])
+	_check(_peer.seat_index() == _index("fountain_bench_3_a"), "a friend still on a bench's anchor is drawn sitting on it (%s %s %s)" % [_peer.position, _peer.velocity, _peer.seat_index()])
 	# that lounger isn't offered to us
 	var seats: SeatLogic = PlayerView.seats
-	var near: Vector2 = seats.seat(_index("palm_lounger_1e"))["at"] + Vector2(0, 20)
+	var near: Vector2 = seats.seat(_index("fountain_bench_3_a"))["at"] + Vector2(0, 20)
 	_check(seats.nearest_free(near, 30.0, _world._presence_dir.remote_player_positions()) == -1, "and the seat they're on isn't offered to anyone else")
 
 
