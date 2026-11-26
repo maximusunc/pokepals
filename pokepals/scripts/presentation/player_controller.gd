@@ -16,6 +16,11 @@ const APPEARANCE_SAVE_PATH := "user://player_appearance.json"
 # How fast a REMOTE puppet eases toward its latest received transform. Remote state lands ~20 Hz;
 # we render at 60 fps by lerping toward the newest sample, so a friend's avatar glides, not steps.
 const REMOTE_LERP_RATE := 14.0
+# A remote update this far from where the puppet stands is a jump (the owner was set down somewhere else in
+# the world), not a walk: the puppet is put there at once instead of sliding across the map.
+const REMOTE_SNAP_DIST := 256.0
+# Every remote puppet shares one wardrobe catalog, read once, instead of each parsing the file as it spawns.
+static var _remote_catalog: CosmeticsCatalog = null
 
 var velocity := Vector2.ZERO
 var _joystick: Node = null
@@ -41,6 +46,10 @@ var _collide := false
 var _is_local := true
 var _target_pos := Vector2.ZERO       # latest position received from the owner (remote only)
 var _target_facing := Vector2.DOWN    # latest facing received from the owner (remote only)
+var _applied_identity: Dictionary = {}  # the look last applied from a friend's identity (remote only)
+# Whether this remote puppet is near the screen (PresenceDirector decides, a few times a second). Off it, the
+# puppet does no work at all: it is placed straight at each update and its node stops processing.
+var _remote_awake := true
 
 
 ## Mark this avatar a REMOTE puppet. MUST be called after instantiate() and before add_child(),
@@ -71,8 +80,15 @@ func appearance_dict() -> Dictionary:
 ## silently dropping anything unknown — so a malformed or hostile packet can never break the
 ## avatar. Remote only; the local avatar owns its look from its own save.
 func apply_identity(appearance: Dictionary) -> void:
+	# A friend re-sends their whole identity whenever anything in it changes (what they hold, their companion's
+	# shape), so the same look often arrives again: rebuilding it would cost a crowd dearly for nothing.
+	if _appearance != null and appearance == _applied_identity:
+		return
+	_applied_identity = appearance.duplicate(true)
 	if _catalog == null:
-		_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+		if _remote_catalog == null:
+			_remote_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+		_catalog = _remote_catalog
 	_appearance = PlayerAppearance.from_dict(appearance, _catalog)
 	_refresh_avatar()
 
@@ -81,9 +97,35 @@ func apply_identity(appearance: Dictionary) -> void:
 ## body toward it so motion stays smooth between the ~20 Hz samples. Pure presentation: this never
 ## moves a local avatar (the world only calls it on puppets).
 func set_remote_state(pos: Vector2, face: Vector2) -> void:
-	_target_pos = pos
 	if face.length() > 0.01:
 		_target_facing = face.normalized()
+	var jump := position.distance_to(pos) > REMOTE_SNAP_DIST
+	_target_pos = pos
+	if jump or not _remote_awake:
+		_settle_remote()
+	if _remote_awake:
+		set_process(true)
+
+
+## Wake this remote puppet (near the screen: it eases toward each update and animates) or put it to sleep
+## (off screen: it is placed at each update and its node, and the things in its hands, stop processing).
+func set_remote_awake(on: bool) -> void:
+	if _is_local or on == _remote_awake:
+		return
+	_remote_awake = on
+	process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+	if on:
+		set_process(true)
+	else:
+		_settle_remote()
+
+
+## Put a remote puppet exactly where its owner is, standing, facing their way.
+func _settle_remote() -> void:
+	position = _target_pos
+	velocity = Vector2.ZERO
+	_facing = _target_facing
+	_redraw_if_pose_changed()
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
@@ -107,12 +149,20 @@ func _ready() -> void:
 	# Load the wardrobe catalog and the player's saved look (or a fresh default that owns and
 	# wears the base set), then resolve the worn loadout into drawable layers once. Mirrors how
 	# CompanionView loads its saved self — appearance is the player's portable, persisted self.
-	_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+	if _is_local:
+		_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+	else:
+		if _remote_catalog == null:
+			_remote_catalog = CosmeticsCatalog.load_catalog(cosmetics_path)
+		_catalog = _remote_catalog
 	# The worn look lives on the SERVER now (online-only). Start on the default; the local
 	# avatar adopts the server's wardrobe via apply_appearance once it loads, and a remote
 	# puppet is overwritten by the friend's identity packet — so neither reads a local save.
-	_appearance = PlayerAppearance.make_default(_catalog)
-	_refresh_avatar()
+	# A remote puppet dressed before it entered the tree (PresenceDirector does, from the identity it holds)
+	# keeps that look instead of building the default first.
+	if _appearance == null:
+		_appearance = PlayerAppearance.make_default(_catalog)
+		_refresh_avatar()
 
 
 ## Re-resolve the worn loadout into drawable layers. Cheap; call it once at load and again
@@ -172,12 +222,20 @@ func _process(delta: float) -> void:
 ## toward the latest received position, deriving velocity from that movement so the same
 ## walk-cycle/facing code lights up — and fall back to the owner's last reported facing when it's
 ## standing still. This is what turns ~20 Hz samples into smooth, alive motion on our screen.
+## Once it has arrived and turned, it stops processing until the next update wakes it: a crowd standing
+## about costs nothing a frame, and nothing relies on updates arriving at a steady rate.
 func _process_remote(delta: float) -> void:
 	var before := position
 	position = position.lerp(_target_pos, 1.0 - exp(-REMOTE_LERP_RATE * delta))
+	if position.distance_squared_to(_target_pos) < 0.01:
+		position = _target_pos
 	velocity = (position - before) / maxf(delta, 0.0001)
 	var aim := velocity.normalized() if velocity.length() > 8.0 else _target_facing
 	_facing = _facing.lerp(aim, 1.0 - exp(-8.0 * delta))
+	if position == _target_pos and _facing.distance_squared_to(_target_facing) < 0.0001:
+		_settle_remote()
+		set_process(false)
+		return
 	_redraw_if_pose_changed()
 
 

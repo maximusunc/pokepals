@@ -24,6 +24,13 @@ const POINT_VIS_RATE := 8.0  # per-sec ease of the point's visual intensity towa
 # How fast a REMOTE puppet eases toward its latest received transform (matches PlayerView): the
 # friend's companion lands ~20 Hz and we glide toward it at 60 fps so its motion stays smooth.
 const REMOTE_LERP_RATE := 14.0
+# A remote update this far away is a jump, not a walk: the puppet is put there at once (as PlayerView).
+const REMOTE_SNAP_DIST := 256.0
+# How often a remote companion near the screen repaints. Its sheet changes frame at about 10 a second walking
+# and 5 resting, so 20 catches every frame without repainting a crowd's companions every frame.
+const REMOTE_REDRAW_HZ := 20.0
+# Remote puppets never change their tuning, so they share one parsed copy of the config.
+static var _remote_cfg_cache: Dictionary = {}
 
 ## SPIKE (Horizon): turn the follow spot from straight behind you toward your side by this angle (radians),
 ## so in the "inside" perspective view your companion walks beside you, in frame. 0 = the usual trailing.
@@ -107,6 +114,9 @@ var _emotes: Array = []
 var _is_local := true
 var _target_pos := Vector2.ZERO     # latest position received from the owner (remote only)
 var _target_look := Vector2.DOWN    # latest attention/look direction received (remote only)
+var _remote_awake := true           # near the screen (PresenceDirector decides); off it, no work at all
+var _remote_settled := false        # arrived at the latest update: no easing until the next one
+var _remote_redraw_t := 0.0         # time since the last repaint (remote only)
 
 
 ## Mark this companion a REMOTE puppet. MUST be called after instantiate() and before add_child(),
@@ -202,9 +212,35 @@ func available_form_species() -> Array:
 ## Feed a remote puppet the owner's latest transform: where it is, and where it's attending. Stored
 ## only; _process eases the body toward it so motion stays smooth between the ~20 Hz samples.
 func set_remote_state(pos: Vector2, look: Vector2) -> void:
-	_target_pos = pos
 	if look.length() > 0.01:
 		_target_look = look.normalized()
+	var jump := position.distance_to(pos) > REMOTE_SNAP_DIST
+	_target_pos = pos
+	_remote_settled = false
+	if jump or not _remote_awake:
+		_settle_remote()
+
+
+## Wake this remote puppet (near the screen: it eases, animates and repaints) or put it to sleep (off screen:
+## it is placed at each update and its node stops processing). As PlayerView.set_remote_awake.
+func set_remote_awake(on: bool) -> void:
+	if _is_local or on == _remote_awake:
+		return
+	_remote_awake = on
+	process_mode = Node.PROCESS_MODE_INHERIT if on else Node.PROCESS_MODE_DISABLED
+	if not on:
+		_settle_remote()
+	else:
+		queue_redraw()
+
+
+## Put a remote puppet exactly where its owner's companion is, standing, looking their way.
+func _settle_remote() -> void:
+	position = _target_pos
+	velocity = Vector2.ZERO
+	_look_dir = _target_look
+	_remote_settled = true
+	queue_redraw()
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).
@@ -399,7 +435,12 @@ func _ready() -> void:
 	# Crisp pixel art: nearest-neighbour sampling on this node only (matches PlayerView), so a
 	# dropped-in companion sheet stays sharp when scaled, without touching the procedural world.
 	texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
-	_cfg = WorldData.load_json(config_path)
+	if _is_local:
+		_cfg = WorldData.load_json(config_path)
+	else:
+		if not _remote_cfg_cache.has(config_path):
+			_remote_cfg_cache[config_path] = WorldData.load_json(config_path)
+		_cfg = _remote_cfg_cache[config_path]
 	# A REMOTE puppet has no mind of its own — it's a body driven over the wire — so it builds no
 	# brain and reads no save (that save belongs to THIS machine's companion, not the friend's).
 	# Its resting look arrives via apply_remote_look. The config is still loaded above, since the
@@ -453,15 +494,25 @@ func _process(delta: float) -> void:
 ## (deriving velocity so the same walk/bob animation plays) and ease the eyes toward the owner's
 ## reported attention direction. Its resting-look offsets were set once from the friend's identity
 ## packet (apply_remote_look); its mood simply rests neutral. Enough to read as alive and "theirs".
+## Once it has arrived it stops easing (it still breathes and blinks, repainting REMOTE_REDRAW_HZ times a
+## second), and off screen it does nothing at all.
 func _process_remote(delta: float) -> void:
-	var before := position
-	position = position.lerp(_target_pos, 1.0 - exp(-REMOTE_LERP_RATE * delta))
-	velocity = (position - before) / maxf(delta, 0.0001)
+	if not _remote_settled:
+		var before := position
+		position = position.lerp(_target_pos, 1.0 - exp(-REMOTE_LERP_RATE * delta))
+		velocity = (position - before) / maxf(delta, 0.0001)
+		if position.distance_squared_to(_target_pos) < 0.01:
+			position = _target_pos
+			velocity = Vector2.ZERO
+			_remote_settled = true
 	if _target_look.length() > 0.01:
 		_look_dir = _look_dir.lerp(_target_look, 1.0 - exp(-6.0 * delta))
 	_eye_offset = _look_dir.normalized() * 2.4
 	_decay_animation(delta)
-	queue_redraw()
+	_remote_redraw_t += delta
+	if _remote_redraw_t >= 1.0 / REMOTE_REDRAW_HZ:
+		_remote_redraw_t = 0.0
+		queue_redraw()
 
 
 ## Whether the player has MET this companion yet (the first-meeting beat — see EncounterDirector).
