@@ -136,7 +136,7 @@ thousands in a single battle. **The targets:**
 - **SC-4 (interest management)** then stops a client's bundle growing with the whole world.
 - Re-run SC-1 after each, so every step is measured.
 
-### SC-2 — A client drawing budget *(open)*
+### ✅ SC-2 — A client drawing budget *(built 2026-11-26)*
 This is what you actually felt.
 - **Per-world budget:** a draw-call and frame-time budget per world, checked by the perf harness.
 - **Limit on drawn people:**
@@ -144,6 +144,74 @@ This is what you actually felt.
   - Draw the next ring as a simpler figure with no companion and a lower update rate.
   - Hide anyone farther away.
 - **Phone checks:** test on a real phone, not only desktop.
+
+**What was built:**
+- **Every peer gets a tier** (`CrowdBudget`, pure logic, tested):
+  - **FULL:** the nearest `full` peers (default 40), the person and their companion, as before.
+  - **LITE:** the next `lite` (default 80), the person only: no companion, nothing in their hands.
+  - **HIDDEN:** past the budget, not drawn.
+  - **OUT:** out of sight. In a world with interest cells that is anyone more than one cell from us
+    (SC-4's rule, the same 3 x 3 block the server uses). Everywhere, it is also anyone we have no
+    position for yet.
+- **No flicker at the cuts:**
+  - Someone already in a tier counts as 15% and 40 px nearer when it is filled again, so a newcomer
+    takes their place only when clearly nearer.
+  - Someone in sight stays in sight until a fifth of a cell past the edge of the 3 x 3 block.
+  - The counts never go over `full` and `lite`.
+- **The settings** come from the world spec's `crowd` block (`{ "cell": 480, "full": 40, "lite": 80 }`).
+  With no block there are no cells and the default budget, so today's small worlds draw everyone, as
+  before.
+- **Lazy puppets** (`PresenceDirector`):
+  - The **roster** keeps everyone in the world as data: names, identities, last positions. Only
+    FULL and LITE peers have nodes.
+  - The budget is re-ranked every 0.3 s, and sooner when a peer's first position arrives or we jump.
+  - Puppets are built nearest first, within 1.5 ms a frame (always at least one), and freed a few
+    a frame, so a crowd arriving never stalls a frame.
+  - A puppet near the screen is awake. Off screen it does no work at all: its node stops processing
+    and each update just places it.
+  - In a crowd world, stepping into a new cell forgets where we last saw people in the cells that
+    just came into sight. They may have left while we could not hear, so they wait for the server's
+    snapshot instead of standing there as ghosts.
+- **Cheap puppets:**
+  - A remote person stops processing once it has arrived and turned, until the next update.
+  - A remote companion stops easing once it has arrived, and repaints 20 times a second.
+  - An update more than 256 px away is a jump: the puppet is put there, not slid across the map.
+  - A remote person's outfit is flattened into one picture, cached by outfit: one draw call instead
+    of one per layer, and the same outfits batch.
+  - Building a puppet went from about 2.6 ms to about 0.2 ms. The wardrobe sheets are now held once
+    loaded, instead of being read from disk again for every avatar, and remote puppets share one
+    catalog and one companion config.
+- **Only changes are sent:** our own state goes out about 20 times a second while it changes (at the
+  server's precision: whole pixels, directions to two decimals) and once a second otherwise. Nothing on
+  the client counts on peers sending at a steady rate.
+- **Counts:** `peer_count()` is still everyone in the world (the place chip, "The Vale · 501 here",
+  and the Ruin). `drawn_count()` is who has puppets. Taps, footstep trails and shadows see only the
+  drawn; a friend drawn LITE still lights the dark round their lantern.
+
+**Measured** with `tests/perf_crowd.gd`: synthetic peers fed through the real Net signals, in the Vale,
+half walking and half standing, spread over the whole map round where you arrive. Script time is the
+median frame on this 4-core container (the best of three runs, while other work shared the machine).
+Draw calls are with a renderer (Xvfb, opengl3).
+
+| peers | before: script ms | after: script ms | before: draw calls | after: draw calls | after: drawn (full + lite) |
+|---|---|---|---|---|---|
+| 0 | 3.8 | 3.9 | 123 | 117 | 0 |
+| 50 | 4.9 | 5.0 | 196 | 137 | 50 (40 + 10) |
+| 100 | 6.0 | 5.3 | 313 | 163 | 100 (40 + 60) |
+| 200 | 8.3 | 5.6 | 504 | 195 | 120 (40 + 80) |
+| 500 | 16.6 | 6.0 | 956 | 206 | 120 (40 + 80) |
+
+- **What it shows:** the cost now stops growing at the budget. 500 peers cost about what 150 did
+  before, and draw calls fall almost five-fold. With everyone walking, 500 peers cost 6.5 ms; with
+  interest cells (cell 480), 6.2 ms.
+- **What limits a crowd on the client now:**
+  - The drawn peers, about 15 µs a frame each while walking on screen. The budget sets this.
+  - The incoming states themselves: Net decodes and hands over every entry, drawn or not (about
+    1.3 ms a frame for 500 walkers here, before any JSON). Interest cells (SC-4) cut this at the source.
+  - Building puppets: about 0.2 ms each here, several times that on the web build, so filling the
+    budget takes a second or two there. Nearest come first.
+  - Ranking: about 3 ms for 2,000 peers in sight, 3 times a second.
+- **Not yet done:** a real phone check, and the web build measured on its own.
 
 ### ✅ SC-3 — Batched, compact world ticks *(built 2026-10-31)*
 **What changed:**
