@@ -193,10 +193,14 @@ func _update_camera(delta: float) -> void:
 	var cam := _camera()
 	if cam == null:
 		return
-	var mid := _join.center + Vector2(0, float(_block.get("camera_mid", -80.0)))
-	var d := _player.position.distance_to(_join.center)
+	var p := _player.position
+	var d := p.distance_to(_join.center)
 	var k := 1.0 - smoothstep(_join.cfg("reach"), _join.cfg("reach") + 160.0, d)
-	var want := ((mid - _player.position) * 0.5).limit_length(float(_block.get("camera_lean", 130.0))) * k
+	# across: halfway toward the stone; up and down: just enough that the stone's tip is in view (the view is
+	# 360 px tall), never so much that you drop out of the bottom of it
+	var top := _join.center.y + _view.top() - 20.0
+	var want_y := clampf(minf(0.0, top + 180.0 - p.y), -120.0, 0.0)
+	var want := Vector2((_join.center.x - p.x) * 0.45, want_y).limit_length(float(_block.get("camera_lean", 150.0))) * k
 	if want == Vector2.ZERO and _frame == Vector2.ZERO:
 		return
 	_frame = _frame.move_toward(want, delta * 160.0)

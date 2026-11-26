@@ -225,6 +225,11 @@ func set_whole() -> void:
 	queue_redraw()
 
 
+## How high the stone reaches above its foot (px, negative: up).
+func top() -> float:
+	return _top
+
+
 func is_whole() -> bool:
 	return _whole
 

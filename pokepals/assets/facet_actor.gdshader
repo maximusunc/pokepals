@@ -48,9 +48,8 @@ vec2 hash2(vec2 p) {
 	return fract(sin(p) * 43758.5453);
 }
 
-vec4 tap(sampler2D tex, vec2 texel, vec2 px) {
-	return texture(tex, (floor(texel) + 0.5) * px);
-}
+// one texel of the sheet, by its texel coordinate (a macro: TEXTURE can't be handed to a function here)
+#define TAP(texel) texture(TEXTURE, (floor(texel) + 0.5) * px)
 
 void fragment() {
 	vec2 px = TEXTURE_PIXEL_SIZE;
@@ -71,10 +70,10 @@ void fragment() {
 			else { a = vec2(1.0, 0.0); b = vec2(1.0, 1.0); c = vec2(0.0, 1.0); k = 1.0; }
 		}
 		vec2 cen = (a + b + c) / 3.0;
-		vec4 s0 = tap(TEXTURE, (id + cen) * cell, px);
-		vec4 s1 = tap(TEXTURE, (id + mix(cen, a, 0.6)) * cell, px);
-		vec4 s2 = tap(TEXTURE, (id + mix(cen, b, 0.6)) * cell, px);
-		vec4 s3 = tap(TEXTURE, (id + mix(cen, c, 0.6)) * cell, px);
+		vec4 s0 = TAP((id + cen) * cell);
+		vec4 s1 = TAP((id + mix(cen, a, 0.6)) * cell);
+		vec4 s2 = TAP((id + mix(cen, b, 0.6)) * cell);
+		vec4 s3 = TAP((id + mix(cen, c, 0.6)) * cell);
 		float n_op = 0.0;
 		float n_lit = 0.0;
 		vec3 sum_lit = vec3(0.0);
@@ -117,12 +116,12 @@ void fragment() {
 			col = mix(vec3(l), col, saturation);
 			// an eye: a dark texel here with colour on every side of it (an outline has dark along it)
 			if (keep_eyes > 0.5) {
-				vec4 t0 = tap(TEXTURE, tp, px);
+				vec4 t0 = TAP(tp);
 				if (t0.a > 0.5 && luma(t0.rgb) < outline_cut) {
-					vec4 nl = tap(TEXTURE, tp + vec2(-1.0, 0.0), px);
-					vec4 nr = tap(TEXTURE, tp + vec2(1.0, 0.0), px);
-					vec4 nu = tap(TEXTURE, tp + vec2(0.0, -1.0), px);
-					vec4 nd = tap(TEXTURE, tp + vec2(0.0, 1.0), px);
+					vec4 nl = TAP(tp + vec2(-1.0, 0.0));
+					vec4 nr = TAP(tp + vec2(1.0, 0.0));
+					vec4 nu = TAP(tp + vec2(0.0, -1.0));
+					vec4 nd = TAP(tp + vec2(0.0, 1.0));
 					float all_op = step(0.5, nl.a) * step(0.5, nr.a) * step(0.5, nu.a) * step(0.5, nd.a);
 					float dark_n = step(luma(nl.rgb), outline_cut) + step(luma(nr.rgb), outline_cut)
 						+ step(luma(nu.rgb), outline_cut) + step(luma(nd.rgb), outline_cut);
