@@ -98,6 +98,12 @@ defmodule Server.SecretReveal do
       evening and the crossing all happen on the player's own screen, so the server only checks "this world,
       standing at it", like `follow` and `stillness`. Honest about what that means: it can't tell a player who came
       through the Late Arch from one who stood on the terrace some other way (there is no other way on foot).
+    * `misprint`: one character of a world made of text is the wrong one, and only the player's companion
+      notices it (Glyphfall's stray ampersand, in the grass). The noticing (it stops and looks, again and
+      again as you close in) and the glyph catching the light all happen on the player's own screen
+      (`GlyphNotice` on the client), so the server only checks "this world, standing at it", like
+      `stillness` and `listen`. Honest about what that means: it can't tell a glyph the companion showed
+      you from one you stumbled on (but a client only offers it once its companion has looked).
 
   Pure: the channel hands in what it knows as `ctx` (`wards`: the world's ward list; `hunt_found`:
   the best count this visit's hunts reported; `hunt_goal`: the world's hunt goal; `touched`: the set
@@ -123,6 +129,7 @@ defmodule Server.SecretReveal do
       %{"type" => "fetch"} -> true
       %{"type" => "align"} -> true
       %{"type" => "facets"} -> true
+      %{"type" => "misprint"} -> true
       %{"type" => "circuit"} -> Map.get(ctx, :circuit_closed, false) == true
       %{} = reveal when map_size(reveal) == 0 -> true
       _ -> false

@@ -145,6 +145,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{circuit_closed: true})
   end
 
+  test "the wrong glyph is the client's to notice: the server only checks the place" do
+    secret = %{"reveal" => %{"type" => "misprint", "glyph" => "&", "find_radius" => 30.0}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "an unknown reveal type is never met" do
     refute SecretReveal.met?(%{"reveal" => %{"type" => "made_up"}}, %{})
   end

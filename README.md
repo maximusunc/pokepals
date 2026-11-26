@@ -98,6 +98,7 @@ godot --headless --path pokepals --script res://tests/smoke_loftreach.gd
 godot --headless --path pokepals --script res://tests/smoke_thimblewick.gd
 godot --headless --path pokepals --script res://tests/smoke_ohmstead.gd
 godot --headless --path pokepals --script res://tests/smoke_ohmstead_walk.gd   # the companion really walks the boards (~3.5 min)
+godot --headless --path pokepals --script res://tests/smoke_glyphfall.gd
 godot --headless --path pokepals --script res://tests/smoke_farmeadow.gd
 godot --headless --path pokepals --script res://tests/smoke_lingerlong.gd
 godot --headless --path pokepals --script res://tests/smoke_lingerlong_secret.gd   # the Late Arch and the place card

@@ -77,7 +77,10 @@ defmodule Server.Seeds do
       tags: ["low-poly", "facets", "crystal", "light", "together", "explore", "cozy", "secret"], accent: [0.84, 0.86, 0.46], featured: true},
     %{world_id: "18181818-1818-1818-1818-181818181818", slug: "lingerlong", name: "Lingerlong", file: "lingerlong.json",
       blurb: "A marble plaza floating in a pastel sky, where it is always the same late afternoon. Bring your friends and stay a while. One of its arches runs a little late.",
-      tags: ["plaza", "hangout", "together", "sky", "fountain", "cozy", "secret"], accent: [0.97, 0.72, 0.82], featured: true}
+      tags: ["plaza", "hangout", "together", "sky", "fountain", "cozy", "secret"], accent: [0.97, 0.72, 0.82], featured: true},
+    %{world_id: "19191919-1919-1919-1919-191919191919", slug: "glyphfall", name: "Glyphfall", file: "glyphfall.json",
+      blurb: "A valley somebody wrote down, and it kept: the whole world is made of letters. Grass is quote marks, water is tildes, and the paths are sentences you can read. One character is wrong.",
+      tags: ["text", "letters", "written", "terminal", "quiet", "explore", "cozy", "secret"], accent: [0.80, 0.86, 0.50], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

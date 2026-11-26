@@ -15,6 +15,8 @@ extends Node2D
 ##     (assets/wire_actor.gdshader), a person in one colour and a companion in another;
 ##   * OR, if the look carries a `facet` (Glintwold), the actor is redrawn as flat-shaded triangles
 ##     (assets/facet_actor.gdshader), lit by the ground's turning light;
+##   * OR, if the look carries a `glyph` (Glyphfall), the actor is drawn as it is but MARKED in the picture
+##     (assets/glyph_actor.gdshader), so the page of text written over the world can write it smaller;
 ##   * OR, if the look carries a `bubble` (Bobbledown), a soap bubble round each of them instead of
 ##     the glow (VisitorBubble): you're just a visitor in a bubble world.
 ##
@@ -27,6 +29,7 @@ const FACET_SHADER := preload("res://assets/facet_actor.gdshader")
 const FACET_FLOAT_KEYS := ["cell", "light_height", "shade", "steps", "tilt", "outline_cut", "outline_lift", "rim",
 	"min_taps", "keep_eyes", "saturation"]
 static var _facet_mat: ShaderMaterial = null   # shared by every faceted actor (see apply)
+const GLYPH_SHADER := preload("res://assets/glyph_actor.gdshader")
 const COLOR_KEYS := ["shadow_mult", "light_mult", "cast", "line_glow"]
 const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation", "line_amount", "line_cut", "pulse_speed"]
 
@@ -80,6 +83,15 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	# (FacetGround) turns all their light with one write a frame. Nothing else changes.
 	if look.has("facet"):
 		actor.material = _facet_for(look["facet"])
+	# Glyphfall: a `glyph` look only marks the actor's pixels for the page of text drawn over the world.
+	if look.has("glyph"):
+		var gcfg: Dictionary = look["glyph"]
+		var gmat := ShaderMaterial.new()
+		gmat.shader = GLYPH_SHADER
+		for key in ["mark", "lift"]:
+			if gcfg.has(key):
+				gmat.set_shader_parameter(key, float(gcfg[key]))
+		actor.material = gmat
 		return
 	var mat := ShaderMaterial.new()
 	mat.shader = SHADER

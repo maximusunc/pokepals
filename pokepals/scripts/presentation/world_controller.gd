@@ -89,6 +89,7 @@ var _tank_dir: TankDirector   # the fish tank at home (no-op elsewhere)
 var _firefly_dir: FireflyDirector   # the firefly glades by Steamhollow's and Underroot's secrets (no-op elsewhere)
 var _harvest_dir: HarvestDirector   # chopping trees with an axe, picking up stones and driftwood (home building)
 var _circuit_dir: CircuitDirector   # Ohmstead's ribbon boards (no-op elsewhere)
+var _glyph_page: GlyphPage          # Glyphfall's text layer (null elsewhere)
 var _house_dir: HouseDirector       # your house at home: being built, then finished (home building; no-op elsewhere)
 # LINGERLONG (hangout): the wishing fountain and sitting together (no-ops in a world without a fountain / seats).
 var _wish_dir: WishDirector
@@ -389,6 +390,8 @@ func _build_world(cached: Dictionary) -> void:
 	_setup_mist(data)
 	# STILLGLASS: the mirror lake draws everything near its north bank again, upside down, in the water.
 	_setup_reflections(data)
+	# GLYPHFALL: the whole picture is written again as text.
+	_setup_glyphs(data)
 
 	# Glow-plants someone ELSE touched blaze up here too (the server relays each flare to the world).
 	Net.prop_flared.connect(_on_prop_flared)
@@ -1032,6 +1035,28 @@ func _setup_mist(data: Dictionary) -> void:
 		move_child(veil, get_node("Vignette").get_index())
 		_lantern_radius = float((atmo["fog"] as Dictionary).get("lantern_radius", 220.0))
 		veil.setup(atmo["fog"], data, _player, _walkers, _mist_pockets)
+
+
+## Glyphfall's page: one layer over the world (under the vignette and the HUD) that redraws the finished
+## picture as monospace characters, only for a world whose atmosphere has a `glyphs` block. Purely
+## presentation; any other world is untouched.
+func _setup_glyphs(data: Dictionary) -> void:
+	var old := get_node_or_null("GlyphPage")
+	if old != null:
+		old.queue_free()
+	_glyph_page = null
+	if not GlyphPage.wanted(data):
+		return
+	_glyph_page = GlyphPage.new()
+	_glyph_page.name = "GlyphPage"
+	add_child(_glyph_page)
+	move_child(_glyph_page, get_node("Vignette").get_index())
+	_glyph_page.setup(data["atmosphere"]["glyphs"], _walkers)
+
+
+## The text layer of a glyph world (null anywhere else).
+func glyph_page() -> GlyphPage:
+	return _glyph_page
 
 
 ## The moving pockets of clear air in a world's fog or dark, beyond each walker's own: whatever the secret

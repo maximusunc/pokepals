@@ -1,0 +1,30 @@
+# Glyphfall: a valley somebody wrote down, drawn in letters. Somebody typing slowly, and thinking between
+# the words: short dry marimba notes in little runs, like keys, with gaps; a koto answering now and then like
+# the bell at the end of a line; a quiet pad under it. E dorian, 84 bpm.
+
+title Glyphfall
+tempo 84
+beats 4
+steps 2
+seed  159
+
+voice pad   kind=pad       octave=4  gain=0.34  reverb=0.6
+voice bass  kind=bass      octave=2  gain=0.22  reverb=0.2
+voice keys  kind=marimba   octave=4  gain=0.34  pan=-0.2  reverb=0.3
+voice bell  kind=koto      octave=5  gain=0.26  pan=0.25  reverb=0.55
+
+[a]
+chords | Em7 | Em7 | A | A | Em7 | Em7 | Gmaj7 | A |
+pad    | * - - - - - - - |
+bass   | 1 - - - . . . . |
+keys   | E4 G4 B4 . . . D5 . | B4 . . . . . . . | A4 C#5 E5 . . . F#5 E5 | C#5 . . . . . . . | E4 G4 B4 D5 . . E5 . | D5 B4 . . . . . . | G4 B4 D5 . F#5 . . . | E5 C#5 A4 . . . . . |
+bell   | . . . . . . . . | . . . . G5 - . . | . . . . . . . . | . . . . . . A5 - | . . . . . . . . | . . . . . . B5 - | . . . . . . . . | . . . . . . E5 - |
+
+[b]
+chords | Cmaj7 | Cmaj7 | Gmaj7 | Gmaj7 | Am7 | Bm7 | Em7 | Em7 |
+pad    | * - - - - - - - |
+bass   | 1 - - - . . . . |
+keys   | . . C5 E5 G5 . . . | E5 . D5 . . . . . | . . B4 D5 G5 . . . | F#5 . D5 . . . . . | A4 C5 E5 . . . G5 . | F#5 D5 B4 . . . . . | E4 . G4 . B4 . . . | . . . . . . . . |
+bell   | . . . . . . . . | . . . . . . B5 - | . . . . . . . . | . . . . . . A5 - | . . . . . . . . | . . . . . . . . | . . . . . . E6 - | . . . . B5 - . . |
+
+play a b a b

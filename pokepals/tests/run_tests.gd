@@ -61,6 +61,7 @@ func _init() -> void:
 	failures += TestCrowdBudget.run_all()
 	failures += TestFacetJoin.run_all()
 	failures += TestFacetLight.run_all()
+	failures += TestGlyphNotice.run_all()
 
 	print("")
 	if failures == 0:
