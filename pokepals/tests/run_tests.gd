@@ -62,6 +62,7 @@ func _init() -> void:
 	failures += TestFacetJoin.run_all()
 	failures += TestFacetLight.run_all()
 	failures += TestGlyphNotice.run_all()
+	failures += TestGlyphMap.run_all()
 
 	print("")
 	if failures == 0:
