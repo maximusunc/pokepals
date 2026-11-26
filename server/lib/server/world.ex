@@ -172,6 +172,11 @@ defmodule Server.World do
 
   @impl true
   def init({world_id, ward_defs, ambient_core}) do
+    # Every player's packets land in this one mailbox, from processes on every core. Kept off the process
+    # heap, a backlog doesn't make each garbage collection here slower (which, on the heap, turns a
+    # momentary backlog into one that never drains), and senders contend less.
+    Process.flag(:message_queue_data, :off_heap)
+
     {:ok,
      %{
        world_id: world_id,
