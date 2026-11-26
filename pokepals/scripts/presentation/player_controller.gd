@@ -172,6 +172,9 @@ func _refresh_avatar() -> void:
 		_avatar_layers = []
 		return
 	_avatar_layers = AvatarCompositor.load_layers(_appearance.resolved_layers(_catalog))
+	if not _is_local:
+		# Someone in the crowd: their outfit as one picture, so they cost one draw call, not one per layer.
+		_avatar_layers = AvatarCompositor.flattened(_avatar_layers)
 	_pose_key = -1  # a new outfit is a new picture
 	queue_redraw()
 

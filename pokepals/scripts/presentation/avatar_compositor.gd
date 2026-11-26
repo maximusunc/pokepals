@@ -21,6 +21,9 @@ static var _recolor_order: Array[String] = []
 const RECOLOR_CACHE_MAX := 64
 static var _sheet_cache: Dictionary = {}     # sheet path -> Texture2D (null: no art)
 const SHEET_CACHE_MAX := 256
+static var _flat_cache: Dictionary = {}      # the layers' texture ids -> one flattened ImageTexture
+const FLAT_CACHE_MAX := 128
+const FLAT_KEYS := ["frame", "fps", "walk_frames", "idle_frame", "dirs"]
 const OUTLINE_CUT := 0.18   # luminance below this stays the authored dark outline
 
 
@@ -106,6 +109,42 @@ static func _recolored(src: Texture2D, path: String, ramp: String, rgb: Array) -
 	while _recolor_order.size() > RECOLOR_CACHE_MAX:
 		_recolor_cache.erase(_recolor_order.pop_front())
 	return out
+
+
+## The loaded layers flattened into ONE sheet, as a one-layer list draw() takes like any other: a figure is
+## then one draw call instead of one per layer, and everyone wearing the same outfit shares the picture, so
+## the renderer can batch them. For the people in a crowd (remote puppets). Only when every layer is laid
+## out and animated alike (same sheet size, frame, fps, walk and idle frames, rows); otherwise the layers
+## come back as they were. Cached by outfit, built once each.
+static func flattened(loaded: Array) -> Array:
+	if loaded.size() < 2:
+		return loaded
+	var base: Dictionary = loaded[0]
+	var size: Vector2 = (base["tex"] as Texture2D).get_size()
+	var key := ""
+	for layer in loaded:
+		if (layer["tex"] as Texture2D).get_size() != size:
+			return loaded
+		for k in FLAT_KEYS:
+			if layer["cfg"].get(k) != base["cfg"].get(k):
+				return loaded
+		key += "%d|" % (layer["tex"] as Texture2D).get_instance_id()
+	if not _flat_cache.has(key):
+		var flat := Image.create(int(size.x), int(size.y), false, Image.FORMAT_RGBA8)
+		var rect := Rect2i(Vector2i.ZERO, flat.get_size())
+		for layer in loaded:
+			var img := (layer["tex"] as Texture2D).get_image()
+			if img == null or img.is_empty():
+				return loaded
+			if img.is_compressed():
+				img.decompress()
+			if img.get_format() != Image.FORMAT_RGBA8:
+				img.convert(Image.FORMAT_RGBA8)
+			flat.blend_rect(img, rect, Vector2i.ZERO)   # alpha "over", back to front
+		if _flat_cache.size() >= FLAT_CACHE_MAX:
+			_flat_cache.clear()
+		_flat_cache[key] = ImageTexture.create_from_image(flat)
+	return [{ "tex": _flat_cache[key], "cfg": base["cfg"], "palette": "" }]
 
 
 ## Whether there's anything to composite (at least one layer's art resolved). When false,
