@@ -240,7 +240,8 @@ func _settle_remote() -> void:
 	velocity = Vector2.ZERO
 	_look_dir = _target_look
 	_remote_settled = true
-	queue_redraw()
+	if _remote_awake:
+		queue_redraw()
 
 
 ## Hand the avatar the world's barriers to collide against (trees, props, water, edge).

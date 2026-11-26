@@ -111,6 +111,7 @@ func _basics(pres) -> void:
 func _crowd_arrives(pres) -> void:
 	pres.set_crowd({ "cell": 480, "full": 40, "lite": 80 })
 	_world._player.position = Vector2(-500, 0)
+	pres._track_my_cell()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 11
 	for i in 300:
@@ -150,17 +151,28 @@ func _crowd_arrives(pres) -> void:
 
 
 ## Walk east: the east group comes into sight and is drawn, the west group leaves sight and its nodes go.
+## Where we last placed the east group is forgotten as those cells come into sight (they may have moved while
+## we could not hear); the server's snapshot of the new cells then places everyone really there. One of them,
+## c299, walked off unseen and is not in the snapshot: it must not stand there as a ghost.
 func _crowd_walk(pres) -> void:
 	var west_node: Node = null
 	for id in pres._remote_pairs:
 		west_node = pres._remote_pairs[id]["player"]
 		break
 	_world._player.position = Vector2(600, 0)
+	pres._track_my_cell()
+	_ok(not pres._roster["c250"]["seen"], "stepping into a new cell forgets where we last saw people in the cells now in sight")
+	_ok(pres._roster["c10"]["seen"], "but not people left behind")
+	for i in range(200, 299):
+		var id := "c%d" % i
+		var at: Vector2 = pres._roster[id]["p"]
+		pres._on_state_received(id, { "p": at, "pf": Vector2.DOWN, "c": at + Vector2(-20, 10), "cl": Vector2.DOWN })
 	pres.flush_puppets()
 	var east_only := true
 	for id in pres._remote_pairs:
 		east_only = east_only and int(String(id).substr(1)) >= 200
-	_ok(pres.drawn_count() == 100 and east_only, "after the walk only the east group is drawn (%d)" % pres.drawn_count())
+	_ok(pres.drawn_count() == 99 and east_only, "after the walk only the east group is drawn (%d)" % pres.drawn_count())
+	_ok(not pres._remote_pairs.has("c299"), "and nobody stands where someone was before they left unseen")
 	_ok(west_node != null and (not is_instance_valid(west_node) or west_node.is_queued_for_deletion()), "the west group's nodes are freed")
 	_ok(pres.peer_count() == 300, "and everyone is still in the roster")
 	pres._on_disconnected()

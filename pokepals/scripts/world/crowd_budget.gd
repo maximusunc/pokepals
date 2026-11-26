@@ -160,5 +160,23 @@ func _fill(ids: Array, dist: PackedFloat32Array, prev: PackedByteArray, out: Dic
 	return rest
 
 
+## The interest cell a point is in (cell > 0).
+static func cell_of(p: Vector2, cell_size: float) -> Vector2i:
+	return Vector2i(floori(p.x / cell_size), floori(p.y / cell_size))
+
+
+## Whether a point lies in a cell that came into sight when we moved from cell `was` to cell `now`: in the
+## 3 x 3 block round `now` but not in the one round `was`. A peer last placed there may have gone since,
+## unheard (the server only tells us about our own block), so its position should be forgotten until the
+## server's snapshot of the newly visible cells says where it really is.
+static func came_into_sight(p: Vector2, cell_size: float, was: Vector2i, now: Vector2i) -> bool:
+	var c := cell_of(p, cell_size)
+	return _chebyshev(c, now) <= 1 and _chebyshev(c, was) > 1
+
+
+static func _chebyshev(a: Vector2i, b: Vector2i) -> int:
+	return maxi(absi(a.x - b.x), absi(a.y - b.y))
+
+
 static func _is_number(v: Variant) -> bool:
 	return v is float or v is int

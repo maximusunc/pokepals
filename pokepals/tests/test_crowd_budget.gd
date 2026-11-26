@@ -17,6 +17,7 @@ static func run_all() -> int:
 	fails += _test_tiers_follow_the_local_player()
 	fails += _test_departed_peers_are_forgotten()
 	fails += _test_a_large_crowd_is_cheap()
+	fails += _test_cells_that_come_into_sight()
 	return fails
 
 
@@ -164,6 +165,19 @@ static func _test_a_large_crowd_is_cheap() -> int:
 	var c := b.counts()
 	# Generous: it is a few ms on a desktop; this only catches an accidental quadratic.
 	return _check("2000 peers rank quickly and the caps hold", us < 100000 and c[0] == 40 and c[1] == 80)
+
+
+static func _test_cells_that_come_into_sight() -> int:
+	var fails := 0
+	fails += _check("cells are floored, negatives too",
+		CrowdBudget.cell_of(Vector2(-1, 479), 480.0) == Vector2i(-1, 0) and CrowdBudget.cell_of(Vector2(960, -481), 480.0) == Vector2i(2, -2))
+	# Stepping east from cell (0, 0) to (1, 0): the column x = 2 comes into sight; x = 1 and x = 0 were already.
+	var was := Vector2i(0, 0)
+	var now := Vector2i(1, 0)
+	fails += _check("the new column has come into sight", CrowdBudget.came_into_sight(Vector2(1000, 100), 480.0, was, now))
+	fails += _check("a cell seen before has not", not CrowdBudget.came_into_sight(Vector2(500, 100), 480.0, was, now))
+	fails += _check("nor has one still out of sight", not CrowdBudget.came_into_sight(Vector2(1500, 100), 480.0, was, now))
+	return fails
 
 
 static func _check(label: String, cond: bool) -> int:

@@ -61,6 +61,8 @@ var _budget_t := 0.0           # seconds until the next re-rank
 var _queue: Array = []         # peer ids whose puppets need building, changing or freeing, in order
 var _retiring: Array = []      # puppet nodes leaving, freed a few a frame
 var _last_local := Vector2.ZERO
+var _my_cell := Vector2i.ZERO  # our interest cell in a crowd world, to notice when we cross into another
+var _my_cell_known := false
 var _net_accum := 0.0          # accumulates toward the next NET_SEND_INTERVAL broadcast
 var _keepalive_accum := 0.0    # time since we last sent anything
 var _last_sent: Array = []     # the last packet we sent, as the server keeps it (whole px, 2-decimal directions)
@@ -101,6 +103,7 @@ func set_bounds(rect: Rect2) -> void:
 ## means no interest cells and the default budget, which a small world never reaches.
 func set_crowd(block: Variant) -> void:
 	_crowd.configure(CrowdBudget.settings_from(block))
+	_my_cell_known = false
 	_budget_t = 0.0
 
 
@@ -331,11 +334,33 @@ func _process(delta: float) -> void:
 	if _player.position.distance_squared_to(_last_local) > LOCAL_JUMP * LOCAL_JUMP:
 		_budget_t = 0.0
 	_last_local = _player.position
+	if _crowd.cell > 0.0:
+		_track_my_cell()
 	if _budget_t <= 0.0:
 		_budget_t = BUDGET_INTERVAL
 		_rebudget()
 	_work_queue(SPAWN_BUDGET_USEC)
 	_retire_some(RETIRES_PER_FRAME)
+
+
+## In a crowd world the server only tells us about the 3 x 3 cells round us. When we step into another cell,
+## anyone we last placed in a cell that has just come into sight may have left it while we could not hear,
+## so we forget where they were (no puppet) until the server's snapshot of those cells says where they are.
+## Without this a peer who walked off unseen would stand there as a ghost when we came back.
+func _track_my_cell() -> void:
+	var now := CrowdBudget.cell_of(_player.position, _crowd.cell)
+	if not _my_cell_known:
+		_my_cell = now
+		_my_cell_known = true
+		return
+	if now == _my_cell:
+		return
+	for peer_id in _roster:
+		var rec: Dictionary = _roster[peer_id]
+		if rec["seen"] and CrowdBudget.came_into_sight(rec["p"], _crowd.cell, _my_cell, now):
+			rec["seen"] = false
+	_my_cell = now
+	_budget_t = minf(_budget_t, BUDGET_SOON)
 
 
 ## Re-rank everyone, queue whatever puppets must be built, changed or freed (nearest first, frees before
