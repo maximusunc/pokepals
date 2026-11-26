@@ -26,7 +26,7 @@
 //   node tools/loadtest/bots.mjs --url ws://127.0.0.1:4000/ws --world <world-uuid> --bots 100 \
 //        --seconds 30 [--hz 20] [--ramp 10] [--radius 300] [--prefix lt] [--first 0] [--json out.json] \
 //        [--profile wander|hangout] [--spread 0] [--clusters 1] [--cluster-radius 160] [--strollers 0.1] \
-//        [--seed 1]
+//        [--seed 1] [--parse-frac 1]
 // With --first / --bots, several bot processes can share one run (each takes its own index range),
 // so the bot side can use more than one CPU core. Homes are seeded by bot index, so processes agree.
 
@@ -49,6 +49,10 @@ const CLUSTERS = Math.max(1, Number(args.clusters || 1));
 const CLUSTER_R = Number(args["cluster-radius"] || 160);
 const STROLLERS = Number(args.strollers ?? 0.1);
 const SEED = Number(args.seed || 1);
+// Only this fraction of bots read the live bundles (and so measure latency, peers and entries); the rest
+// still receive every byte but skip parsing it. With a big crowd in one place, parsing every bundle in every
+// bot costs the bot processes more CPU than the server spends, and the bots' lag pollutes the numbers.
+const PARSE_FRAC = Number(args["parse-frac"] ?? 1);
 const KEEPALIVE_MS = 1000;
 if (!["wander", "hangout"].includes(PROFILE)) { console.error("--profile is wander or hangout"); process.exit(2); }
 if (!WORLD) { console.error("--world <uuid> is required"); process.exit(2); }
@@ -104,6 +108,7 @@ class Bot {
     const c = seeded(1e6 + this.cluster);
     this.centreOff = { x: (c() - 0.5) * SPREAD, y: (c() - 0.5) * SPREAD };
     this.standUntil = 0;
+    this.sampled = seeded(3e6 + i)() < PARSE_FRAC;
   }
 
   send(frame) {
@@ -134,6 +139,8 @@ class Bot {
     const len = typeof data === "string" ? data.length : data.byteLength || 0;
     win.bytes += len;
     total.bytes += len;
+    // a broadcast (the live bundles) starts [null,null,...; a bot that doesn't sample skips parsing it
+    if (!this.sampled && typeof data === "string" && data.startsWith("[null,null,")) return;
     let f;
     try { f = JSON.parse(data); } catch { return; }
     const [, , , event, payload] = f;
@@ -275,17 +282,19 @@ setTimeout(() => {
   clearInterval(report);
   const steadySecs = Math.max(1, SECONDS - RAMP - 2);
   const n = Math.max(1, total.joined);
+  const sampled = bots.filter((b) => b.sampled);
   const summary = {
     bots: BOTS, joined: total.joined, failed: total.failed, closed_early: total.closed,
     sent_total: total.sent,
-    recv_state_per_bot_per_s: Math.round(total.recvState / n / SECONDS),
+    recv_state_per_bot_per_s: Math.round(total.recvState / Math.max(1, sampled.filter((b) => b.joined).length) / SECONDS),
     kb_per_bot_per_s: Math.round((total.bytes / n / 1024 / SECONDS) * 10) / 10,
     latency_ms: { p50: pct(allLat, 50), p95: pct(allLat, 95), p99: pct(allLat, 99), max: pct(allLat, 100), samples: allLat.length },
     steady_seconds: steadySecs,
     bot_loop_lag_max_ms: Math.round(maxLoopLag),
     // distinct peers each bot heard about after the ramp, averaged (and the most any one bot heard)
-    peers_seen_avg: Math.round(bots.reduce((a, b) => a + b.peers.size, 0) / Math.max(1, bots.length)),
-    peers_seen_max: bots.reduce((a, b) => Math.max(a, b.peers.size), 0),
+    peers_seen_avg: Math.round(sampled.reduce((a, b) => a + b.peers.size, 0) / Math.max(1, sampled.length)),
+    peers_seen_max: sampled.reduce((a, b) => Math.max(a, b.peers.size), 0),
+    sampled_bots: sampled.length,
     sent_per_bot_per_s: Math.round((total.sent / n / SECONDS) * 10) / 10,
   };
   console.log(`${tag} SUMMARY ${JSON.stringify(summary)}`);
