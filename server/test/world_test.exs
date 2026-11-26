@@ -9,6 +9,10 @@ defmodule Server.WorldTest do
 
   defp wid, do: "world-test-#{System.unique_integer([:positive])}"
 
+  # A live bundle's payload is pre-encoded JSON (WorldStates.encoded_bundle/1); its entries as the
+  # client reads them.
+  defp states(payload), do: payload |> Jason.encode!() |> Jason.decode!() |> Map.fetch!("s")
+
   test "ensure_started is idempotent" do
     w = wid()
     assert World.ensure_started(w) == w
@@ -54,8 +58,8 @@ defmodule Server.WorldTest do
     World.update_transform(w, "u9", %{"p" => [7, 8]})
     World.update_transform(w, "u8", %{"p" => [1.6, 2.4], "pf" => [0.123, -0.987]})
 
-    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: entries}}, 500
-    assert Enum.sort(entries) == [
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: payload}, 500
+    assert Enum.sort(states(payload)) == [
              ["u8", 2, 2, 0.12, -0.99, nil, nil, nil, nil],
              ["u9", 7, 8, nil, nil, nil, nil, nil, nil]
            ]
@@ -75,7 +79,8 @@ defmodule Server.WorldTest do
     World.ensure_started(w)
     Server.Endpoint.subscribe(World.channel_topic(w))
     World.update_transform(w, "u1", %{"p" => [1, 1], "t" => 100})
-    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: [["u1", 1, 1 | _]]}}, 500
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: payload}, 500
+    assert [["u1", 1, 1 | _]] = states(payload)
 
     # A keepalive: same pose (rounding to the same pixel counts as the same), a newer load-test stamp.
     World.update_transform(w, "u1", %{"p" => [1.2, 0.9], "t" => 200})
@@ -84,7 +89,8 @@ defmodule Server.WorldTest do
 
     # A real change goes out with its own, latest stamp.
     World.update_transform(w, "u1", %{"p" => [2, 1], "t" => 300})
-    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: [["u1", 2, 1, nil, nil, nil, nil, nil, nil, 300]]}}, 500
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: payload}, 500
+    assert states(payload) == [["u1", 2, 1, nil, nil, nil, nil, nil, nil, 300]]
   end
 
   test "a changed facing alone is a change" do
@@ -94,7 +100,8 @@ defmodule Server.WorldTest do
     World.update_transform(w, "u1", %{"p" => [1, 1], "pf" => [1, 0]})
     assert_receive %Phoenix.Socket.Broadcast{event: "states"}, 500
     World.update_transform(w, "u1", %{"p" => [1, 1], "pf" => [0, 1]})
-    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: %{s: [["u1", 1, 1, +0.0, 1.0 | _]]}}, 500
+    assert_receive %Phoenix.Socket.Broadcast{event: "states", payload: payload}, 500
+    assert [["u1", 1, 1, +0.0, 1.0 | _]] = states(payload)
   end
 
   test "junk fields aren't stored or relayed" do
@@ -121,8 +128,8 @@ defmodule Server.WorldTest do
     # clients see an ordinary "states" frame); its entries' ids.
     defp ids_from(w) do
       topic = World.channel_topic(w)
-      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "states", payload: %{s: entries}}, 500
-      entries |> Jason.encode!() |> Jason.decode!() |> Enum.map(&hd/1) |> Enum.sort()
+      assert_receive %Phoenix.Socket.Broadcast{topic: ^topic, event: "states", payload: payload}, 500
+      payload |> states() |> Enum.map(&hd/1) |> Enum.sort()
     end
 
     test "nothing goes out on the world-wide topic" do

@@ -28,4 +28,16 @@ defmodule Server.WorldStatesTest do
     %{s: s} = WorldStates.bundle(%{"a" => %{"p" => [1, 1]}, "b" => %{"p" => [2, 2]}})
     assert Enum.sort(s) == [["a", 1, 1, nil, nil, nil, nil, nil, nil], ["b", 2, 2, nil, nil, nil, nil, nil, nil]]
   end
+
+  test "a pre-encoded bundle is byte for byte the plain bundle's JSON" do
+    ts = [{"a", %{"p" => [1, 1], "pf" => [0.5, -1.0], "t" => 9}}, {"b", %{"c" => [3, 4]}}]
+    plain = Jason.encode!(%{s: for({id, t} <- ts, do: WorldStates.entry(id, t))})
+    encoded = WorldStates.encoded_bundle(for {id, t} <- ts, do: WorldStates.entry_json(id, t))
+    assert Jason.encode!(encoded) == plain
+    assert Jason.encode!(WorldStates.encoded_bundle([])) == ~s({"s":[]})
+  end
+
+  test "a snapshot bundle leaves out the load-test stamp" do
+    assert WorldStates.snapshot_bundle(%{"a" => %{"p" => [1, 1], "t" => 5}}) == %{s: [["a", 1, 1, nil, nil, nil, nil, nil, nil]]}
+  end
 end

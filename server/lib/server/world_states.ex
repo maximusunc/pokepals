@@ -70,6 +70,23 @@ defmodule Server.WorldStates do
     %{s: for({id, t} <- transforms, do: entry(id, t))}
   end
 
+  @doc "One entry already encoded as JSON (a binary), for `encoded_bundle/1`."
+  @spec entry_json(String.t(), map()) :: binary()
+  def entry_json(id, transform), do: Jason.encode!(entry(id, transform))
+
+  @doc """
+  A live tick's `"states"` payload, built from entries already encoded by `entry_json/2`: the whole
+  payload as ONE binary, wrapped as a `Jason.Fragment` so the channel fastlane's encoder copies it in
+  as it is. The JSON on the wire is exactly `bundle/1`'s. Why: the fastlane hands the encoded frame to
+  every socket's process, and a frame that is one large binary is shared between them by reference,
+  where a deep list of small pieces (what encoding a plain bundle gives) is copied into each one. And
+  an entry that sits in several cell bundles (SC-4) is encoded once, not once per bundle.
+  """
+  @spec encoded_bundle([binary()]) :: Jason.Fragment.t()
+  def encoded_bundle(entry_jsons) do
+    Jason.Fragment.new(IO.iodata_to_binary([~s({"s":[), Enum.intersperse(entry_jsons, ?,), "]}"]))
+  end
+
   @doc """
   A SNAPSHOT bundle (who is where right now, pushed on join or when cells come into view): the same
   format, without the load-test send stamp `t`. A snapshot can hold a pose that was sent seconds ago

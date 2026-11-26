@@ -391,7 +391,8 @@ defmodule Server.WorldChannelTest do
       assert_push "join", %{id: _}
 
       push(s1, "state", %{"p" => [1, 2]})
-      assert_push "states", %{s: [[^id1, 1, 2 | _]]}, 500
+      assert_push "states", payload, 500
+      assert [[^id1, 1, 2 | _]] = payload |> Jason.encode!() |> Jason.decode!() |> Map.fetch!("s")
     end
 
     test "a state frame does not cross into another world" do
@@ -451,7 +452,8 @@ defmodule Server.WorldChannelTest do
     # The ids in the next "states" frame `name` receives within `ms`, or :none.
     defp next_states(name, ms \\ 500) do
       receive do
-        {^name, %Phoenix.Socket.Message{event: "states", payload: %{s: entries}}} -> entries |> Jason.encode!() |> Jason.decode!()
+        {^name, %Phoenix.Socket.Message{event: "states", payload: payload}} ->
+          payload |> Jason.encode!() |> Jason.decode!() |> Map.fetch!("s")
       after
         ms -> :none
       end

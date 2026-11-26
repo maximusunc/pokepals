@@ -290,11 +290,12 @@ defmodule Server.World do
   defp same_transform?(nil, _clean), do: false
   defp same_transform?(old, clean), do: Map.delete(old, "t") == Map.delete(clean, "t")
 
-  # Send this tick's moved transforms. A world without interest cells sends one bundle to everyone (SC-3).
+  # Send this tick's moved transforms. A world without interest cells sends one bundle to everyone (SC-3),
+  # pre-encoded as one binary (`WorldStates.encoded_bundle/1`) so the sockets share it.
   defp flush_states(%{interest: nil} = state, topic) do
     if MapSet.size(state.dirty) > 0 do
-      moved = Map.take(state.transforms, MapSet.to_list(state.dirty))
-      Server.Endpoint.broadcast(topic, "states", Server.WorldStates.bundle(moved))
+      jsons = for {id, t} <- Map.take(state.transforms, MapSet.to_list(state.dirty)), do: Server.WorldStates.entry_json(id, t)
+      Server.Endpoint.broadcast(topic, "states", Server.WorldStates.encoded_bundle(jsons))
     end
 
     state
@@ -303,7 +304,8 @@ defmodule Server.World do
   # A crowd world (SC-4): move each mover to its new cell, then send ONE bundle per occupied cell, on that
   # cell's topic, of the movers in its 3 x 3 neighbourhood. A mover that changed cell this tick goes to its
   # old neighbourhood too, so watchers there see where it went. Each bundle is a channel Broadcast on the
-  # world's channel topic, so the fastlane encodes it once for every socket subscribed to that cell.
+  # world's channel topic, so the fastlane encodes it once for every socket subscribed to that cell. Each
+  # entry is encoded once for the tick, however many bundles it's in, and each bundle is one binary.
   defp flush_states(%{interest: %{cell: size}} = state, topic) do
     if MapSet.size(state.dirty) == 0 do
       state
@@ -322,7 +324,7 @@ defmodule Server.World do
 
               st = move_cell(st, uid, old, new)
               route = Enum.uniq(for c <- [new, old], c != nil, do: c)
-              {[{encoded_entry(uid, t), route} | acc], st}
+              {[{Server.WorldStates.entry_json(uid, t), route} | acc], st}
 
             :error ->
               {acc, st}
@@ -333,20 +335,12 @@ defmodule Server.World do
         Phoenix.PubSub.broadcast(Server.PubSub, Server.Interest.topic(state.world_id, cell), %Phoenix.Socket.Broadcast{
           topic: topic,
           event: "states",
-          payload: %{s: entries}
+          payload: Server.WorldStates.encoded_bundle(entries)
         })
       end
 
       state
     end
-  end
-
-  # One mover's entry, JSON-encoded ONCE for this tick. A mover sits in up to nine (eighteen, crossing a
-  # border) cell bundles, and encoding the bundles from plain lists cost ~9x the encoding; as a
-  # `Jason.Fragment` the fastlane's encoder copies the bytes in as they are. The JSON on the wire is the
-  # same. (The fragment holds a closure, so a bundle crossing to another node needs the same code there.)
-  defp encoded_entry(uid, t) do
-    Jason.Fragment.new(Jason.encode_to_iodata!(Server.WorldStates.entry(uid, t)))
   end
 
   defp move_cell(state, _uid, same, same), do: state
