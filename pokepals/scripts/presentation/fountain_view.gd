@@ -105,7 +105,7 @@ func _draw_basin_rings(fy: float) -> void:
 		var k := fposmod(_time * 0.32 + float(i) / 3.0, 1.0)
 		var a := (1.0 - k) * 0.38
 		draw_set_transform(c, 0.0, Vector2(1.0, ry / rx))
-		draw_arc(Vector2.ZERO, rx * (0.35 + 0.55 * k), 0.0, TAU, 40, Color(1, 1, 1, a), 1.4 / maxf(0.2, ry / rx) * 0.5, true)
+		draw_arc(Vector2.ZERO, rx * (0.35 + 0.55 * k), 0.0, TAU, 40, Color(1, 1, 1, a), 2.0, true)
 		draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
 
 
