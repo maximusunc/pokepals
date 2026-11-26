@@ -91,6 +91,9 @@ var _harvest_dir: HarvestDirector   # chopping trees with an axe, picking up sto
 var _circuit_dir: CircuitDirector   # Ohmstead's ribbon boards (no-op elsewhere)
 var _glyph_page: GlyphPage          # Glyphfall's text layer (null elsewhere)
 var _house_dir: HouseDirector       # your house at home: being built, then finished (home building; no-op elsewhere)
+# LINGERLONG (hangout): the wishing fountain and sitting together (no-ops in a world without a fountain / seats).
+var _wish_dir: WishDirector
+var _seat_dir: SeatDirector
 var _lantern_radius := 220.0  # the pocket a FRIEND's lantern clears in a world's fog/dark (fog.lantern_radius)
 var _hotbar: Hotbar
 var _use_button: UseButton
@@ -109,6 +112,10 @@ var _open_sheets := 0  # social windows currently up (open_sheet); steering retu
 # found your companion, then breathes itself into being in a little cutscene.
 var _gateway: Dictionary = {}          # this world's Gateway entry in _portals ({} if it has none)
 var _gateway_view: PortalView = null
+# LINGERLONG: the wishing fountain (null in every other world). See fountain_view() and arch_view().
+var _fountain_view: FountainView = null
+# LINGERLONG: the Late Arch, a doorway only the companion can open (null in a world without a `doorway` block).
+var _doorway_dir: DoorwayDirector = null
 var _gateway_hidden := false
 var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
@@ -261,6 +268,7 @@ func _build_world(cached: Dictionary) -> void:
 	_bounds_rect = bounds_rect
 	_camera.set_bounds(bounds_rect)
 	_presence_dir.set_bounds(bounds_rect)  # so remote puppet positions are clamped to the world
+	_presence_dir.set_crowd(data.get("crowd"))  # who gets drawn in a crowd (SC-2; none = the default budget)
 	_ambient_dir.set_bounds(bounds_rect)  # same clamp for the server-driven ambient pals
 
 	# Barriers: build the solid list once (trees incl. the border ring, tall props, great-trees,
@@ -276,6 +284,11 @@ func _build_world(cached: Dictionary) -> void:
 	_scenery.add_understory(_world_art.understory_spots(), _style)
 	# Clickton's brick buildings, depth-sorted like trees; the one holding the secret gets its brick bound.
 	var building_views := _scenery.add_buildings(data.get("buildings", []), _style)
+	# Lingerlong's wishing fountain stands in the same depth-sorted layer (its words are a prop's, its basin a fence).
+	_fountain_view = _scenery.add_fountain(data["fountain"], _style) if data.has("fountain") else null
+	_setup_doorway(data)   # LINGERLONG: the Late Arch (only with a `doorway` block)
+	_wish_dir.configure(data, _fountain_view)   # LINGERLONG: toss a coin in
+	_seat_dir.configure(data)                   # LINGERLONG: somewhere to sit
 	_bind_inlays(building_views)
 	# Home building: this world's trees can be chopped (unless it says not), and its stones and driftwood picked up.
 	_harvest_dir.configure(data, _interactables)
@@ -303,7 +316,7 @@ func _build_world(cached: Dictionary) -> void:
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
 	_player.set_solids(solids, bounds_rect, body_radius, margin)
-	_companion.set_solids(solids, bounds_rect, body_radius, margin, SkyRealm.ground_test(data.get("sky", {})))
+	_companion.set_solids(solids, bounds_rect, body_radius, margin, _ground_test(data))
 	# The first-meeting flock (if it comes up this session) walks against the same barriers, and
 	# injects its creatures into the live examine list.
 	_encounter_dir.set_world(_interactables, solids, bounds_rect, body_radius, margin)
@@ -354,6 +367,15 @@ func _build_world(cached: Dictionary) -> void:
 	# OHMSTEAD: no prints on the grid; a step lights the cell underfoot and sends a ring out along the lines.
 	if _world_art.grid_ground() != null:
 		_world_art.grid_ground().set_walkers(_walkers)
+	# LINGERLONG: no prints on the polished marble; a step in the pool rings the water, and your own screen goes
+	# to evening while you stand on the terrace.
+	if _world_art.plaza_ground() != null:
+		_world_art.plaza_ground().set_walkers(_walkers)
+		_world_art.plaza_ground().set_watch(_player)
+		_world_art.plaza_ground().settle_evening()
+	# GLINTWOLD: no prints on the facets either; the glint underfoot flashes and settles.
+	if _world_art.facet_ground() != null:
+		_world_art.facet_ground().set_walkers(_walkers)
 	# ...its runners, carrying light along the bright lines (where they are is a pure function of the clock)...
 	var runners_cfg: Dictionary = data.get("runners", {})
 	if not runners_cfg.is_empty():
@@ -526,6 +548,14 @@ func _create_directors() -> void:
 	_house_dir.setup(self, _player, _companion, _world_art, _scenery, _style, _home_dir)
 
 	# Ohmstead's ribbon boards (the dark sector, and the Arcade's two): taps on their nodes direct the companion.
+	# LINGERLONG: the wishing fountain and the seats offer themselves on the use button (FishingDirector.places).
+	_wish_dir = WishDirector.new()
+	add_child(_wish_dir)
+	_wish_dir.setup(self, _player, _presence_dir, _scenery)
+	_seat_dir = SeatDirector.new()
+	add_child(_seat_dir)
+	_seat_dir.setup(self, _player, _companion, _presence_dir)
+	_fishing_dir.places = [_seat_dir, _wish_dir]
 	_circuit_dir = CircuitDirector.new()
 	add_child(_circuit_dir)
 	_circuit_dir.setup(self, _companion, _world_art, _player)
@@ -687,6 +717,50 @@ func _bind_inlays(views: Array) -> void:
 			bv.hide_inlay()
 
 
+## Lingerlong: the wishing fountain's view (swell() makes its jets rise), or null in a world without one.
+func fountain_view() -> FountainView:
+	return _fountain_view if is_instance_valid(_fountain_view) else null
+
+
+## An arch (or any building) by its spec id, e.g. "late_arch" / "return_arch" (an ArchView), or null.
+func arch_view(id: String) -> BuildingView:
+	return _scenery.building(id)
+
+
+# ── LINGERLONG: the Late Arch ────────────────────────────────────────────────────────────────────────────────
+## The doorway only the companion can open (DoorwayDirector over DoorwayGate), in a world whose spec has a `doorway`
+## block naming its two arches. It runs whether or not the secret is found: the door belongs to the world.
+func _setup_doorway(data: Dictionary) -> void:
+	if is_instance_valid(_doorway_dir):
+		_doorway_dir.queue_free()
+	_doorway_dir = null
+	var dw: Dictionary = data.get("doorway", {})
+	var late := arch_view(String(dw.get("arch", ""))) as ArchView
+	var back := arch_view(String(dw.get("back_arch", ""))) as ArchView
+	if dw.is_empty() or late == null or back == null:
+		return
+	_doorway_dir = DoorwayDirector.new()
+	_doorway_dir.name = "DoorwayDirector"
+	add_child(_doorway_dir)
+	_doorway_dir.setup(self, _companion, _player, _world_art)
+	_doorway_dir.configure(dw, late, back, data.get("secret", {}))
+	_secret_dir.bind_doorway(_doorway_dir)
+
+
+## The Late Arch's director (null in every other world), for tests and tools.
+func doorway_director() -> DoorwayDirector:
+	return _doorway_dir if is_instance_valid(_doorway_dir) else null
+# ── end LINGERLONG: the Late Arch ────────────────────────────────────────────────────────────────────────────
+
+
+## Which points the companion may plan a route over, in a world where only part of the map is ground: a sky
+## world's islands and bridges (SkyRealm), or a floating plaza's floors and pool (PlazaRealm). Invalid elsewhere.
+func _ground_test(data: Dictionary) -> Callable:
+	if data.has("sky"):
+		return SkyRealm.ground_test(data["sky"])
+	return PlazaRealm.ground_test(data.get("plaza", {}))
+
+
 func rebuild_solids_dropping(slab_id: String) -> void:
 	var data_copy: Dictionary = _world_data.duplicate(true)
 	for it in data_copy.get("props", []):
@@ -694,7 +768,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 			it["solid"] = false
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(data_copy.get("sky", {})))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(data_copy))
 
 
 ## Rebuild the barriers from the world's data as it stands now (your house was just finished: its furniture
@@ -702,7 +776,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 func rebuild_world_solids() -> void:
 	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(_world_data.get("sky", {})))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(_world_data))
 
 
 ## Loftreach: a hidden bridge is down. Rebuild the barriers and the companion's walkability grid with it open
@@ -717,7 +791,7 @@ func reveal_sky_bridge(bridge_id: String) -> void:
 	sky["revealed"] = revealed
 	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(sky))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(_world_data))
 
 
 ## Whether the tide covers `p` right now (Ebbmere): water to fish in.
@@ -1150,6 +1224,8 @@ func _process(delta: float) -> void:
 	_hunt_dir.update_detector(delta)
 	_maze_dir.update(delta)
 	_secret_dir.update(delta)
+	if _doorway_dir != null:
+		_doorway_dir.update(delta)
 	_home_dir.update(delta)
 	_ruin.update(delta)
 	# F-2 form-verb order in flight: fire its world effect once the companion reaches the object.
@@ -1178,6 +1254,8 @@ func _process(delta: float) -> void:
 	_harvest_dir.update(delta)
 	_circuit_dir.update(delta)
 	_house_dir.update(delta)
+	_wish_dir.update(delta)   # LINGERLONG
+	_seat_dir.update(delta)
 	_hotbar.suppressed = _encounter_dir.is_searching()
 	_use_button.suppressed = _encounter_dir.is_searching()
 
@@ -1666,11 +1744,17 @@ func _on_world_tap(screen_pos: Vector2) -> void:
 	# Ohmstead: a tap on a ribbon board's node sends the companion there (or winds the ribbon back to it).
 	if _circuit_dir.on_tap(world):
 		return
+	# Lingerlong: a tap on the Late Arch sends the companion into its picture.
+	if _doorway_dir != null and _doorway_dir.on_tap(world):
+		return
 	var index := _nearest_interactable_to_point(world)
 	if index < 0:
 		_secret_dir.on_ground_tap(world)   # Lanternfold: empty lit ground stands your companion in the shadows
 		return
 	var entry: Dictionary = _interactables[index]
+	# LINGERLONG: a tap on the wishing fountain, close enough, tosses a coin in.
+	if _wish_dir.on_tap(entry):
+		return
 	_world_art.pulse_interactable(int(entry["render_index"]))
 	if _issue_form_order(entry, index):
 		return
@@ -1942,6 +2026,9 @@ func _try_interact() -> void:
 	_companion.notify_interaction(entry["pos"], String(entry["id"]), entry["tags"])
 	# A prop a secret is waiting on (Bobbledown's chime-bubbles): the SecretDirector tells this part of it.
 	if _secret_dir.on_touched(entry):
+		return
+	# LINGERLONG: the wishing fountain reads its lore and how many wishes it holds.
+	if _wish_dir.examine(entry):
 		return
 	# Ruin fixtures (kindle the Cistern ember, jam the Paired-Hall wedge, nudge on an unsolved slab) are
 	# handled by the RuinController; if it claims this prop, we're done.

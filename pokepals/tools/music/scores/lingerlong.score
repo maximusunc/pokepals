@@ -1,0 +1,39 @@
+# Lingerlong: a marble plaza in the sky where it is always the same late afternoon, the place everyone
+# meets. Less a tune than a warm hum to sit in: a hazy pad that wavers like warm air over marble, an old
+# electric piano heard from across the square turning slowly through each chord, a soft round bass, and
+# a few high notes now and then like the sun catching the fountain. Major sevenths throughout, lots of
+# room, no drums. D major, 60 bpm. Instruments of its own: haze and epiano.
+
+title Lingerlong
+tempo 60
+beats 4
+steps 2
+seed  171
+
+voice hum    kind=haze    octave=4  gain=0.50  reverb=0.6
+voice bass   kind=bass    octave=2  gain=0.22  reverb=0.3
+voice keys   kind=epiano  octave=4  gain=0.34  pan=-0.2  reverb=0.55
+voice bell   kind=epiano  octave=5  gain=0.20  pan=0.25  reverb=0.7
+voice sun    kind=chime   octave=6  gain=0.16  spread=0.6 reverb=0.85
+
+[a]
+chords | Dmaj7 | Bm9 | Gmaj7 | Em9 | Dmaj7 | F#m7 | Gmaj7 | Asus4 |
+hum    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+keys   | 1 . . 3 . . 2 . |
+sun    | . . . . . . . . | . . . . . . . . | . . . . . . F#6 - | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . C#6 - . . |
+
+[b]
+chords | Gmaj7 | F#m7 | Em9 | Dmaj7 | Bm9 | Gmaj7 | Em9 | A7sus4 |
+hum    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+keys   | . . 2 . . 3 . 4 |
+bell   | . . B5 - - - A5 - | F#5 - - - - - . . | . . G5 - F#5 - E5 - | F#5 - - - - - - - | . . D5 - - - E5 - | F#5 - - - A5 - - - | G5 - - - - - . . | E5 - - - - - . . |
+
+[c]
+chords | Dmaj7 | Gmaj7 | Dmaj7 | Gmaj7 |
+hum    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+sun    | . . . . A6 - . . | . . . . . . . . | . . . . . . . . | . . F#6 - . . . . |
+
+play a b a c

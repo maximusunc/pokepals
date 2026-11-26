@@ -71,6 +71,15 @@ extends Node
 ##     find its bond has earned from that gap, setting it at your feet; the silver thimble is the deepest one
 ##     (FetchDirector over the pure FetchTrip; Thimblewick). Nothing shows until it is brought. Once found, the
 ##     fetching stays a quiet toy of small finds; only the thimble stops coming.
+##   * `doorway`: the prop (Lingerlong's place card) is simply there, on a terrace no one can walk to: the only way
+##     there is the Late Arch, which opens only while your companion waits inside its picture (DoorwayDirector over
+##     the pure DoorwayGate; the world controller runs it whenever the spec has a `doorway` block, found or not, since
+##     the door is the world's and not the secret's). Being on the terrace IS the reveal, so it is laid out as `always`.
+##   * `facets`: nothing shows until the Unfinished closes: a great stone hanging in loose shards on the Turning
+##     Floor, half answering to whoever stands on one unmarked spot and half to whoever stands on another. You find
+##     your spot by watching your shards close up, and stand your companion on its own (a tap on the floor, or "Go
+##     look"); both held, it closes and the offcut drops at its foot (FacetsDirector over the pure FacetJoin;
+##     Glintwold). Once found, the stone can still be closed as a quiet toy; nothing falls.
 ## The server checks the conditions it can (an open door, a perfect hunt, the tide) before honouring a claim.
 
 ## How near your companion must be for you to count as "settled together" (stillness).
@@ -103,7 +112,9 @@ var _reflection: ReflectionDirector
 var _tide: TideDirector
 var _sky: SkyDirector
 var _fetch: FetchDirector
+var _facets: FacetsDirector   # Glintwold: the Unfinished, closed from two places at once
 var _circuits: CircuitDirector   # Ohmstead's ribbon boards (the world controller's; a `circuit` secret waits on one)
+var _doorway: DoorwayDirector    # Lingerlong's Late Arch (the world controller's; "Go look" sends the companion in)
 var _last_player_pos := Vector2.ZERO
 var _rung := {}                # touch_all: the reveal props we've touched this visit (id -> true)
 var _found_props: Array = []   # touch_all, already found: its props stay rung on every visit
@@ -125,6 +136,11 @@ func bind_circuits(circuits: CircuitDirector) -> void:
 	_circuits = circuits
 	_circuits.board_closed.connect(_on_board_closed)
 	_circuits.board_opened.connect(_on_board_opened)
+
+
+## Lingerlong's Late Arch: "Go look" near it sends the companion into the picture (see can_go_look / go_look).
+func bind_doorway(doorway: DoorwayDirector) -> void:
+	_doorway = doorway
 
 
 ## A ribbon board was closed (by us or by a friend): if it is the one our secret waits on, the spark is there.
@@ -211,6 +227,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if is_instance_valid(_align):
 		_align.queue_free()
 	_align = null
+	if is_instance_valid(_facets):
+		_facets.queue_free()
+	_facets = null
 	var secret: Dictionary = data.get("secret", {})
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "skyview" \
 			and Net.has_discovery(String(secret["id"])):
@@ -240,6 +259,9 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "align" \
 			and Net.has_discovery(String(secret["id"])):
 		_start_align(secret, true)   # found already: the picture still lines up from its spot, the lark doesn't come
+	if secret.has("id") and String((secret.get("reveal", {}) as Dictionary).get("type", "")) == "facets" \
+			and Net.has_discovery(String(secret["id"])):
+		_start_facets(data, secret, true)   # found already: the stone still closes as a toy, the offcut doesn't fall
 	if not secret.has("id") or Net.has_discovery(String(secret["id"])):
 		return
 	_secret = secret
@@ -316,8 +338,14 @@ func setup_secret(data: Dictionary, combined: Array) -> void:
 		"align":
 			# Nothing to see yet but painted boards: they have to be seen from the one spot, facing south, and held.
 			_start_align(secret, false)
+		"facets":
+			# Nothing to see yet but a stone in pieces: it has to be seen whole from both its places at once.
+			_start_facets(data, secret, false)
 		"circuit":
 			pass  # appears once the ribbon board it names is closed (_on_board_closed; see after_world_drawn)
+		"doorway":
+			# The place card is simply on the terrace: you can only be standing by it if the Late Arch let you in.
+			combined.append(_secret_prop())
 		_:
 			combined.append(_secret_prop())
 
@@ -371,6 +399,25 @@ func _on_lark_landed(pos: Vector2, line: String) -> void:
 		_reveal(line, pos)
 
 
+func _start_facets(data: Dictionary, secret: Dictionary, found: bool) -> void:
+	_facets = FacetsDirector.new()
+	_facets.name = "FacetsDirector"
+	add_child(_facets)
+	_facets.setup(_host, _companion, _world_art, _player)
+	_facets.configure(data.get("heartstone", {}), secret, found)
+	_facets.offcut_fell.connect(_on_offcut_fell)
+
+
+## The Unfinished closed and its last face dropped at its foot: the offcut is there to examine (and to claim).
+func _on_offcut_fell(pos: Vector2, line: String) -> void:
+	if _reveal_type() == "facets" and _entry.is_empty() and not _secret.is_empty():
+		_reveal(line, pos)
+
+
+func facets_director() -> FacetsDirector:
+	return _facets
+
+
 func _start_fetch(secret: Dictionary, found: bool) -> void:
 	_fetch = FetchDirector.new()
 	_fetch.name = "FetchDirector"
@@ -417,7 +464,7 @@ func _on_mural_done() -> void:
 ## A tap on EMPTY ground (the world controller found nothing to examine or command there): in a shadow world,
 ## a tap on the lit stage stands your companion there. Returns whether it did.
 func on_ground_tap(world: Vector2) -> bool:
-	return _shadow != null and _shadow.on_ground_tap(world)
+	return (_shadow != null and _shadow.on_ground_tap(world)) or (_facets != null and _facets.on_ground_tap(world))
 
 
 func _start_tide(data: Dictionary, found: bool) -> void:
@@ -552,6 +599,8 @@ func update(delta: float) -> void:
 		_fetch.update(delta)
 	if _align != null:
 		_align.update(delta)
+	if _facets != null:
+		_facets.update(delta)
 	if _gate == null or _gate.is_done() or _player == null:
 		return
 	var r: Dictionary = _secret.get("reveal", {})
@@ -599,7 +648,9 @@ func _on_stone_surfaced() -> void:
 ## "Go look" is on offer in a world whose secret is led to (Underroot): the radial's entry lights up while
 ## the heart is still to be found, and is greyed once you've reached it.
 func can_go_look() -> bool:
-	return (_follow != null and _follow.can_ask()) or (_fetch != null and _fetch.available())
+	return (_follow != null and _follow.can_ask()) or (_fetch != null and _fetch.available()) \
+		or (_facets != null and _facets.can_ask()) \
+		or (_doorway != null and is_instance_valid(_doorway) and _doorway.can_go_look())
 
 
 ## The player chose "Go look": the companion leads (FollowDirector), and you follow.
@@ -608,6 +659,10 @@ func go_look() -> void:
 		_follow.ask()
 	elif _fetch != null:
 		_fetch.ask()
+	elif _doorway != null and is_instance_valid(_doorway):
+		_doorway.ask()
+	elif _facets != null:
+		_facets.ask()
 
 
 ## The pockets where the dark thins round something only just in view (the faint bell, once you are close;
@@ -776,6 +831,10 @@ func _on_discoveries(ids: Array) -> void:
 		_secret = {}   # found on another device: the walking reflection stays, the stone doesn't come
 		if _reflection != null:
 			_reflection.finish()
+	if not _secret.is_empty() and _reveal_type() == "facets" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
+		_secret = {}   # found on another device: the stone still closes as a toy, the offcut doesn't fall
+		if _facets != null:
+			_facets.set_found()
 	if not _secret.is_empty() and _reveal_type() == "circuit" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
 		_secret = {}   # found on another device: the boards stay to be played, the spark doesn't come
 	if not _secret.is_empty() and _reveal_type() == "dream" and _entry.is_empty() and ids.has(String(_secret.get("id", ""))):
@@ -804,6 +863,9 @@ func _take() -> void:
 		_reflection.finish()
 	if _tide != null:
 		_tide.finish()
+	if _facets != null:
+		_facets.finish()
+		_facets.set_found()   # closing it again from now on drops nothing
 	# Every entry for this secret, not just the one we adopted: should the world ever hold more than one
 	# (it did, from a layout bug), none may be left behind to be found again.
 	var id := String(_entry["secret"]["id"])

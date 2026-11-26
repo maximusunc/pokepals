@@ -27,7 +27,7 @@ defmodule Server.WorldChannel do
   """
   use Phoenix.Channel
   require Logger
-  alias Server.{Discoveries, Economy, Fishing, Friends, HomePasses, Homes, HomeWorld, Hotbar, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
+  alias Server.{Discoveries, Economy, Fishing, Friends, HomePasses, Homes, HomeWorld, Hotbar, Interest, Presence, PresenceFrames, Profiles, Saves, Social, Whereabouts, World, Worlds}
 
   # The currency the shop charges in. One place to name it so the join push and the buy handler agree.
   @shop_currency "coins"
@@ -182,25 +182,43 @@ defmodule Server.WorldChannel do
       circuits -> push(socket, "circuits", %{boards: Server.Circuit.snapshot(world_id, circuits)})
     end
 
-    # Where everyone already here is right now, as one bundle in the same form as the live ticks.
-    case Map.delete(World.snapshot(world_id), user_id) do
-      peers when map_size(peers) == 0 -> :ok
-      peers -> push(socket, "states", Server.WorldStates.bundle(peers))
-    end
+    # LINGERLONG: how many wishes the fountain holds (only in a world with a fountain; Server.Wishes).
+    if Server.Wishes.fountain(get_in(definition.spec, ["core"])) != nil,
+      do: push(socket, "wishes", %{n: Server.Wishes.count(world_id)})
+
+    # Where everyone already here is right now, as one bundle in the same form as the live ticks. In a
+    # crowd world (SC-4) only the neighbourhood of where we'll stand: we follow that one cell from now on.
+    socket =
+      case Interest.config(get_in(definition.spec, ["core"])) do
+        nil ->
+          case Map.delete(World.snapshot(world_id), user_id) do
+            peers when map_size(peers) == 0 -> :ok
+            peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
+          end
+
+          socket
+
+        %{cell: size} = interest ->
+          socket = assign(socket, interest: interest, cell: nil)
+          spawn_p = socket.assigns[:resume_p] || get_in(definition.spec, ["core", "player_spawn"])
+
+          case Interest.cell_for(%{"p" => spawn_p}, size) do
+            nil -> socket
+            cell -> enter_cell(socket, cell)
+          end
+      end
 
     # The ambient pals' current positions, so a late joiner sees them where they are right now rather
     # than snapping in from their home spots on the next tick. Empty (skipped) in worlds without pals.
-    case World.ambient_snapshot(world_id) do
-      [] -> :ok
-      pals -> push(socket, "ambient_state", %{pals: pals})
-    end
+    # (Only asked of the world process where there are pals / wards at all: each is a call into the one
+    # world process, which a join storm in a busy world would otherwise queue behind everyone's moves.)
+    pals = if ambient_core(definition)["ambient_pals"] in [nil, []], do: [], else: World.ambient_snapshot(world_id)
+    if pals != [], do: push(socket, "ambient_state", %{pals: pals})
 
     # The shared Ruin ward state, so a late joiner sees a gate someone already opened (and the slab
     # already raised). Empty in worlds without a Ruin, so we skip the push there.
-    case World.wards(world_id) do
-      [] -> :ok
-      wards -> push(socket, "ward_state", %{wards: wards})
-    end
+    wards = if ward_defs(definition) == [], do: [], else: World.wards(world_id)
+    if wards != [], do: push(socket, "ward_state", %{wards: wards})
 
     {:noreply, assign(socket, :known, known)}
   end
@@ -256,9 +274,49 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # The world's answer to enter_cell: who stands in the cells that just came into view. Push it, then
+  # leave the cell we came from, unless it's ours again.
+  def handle_info({:cell_snapshot, {:entered, old}, transforms}, socket) do
+    case Map.delete(transforms, socket.assigns.user_id) do
+      peers when map_size(peers) == 0 -> :ok
+      peers -> push(socket, "states", Server.WorldStates.snapshot_bundle(peers))
+    end
+
+    subs = Map.get(socket.assigns, :cell_subs, MapSet.new())
+
+    subs =
+      if old != nil and old != socket.assigns.cell and MapSet.member?(subs, old) do
+        Phoenix.PubSub.unsubscribe(Server.PubSub, Interest.topic(socket.assigns.world_id, old))
+        MapSet.delete(subs, old)
+      else
+        subs
+      end
+
+    {:noreply, assign(socket, :cell_subs, subs)}
+  end
+
   def handle_info(:save_whereabouts, socket) do
     Process.send_after(self(), :save_whereabouts, @whereabouts_every_ms)
-    {:noreply, save_whereabouts(socket)}
+    # ...and hibernate, which compacts this process's heap (the next packet wakes it). A channel handles a
+    # steady stream of short-lived terms (20 packets a second, presence diffs, the join's whole roster),
+    # and with the default GC settings its old heap only grows: measured at ~1.8 MB per channel with
+    # 1000 players in one world, ~0.2 MB of it live. Every 15 s keeps it near the live size. The WebSocket
+    # process that carries our frames grows the same way (~0.9 MB each there); Phoenix collects it when
+    # asked to.
+    send(socket.transport_pid, :garbage_collect)
+
+    # A periodic save that can't get a database connection (thousands of players saving every 15 s, the
+    # pool busy) is skipped, not fatal: it used to crash the player's channel. The next one catches up.
+    socket =
+      try do
+        save_whereabouts(socket)
+      rescue
+        e in DBConnection.ConnectionError ->
+          Logger.warning("skipped a whereabouts save: #{Exception.message(e)}")
+          socket
+      end
+
+    {:noreply, socket, :hibernate}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
@@ -306,6 +364,21 @@ defmodule Server.WorldChannel do
 
   def handle_in("state", payload, socket) do
     World.update_transform(socket.assigns.world_id, socket.assigns.user_id, payload)
+
+    # A crowd world (SC-4): follow the cell this packet puts us in. Sent AFTER the transform, so the world
+    # process has our move before the snapshot call in enter_cell reaches it.
+    socket =
+      case socket.assigns[:interest] do
+        %{cell: size} ->
+          case Interest.cell_for(payload, size) do
+            nil -> socket
+            cell when cell == socket.assigns.cell -> socket
+            cell -> enter_cell(socket, cell)
+          end
+
+        _ ->
+          socket
+      end
 
     # Note where we are, for Server.Whereabouts (written out on a timer and on leaving, not per packet).
     case Whereabouts.position(payload) do
@@ -355,6 +428,41 @@ defmodule Server.WorldChannel do
       {:noreply, assign(socket, :last_howl, now)}
     else
       _ -> {:noreply, socket}
+    end
+  end
+
+  # ── LINGERLONG: the wishing fountain (Server.Wishes) ──
+  # A WISH: toss a coin into the fountain. Only in a world whose spec has a `fountain`, only standing by it (the
+  # server's own last-known position for us), at most once per Wishes.min_gap_ms. One coin if we have one, free
+  # if not. We get `wish_ok` (the new count, whether it cost a coin, our balance); everyone else gets a tiny
+  # `wished` (who, the new count, paid), capped per world per second so a crowd stays cheap (Wishes.relay?).
+  # Refusals: `wish_refused` with "no_fountain", "away" or "too_soon".
+  def handle_in("wish", _payload, socket) do
+    %{user_id: user_id, world_id: world_id, definition: definition} = socket.assigns
+    fountain = Server.Wishes.fountain(get_in(definition.spec, ["core"]))
+    now = System.monotonic_time(:millisecond)
+
+    cond do
+      fountain == nil ->
+        push(socket, "wish_refused", %{reason: "no_fountain"})
+        {:noreply, socket}
+
+      not Server.Wishes.allow?(Map.get(socket.assigns, :last_wish), now) ->
+        push(socket, "wish_refused", %{reason: "too_soon"})
+        {:noreply, socket}
+
+      not Server.Wishes.near?(fountain, my_position(socket)) ->
+        push(socket, "wish_refused", %{reason: "away"})
+        {:noreply, socket}
+
+      true ->
+        %{n: n, paid: paid, balance: balance} = Server.Wishes.wish(user_id, world_id)
+        push(socket, "wish_ok", %{n: n, paid: paid, balance: balance})
+
+        if Server.Wishes.relay?(world_id, System.system_time(:millisecond)),
+          do: broadcast_from!(socket, "wished", %{by: user_id, n: n, paid: paid})
+
+        {:noreply, assign(socket, :last_wish, now)}
     end
   end
 
@@ -1018,6 +1126,33 @@ defmodule Server.WorldChannel do
 
   defp resume(_payload, _user_id, _world_id), do: {:ok, nil}
 
+  # SC-4: our player now stands in `new` (a crowd world). We follow one cell topic, our own cell's, with
+  # the same fastlane sender Phoenix gives the channel topic on join, so the world's per-cell bundles go
+  # straight to our socket, encoded once per cell. Order matters:
+  #   1. subscribe to the new cell first, so no tick falls between the two cells;
+  #   2. ask the world (without waiting) for the players in the cells that just came into view. Our
+  #      transform was cast before the request, so the world has our move by then, and every tick it sent
+  #      before answering went to the old cell, which we still hear;
+  #   3. when the answer comes (handle_info {:cell_snapshot, ...}), push it as one snapshot bundle and only
+  #      then unsubscribe from the old cell (unless we've walked back into it meanwhile).
+  # While an answer is on its way we can hear two cells, so an entry may come twice: harmless.
+  defp enter_cell(socket, new) do
+    %{world_id: world_id, cell: old} = socket.assigns
+    subs = Map.get(socket.assigns, :cell_subs, MapSet.new())
+
+    subs =
+      if MapSet.member?(subs, new) do
+        subs
+      else
+        sender = {Phoenix.Channel.Server, {socket.transport_pid, socket.serializer, __intercepts__()}}
+        :ok = Phoenix.PubSub.subscribe(Server.PubSub, Interest.topic(world_id, new), sender: sender)
+        MapSet.put(subs, new)
+      end
+
+    World.request_cells(world_id, Interest.newly_visible(old, new), self(), {:entered, old})
+    assign(socket, cell: new, cell_subs: subs)
+  end
+
   # Write our latest position out to Server.Whereabouts, if it's changed since we last did.
   defp save_whereabouts(socket) do
     case socket.assigns do
@@ -1035,6 +1170,15 @@ defmodule Server.WorldChannel do
   end
 
   # A world id as a catalog UUID (what a discovery remembers it was found in), or nil for a home.
+  # LINGERLONG: where we stand, as the server last heard it: our own latest `state` (kept on the socket, free),
+  # else the world's record of us.
+  defp my_position(socket) do
+    case Map.get(socket.assigns, :last_p) do
+      [_, _] = p -> p
+      _ -> World.snapshot(socket.assigns.world_id) |> Map.get(socket.assigns.user_id, %{}) |> Map.get("p")
+    end
+  end
+
   defp catalog_id(world_id) do
     case Ecto.UUID.cast(world_id) do
       {:ok, uuid} -> uuid

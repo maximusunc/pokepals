@@ -36,6 +36,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "the place card is reached through the Late Arch on the player's screen, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "doorway", "arch" => "late_arch"}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "the paper bird behind the mural's door is earned on the player's screen, so the server doesn't gate it" do
     secret = %{"reveal" => %{"type" => "shadow", "species" => "bird", "spot" => [40, 111]}}
     assert SecretReveal.met?(secret, %{})
@@ -101,6 +106,12 @@ defmodule Server.SecretRevealTest do
   test "the painted lark lines up from one spot on the player's screen, so the server doesn't gate it" do
     secret = %{"reveal" => %{"type" => "align", "spot" => [430, -1020], "facing_deg" => 180.0, "hold_seconds" => 2.0}}
     assert SecretReveal.met?(secret, %{})
+  end
+
+  test "the Unfinished is seen whole from its two marks on the players' screens, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "facets"}}
+    assert SecretReveal.met?(secret, %{})
+    assert SecretReveal.met?(secret, %{touched: MapSet.new(), circuit_closed: false})
   end
 
   test "a lantern behind a ward can only be taken once that ward is open" do

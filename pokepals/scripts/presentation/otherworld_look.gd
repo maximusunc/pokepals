@@ -13,6 +13,8 @@ extends Node2D
 ##     (BrickLook) and nothing else changes;
 ##   * OR, if the look carries a `wire` (Ohmstead), the actor is redrawn as glowing linework instead
 ##     (assets/wire_actor.gdshader), a person in one colour and a companion in another;
+##   * OR, if the look carries a `facet` (Glintwold), the actor is redrawn as flat-shaded triangles
+##     (assets/facet_actor.gdshader), lit by the ground's turning light;
 ##   * OR, if the look carries a `glyph` (Glyphfall), the actor is drawn as it is but MARKED in the picture
 ##     (assets/glyph_actor.gdshader), so the page of text written over the world can write it smaller;
 ##   * OR, if the look carries a `bubble` (Bobbledown), a soap bubble round each of them instead of
@@ -23,6 +25,10 @@ extends Node2D
 
 const SHADER := preload("res://assets/otherworld_actor.gdshader")
 const WIRE_SHADER := preload("res://assets/wire_actor.gdshader")
+const FACET_SHADER := preload("res://assets/facet_actor.gdshader")
+const FACET_FLOAT_KEYS := ["cell", "light_height", "shade", "steps", "tilt", "outline_cut", "outline_lift", "rim",
+	"min_taps", "keep_eyes", "saturation"]
+static var _facet_mat: ShaderMaterial = null   # shared by every faceted actor (see apply)
 const GLYPH_SHADER := preload("res://assets/glyph_actor.gdshader")
 const COLOR_KEYS := ["shadow_mult", "light_mult", "cast", "line_glow"]
 const FLOAT_KEYS := ["shadow_boost", "light_boost", "cast_amount", "saturation", "line_amount", "line_cut", "pulse_speed"]
@@ -72,6 +78,11 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 		halo.strength = float(wcfg.get("aura_strength", 0.6))
 		actor.add_child(halo)
 		return
+	# Glintwold: a `facet` look redraws the actor as low-poly (assets/facet_actor.gdshader): flat triangles, each
+	# one colour, shaded by the same turning light as the ground. Everyone shares ONE material, so the ground
+	# (FacetGround) turns all their light with one write a frame. Nothing else changes.
+	if look.has("facet"):
+		actor.material = _facet_for(look["facet"])
 	# Glyphfall: a `glyph` look only marks the actor's pixels for the page of text drawn over the world.
 	if look.has("glyph"):
 		var gcfg: Dictionary = look["glyph"]
@@ -101,6 +112,23 @@ static func apply(actor: CanvasItem, look: Dictionary, size := 1.0) -> void:
 	aura.radius = float(look.get("aura_radius", 26.0)) * size
 	aura.motes = int(look.get("motes", 3))
 	actor.add_child(aura)
+
+
+## The shared facet material, or null if no facet look has been applied yet (FacetGround writes its light).
+static func facet_material() -> ShaderMaterial:
+	return _facet_mat
+
+
+static func _facet_for(cfg: Dictionary) -> ShaderMaterial:
+	if _facet_mat == null:
+		_facet_mat = ShaderMaterial.new()
+		_facet_mat.shader = FACET_SHADER
+	for key in FACET_FLOAT_KEYS:
+		if cfg.has(key):
+			_facet_mat.set_shader_parameter(key, float(cfg[key]))
+	if cfg.has("outline_color"):
+		_facet_mat.set_shader_parameter("outline_color", WorldData.to_color(cfg["outline_color"]))
+	return _facet_mat
 
 
 func _process(delta: float) -> void:

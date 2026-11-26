@@ -1,0 +1,52 @@
+# Glintwold: a world cut into flat faces by a light that is still slowly turning round it. Bright, glassy
+# and unhurried, with a lot of space. A lydian, 63 bpm.
+#
+# What each voice is for:
+#   prism  the turning figure: a soft crystal bar (its own instrument, `prism` in synth.py). Its little
+#          three-note cell is six steps long against eight-step bars, so it comes round on a different
+#          beat every bar and only lines up again every third bar: the light going round the stone.
+#   glint  the same figure an octave up, much quieter and three steps late, off to the other side: the
+#          light catching a far face a moment after the near one.
+#   harp   a slow tune of long notes over the top, plucked, with room between the phrases.
+#   pad    the warm late-afternoon air everything sits in.
+#   bass   one round low note a bar: the ground the stone lies on.
+#   sky    a high chime now and then, a single facet flashing white.
+
+title Glintwold
+tempo 63
+beats 4
+steps 2
+seed  171
+
+voice pad    kind=pad     octave=4  gain=0.38  reverb=0.7
+voice bass   kind=bass    octave=2  gain=0.22  reverb=0.35
+voice prism  kind=prism   octave=5  gain=0.32  pan=0.2   reverb=0.6
+voice glint  kind=prism   octave=6  gain=0.11  pan=-0.4  reverb=0.85 delay=3
+voice harp   kind=harp    octave=4  gain=0.24  pan=-0.15 reverb=0.55
+voice sky    kind=chime   octave=6  gain=0.22  spread=0.6 reverb=0.85
+
+[b]
+chords | Amaj7 | B | Amaj7 | Esus4 E |
+pad    | * - - - - - - - |
+prism  | . . . . 5 . . . | 3 . . . . . . . | . . . . 5 . . . | 3 . . . . . . . |
+sky    | . . . . . . . . | . . . . . . D#6 - | . . . . . . . . | . . . . . . . . |
+
+[a]
+chords | Amaj7 | B | C#m7 | B | F#m7 | E | Amaj7 | Esus4 E |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+prism  | 3 . 5 . 4 . 3 . | 5 . 4 . 3 . 5 . | 4 . 3 . 5 . 4 . | 3 . 5 . 4 . 3 . | 5 . 4 . 3 . 5 . | 4 . 3 . 5 . 4 . | 3 . 5 . 4 . 3 . | 5 . 4 . 3 . 5 . |
+glint  | 3 . 5 . 4 . 3 . | 5 . 4 . 3 . 5 . | 4 . 3 . 5 . 4 . | 3 . 5 . 4 . 3 . | 5 . 4 . 3 . 5 . | 4 . 3 . 5 . 4 . | 3 . 5 . 4 . 3 . | 5 . 4 . 3 . 5 . |
+harp   | E5 - - - C#5 - - - | D#5 - - - . . . . | E5 - - - G#5 - - - | F#5 - - - - - . . | A5 - - - E5 - - - | B4 - - - - - . . | C#5 - - - E5 - D#5 - | B4 - - - - - - - |
+sky    | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . G#6 - . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . B6 - |
+
+[c]
+chords | C#m7 | G#m7 | Amaj7 | B | C#m7 | F#m7 | Bsus4 | B |
+pad    | * - - - - - - - |
+bass   | 1 - - - - - - - |
+prism  | 5 . . 3 . . 4 . | . . . . 5 . . 3 | . . 4 . . . . . | 5 . . 3 . . 4 . | . . . . 5 . . 3 | . . 4 . . . . . | 5 . . 3 . . 4 . | . . . . 5 . . 3 |
+glint  | 5 . . 3 . . 4 . | . . . . 5 . . 3 | . . 4 . . . . . | 5 . . 3 . . 4 . | . . . . 5 . . 3 | . . 4 . . . . . | 5 . . 3 . . 4 . | . . . . 5 . . 3 |
+harp   | G#5 - - - . . E5 - | D#5 - - - - - . . | C#5 - - - E5 - - - | F#5 - - - D#5 - - - | E5 - - - . . G#5 - | A5 - - - - - . . | F#5 - - - E5 - - - | D#5 - - - - - - - |
+sky    | . . . . . . . . | . . . . . . . . | . . . . . . E6 - | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . . . . . | . . . . F#6 - . . |
+
+play b a c a

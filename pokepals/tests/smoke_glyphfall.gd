@@ -11,7 +11,7 @@ extends SceneTree
 ## Run on its own:
 ##   godot --headless --path pokepals --script res://tests/smoke_glyphfall.gd
 
-const GLYPHFALL_ID := "17171717-1717-1717-1717-171717171717"
+const GLYPHFALL_ID := "19191919-1919-1919-1919-191919191919"
 
 var _world: Node
 var _frames := 0

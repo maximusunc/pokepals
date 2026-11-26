@@ -1,7 +1,11 @@
 #!/bin/bash
 # SC-1 (docs/scaling-design.md): step the crowd up and record where the server stops keeping up.
 #
-#   tools/loadtest/run.sh [world_uuid] [steps] [seconds_per_step]
+#   tools/loadtest/run.sh [world_uuid | crowd] [steps] [seconds_per_step]
+#
+# "crowd" makes (or refreshes) the load-test-only crowd world first (crowd_world.exs, cell CELL px,
+# default 480) and runs there. BOT_ARGS passes extra flags to every bot process, e.g.
+#   BOT_ARGS="--profile hangout --spread 0" tools/loadtest/run.sh crowd "100 300 500"
 #
 # Needs: the server running as a named node with the "loadtest" cookie, e.g. from server/:
 #   elixir --sname srv --cookie loadtest -S mix run --no-halt
@@ -18,13 +22,18 @@ STEPS="${2:-10 50 100 200 300 500 1000}"
 SECS="${3:-40}"
 URL="${URL:-ws://127.0.0.1:4000/ws}"
 NODE_NAME="${SERVER_NODE:-srv@$(hostname -s)}"
+BOT_ARGS="${BOT_ARGS:-}"   # extra bot flags; RATE (bots joining per second, default 25) sets the ramp
+if [ "$WORLD" = "crowd" ]; then
+  WORLD=$(elixir --sname "mkcrowd$$" --cookie loadtest "$HERE/crowd_world.exs" "$NODE_NAME" "${CELL:-480}") || exit 1
+  echo "crowd world: $WORLD (cell ${CELL:-480} px)"
+fi
 OUT="${OUT:-$HERE/results}"
 mkdir -p "$OUT"
 STAMP="$(date +%Y%m%d-%H%M%S)"
 
-printf "%6s %7s %9s %10s %9s %9s %9s %6s %11s %12s\n" bots joined recv/bot/s KB/bot/s p50_ms p95_ms p99_ms util world_mbox relay_mbox_max
+printf "%6s %7s %9s %10s %9s %9s %9s %6s %11s %12s %11s\n" bots joined recv/bot/s KB/bot/s p50_ms p95_ms p99_ms util world_mbox relay_mbox_max peers_avg/max
 for N in $STEPS; do
-  RAMP=$(( N / 25 + 3 ))                      # join ~25 bots a second, like a busy evening
+  RAMP=$(( N / ${RATE:-25} + 3 ))             # join ~25 bots a second (RATE), like a busy evening
   PROCS=$(( (N + 149) / 150 )); [ $PROCS -gt 3 ] && PROCS=3
   PER=$(( (N + PROCS - 1) / PROCS ))
   SAMPLES=$(( SECS / 2 ))
@@ -35,7 +44,7 @@ for N in $STEPS; do
     FIRST=$(( k * PER )); COUNT=$PER
     [ $(( FIRST + COUNT )) -gt $N ] && COUNT=$(( N - FIRST ))
     [ $COUNT -le 0 ] && continue
-    node "$HERE/bots.mjs" --url "$URL" --world "$WORLD" --bots $COUNT --first $FIRST --seconds "$SECS" --ramp "$RAMP" \
+    node "$HERE/bots.mjs" --url "$URL" --world "$WORLD" --bots $COUNT --first $FIRST --seconds "$SECS" --ramp "$RAMP" $BOT_ARGS \
       --json "$OUT/$STAMP-bots-$N-$k.json" > "$OUT/$STAMP-bots-$N-$k.log" 2>&1 &
     PIDS+=($!)
   done
@@ -49,16 +58,17 @@ for N in $STEPS; do
     const joined = s.reduce((a, x) => a + x.joined, 0);
     const avg = k => s.reduce((a, x) => a + x[k] * x.joined, 0) / Math.max(1, joined);
     const worst = k => Math.max(...s.map(x => x.latency_ms[k] ?? 0));
-    console.log([joined, Math.round(avg("recv_state_per_bot_per_s")), avg("kb_per_bot_per_s").toFixed(1), worst("p50"), worst("p95"), worst("p99")].join(" "));
+    const peers = `${Math.round(avg("peers_seen_avg"))}/${Math.max(...s.map(x => x.peers_seen_max ?? 0))}`;
+    console.log([joined, Math.round(avg("recv_state_per_bot_per_s")), avg("kb_per_bot_per_s").toFixed(1), worst("p50"), worst("p95"), worst("p99"), peers].join(" "));
   ' "$OUT" "$STAMP" "$N")
   PROBE_STEADY=$(awk 'NR > 2 && $2 ~ /^[0-9.]+$/ && $7 > 0 { rows[++n] = $0 } END {
       if (n == 0) { print "- - -"; exit }
       u = 0; wm = 0; sm = 0; c = 0
       for (i = int(n / 2) + 1; i <= n; i++) { split(rows[i], f, " "); u += f[2]; if (f[5] > wm) wm = f[5]; if (f[9] > sm) sm = f[9]; if (f[11] > sm) sm = f[11]; c++ }
       printf "%.2f %d %d\n", u / c, wm, sm }' "$OUT/$STAMP-probe-$N.log")
-  read -r J R K P50 P95 P99 <<< "$LINE"
+  read -r J R K P50 P95 P99 PEERS <<< "$LINE"
   read -r U WM SM <<< "$PROBE_STEADY"
-  printf "%6s %7s %9s %10s %9s %9s %9s %6s %11s %12s\n" "$N" "$J" "$R" "$K" "$P50" "$P95" "$P99" "$U" "$WM" "$SM" | tee -a "$OUT/$STAMP-summary.txt"
+  printf "%6s %7s %9s %10s %9s %9s %9s %6s %11s %12s %11s\n" "$N" "$J" "$R" "$K" "$P50" "$P95" "$P99" "$U" "$WM" "$SM" "$PEERS" | tee -a "$OUT/$STAMP-summary.txt"
   if [ "${P95:-0}" != "null" ] && [ "${P95:-0}" -gt 2000 ] 2>/dev/null; then
     echo "stopping: p95 latency ${P95} ms is past the point of being playable" | tee -a "$OUT/$STAMP-summary.txt"
     break

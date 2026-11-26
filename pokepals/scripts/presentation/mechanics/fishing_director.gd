@@ -28,6 +28,16 @@ const AXE_KEY := "axe"
 ## Chopping with the axe (home building) is the HarvestDirector's; we hand it the axe when it's selected.
 var harvest: HarvestDirector = null
 
+# ── PLACE ACTIONS (Lingerlong: "Sit", "Toss a coin") ──
+## Things the use button can do where you stand, whatever is in your hand: each an object with
+## place_action() -> { verb, icon, rank } ({} for none here; cheap, it's asked every frame) and place_use().
+## The highest rank wins. An item that can act right now (a cast that would land, a tree to chop, a line out)
+## comes first; otherwise the place's action takes the button.
+var places: Array = []
+var _place: Dictionary = {}        # the place action on the button right now ({} if the item has it)
+var _place_owner: Object = null
+var _last_lands := false           # the rod's last "would a cast land?" (so a place doesn't push it aside)
+
 var _host: Node
 var _player: PlayerView
 var _companion: CompanionView
@@ -155,6 +165,9 @@ func select_slot(index: int) -> void:
 
 ## The use button (or F): use whatever is selected. Only the rod does anything yet.
 func use_item() -> void:
+	if not _place.is_empty() and _place_owner != null:
+		_place_owner.place_use()
+		return
 	var item := _selected_item()
 	if item.is_empty():
 		return
@@ -401,6 +414,8 @@ func _refresh_rest() -> void:
 
 
 func _refresh_use() -> void:
+	if _refresh_place():
+		return
 	var item := _selected_item()
 	if item.is_empty():
 		_use.set_item("", "", Color.WHITE)   # an empty hand: nothing to use
@@ -435,8 +450,38 @@ func _refresh_use() -> void:
 	_ready_face = face
 	_ready_age = 0.0
 	var lands := _allowed and _water != null and _water.cast_point(pos, face) != null
+	_last_lands = lands
 	_use.set_ready(lands)
 	_use.set_verb("Cast" if lands else ("Find water" if _allowed else "No fishing here"))
+
+
+## PLACE ACTIONS: put the best place action on the button, unless what's in your hand can act right now. True
+## when the place has the button.
+func _refresh_place() -> bool:
+	var best: Dictionary = {}
+	var owner: Object = null
+	for p in places:
+		if not is_instance_valid(p):
+			continue
+		var a: Dictionary = p.place_action()
+		if not a.is_empty() and (best.is_empty() or int(a.get("rank", 0)) > int(best.get("rank", 0))):
+			best = a
+			owner = p
+	if not best.is_empty():
+		var key := String(_selected_item().get("key", ""))
+		var item_busy := (key == ROD_KEY and (_phase != "" or _last_lands)) \
+			or (key == AXE_KEY and harvest != null and harvest.can_chop())
+		if item_busy:
+			best = {}
+	_place = best
+	_place_owner = owner if not best.is_empty() else null
+	if best.is_empty():
+		return false
+	_use.set_item(String(best.get("icon", "")), "place", Color.WHITE)
+	_use.set_ready(true)
+	_use.set_verb(String(best.get("verb", "")))
+	_invalidate_ready()
+	return true
 
 
 ## Forget the last "would a cast land?" answer, so the next _refresh_use asks again.

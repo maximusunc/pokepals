@@ -36,6 +36,11 @@ var _fizz_color := Color(1, 1, 1)
 var _ground: GroundLayer = null
 # Ohmstead's ground (GridGround): one shader, a glowing grid on the dark, in place of any floor of ours.
 var _grid: GridGround = null
+# Lingerlong's ground (PlazaGround): one shader, a marble plaza floating in a pastel sky, in place of any floor of ours.
+var _plaza: PlazaGround = null
+# Glintwold's ground (FacetGround): one shader, flat triangles under a turning light, in place of our floor,
+# paths and water (it draws all three as facets).
+var _facet: FacetGround = null
 var _detail_tex: Texture2D = null
 var _detail_rects := {}   # name -> Rect2 in the atlas (tools/gen_ground.py's index)
 var _details: Array = []  # [ { pos, rect, phase, sway, tint } ] — ground litter, under the water pass
@@ -97,6 +102,12 @@ var _prop_tint := {}   # type: String -> Texture2D (only for tinted props)
 # shine). They're soft, so they wobble like jelly when touched instead of only pulsing.
 var _prop_gloss := {}  # type -> Texture2D
 var _prop_scale := {}  # type -> float (0.5 for @2x art; absent = 1)
+# Per type (the props entity's "foot"): how far above the image's bottom edge a smooth prop's feet are, when it
+# isn't the usual 8 (Lingerlong's art bakes a floor reflection under each thing, so its margin varies).
+var _prop_foot := {}
+# Per type (the props entity's "float"): { height, bob, period } a smooth prop is lifted by and bobs (a beach ball
+# on the water, a card set up on a table), each out of phase by where it is. Drawn from WorldArt's own clock.
+var _prop_float := {}
 # These props still animate (flame/glow), so they blit their baked vessel inside their own
 # draw fn and keep the moving part procedural — they're NOT swapped wholesale like static props.
 const _PROP_OVERLAY := { "torch": true, "ember": true, "brazier": true, "shopkeeper": true, "carving": true }
@@ -312,6 +323,8 @@ func _load_prop_sprites() -> void:
 	_prop_gloss.clear()
 	_prop_scale.clear()
 	var props_cfg: Dictionary = _style.entity("props")
+	_prop_foot = props_cfg.get("foot", {})
+	_prop_float = props_cfg.get("float", {})
 	_unseen.clear()
 	for t in props_cfg.get("unseen", []):
 		_unseen[String(t)] = true
@@ -320,18 +333,23 @@ func _load_prop_sprites() -> void:
 		# A world's art override can ADD its own prop types ("extra_types") without restating the shared list.
 		for t in props_cfg.get("types", []) + props_cfg.get("extra_types", []):
 			var ty := String(t)
+			# A world's own prop art may be named for the world rather than for props (Lingerlong's ll_bench_base@2x.png,
+			# not prop_ll_bench_base@2x.png): look beside the prefix for the bare name too.
+			var pre := prefix
+			if not ResourceLoader.exists(pre + ty + "_base@2x.png") and not ResourceLoader.exists(pre + ty + "_base.png"):
+				pre = prefix.get_base_dir() + "/"
 			# smooth @2x art first, then the pixel-art convention
-			var suffix := "@2x.png" if ResourceLoader.exists(prefix + ty + "_base@2x.png") else ".png"
-			var base_path := prefix + ty + "_base" + suffix
+			var suffix := "@2x.png" if ResourceLoader.exists(pre + ty + "_base@2x.png") else ".png"
+			var base_path := pre + ty + "_base" + suffix
 			if not ResourceLoader.exists(base_path):
 				continue
 			_prop_base[ty] = ResourceLoader.load(base_path)
-			var tint_path := prefix + ty + "_tint" + suffix
+			var tint_path := pre + ty + "_tint" + suffix
 			if ResourceLoader.exists(tint_path):
 				_prop_tint[ty] = ResourceLoader.load(tint_path)
 			if suffix != ".png":
 				_prop_scale[ty] = 0.5
-				var gloss_path := prefix + ty + "_gloss" + suffix
+				var gloss_path := pre + ty + "_gloss" + suffix
 				if ResourceLoader.exists(gloss_path):
 					_prop_gloss[ty] = ResourceLoader.load(gloss_path)
 
@@ -619,6 +637,36 @@ func grid_ground() -> GridGround:
 	return _grid
 
 
+## Glintwold's faceted ground, if this world has one (so its footsteps can be handed to it, and the light read).
+func facet_ground() -> FacetGround:
+	return _facet
+
+
+## The faceted ground draws the floor, the paths, the shores and the water itself, from the same curved paths
+## and organic pond outlines the other grounds use.
+func _build_facet_ground(_data: Dictionary) -> void:
+	var paths: Array = []
+	for p in _paths:
+		paths.append(p["pts"])
+	var ponds: Array = []
+	for pd in _ponds:
+		ponds.append({ "center": pd["center"], "radius": pd["radius"], "seed": PondShape.seed_for(pd["center"]) })
+	var river := {}
+	if not _river.is_empty():
+		var rr: Rect2 = _river["rect"]
+		river = { "rect": rr, "top_seed": _phase_for(rr.position), "bot_seed": _phase_for(rr.end) }
+	_facet = FacetGround.new()
+	_facet.name = "FacetGround"
+	add_child(_facet)
+	_facet.build(_bounds, _style, { "paths": paths, "ponds": ponds, "river": river,
+		"regions": _region_tints, "region_alpha": _region_tint_alpha })
+
+
+## Lingerlong's plaza ground, if this world has one (so its wading rings and its evening can be handed to it).
+func plaza_ground() -> PlazaGround:
+	return _plaza
+
+
 ## ---- the pixel-art ground ---------------------------------------------------------------------
 
 ## If the art direction asks for it (the "ground" entity, render "pixel"), put the GroundLayer shader
@@ -641,11 +689,26 @@ func _build_pixel_ground(data: Dictionary) -> void:
 	if _grid != null:
 		_grid.queue_free()
 		_grid = null
+	if _plaza != null:
+		_plaza.queue_free()
+		_plaza = null
+	if _facet != null:
+		_facet.queue_free()
+		_facet = null
+	if FacetGround.wanted(_style):
+		_build_facet_ground(data)
+		return
 	if GridGround.wanted(_style):
 		_grid = GridGround.new()
 		_grid.name = "GridGround"
 		add_child(_grid)
 		_grid.build(_bounds, _style)
+		return
+	if PlazaGround.wanted(_style):
+		_plaza = PlazaGround.new()
+		_plaza.name = "PlazaGround"
+		add_child(_plaza)
+		_plaza.build(_bounds, _style, data.get("plaza", {}))
 		return
 	if not GroundLayer.wanted(_style):
 		return
@@ -1043,8 +1106,8 @@ func _scatter_grass() -> void:
 	_grass.clear()
 	var rng := RandomNumberGenerator.new()
 	rng.seed = 0xC0FFEE
-	if _soft or _grass_max <= 0:
-		return  # a soft world has no blades of grass
+	if _soft or _grass_max <= 0 or _facet != null:
+		return  # a soft world has no blades of grass (nor a faceted one)
 	var count := int(clampf(_bounds.size.x * _bounds.size.y / 26000.0, 40, _grass_max))
 	var base := _style.color("grass")
 	for i in count:
@@ -1257,7 +1320,7 @@ func _draw() -> void:
 	# ground: a soft vertical palette gradient, with the dapple noise laid over it. Drawn whole
 	# (clipping the full-bounds textures would seam), and it's a fixed cost regardless of size.
 	# (With the pixel ground, the GroundLayer child draws the floor, the paths and the shores instead.)
-	if _ground == null and _sky_layer == null and _grid == null:
+	if _ground == null and _sky_layer == null and _grid == null and _plaza == null and _facet == null:
 		if _ground_grad != null:
 			draw_texture_rect(_ground_grad, _bounds, false, Color(1, 1, 1, 1))
 		else:
@@ -1266,7 +1329,7 @@ func _draw() -> void:
 			draw_texture_rect(_ground_noise, _bounds, false, Color(1, 1, 1, 1))
 
 	# per-region mood wash, so each named area feels distinct underfoot
-	for rt in ([] if _structure_baked else _region_tints):  # (baked in, under the walls, once baked)
+	for rt in ([] if _structure_baked or _facet != null else _region_tints):  # (baked in once baked; the facets tint themselves)
 		if cull and not vis.intersects(rt["rect"]):
 			continue
 		var c: Color = rt["color"]
@@ -1310,8 +1373,8 @@ func _draw() -> void:
 	# worn paths (or, on a glowing world, luminous veins of moss with a breathing thread of light),
 	# following their curves. On the pixel ground a dirt trail is part of the floor shader instead.
 	for p in _paths:
-		if _ground != null and not p["glow"]:
-			continue
+		if (_ground != null and not p["glow"]) or _facet != null:
+			continue   # (the pixel and faceted grounds draw their own trails)
 		if cull and not vis.intersects((p["box"] as Rect2).grow(8.0)):
 			continue
 		var pts: PackedVector2Array = p["pts"]
@@ -1333,7 +1396,7 @@ func _draw() -> void:
 	# a pixel-art tile, fill the band with tiled water drifting downstream; otherwise the flat
 	# fill with a couple of drifting ripple lines. Either way a soft brighter rim traces the near
 	# (top) bank where land meets water.
-	if not _river.is_empty():
+	if not _river.is_empty() and _facet == null:   # (a faceted ground draws its own water)
 		var rrect: Rect2 = _river["rect"]
 		var top_bank := _river_bank(rrect, rrect.position.y, _phase_for(rrect.position))
 		var bot_bank := _river_bank(rrect, rrect.end.y, _phase_for(rrect.end))
@@ -1363,7 +1426,7 @@ func _draw() -> void:
 	# ripples. Both keep a lighter rim where the bank meets the water — all the water first, then
 	# the (pre-baked, see render_world) shores, so overlapping ponds join without a seam.
 	var shown: Array = []  # the ponds on screen, whose shores the rim pass then draws
-	for pond in _ponds:
+	for pond in ([] if _facet != null else _ponds):   # (a faceted ground draws its own water)
 		var center: Vector2 = pond["center"]
 		var radius: float = pond["radius"]
 		var rmax := radius * 1.25  # the organic bank can bulge past the nominal radius
@@ -2170,7 +2233,8 @@ func _blit_soft_prop(type: String, base: Texture2D, p: Vector2, color: Color, li
 	var sz := base.get_size() * s
 	# The art's feet sit 8 world px above the image's bottom edge: a larger draw grows that margin too,
 	# so push the image down by the extra, keeping the feet (and the baked shadow) on the ground.
-	var feet := p + Vector2(0, 8.0 + 8.0 * (k - 1.0) - lift)
+	var margin := float(_prop_foot.get(type, 8.0))
+	var feet := p + Vector2(0, margin + margin * (k - 1.0) - lift)
 	var j := sin(wobble * 18.0) * wobble * 0.18
 	# Only a wobbling prop gets its own transform: a transform change breaks draw-call batching, so the
 	# hundreds of props at rest draw in world space and batch together.
@@ -2201,7 +2265,12 @@ func _try_blit_prop(it: Dictionary) -> bool:
 	var col: Color = it["color"]
 	if bool(it.get("opened", false)) and bool((_prop_lights.get(t, {}) as Dictionary).get("ripple", false)):
 		col = RUNG_GOLD
-	_blit_prop_sprite(t, it["pos"], col, 0.0, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
+	var lift := 0.0
+	if _prop_float.has(t):
+		var fl: Dictionary = _prop_float[t]
+		var p: Vector2 = it["pos"]
+		lift = float(fl.get("height", 0.0)) + sin(_time * TAU / maxf(0.5, float(fl.get("period", 4.0))) + _phase_for(p) * 3.0) * float(fl.get("bob", 0.0))
+	_blit_prop_sprite(t, it["pos"], col, lift, float(it["pulse"]) if _prop_scale.has(t) else 0.0)
 	return true
 
 
@@ -2600,6 +2669,15 @@ func _draw_prop(type: String, p: Vector2, color: Color) -> void:
 		"kept_steady_spark":
 			# its keepsake at home: the spark in a little glass jar
 			FindDraw.draw_kept_spark(self, p, color)
+		"kept_place_card":
+			# Lingerlong's keepsake at home: the place card from the terrace, folded, gold-edged, on a little brass stand
+			FindDraw.draw_kept_place_card(self, p, _time)
+		"offcut":
+			# Glintwold's secret: the Unfinished's last face, a small bright chip on the Turning Floor
+			OffcutDraw.draw_chip(self, p, 1.0, _time)
+		"kept_offcut":
+			# its keepsake at home: the chip on a little faceted stand
+			OffcutDraw.draw_kept(self, p, _time)
 		"kept_ampersand":
 			# Glyphfall's keepsake at home: the stray "and", in brass, on a little block
 			FindDraw.draw_kept_ampersand(self, p, color)

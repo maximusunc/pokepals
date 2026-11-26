@@ -30,6 +30,13 @@ defmodule Server.SecretReveal do
       picture painted across boards in a field lines up (Farmeadow's skylark, seen in its perspective view). The
       lining up happens entirely on the player's own screen (`AlignGate` on the client), so the server only
       checks "this world, standing at it", like `stillness`.
+    * `facets`: it appears once the Unfinished, a great stone hanging in loose pieces on the Turning Floor, has
+      been seen whole: one viewer on each of two unmarked spots on opposite sides of it, held still a moment
+      (Glintwold's offcut, the chip that falls at its foot). Usually that's the player on one mark and their
+      companion, sent there, on the other; with friends about, anyone standing on a mark counts. The sliding
+      pieces, the marks and the holding all happen on the players' own screens (the `heartstone` block, read
+      on the client), so the server only checks "this world, standing at it", like `align`. Honest about what
+      that means: it can't tell a stone seen whole from a walked-up-to floor.
     * `listen`: it is simply there to be found, but only the player's companion can hear where
       (Steamhollow's faint bell, in the fog). The listening (calm, settled beside you, the gaze turning
       toward the sound) happens entirely on the player's own screen (`ListenGuide` on the client), so
@@ -86,6 +93,11 @@ defmodule Server.SecretReveal do
       `Discoveries.claimable?/3` for "standing at it". A friend who helped, or who walks up while it is lit, may
       take a spark too: the board was closed in front of them.
 
+    * `doorway`: it appears once the player has walked through the arch that runs a little late and come out on
+      the evening it opens on (Lingerlong's place card, on the table for two on the evening terrace). The arch, the
+      evening and the crossing all happen on the player's own screen, so the server only checks "this world,
+      standing at it", like `follow` and `stillness`. Honest about what that means: it can't tell a player who came
+      through the Late Arch from one who stood on the terrace some other way (there is no other way on foot).
     * `misprint`: one character of a world made of text is the wrong one, and only the player's companion
       notices it (Glyphfall's stray ampersand, in the grass). The noticing (it stops and looks, again and
       again as you close in) and the glyph catching the light all happen on the player's own screen
@@ -109,12 +121,14 @@ defmodule Server.SecretReveal do
       %{"type" => type} when type in ["always", "stillness", "tracks", "listen", "echo"] -> true
       %{"type" => "dream"} -> true
       %{"type" => "follow"} -> true
+      %{"type" => "doorway"} -> true
       %{"type" => "shadow"} -> true
       %{"type" => "reflection"} -> true
       %{"type" => "tide"} = reveal -> tide_low?(reveal, Map.get(ctx, :now_ms))
       %{"type" => "skyview"} -> true
       %{"type" => "fetch"} -> true
       %{"type" => "align"} -> true
+      %{"type" => "facets"} -> true
       %{"type" => "misprint"} -> true
       %{"type" => "circuit"} -> Map.get(ctx, :circuit_closed, false) == true
       %{} = reveal when map_size(reveal) == 0 -> true

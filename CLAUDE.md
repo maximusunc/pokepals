@@ -496,7 +496,62 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   a real server; `tests/shot_world.gd` screenshots any world. Every finer choice is listed, open for review, in
 >   `docs/home-world-and-secrets-design.md` ("Ohmstead"). The ribbon race is not built.
 
-> **Glyphfall (2026-11):** the third world that looks like **a different game**: the whole world is drawn in
+> **Glintwold (2026-11):** a third world that looks like **a different game**: flat-shaded **low-poly**, like a stylised VR
+> scene seen from above (issue #160, the "Facet" idea). Everything is flat faces, each one a single colour picked by how it
+> meets the light: a faceted green wold (3400x2600), zig-zag sand paths, a sharp-edged lake holding the sky in bands, low-poly
+> pines, round trees, crystal spires and angular hills. Reached through the Gateway (featured). Lore: it was **cut, not
+> grown**, by a light that is still turning.
+> - **Ground:** ONE shader over one quad (`FacetGround`, `assets/gw_facet.gdshader`; a `ground` entity whose render is
+>   `"facet"`): a jittered field of triangles; paths, shore and water come from a mask baked once and read at each
+>   triangle's centre. The face underfoot flashes when you step. The light's angle is a pure function of the shared clock
+>   (`FacetLight`, `scripts/world`, tested), one turn every 10 minutes, so everyone sees the same shading.
+> - **Visitors** are recut into small triangles by a shader (`actor_look.facet`, `assets/facet_actor.gdshader`, one shared
+>   material), in the colours underneath, shaded by the same light. Outfits and animals stay recognisable.
+> - **Art:** smooth `@2x`, from real small 3D meshes (`pokepals/tools/lowpoly/lowpoly.py`, baked by `tools/gen_glintwold.py`).
+>   Native creatures: glintbuck, cobblet, foldwing.
+> - **Secret:** the Unfinished, a stone hanging in nine shards over the Turning Floor. Some shards answer to where YOU stand
+>   and the rest to where your COMPANION stands; each half slides home only from its own unmarked mark. Tap the floor to
+>   stand your companion somewhere, or **Go look** and it finds its mark itself (truer with bond). Both home and held two
+>   seconds: it closes and the **offcut** falls at its foot. Any actor can stand in for a mark, so friends can close it
+>   together. New reveal type `facets` (server: "this world, standing at it"). Pure `FacetJoin` (`scripts/world`, tested)
+>   over `FacetsDirector` (`mechanics/`), `HeartstoneView`, `OffcutDraw`.
+> - Layout, lore and the secret: `tools/gen_glintwold_world.py`. Every finer choice is listed, open for review, in
+>   `docs/home-world-and-secrets-design.md` ("Glintwold").
+
+> **Lingerlong (2026-11):** the **hangout world** (issue #158, the "Plaza" idea): a slab of polished marble
+> checkerboard floating in a pastel sky where it is always the same late afternoon (3200x3400). It was built as the
+> place to meet, everyone ran late, so it waited. The least puzzle and the most "a place to be with friends" of any
+> world; no creatures (the people are the life here). Reached through the Gateway (featured). Smooth `@2x` art like
+> Bobbledown's; visitors stay pixel.
+> - **The ground is ONE shader over one quad** (`PlazaGround`, `assets/plaza_floor.gdshader`; a `ground` entity whose
+>   render is `"plaza"`): marble checks with a second tile colour per court, the still pool, and everywhere else a sky
+>   fixed to the SCREEN (so it reads as endlessly far and the slab seems to float), clouds below. The pool is ankle
+>   deep and walkable, with wading rings; its north edge has no rim and fades into the horizon. The spec's `plaza`
+>   block (floors, pool) IS the ground: pure `PlazaRealm` turns it into the edge fence (`Solids.build`) and the
+>   companion's ground test, like Loftreach's `sky` block.
+> - **Things on it:** palms in planters, columns, lamps, five walk-through arches (`ArchView`, a `BuildingView`,
+>   `"view": "arch"`), four busts that hover and bob over their plinths (a tree kind's `float` block), the
+>   `FountainView`. Art: `pokepals/tools/gen_lingerlong.py` over `tools/softart/lingerlong.py` (every standing sprite
+>   has a short baked mirror image under it; sizes and foot lines in `data/ll_details.json`).
+> - **Secret:** one arch, out in the pool, shows an **evening** in its doorway. Walk through it and nothing happens.
+>   Send your companion (tap the arch, or **Go look**; any shape): it trots over, sniffs, steps INTO the picture and
+>   stands there small, looking back, holding the door (7 to 16 s by bond). Walk in after it and you are both on the
+>   evening terrace, far out in the sky: lamps lit, a table laid for two, and a place card with both your names on it.
+>   The arch there shows the afternoon and always takes you back. Not following is never a failure: it comes back out,
+>   ask again. New reveal type `doorway` (server: "this world, standing at it"). Pure `DoorwayGate` (`scripts/world`,
+>   tested) over `DoorwayDirector` (`mechanics/`); the sky turns to evening from where you stand (`PlazaGround`).
+> - **Hanging out:** the **wishing fountain** (Use near it: "Toss a coin"; 1 coin if you have one, free if not): a coin
+>   arcs in, the jets swell for everyone near, and the fountain keeps a count for good (`Server.Wishes`, a
+>   `world_counters` table written in batches; channel `wish` -> `wish_ok` / `wished`; `WishDirector`, `CoinArc`).
+>   **Sitting:** the spec's `seats`; Use near one says "Sit". Being seated is a pure function of standing still on a
+>   seat's anchor (`SeatLogic`), so friends are drawn seated with no new message (`SeatDirector`; the pose is the
+>   standing frame lowered with the legs left out, in `SpriteActor`). Your companion rests beside you.
+> - **Built for a crowd:** see `docs/scaling-design.md` (SC-2 and SC-4). The spec's `crowd` block (`cell`, `full`,
+>   `lite`) turns on interest cells for this world and sets the drawing budget.
+> - Layout, lore and the secret: `tools/gen_lingerlong_world.py`. Tests: `smoke_lingerlong`, `smoke_lingerlong_secret`,
+>   `smoke_hangout`. Every finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md`
+>   ("Lingerlong"). Design canvas: the "Plaza World Design" artifact.
+> **Glyphfall (2026-11):** another world that looks like **a different game**: the whole world is drawn in
 > monospace characters, full colour on a dark page (issue #159). The story: somebody described a valley so
 > carefully that the description became the place. Grass is quote marks, water is tildes, trees are clubs and
 > spades, and **the paths are the writer's sentences, which you can read as you walk**. 3200x2400, reached through

@@ -21,6 +21,48 @@ defmodule Server.World do
   players there are, where it used to be one encode per recipient per movement. Each client skips its
   own entry. The ambient pals ride the same tick (every other one, 10 Hz), sent the same way.
 
+  Only changes are sent (SC-4): a player is marked dirty only when their cleaned transform differs
+  from the stored one, ignoring the load-test stamp `t`. Clients send while they move and once a
+  second otherwise (a keepalive); a keepalive that changes nothing is dropped, but its sender is still
+  stored, so still present.
+
+  ## Interest cells (SC-4), opt-in per world
+
+  A world whose spec has a crowd block (`core.crowd`, e.g. `{"cell": 480, "full": 40, "lite": 80}`) is
+  cut into `cell` x `cell` px squares (`Server.Interest`). The world process reads the block from the
+  `core` map it's started with (`ensure_started/3`'s third argument, the same one the ambient pals read).
+  In such a world a client hears only the players in the 3 x 3 cells around its own:
+
+    * Each tick, every mover is placed in the cell of its player position, and ONE bundle per occupied
+      cell (a cell someone stands in) goes out on that cell's PubSub topic (`Interest.topic/2`), holding
+      the movers in its 3 x 3 neighbourhood. The bundle is a `%Phoenix.Socket.Broadcast{}` on the
+      world's CHANNEL topic, so it reaches a socket through the same fastlane as before (encoded once per
+      cell) and the client sees an ordinary `"states"` frame. Nothing goes out on the world-wide topic.
+    * Each channel follows exactly one cell topic, its own player's (`Server.WorldChannel`), and when
+      that cell changes it is pushed one snapshot of the players in the cells that just came into view.
+  Ambient pals, wards, flares, howls and the presence roster (join / identity / leave) stay world-wide.
+
+  Edge cases, decided:
+    * A mover crossing a cell border: its entry for that tick goes to the old cell's neighbourhood AND
+      the new one's, so watchers it's leaving see the position it left to (now more than a cell away
+      from them, so their client stops drawing it) and the ones it's reaching see it arrive. From the
+      next tick only the new neighbourhood hears it.
+    * A watcher who walks away from someone standing still hears nothing about them: its own client
+      knows it moved and hides peers whose last position is more than a cell away. Walking back brings
+      them in again through the newly-visible snapshot.
+    * A player who hasn't sent a state yet has no cell and is in no bundle. Its channel subscribes to
+      the cell of its spawn (or resume) point on join and gets that neighbourhood as the join
+      snapshot; with neither, it receives nothing until its first state names its cell, then the full
+      neighbourhood as a snapshot.
+    * A packet with no player position (`p`) leaves the player in the cell it was in (or none).
+    * `forget` (leaving) drops the player from its cell. An emptied cell leaves the index, so it's no
+      longer occupied and costs nothing; the leaver's peers learn of the leave from presence.
+    * A world restart: the process starts empty with the same spec. Channels keep their cell
+      subscriptions (those live in PubSub, not here). Every client re-sends within a second (the
+      keepalive), which is a change against an empty store, so everyone is placed and re-sent to their
+      neighbourhood again.
+    * Snapshots drop the load-test stamp `t` (`WorldStates.snapshot_bundle/1`).
+
   ── DEFERRED SEAMS (scale — NOT built; flagged):
     * WRITE-BEHIND PERSISTENCE of transient state (Oban) — nothing here is worth persisting yet.
     * CLUSTER-AWARE registry: today `Registry` + `DynamicSupervisor` are NODE-LOCAL, so a given
@@ -92,6 +134,28 @@ defmodule Server.World do
     GenServer.cast(via(world_id), {:forget, user_id})
   end
 
+  @doc """
+  The latest transforms of the players standing in `cells` of a crowd world (SC-4), by the cells the
+  world last placed them in (`%{user_id => transform}`). `%{}` in a world without interest cells, or if
+  the world process is briefly unavailable (a restart): the next ticks fill in.
+  """
+  @spec snapshot_cells(String.t(), [Server.Interest.cell()]) :: %{optional(String.t()) => map()}
+  def snapshot_cells(world_id, cells) do
+    GenServer.call(via(world_id), {:snapshot_cells, cells})
+  catch
+    :exit, _ -> %{}
+  end
+
+  @doc """
+  `snapshot_cells/2` without waiting: the world sends `{:cell_snapshot, tag, transforms}` to `reply_to`
+  once it has handled everything sent to it before this. A channel uses it so that a busy world never
+  blocks the channel (which would then queue its own client's packets). Lost if the world is down.
+  """
+  @spec request_cells(String.t(), [Server.Interest.cell()], pid(), term()) :: :ok
+  def request_cells(world_id, cells, reply_to, tag) do
+    GenServer.cast(via(world_id), {:snapshot_cells, cells, reply_to, tag})
+  end
+
   @doc "Everyone's latest transform in `world_id` right now (`%{user_id => transform}`)."
   @spec snapshot(String.t()) :: %{optional(String.t()) => map()}
   def snapshot(world_id) do
@@ -108,6 +172,11 @@ defmodule Server.World do
 
   @impl true
   def init({world_id, ward_defs, ambient_core}) do
+    # Every player's packets land in this one mailbox, from processes on every core. Kept off the process
+    # heap, a backlog doesn't make each garbage collection here slower (which, on the heap, turns a
+    # momentary backlog into one that never drains), and senders contend less.
+    Process.flag(:message_queue_data, :off_heap)
+
     {:ok,
      %{
        world_id: world_id,
@@ -120,6 +189,12 @@ defmodule Server.World do
        # Shared ambient-pal sim: pure wander logic (incl. obstacle avoidance), ticked while at least one
        # player is here. `ticking` guards against scheduling more than one :tick timer at a time.
        ambient: Server.AmbientPals.new(ambient_core),
+       # SC-4: interest cells, only in a world whose spec has a crowd block (`core.crowd.cell`); nil
+       # everywhere else, and then nothing below about cells is used. `cells` is each player's cell as of
+       # the last tick, `members` the reverse index (only cells someone stands in).
+       interest: Server.Interest.config(ambient_core),
+       cells: %{},
+       members: %{},
        # SC-3: who moved since the last tick (their entries go in the next bundle), and the tick count
        # (the ambient sim steps on every @ambient_every-th tick).
        dirty: MapSet.new(),
@@ -137,14 +212,20 @@ defmodule Server.World do
         {:noreply, maybe_start_ticking(%{state | transforms: Map.put_new(state.transforms, user_id, %{})})}
 
       clean ->
-        state = %{state | transforms: Map.put(state.transforms, user_id, clean), dirty: MapSet.put(state.dirty, user_id)}
-        {:noreply, maybe_start_ticking(state)}
+        if same_transform?(Map.get(state.transforms, user_id), clean) do
+          # Only changes are sent (SC-4): a packet that says nothing new (a client's 1 Hz keepalive
+          # while standing still) isn't relayed. The sender is already stored, so still counts as here.
+          {:noreply, maybe_start_ticking(state)}
+        else
+          state = %{state | transforms: Map.put(state.transforms, user_id, clean), dirty: MapSet.put(state.dirty, user_id)}
+          {:noreply, maybe_start_ticking(state)}
+        end
     end
   end
 
   def handle_cast({:forget, user_id}, state) do
     transforms = Map.delete(state.transforms, user_id)
-    state = %{state | dirty: MapSet.delete(state.dirty, user_id)}
+    state = %{state | dirty: MapSet.delete(state.dirty, user_id)} |> leave_cell(user_id)
 
     # Drop this player's weight from every plate (a disconnect mid-puzzle releases what they held).
     occupants = for {key, set} <- state.occupants, into: %{}, do: {key, MapSet.delete(set, user_id)}
@@ -169,6 +250,11 @@ defmodule Server.World do
     {:noreply, state}
   end
 
+  def handle_cast({:snapshot_cells, cells, reply_to, tag}, state) do
+    send(reply_to, {:cell_snapshot, tag, in_cells(state, cells)})
+    {:noreply, state}
+  end
+
   def handle_cast({:ward, user_id, payload}, state) do
     state = apply_ward_intent(state, user_id, payload)
     broadcast_wards(state)
@@ -177,6 +263,8 @@ defmodule Server.World do
 
   @impl true
   def handle_call(:snapshot, _from, state), do: {:reply, state.transforms, state}
+
+  def handle_call({:snapshot_cells, cells}, _from, state), do: {:reply, in_cells(state, cells), state}
 
   def handle_call(:wards, _from, state), do: {:reply, Server.RuinMechanisms.to_list(state.wards), state}
 
@@ -191,11 +279,7 @@ defmodule Server.World do
       {:noreply, %{state | ticking: false, dirty: MapSet.new()}}
     else
       topic = channel_topic(state.world_id)
-
-      if MapSet.size(state.dirty) > 0 do
-        moved = Map.take(state.transforms, MapSet.to_list(state.dirty))
-        Server.Endpoint.broadcast(topic, "states", Server.WorldStates.bundle(moved))
-      end
+      state = flush_states(state, topic)
 
       n = state.tick_n + 1
 
@@ -216,6 +300,98 @@ defmodule Server.World do
   def handle_info(_msg, state), do: {:noreply, state}
 
   # --- internals ---
+
+  # Whether a cleaned transform says the same as the stored one. The load-test send stamp `t` changes on
+  # every packet, so it's left out of the comparison: an unchanged pose with a new `t` is not a change
+  # (and isn't stored either); a changed pose is stored with its own, latest `t`.
+  defp same_transform?(nil, _clean), do: false
+  defp same_transform?(old, clean), do: Map.delete(old, "t") == Map.delete(clean, "t")
+
+  # Send this tick's moved transforms. A world without interest cells sends one bundle to everyone (SC-3),
+  # pre-encoded as one binary (`WorldStates.encoded_bundle/1`) so the sockets share it.
+  defp flush_states(%{interest: nil} = state, topic) do
+    if MapSet.size(state.dirty) > 0 do
+      jsons = for {id, t} <- Map.take(state.transforms, MapSet.to_list(state.dirty)), do: Server.WorldStates.entry_json(id, t)
+      Server.Endpoint.broadcast(topic, "states", Server.WorldStates.encoded_bundle(jsons))
+    end
+
+    state
+  end
+
+  # A crowd world (SC-4): move each mover to its new cell, then send ONE bundle per occupied cell, on that
+  # cell's topic, of the movers in its 3 x 3 neighbourhood. A mover that changed cell this tick goes to its
+  # old neighbourhood too, so watchers there see where it went. Each bundle is a channel Broadcast on the
+  # world's channel topic, so the fastlane encodes it once for every socket subscribed to that cell. Each
+  # entry is encoded once for the tick, however many bundles it's in, and each bundle is one binary.
+  defp flush_states(%{interest: %{cell: size}} = state, topic) do
+    if MapSet.size(state.dirty) == 0 do
+      state
+    else
+      {moved, state} =
+        Enum.reduce(state.dirty, {[], state}, fn uid, {acc, st} ->
+          case Map.fetch(st.transforms, uid) do
+            {:ok, t} ->
+              old = Map.get(st.cells, uid)
+
+              new =
+                case Map.get(t, "p") do
+                  [_, _] = p -> Server.Interest.cell_of(p, size)
+                  _ -> old
+                end
+
+              st = move_cell(st, uid, old, new)
+              route = Enum.uniq(for c <- [new, old], c != nil, do: c)
+              {[{Server.WorldStates.entry_json(uid, t), route} | acc], st}
+
+            :error ->
+              {acc, st}
+          end
+        end)
+
+      for {cell, entries} <- Server.Interest.group(moved, state.members) do
+        Phoenix.PubSub.broadcast(Server.PubSub, Server.Interest.topic(state.world_id, cell), %Phoenix.Socket.Broadcast{
+          topic: topic,
+          event: "states",
+          payload: Server.WorldStates.encoded_bundle(entries)
+        })
+      end
+
+      state
+    end
+  end
+
+  # The latest transforms of whoever the world last placed in `cells`.
+  defp in_cells(state, cells) do
+    ids = Enum.flat_map(cells, fn c -> state.members |> Map.get(c, MapSet.new()) |> MapSet.to_list() end)
+    Map.take(state.transforms, ids)
+  end
+
+  defp move_cell(state, _uid, same, same), do: state
+
+  defp move_cell(state, uid, old, new) do
+    members = if old, do: drop_member(state.members, old, uid), else: state.members
+    members = Map.update(members, new, MapSet.new([uid]), &MapSet.put(&1, uid))
+    %{state | cells: Map.put(state.cells, uid, new), members: members}
+  end
+
+  defp leave_cell(state, uid) do
+    case Map.pop(state.cells, uid) do
+      {nil, _} -> state
+      {cell, cells} -> %{state | cells: cells, members: drop_member(state.members, cell, uid)}
+    end
+  end
+
+  # An emptied cell leaves the index, so it's no longer "occupied" and gets no bundles.
+  defp drop_member(members, cell, uid) do
+    case Map.fetch(members, cell) do
+      {:ok, set} ->
+        set = MapSet.delete(set, uid)
+        if MapSet.size(set) == 0, do: Map.delete(members, cell), else: Map.put(members, cell, set)
+
+      :error ->
+        members
+    end
+  end
 
   # Kick off the tick when someone's here. No-op if it's already running, so it's called on every
   # transform.
