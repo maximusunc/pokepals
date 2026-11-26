@@ -78,12 +78,29 @@ func add_buildings(list: Array, style: ArtStyle) -> Array:
 	for spec in list:
 		# a spec's "view" picks a dressed-up kind of building (Steamhollow's timber bathhouses)
 		var view := String(spec.get("view", ""))
-		var bv: BuildingView = BathhouseView.new() if view == "bathhouse" else (CliffView.new() if view == "cliff" else (ShadowScreenView.new() if view == "shadow_screen" else (HouseView.new() if view == "house" else BuildingView.new())))
+		var bv: BuildingView = BathhouseView.new() if view == "bathhouse" else (CliffView.new() if view == "cliff" else (ShadowScreenView.new() if view == "shadow_screen" else (HouseView.new() if view == "house" else (ArchView.new() if view == "arch" else BuildingView.new()))))
 		bv.setup(spec, style)
 		add_child(bv)
 		_buildings.append(bv)
 		out.append(bv)
 	return out
+
+
+## The building (an ArchView, a CliffView, ...) whose spec id is `id`, or null.
+func building(id: String) -> BuildingView:
+	for b in _buildings:
+		if is_instance_valid(b) and String(b.spec.get("id", "")) == id:
+			return b
+	return null
+
+
+## Stand a world's fountain (the spec's `fountain` block: Lingerlong's wishing fountain) in the depth-sorted
+## layer, its node at the middle of the basin. Returned so the controller can keep it (and make it swell).
+func add_fountain(spec: Dictionary, style: ArtStyle) -> FountainView:
+	var fv := FountainView.new()
+	fv.setup(WorldData.to_vec2(spec.get("center", [0, 0])), style)
+	add_child(fv)
+	return fv
 
 
 ## Spawn the world's trees as individually sortable nodes. `border_pts` is the same
@@ -92,7 +109,7 @@ func add_buildings(list: Array, style: ArtStyle) -> Array:
 func populate(data: Dictionary, border_pts: Array, style: ArtStyle) -> void:
 	# Clear any trees from a previous populate (actors are kept — they're scene-defined).
 	for child in get_children():
-		if child is TreeView or child is PortalView or child is BuildingView or child.has_meta("understory"):
+		if child is TreeView or child is PortalView or child is BuildingView or child is FountainView or child.has_meta("understory"):
 			child.queue_free()
 	_trees.clear()
 	_buildings.clear()
@@ -172,6 +189,8 @@ func _art_for(cache: Dictionary, style: ArtStyle, kind: String, fallback: String
 		"glow_y": float(cfg.get("glow_y", -24.0)),
 		"sway": float(cfg.get("sway", 1.0)),
 		"hd": hd,
+		"foot": float(cfg.get("foot", -1.0)),
+		"float": cfg.get("float", {}),
 	}
 	cache[kind] = art
 	return art
@@ -200,6 +219,8 @@ func _spawn_tree(pos: Vector2, is_great: bool, art: Dictionary, style: ArtStyle,
 		tree.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 	tree.glow_y = art["glow_y"]
 	tree.sway_gain = art["sway"]
+	tree.foot = float(art.get("foot", -1.0))
+	tree.float_cfg = art.get("float", {})
 	tree.style = style
 	tree.wind_strength = wind_strength
 	tree.wind_speed = wind_speed

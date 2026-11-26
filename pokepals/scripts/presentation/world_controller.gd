@@ -108,6 +108,8 @@ var _open_sheets := 0  # social windows currently up (open_sheet); steering retu
 # found your companion, then breathes itself into being in a little cutscene.
 var _gateway: Dictionary = {}          # this world's Gateway entry in _portals ({} if it has none)
 var _gateway_view: PortalView = null
+# LINGERLONG: the wishing fountain (null in every other world). See fountain_view() and arch_view().
+var _fountain_view: FountainView = null
 var _gateway_hidden := false
 var _gateway_revealing := false        # the reveal cutscene owns the Gateway (and the camera) right now
 # Butterflies, fireflies, cloud shadows and falling leaves (cosmetic, local; see AmbientLife).
@@ -275,6 +277,8 @@ func _build_world(cached: Dictionary) -> void:
 	_scenery.add_understory(_world_art.understory_spots(), _style)
 	# Clickton's brick buildings, depth-sorted like trees; the one holding the secret gets its brick bound.
 	var building_views := _scenery.add_buildings(data.get("buildings", []), _style)
+	# Lingerlong's wishing fountain stands in the same depth-sorted layer (its words are a prop's, its basin a fence).
+	_fountain_view = _scenery.add_fountain(data["fountain"], _style) if data.has("fountain") else null
 	_bind_inlays(building_views)
 	# Home building: this world's trees can be chopped (unless it says not), and its stones and driftwood picked up.
 	_harvest_dir.configure(data, _interactables)
@@ -302,7 +306,7 @@ func _build_world(cached: Dictionary) -> void:
 	var body_radius := float(ccfg.get("body_radius", 6.0))
 	var margin := float(ccfg.get("margin", 2.0))
 	_player.set_solids(solids, bounds_rect, body_radius, margin)
-	_companion.set_solids(solids, bounds_rect, body_radius, margin, SkyRealm.ground_test(data.get("sky", {})))
+	_companion.set_solids(solids, bounds_rect, body_radius, margin, _ground_test(data))
 	# The first-meeting flock (if it comes up this session) walks against the same barriers, and
 	# injects its creatures into the live examine list.
 	_encounter_dir.set_world(_interactables, solids, bounds_rect, body_radius, margin)
@@ -353,6 +357,12 @@ func _build_world(cached: Dictionary) -> void:
 	# OHMSTEAD: no prints on the grid; a step lights the cell underfoot and sends a ring out along the lines.
 	if _world_art.grid_ground() != null:
 		_world_art.grid_ground().set_walkers(_walkers)
+	# LINGERLONG: no prints on the polished marble; a step in the pool rings the water, and your own screen goes
+	# to evening while you stand on the terrace.
+	if _world_art.plaza_ground() != null:
+		_world_art.plaza_ground().set_walkers(_walkers)
+		_world_art.plaza_ground().set_watch(_player)
+		_world_art.plaza_ground().settle_evening()
 	# ...its runners, carrying light along the bright lines (where they are is a pure function of the clock)...
 	var runners_cfg: Dictionary = data.get("runners", {})
 	if not runners_cfg.is_empty():
@@ -684,6 +694,24 @@ func _bind_inlays(views: Array) -> void:
 			bv.hide_inlay()
 
 
+## Lingerlong: the wishing fountain's view (swell() makes its jets rise), or null in a world without one.
+func fountain_view() -> FountainView:
+	return _fountain_view if is_instance_valid(_fountain_view) else null
+
+
+## An arch (or any building) by its spec id, e.g. "late_arch" / "return_arch" (an ArchView), or null.
+func arch_view(id: String) -> BuildingView:
+	return _scenery.building(id)
+
+
+## Which points the companion may plan a route over, in a world where only part of the map is ground: a sky
+## world's islands and bridges (SkyRealm), or a floating plaza's floors and pool (PlazaRealm). Invalid elsewhere.
+func _ground_test(data: Dictionary) -> Callable:
+	if data.has("sky"):
+		return SkyRealm.ground_test(data["sky"])
+	return PlazaRealm.ground_test(data.get("plaza", {}))
+
+
 func rebuild_solids_dropping(slab_id: String) -> void:
 	var data_copy: Dictionary = _world_data.duplicate(true)
 	for it in data_copy.get("props", []):
@@ -691,7 +719,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 			it["solid"] = false
 	var solids := Solids.build(data_copy, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(data_copy.get("sky", {})))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(data_copy))
 
 
 ## Rebuild the barriers from the world's data as it stands now (your house was just finished: its furniture
@@ -699,7 +727,7 @@ func rebuild_solids_dropping(slab_id: String) -> void:
 func rebuild_world_solids() -> void:
 	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(_world_data.get("sky", {})))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(_world_data))
 
 
 ## Loftreach: a hidden bridge is down. Rebuild the barriers and the companion's walkability grid with it open
@@ -714,7 +742,7 @@ func reveal_sky_bridge(bridge_id: String) -> void:
 	sky["revealed"] = revealed
 	var solids := Solids.build(_world_data, _border_pts, _collision_cfg)
 	_player.set_solids(solids, _bounds_rect, _body_radius, _collision_margin)
-	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, SkyRealm.ground_test(sky))
+	_companion.set_solids(solids, _bounds_rect, _body_radius, _collision_margin, _ground_test(_world_data))
 
 
 ## Whether the tide covers `p` right now (Ebbmere): water to fish in.

@@ -71,7 +71,10 @@ defmodule Server.Seeds do
       tags: ["meadow", "road", "windmills", "perspective", "inside", "explore", "cozy"], accent: [0.74, 0.86, 0.52], featured: true},
     %{world_id: "16161616-1616-1616-1616-161616161616", slug: "ohmstead", name: "Ohmstead", file: "ohmstead.json",
       blurb: "Behind the scenery, where the worlds are drawn: a glowing grid in the dark, and you as an outline of light. One sector has lost its power, and the Arcade deals a new board every day.",
-      tags: ["grid", "neon", "machine", "arcade", "puzzle", "together", "explore", "cozy", "secret"], accent: [0.37, 0.95, 1.0], featured: true}
+      tags: ["grid", "neon", "machine", "arcade", "puzzle", "together", "explore", "cozy", "secret"], accent: [0.37, 0.95, 1.0], featured: true},
+    %{world_id: "17171717-1717-1717-1717-171717171717", slug: "lingerlong", name: "Lingerlong", file: "lingerlong.json",
+      blurb: "A marble plaza floating in a pastel sky, where it is always the same late afternoon. Bring your friends and stay a while. One of its arches runs a little late.",
+      tags: ["plaza", "hangout", "together", "sky", "fountain", "cozy", "secret"], accent: [0.97, 0.72, 0.82], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

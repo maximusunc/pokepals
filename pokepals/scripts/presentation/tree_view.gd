@@ -34,6 +34,16 @@ var glow_y := -24.0
 # (Bobbledown's), which is baked at twice the world resolution and drawn at half size, linearly
 # filtered, so its curves stay smooth when the view is scaled up.
 var tex_scale := 1.0
+# Where the art's feet are, in px below the node's origin: the bottom edge of the image sits this far down. -1
+# keeps the house default (6 for a tree, 8 for a great tree). Lingerlong's art bakes a polished-floor reflection
+# below each thing's foot, so its kinds say how deep that margin is (the art entity's "foot").
+var foot := -1.0
+# A thing that FLOATS (the art entity's "float": Lingerlong's busts over their plinths): its canopy layer is not
+# a crown in the wind but something hovering `height` px over a resting line `rest` px above the feet, bobbing
+# `bob` px every `period` seconds, out of phase with its neighbours, over a soft contact shadow (`shadow`: its
+# half-width) that tightens as it dips. Drawn from the shared clock Scenery already ticks, so a floating thing
+# costs no more than a swaying one. Empty = nothing floats.
+var float_cfg: Dictionary = {}
 # Perspective worlds (Horizon) see things from every side. `facing` is the way its front looks (a bearing in
 # radians: 0 north, PI/2 east, PI south, toward the top-down viewer). Something drawn from several bearings
 # round it gives them as `angle_frames` (frame k: seen by a viewer whose heading is k steps clockwise of looking
@@ -197,7 +207,10 @@ func _draw_normal() -> void:
 	if tex_scale == 1.0 and not has_meta("card") and PerspectiveView.active == null:
 		_draw_shadow(Vector2(0, 4), 18.0, 0.20)  # smooth @2x art bakes its own soft shadow; a flat card casts none
 	_draw_glow(cs)
-	if _draw_sprite(cs, 6.0):
+	if not float_cfg.is_empty() and trunk_tex != null and canopy_tex != null:
+		_draw_floating(6.0 if foot < 0.0 else foot)
+		return
+	if _draw_sprite(cs, 6.0 if foot < 0.0 else foot):
 		return
 	var bark := style.color("bark")
 	var f_dark := style.color("foliage_dark")
@@ -222,7 +235,7 @@ func _draw_great() -> void:
 		if PerspectiveView.active == null:
 			_draw_shadow(Vector2(0, 8), 36.0, 0.22)
 	_draw_glow(sway)
-	if _draw_sprite(sway, 8.0):
+	if _draw_sprite(sway, 8.0 if foot < 0.0 else foot):
 		return
 	var bark := style.color("bark")
 	var f_dark := style.color("foliage_dark")
@@ -268,6 +281,23 @@ func _draw_sprite(canopy_sway: float, base_y: float) -> bool:
 		_blit(tex, canopy_sway, base_y)
 		return true
 	return false
+
+
+## The resting layer (a plinth) at its feet, then a shadow on its top, then the floating layer over it, bobbing.
+func _draw_floating(base_y: float) -> void:
+	_blit(trunk_tex, 0.0, base_y)
+	var rest := float(float_cfg.get("rest", 20.0))
+	var bob := float(float_cfg.get("bob", 3.0))
+	var period := maxf(0.5, float(float_cfg.get("period", 5.0)))
+	var b := sin(_time * TAU / period + phase * 3.0) * bob
+	var dip := (bob - b) / maxf(0.001, 2.0 * bob) if bob > 0.0 else 1.0   # 1 at the lowest point of the bob
+	var hw := float(float_cfg.get("shadow", 12.0)) * (1.12 - 0.24 * dip)
+	var c := style.color("shadow") if style != null else Color(0.45, 0.4, 0.6)
+	draw_set_transform(Vector2(0, -rest + 1.0), 0.0, Vector2(1.0, 0.34))
+	draw_circle(Vector2.ZERO, hw, Color(c.r, c.g, c.b, 0.14 + 0.12 * dip))
+	draw_circle(Vector2.ZERO, hw * 0.6, Color(c.r, c.g, c.b, 0.08 + 0.10 * dip))
+	draw_set_transform(Vector2.ZERO, 0.0, Vector2.ONE)
+	_blit(canopy_tex, 0.0, -(rest + float(float_cfg.get("height", 14.0)) + b))
 
 
 ## Which of n views round a thing faces a viewer with heading `view_yaw` (0 = its front, then clockwise).

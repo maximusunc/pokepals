@@ -36,6 +36,11 @@ defmodule Server.SecretRevealTest do
     assert SecretReveal.met?(secret, %{})
   end
 
+  test "the place card is reached through the Late Arch on the player's screen, so the server doesn't gate it" do
+    secret = %{"reveal" => %{"type" => "doorway", "arch" => "late_arch"}}
+    assert SecretReveal.met?(secret, %{})
+  end
+
   test "the paper bird behind the mural's door is earned on the player's screen, so the server doesn't gate it" do
     secret = %{"reveal" => %{"type" => "shadow", "species" => "bird", "spot" => [40, 111]}}
     assert SecretReveal.met?(secret, %{})
