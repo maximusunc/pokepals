@@ -41,3 +41,22 @@ After baking, run `godot --headless --path pokepals --import`.
 | great tree (great puff) | 208 x 244 | row 228 | trunk + canopy |
 | prop | varies | 16 px above the bottom | `base`, then grayscale `tint` (x the prop's colour), then untinted `gloss` |
 | creature sheet | 64 px cells | row 48 of each cell | 8 motion + 16 idle columns x 5 facings, like every pal sheet |
+
+## Lingerlong
+
+`lingerlong.py` draws **Lingerlong**, the marble plaza, in the same smooth `@2x` language but as
+stone rather than candy: polished white marble with soft veins and a glossy sheen, LILAC shadows
+(never grey), brass accents, teal palms with a pink rim light, a warm key light from the upper left
+and a pink bounce from below. It reuses Bobbledown's `Canvas` and adds a small G-buffer (geometry
+first, one lighting pass after) so every piece is lit the same way.
+
+The plaza's floor is polished, so every standing sprite has a soft mirror copy of its lowest part
+baked **below** its foot line. How far that line sits above the image's bottom edge is the
+sprite's `foot`, written with its world size (and, for props, its layers) to
+`data/ll_details.json`.
+
+```
+python ../gen_lingerlong.py       # bake everything (+ .import sidecars, ll_details.json); ~1 minute
+```
+
+It takes an optional `sprites`, `props` or `textures` to bake one group.
