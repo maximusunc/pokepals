@@ -2,6 +2,7 @@
 
 **Status (2026-10-31):** a plan for discussion. **Every item below is open/undecided.** As with the
 other design docs, we decide one item at a time, record the decision here, and only then build it.
+**Since (2026-11-26):** SC-0 is decided, SC-1 has run, and SC-3 and SC-4 are built; each says so below.
 
 **Why now:** the Bazaar felt laggy, and that raised the real question: this is meant to be a shared
 world, so can it hold many hundreds or thousands of players?
@@ -193,15 +194,184 @@ The bots' own event-loop lag stayed under 90 ms through 500.
 - **SC-5 (splitting a world by area)** fixes the single-process limit. Each area's process handles
   only its own players' packets.
 
-### SC-4 — Interest management *(open)*
-- **Grid:** a spatial grid inside each world (or instance).
-- **Nearby only:** each player's bundle holds only the entities in nearby cells.
-- **How to build it:**
-  - Start simple: the world process builds the per-player bundles itself.
-  - If one process becomes the bottleneck, move to per-cell PubSub topics. Each client then follows
-    the 3×3 block of cells around it.
-- **Shared things:** Ruin wards, flares, world events and the like should also only reach nearby
-  players, or the whole instance when it's a world-wide event.
+### ✅ SC-4 — Interest management *(built 2026-11-26, opt-in per world; for Lingerlong, issue #158)*
+**Opt-in:** a world turns it on with a crowd block in its spec, `core.crowd`, for example
+`{"cell": 480, "full": 40, "lite": 80}`. The server reads only `cell`; `full` and `lite` are the client's
+drawing budget (SC-2). Worlds without the block behave exactly as before. The world process reads the
+block from the spec's `core`, the same map the ambient pals are started from (`World.ensure_started/3`).
+
+**Only changes are sent** (every world):
+- The world process marks a player dirty only when their cleaned transform differs from the stored one.
+- The load-test send stamp `t` is left out of the comparison: a pose that hasn't changed isn't a
+  change, whatever its stamp. A changed pose is stored and relayed with its own, latest `t`.
+- A packet that changes nothing isn't relayed, but its sender stays stored, so still present.
+- The client rule: send at 20 Hz while your pose changes, otherwise once a second (a keepalive). The
+  keepalive is what refills a restarted world.
+- Snapshots (on join, or when cells come into view) leave `t` out, since a standing player's stamp can
+  be seconds old.
+
+**Interest cells** (crowd worlds only):
+- **Grid:** the world is cut into `cell` × `cell` px squares. A player's cell is
+  `{floor(px / cell), floor(py / cell)}` of the player position, rounded to whole pixels first, the way
+  it's stored. The pure maths is `Server.Interest` (tested).
+- **What you hear:** only the players in the 3 × 3 cells around your own, your neighbourhood. The wire
+  format of `"states"` doesn't change.
+- **One bundle per cell:** each tick the world process places every mover in its cell, then sends ONE
+  bundle per occupied cell (a cell someone stands in), holding the movers in that cell's neighbourhood.
+  It goes out on that cell's PubSub topic, `world:<id>:cell:<cx>,<cy>`, as a channel broadcast on the
+  world's channel topic. So Phoenix's fastlane still encodes it once for every socket in that cell, and
+  the client sees an ordinary `"states"` frame. Nothing goes out on the world-wide topic.
+- **One subscription per player:** each channel follows exactly one cell topic, its player's own,
+  subscribed with the same fastlane sender Phoenix uses for the channel topic.
+- **Changing cell:** the channel works out the cell from each state packet. On a change it:
+  1. subscribes to the new cell first, so no tick falls between the two;
+  2. asks the world, without waiting, for the players in the cells that just came into view;
+  3. when the answer comes, pushes it as one snapshot and only then leaves the old cell.
+  While an answer is on its way it can hear both cells, so an entry may arrive twice. That's harmless.
+- **World-wide still:** the presence roster (join, identity, leave), ambient pals, Ruin wards, flares
+  and howls. Lingerlong has no pals.
+
+**Edge cases, decided** (also in `Server.World`'s moduledoc):
+- **A mover crossing a cell border:** its entry for that tick goes to the old cell's neighbourhood AND
+  the new one's. Watchers it's leaving see the position it left to, now more than a cell from them, so
+  their client stops drawing it. From the next tick only the new neighbourhood hears it.
+- **Walking away from someone standing still:** the server sends nothing. Your client knows where you
+  are and hides peers whose last known position is more than one cell from your cell (Chebyshev
+  distance over 1). Walking back brings them in again through the snapshot.
+- **Before your first state:** the channel follows the cell of your spawn (or resume) point from the
+  join, and the join snapshot is that neighbourhood only. With neither, you receive nothing until your
+  first state names your cell, then the whole neighbourhood as a snapshot.
+- **A packet with no player position** leaves you in the cell you were in, or none.
+- **Leaving:** you're dropped from your cell. An emptied cell isn't occupied, so it costs nothing.
+  Your peers learn of the leave from presence.
+- **A world restart:** the process starts empty with the same spec. Channels keep their cell
+  subscriptions (they live in PubSub). Within a second every client's keepalive arrives, which counts
+  as a change against an empty store, so everyone is placed and re-sent again.
+- **A known small gap:** a snapshot is read at one moment and pushed by the channel; a tick sent a
+  moment later can reach the socket first. A peer who moved in that instant and then stood still shows
+  up to one tick (a few px) behind until they next move. The same was true of SC-3's join snapshot.
+
+**Cheap fixes the measurements led to** (all worlds):
+- **Encoded once, shared by reference:** every live bundle is now built from entries encoded once per
+  tick, joined into ONE binary (`WorldStates.encoded_bundle`, a JSON fragment). A mover sits in up to
+  nine cell bundles, so encoding plain bundles cost about nine times the JSON work, all in the one world
+  process. And a frame that is one large binary is shared by every socket process that sends it, where
+  a deep list of small pieces was copied into each one. The bytes on the wire are unchanged.
+- **The world's mailbox off its heap:** every player's packets land in it from every core. On the heap,
+  a backlog made each of its garbage collections slower, so a momentary backlog never drained.
+- **Channels never wait on the world:** the cell snapshot is asked for without waiting (above), and a
+  join asks the world for pals and wards only where there are some. A busy world used to block
+  channels, which then queued their own clients' packets, and a 5 s timeout crashed joining channels.
+- **Memory:** with default garbage-collection settings a channel's heap only grows: about 1.8 MB per
+  channel with 1,000 players in one world, 0.2 MB of it live, and its WebSocket process the same. Memory
+  grew with the square of the crowd (8 GB at 2,000). Every 15 s a channel now hibernates and asks its
+  socket process to collect: the channels' share at 1,000 fell from 1.4 GB to 0.26 GB.
+
+**Load test** (`tools/loadtest/`, extended):
+- Bots send only changes plus a 1 Hz keepalive, read the spawn from the spec, can spread their homes
+  over an area (`--spread`), and report how many different peers each heard (`peers`).
+- A **hangout** profile: groups mostly standing about (each stands 4 to 20 s, then takes a few steps),
+  10% strolling anywhere.
+- `crowd_world.exs` makes an unlisted load-test-only world with a crowd block (cell 480 px, spawn in the
+  middle of a cell). `run.sh crowd` uses it.
+- `--parse-frac`: only some bots parse the live bundles. With 1,000 in one cell, parsing everything cost
+  the bot processes more CPU than the server spent (their lag reached 500 ms and showed up as latency).
+
+**The rig:** the same kind of 4-core container as SC-1 and SC-3, with the server AND every bot on it,
+so the bots take 1 to 2 of the 4 cores. Joins at 25 a second. Latency is send to receive, including
+the up-to-50 ms wait for the next tick. CPU is the server's scheduler utilisation (1.0 = all 4 cores).
+
+**(a) The Vale (no crowd block), everyone wandering**, 40 s steps, the same bots before and after:
+
+| bots | before p95 | after p95 | after p99 | before CPU | after CPU | after KB / bot / s | world mailbox before → after |
+|---|---|---|---|---|---|---|---|
+| 100 | 56 ms | 53 ms | 60 ms | 10% | 7% | 177 | 1 → 0 |
+| 300 | 126 ms | 82 ms | 119 ms | 43% | 20% | 333 | 291 → 19 |
+| 500 | 257 ms | 187 ms | 269 ms | 71% | 35% | 310 | 2,236 → 95 |
+| 700 | 482 ms | 408 ms | 507 ms | 90% | 54% | 246 | 5,568 → 454 |
+
+- Change-only alone made no difference here (wanderers always move), as expected: no regression.
+- The shared one-binary bundle halved the server's CPU. KB per bot went UP because the bots now get
+  everything they should: before, at 500, each received about 1,500 entries a second of the ~10,000
+  sent its way; now about 3,200. Past 300 the bots' own parsing is part of the latency.
+- Bandwidth is still the SC-3 problem in a world without cells: 250 to 330 KB/s per client.
+
+**(b) A crowd world, everyone wandering, homes spread over 8,000 × 8,000 px** (about 280 cells),
+130 s steps:
+
+| bots | p50 | p95 | p99 | server CPU | KB / bot / s | world mailbox (worst) | peers heard (avg / max) |
+|---|---|---|---|---|---|---|---|
+| 500 | 39 ms | 62 ms | 69 ms | 33% | 23 | 276 | 38 / 65 |
+| 1,000 | 58 ms | 91 ms | 109 ms | 59% | 29 | 647 | 74 / 120 |
+| 1,500 | 101 ms | 191 ms | 1.3 s | 75% | 22 | 2,804 | 111 / 196 |
+| 2,000 | collapsed (p95 26 s) | | | 92% | | 806,515 | |
+
+- Before the cheap fixes above, 1,000 already had a p99 of 2.5 s and 1,500 collapsed (p95 37 s).
+- Each client hears its neighbourhood only: 23 to 29 KB/s, where the Vale's wanderers get 250+.
+
+**(c) A crowd world, the hangout profile**, 130 s steps (170 s at 3,000), 10% or 25% of bots parsing:
+
+Everyone in one cell ("500 in the square" and beyond):
+
+| bots | p50 | p95 | p99 | server CPU | KB / bot / s | world mailbox (worst) | peak memory |
+|---|---|---|---|---|---|---|---|
+| 500 | 34 ms | 56 ms | 60 ms | 16% | 149 | 0 | 0.7 GB |
+| 1,000 | 47 ms | 71 ms | 80 ms | 30% | 232 | 83 | 1.6 GB |
+| 2,000 | 91 ms | 192 ms | 687 ms | 61% | 187 | 14,758 | 3.9 GB |
+| 3,000 | collapsed while joining (p95 21 s) | | | 83% | | 197,729 | 6.0 GB |
+
+Spread out, 24 groups over 8,000 × 8,000 px:
+
+| bots | p50 | p95 | p99 | server CPU | KB / bot / s | world mailbox (worst) | peers heard (avg / max) |
+|---|---|---|---|---|---|---|---|
+| 1,000 | 38 ms | 62 ms | 68 ms | 28% | 13 | 66 | 98 / 353 |
+| 2,000 | 52 ms | 96 ms | 323 ms | 61% | 13 | 755 | 174 / 414 |
+| 3,000 | collapsed while joining (p95 21 s) | | | 83% | | 147,838 | |
+
+**What it shows:**
+- **500 in the square is comfortable:** p95 56 ms at 16% CPU. 1,000 in one cell is too (71 ms, 30%), and
+  2,000 holds with a ragged p99.
+- **Spread out, interest cells do their job:** a client's traffic depends on its neighbourhood, not the
+  world. 2,000 standing about cost each client 13 KB/s.
+- **A crowd in ONE cell is still a bandwidth problem for phones:** everyone hears everyone who moves,
+  150 to 230 KB/s at 500 to 2,000. Change-only is what keeps it that low (most stand still).
+- **What breaks first, on this rig: the one world process, starved or full.**
+  - Past about 2,000 joining at 25 a second, the whole machine saturates WHILE people are joining (run
+    queue over 1,000), even though few are moving. Each arrival is a presence diff that EVERY channel
+    handles and encodes for its own socket (the N² join storm SC-3 noted). The one world process is then
+    one runnable process among thousands, gets its fair share and no more, falls behind, and its
+    mailbox never recovers.
+  - With everyone moving all the time, the one world process is the limit at about 1,500 to 2,000: it
+    takes every player's 20 packets a second (30,000 a second at 1,500) and places and groups every mover
+    each tick.
+  - **An experiment, not built:** running the world process at high priority (`Process.flag(:priority,
+    :high)`) let it keep up through the storm. 3,000 spread out then held (p95 202 ms, p99 385 ms, world
+    mailbox 31) and 1,500 wanderers' p99 fell from 1.3 s to 321 ms. Left out on purpose: the rest of the
+    server then gets less, and more joins failed (150 of 3,000) on database timeouts. It needs a decision,
+    and a guard if several busy worlds share a machine.
+  - Joins themselves read the database (profile, friends, wallet, inventory). At 2,000 to 3,000 joining
+    on this rig, 1 to 2% of joins failed on the 10-connection pool. The periodic whereabouts save (about
+    200 writes a second at 3,000) used to crash a player's channel the same way; it's now skipped instead.
+  - Bots and server share 4 cores, so a real server box would go further, but the order is the same.
+- **Memory still grows faster than the crowd** (3.9 GB at 2,000 in one cell): most of it is now the
+  WebSocket processes and the join-time roster, and the next item touches both.
+
+**Next (not built):**
+- **Keep the world process ahead (cheap, needs a decision):** the priority experiment above, or a smaller
+  step with the same aim: do the cleaning and the change check in each channel (on every core) so the
+  world gets only real changes, already cleaned.
+- **Roster fan-out (the next real item):** today every channel intercepts every presence diff and encodes
+  its own `join` / `identity` / `leave` frames: N² work and N² bytes while a crowd arrives. Options:
+  turn the diff into frames ONCE per world and send them through the fastlane (the client would then
+  have to ignore a join for a peer it already knows, which the server guards against today), and in a
+  crowd world send identities only for the neighbourhood
+  (the client keeps the roster as data, and would ask for an identity when a peer comes into view).
+  The `welcome` roster (every player, on every join) has the same shape.
+- **SC-5 (splitting a world by area)** is what lifts the single world process limit: each area's process
+  takes only its own players' packets.
+- **A rate for the far part of the neighbourhood:** in one packed cell, entries for peers the client
+  draws as "lite" or not at all could go out less often than 20 Hz. That's what would bring the square's
+  bandwidth down for phones.
 
 ### SC-5 — Instances *(open; reshaped by SC-0 into seamless splitting by area, see below)*
 - **Cap:** each world can run several copies, each capped (for example at 80 players).
@@ -241,6 +411,8 @@ The bots' own event-loop lag stayed under 90 ms through 500.
 
 ## How we work through it
 
-One item at a time. SC-0 is decided, SC-1 has run, and SC-3 is built: one world went from about 75
-players to about 500. Next is SC-4 (interest management), then SC-5 (splitting a world by area),
+One item at a time. SC-0 is decided, SC-1 has run, SC-3 is built (one world went from about 75 players
+to about 500), and SC-4 is built as an opt-in per world: a crowd world holds 2,000 standing about (one
+cell or spread out) and 1,500 always on the move on a shared 4-core box. Next is keeping the one world
+process ahead and the roster fan-out (both under SC-4's "Next"), then SC-5 (splitting a world by area),
 re-running the load test after each.
