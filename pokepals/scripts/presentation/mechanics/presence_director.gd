@@ -268,7 +268,7 @@ func _on_peer_left(peer_id: String) -> void:
 	_peer_names.erase(peer_id)
 
 
-## The session ended — we left on purpose, or the server dropped us. Despawn every remote puppet
+## The session ended: we left on purpose, or the server dropped us. Despawn every remote puppet
 ## pair so friends don't linger frozen in the world while we're back at the gate (and so a later
 ## reconnect doesn't leave the old ghosts behind). The lobby gate reappears on its own (it also
 ## listens for disconnected()); our own player + companion stay put.
@@ -282,7 +282,7 @@ func _on_disconnected() -> void:
 
 
 ## A peer's identity arrived. Kept in the roster, and their puppets (if drawn) are dressed now; one that
-## races ahead of their join is stashed until it lands. Untrusted input — validated by the appliers.
+## races ahead of their join is stashed until it lands. Untrusted input, validated by the appliers.
 func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
 	if payload.has("name"):
 		_peer_names[peer_id] = String(payload["name"])
@@ -297,7 +297,7 @@ func _on_identity_received(peer_id: String, payload: Dictionary) -> void:
 ## A peer's live transforms arrived (about 20 Hz while they move, once a second or never while they stand;
 ## nothing here counts on a rate). Treat every field as UNTRUSTED: positions are clamped to the world
 ## bounds, non-Vector2 junk is ignored (a field left out keeps its last value), and the data can only move
-## THIS peer's puppet — never our avatar, never the save. Kept in the roster whether drawn or not.
+## THIS peer's puppet, never our avatar, never the save. Kept in the roster whether drawn or not.
 func _on_state_received(peer_id: String, payload: Dictionary) -> void:
 	var rec: Dictionary = _roster.get(peer_id, {})
 	if rec.is_empty():

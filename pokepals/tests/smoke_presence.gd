@@ -1,7 +1,7 @@
 extends SceneTree
 ## Headless smoke test for shared presence (the PresenceDirector). Loads the real World scene (the Vale)
 ## offline, then drives the director's Net-facing handlers directly — a peer joining, sending its
-## identity + live transforms, and leaving — to prove the roster keeps everyone, the puppet pair spawns into
+## identity + live transforms, and leaving, to prove the roster keeps everyone, the puppet pair spawns into
 ## the Scenery once a position arrives, adopts the peer's state (clamped to bounds), and despawns cleanly.
 ## Then a crowd (SC-2): 300 peers in a world with interest cells, to prove only the budgeted puppets are
 ## built (and over several frames), that the tiers follow the local player as they walk, that peers leaving
