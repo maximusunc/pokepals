@@ -71,7 +71,10 @@ defmodule Server.Seeds do
       tags: ["meadow", "road", "windmills", "perspective", "inside", "explore", "cozy"], accent: [0.74, 0.86, 0.52], featured: true},
     %{world_id: "16161616-1616-1616-1616-161616161616", slug: "ohmstead", name: "Ohmstead", file: "ohmstead.json",
       blurb: "Behind the scenery, where the worlds are drawn: a glowing grid in the dark, and you as an outline of light. One sector has lost its power, and the Arcade deals a new board every day.",
-      tags: ["grid", "neon", "machine", "arcade", "puzzle", "together", "explore", "cozy", "secret"], accent: [0.37, 0.95, 1.0], featured: true}
+      tags: ["grid", "neon", "machine", "arcade", "puzzle", "together", "explore", "cozy", "secret"], accent: [0.37, 0.95, 1.0], featured: true},
+    %{world_id: "17171717-1717-1717-1717-171717171717", slug: "glintwold", name: "Glintwold", file: "glintwold.json",
+      blurb: "A world cut into clean flat faces by a light that is still slowly turning round it. In the middle hangs a stone in pieces that only looks whole from two places at once.",
+      tags: ["low-poly", "facets", "crystal", "light", "together", "explore", "cozy", "secret"], accent: [0.84, 0.86, 0.46], featured: true}
   ]
 
   # The currency the bazaar shop charges in.

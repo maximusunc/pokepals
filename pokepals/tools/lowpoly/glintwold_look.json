@@ -1,0 +1,249 @@
+{
+ "_comment": "Glintwold's LOOK fragment (the ground, the water, the visitors, the light). Deep-merged by the world generator into the spec's art block, with glintwold_art.json. Ramps are darkest first; the water's runs far (north) bank to near (south). Read by FacetGround (assets/gw_facet.gdshader) and OtherworldLook's facet look (assets/facet_actor.gdshader).",
+ "entities": {
+  "ground": {
+   "render": "facet",
+   "cell": 34,
+   "jitter": 0.32,
+   "relief": 0.55,
+   "hills": 0.62,
+   "hill_scale": 380,
+   "light_period": 600,
+   "light_start": -135,
+   "light_height": 0.85,
+   "contrast": 1.7,
+   "grain": 0.2,
+   "grass": [
+    [
+     0.435,
+     0.71,
+     0.478
+    ],
+    [
+     0.49,
+     0.761,
+     0.494
+    ],
+    [
+     0.561,
+     0.812,
+     0.541
+    ],
+    [
+     0.651,
+     0.859,
+     0.576
+    ],
+    [
+     0.788,
+     0.871,
+     0.557
+    ]
+   ],
+   "sand": [
+    [
+     0.863,
+     0.776,
+     0.557
+    ],
+    [
+     0.918,
+     0.851,
+     0.651
+    ],
+    [
+     0.953,
+     0.902,
+     0.737
+    ]
+   ],
+   "shore": [
+    [
+     0.91,
+     0.839,
+     0.635
+    ],
+    [
+     0.949,
+     0.89,
+     0.702
+    ],
+    [
+     0.98,
+     0.941,
+     0.812
+    ]
+   ],
+   "water": [
+    [
+     0.976,
+     0.78,
+     0.627
+    ],
+    [
+     0.957,
+     0.812,
+     0.753
+    ],
+    [
+     0.788,
+     0.91,
+     0.871
+    ],
+    [
+     0.663,
+     0.89,
+     0.863
+    ],
+    [
+     0.498,
+     0.827,
+     0.878
+    ]
+   ],
+   "stone": [
+    [
+     0.431,
+     0.408,
+     0.537
+    ],
+    [
+     0.6,
+     0.576,
+     0.678
+    ],
+    [
+     0.725,
+     0.706,
+     0.78
+    ]
+   ],
+   "sky": [
+    [
+     0.62,
+     0.875,
+     0.902
+    ],
+    [
+     0.741,
+     0.91,
+     0.878
+    ],
+    [
+     0.894,
+     0.929,
+     0.824
+    ],
+    [
+     0.984,
+     0.89,
+     0.69
+    ],
+    [
+     0.976,
+     0.78,
+     0.627
+    ]
+   ],
+   "cloud_color": [
+    1.0,
+    0.992,
+    0.969,
+    0.9
+   ],
+   "cloud_shade": [
+    0.929,
+    0.902,
+    0.949,
+    0.9
+   ],
+   "step_color": [
+    1.0,
+    0.973,
+    0.863
+   ],
+   "path_radius": 16,
+   "path_cut": 0.5,
+   "shore_width": 28,
+   "shore_cut": 0.2,
+   "water_relief": 0.1,
+   "band_wobble": 0.05,
+   "glint_share": 0.07,
+   "glint_period": 7.0,
+   "glint_alpha": 0.6,
+   "cliff": 70,
+   "sky_reach": 900,
+   "cloud_cell": 560,
+   "cloud_speed": 6,
+   "region_feather": 140,
+   "step_spacing": 22,
+   "step_life": 1.6,
+   "step_amount": 0.5,
+   "ring_speed": 60,
+   "lip_cut": 0.75,
+   "lip_dark": 0.06
+  },
+  "portal": {
+   "frame_tint": [
+    0.847,
+    0.831,
+    0.886
+   ]
+  }
+ },
+ "actor_look": {
+  "facet": {
+   "cell": 3,
+   "shade": 0.18,
+   "steps": 2,
+   "tilt": 0.9,
+   "light_height": 0.9,
+   "outline_cut": 0.2,
+   "outline_color": [
+    0.357,
+    0.329,
+    0.439
+   ],
+   "outline_lift": 0.55,
+   "rim": 0.12,
+   "min_taps": 2,
+   "keep_eyes": 1,
+   "saturation": 1.06
+  }
+ },
+ "daycycle": {
+  "enabled": true,
+  "period_sec": 900,
+  "loop": true,
+  "stops": [
+   {
+    "t": 0.0,
+    "tint": [
+     1.02,
+     1.0,
+     0.95
+    ],
+    "vignette": [
+     0.42,
+     0.3,
+     0.2
+    ],
+    "vstrength": 0.16
+   },
+   {
+    "t": 1.0,
+    "tint": [
+     1.05,
+     0.97,
+     0.88
+    ],
+    "vignette": [
+     0.48,
+     0.3,
+     0.18
+    ],
+    "vstrength": 0.22
+   }
+  ]
+ }
+}

@@ -1,0 +1,194 @@
+{
+ "_comment": "The Unfinished (tools/gen_glintwold.py): one rose-quartz stone cut along its own facets into nine shards. Images are @2x (draw at 'scale' 0.5). Every offset is in world px from the stone's FOOT (the ground point under it) to the image's top-left; drawing all nine at their offsets rebuilds 'whole' exactly. 'center' is the shard's visual centre from the foot, 'depth' how near the camera it sits (bigger = nearer). 'half' says whose view it answers to: 'you' shards are baked tinted toward aqua, 'companion' ones toward gold. The shadow stays put on the floor.",
+ "scale": 0.5,
+ "hover": 15.4,
+ "tints": {
+  "you": [
+   0.749,
+   0.937,
+   0.949
+  ],
+  "companion": [
+   1.0,
+   0.89,
+   0.651
+  ]
+ },
+ "whole": {
+  "file": "res://assets/gw_heart_whole.png",
+  "size": [
+   110.0,
+   190.0
+  ],
+  "offset": [
+   -55.0,
+   -182.0
+  ]
+ },
+ "shadow": {
+  "file": "res://assets/gw_heart_shadow.png",
+  "size": [
+   110.0,
+   40.0
+  ],
+  "offset": [
+   -55.0,
+   -20.0
+  ]
+ },
+ "shards": [
+  {
+   "file": "res://assets/gw_shard_0.png",
+   "offset": [
+    -25.0,
+    -155.0
+   ],
+   "size": [
+    27.0,
+    46.0
+   ],
+   "center": [
+    -11.03,
+    -132.17
+   ],
+   "half": "you",
+   "depth": 116.5
+  },
+  {
+   "file": "res://assets/gw_shard_1.png",
+   "offset": [
+    -9.0,
+    -155.0
+   ],
+   "size": [
+    33.0,
+    49.0
+   ],
+   "center": [
+    8.64,
+    -127.7
+   ],
+   "half": "companion",
+   "depth": 118.49
+  },
+  {
+   "file": "res://assets/gw_shard_2.png",
+   "offset": [
+    -34.0,
+    -124.0
+   ],
+   "size": [
+    23.0,
+    46.0
+   ],
+   "center": [
+    -22.22,
+    -99.7
+   ],
+   "half": "companion",
+   "depth": 98.54
+  },
+  {
+   "file": "res://assets/gw_shard_3.png",
+   "offset": [
+    -16.0,
+    -133.0
+   ],
+   "size": [
+    36.0,
+    54.0
+   ],
+   "center": [
+    -1.35,
+    -99.3
+   ],
+   "half": "you",
+   "depth": 115.21
+  },
+  {
+   "file": "res://assets/gw_shard_4.png",
+   "offset": [
+    7.0,
+    -116.0
+   ],
+   "size": [
+    31.0,
+    44.0
+   ],
+   "center": [
+    23.26,
+    -94.22
+   ],
+   "half": "companion",
+   "depth": 96.8
+  },
+  {
+   "file": "res://assets/gw_shard_5.png",
+   "offset": [
+    -34.0,
+    -93.0
+   ],
+   "size": [
+    31.0,
+    64.0
+   ],
+   "center": [
+    -20.69,
+    -66.89
+   ],
+   "half": "you",
+   "depth": 72.79
+  },
+  {
+   "file": "res://assets/gw_shard_6.png",
+   "offset": [
+    -11.0,
+    -80.0
+   ],
+   "size": [
+    49.0,
+    47.0
+   ],
+   "center": [
+    12.02,
+    -64.75
+   ],
+   "half": "companion",
+   "depth": 75.11
+  },
+  {
+   "file": "res://assets/gw_shard_7.png",
+   "offset": [
+    -30.0,
+    -59.0
+   ],
+   "size": [
+    36.0,
+    48.0
+   ],
+   "center": [
+    -10.79,
+    -35.24
+   ],
+   "half": "companion",
+   "depth": 48.46
+  },
+  {
+   "file": "res://assets/gw_shard_8.png",
+   "offset": [
+    -4.0,
+    -54.0
+   ],
+   "size": [
+    29.0,
+    43.0
+   ],
+   "center": [
+    11.23,
+    -37.38
+   ],
+   "half": "you",
+   "depth": 47.42
+  }
+ ]
+}

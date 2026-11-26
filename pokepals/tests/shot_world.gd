@@ -4,7 +4,9 @@ extends SceneTree
 ##     --script res://tests/shot_world.gd -- <fixture> <out_dir> [x,y ...]
 ## With no places it shoots where you arrive. At each place it sets you and your companion down, walks a few
 ## steps east (so footsteps, trails and a walking pose show), waits, and saves <fixture>_<n>.png. Add "ui" as a
-## place to keep the HUD in the pictures.
+## place to keep the HUD in the pictures. A place may name where your companion stands too, "x,y/cx,cy" (a tap on
+## the ground there, so a world's tap-to-stand holds it; else it is just set down). Add "still" to skip the walk
+## and wait longer at each place (Glintwold's stone closes after a two-second hold).
 
 const SETTLE := 60
 const WALK := 26
@@ -15,6 +17,8 @@ var _fixture := "vale"
 var _out := "user://"
 var _places: Array = []
 var _keep_ui := false
+var _still := false            # "still": no walk, a longer wait (a held pose can complete)
+var _companion_at: Array = []   # per place: where the companion is stood, or null
 var _demo_circuits := false   # "circuits": show Ohmstead's boards mid-play (there is no server to deal them here)
 var _at := -1
 var _phase_start := 0
@@ -36,9 +40,15 @@ func _process(_delta: float) -> bool:
 			if args[i] == "circuits":
 				_demo_circuits = true
 				continue
-			var xy := String(args[i]).split(",")
+			if args[i] == "still":
+				_still = true
+				continue
+			var parts := String(args[i]).split("/")
+			var xy := parts[0].split(",")
 			if xy.size() == 2:
 				_places.append(Vector2(float(xy[0]), float(xy[1])))
+				var cxy := parts[1].split(",") if parts.size() > 1 else PackedStringArray()
+				_companion_at.append(Vector2(float(cxy[0]), float(cxy[1])) if cxy.size() == 2 else null)
 		var router := root.get_node("/root/WorldRouter")
 		var net := root.get_node("/root/Net")
 		var id := "5407e5ee-0000-4000-8000-000000000001"
@@ -73,13 +83,15 @@ func _process(_delta: float) -> bool:
 		_next()
 		return false
 	var t := _frames - _phase_start
-	if t == 2:
+	var walk := 0 if _still else WALK
+	var settle := SETTLE * 4 if _still else SETTLE
+	if t == 2 and walk > 0:
 		Input.action_press("ui_right")
-	if t == 2 + WALK:
+	if t == 2 + walk and walk > 0:
 		Input.action_release("ui_right")
-	if t == 2 + WALK + SETTLE:
+	if t == 2 + walk + settle:
 		_shot("%d" % _at)
-	if t == 2 + WALK + SETTLE + 4:
+	if t == 2 + walk + settle + 4:
 		if _at + 1 >= _places.size():
 			quit(0)
 			return true
@@ -93,6 +105,10 @@ func _next() -> void:
 	var p: Vector2 = _places[_at]
 	_world._player.position = p
 	_world._companion.position = p + Vector2(-26, 14)
+	var c: Variant = _companion_at[_at] if _at < _companion_at.size() else null
+	if c != null:
+		_world._companion.position = c
+		_world._secret_dir.on_ground_tap(c)   # a world that stands it where you tap (Lanternfold, Glintwold) keeps it there
 
 
 func _shot(tag: String) -> void:

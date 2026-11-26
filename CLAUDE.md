@@ -496,6 +496,28 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   a real server; `tests/shot_world.gd` screenshots any world. Every finer choice is listed, open for review, in
 >   `docs/home-world-and-secrets-design.md` ("Ohmstead"). The ribbon race is not built.
 
+> **Glintwold (2026-11):** a third world that looks like **a different game**: flat-shaded **low-poly**, like a stylised VR
+> scene seen from above (issue #160, the "Facet" idea). Everything is flat faces, each one a single colour picked by how it
+> meets the light: a faceted green wold (3400x2600), zig-zag sand paths, a sharp-edged lake holding the sky in bands, low-poly
+> pines, round trees, crystal spires and angular hills. Reached through the Gateway (featured). Lore: it was **cut, not
+> grown**, by a light that is still turning.
+> - **Ground:** ONE shader over one quad (`FacetGround`, `assets/gw_facet.gdshader`; a `ground` entity whose render is
+>   `"facet"`): a jittered field of triangles; paths, shore and water come from a mask baked once and read at each
+>   triangle's centre. The face underfoot flashes when you step. The light's angle is a pure function of the shared clock
+>   (`FacetLight`, `scripts/world`, tested), one turn every 10 minutes, so everyone sees the same shading.
+> - **Visitors** are recut into small triangles by a shader (`actor_look.facet`, `assets/facet_actor.gdshader`, one shared
+>   material), in the colours underneath, shaded by the same light. Outfits and animals stay recognisable.
+> - **Art:** smooth `@2x`, from real small 3D meshes (`pokepals/tools/lowpoly/lowpoly.py`, baked by `tools/gen_glintwold.py`).
+>   Native creatures: glintbuck, cobblet, foldwing.
+> - **Secret:** the Unfinished, a stone hanging in nine shards over the Turning Floor. Some shards answer to where YOU stand
+>   and the rest to where your COMPANION stands; each half slides home only from its own unmarked mark. Tap the floor to
+>   stand your companion somewhere, or **Go look** and it finds its mark itself (truer with bond). Both home and held two
+>   seconds: it closes and the **offcut** falls at its foot. Any actor can stand in for a mark, so friends can close it
+>   together. New reveal type `facets` (server: "this world, standing at it"). Pure `FacetJoin` (`scripts/world`, tested)
+>   over `FacetsDirector` (`mechanics/`), `HeartstoneView`, `OffcutDraw`.
+> - Layout, lore and the secret: `tools/gen_glintwold_world.py`. Every finer choice is listed, open for review, in
+>   `docs/home-world-and-secrets-design.md` ("Glintwold").
+
 > **A living, detailed world (2026-10):** the meadow worlds were a flat floor under crisp sprites;
 > now the floor is pixel art too, and the world has life:
 > - **Ground:** a ground shader (`GroundLayer` + `assets/ground.gdshader`) tiles seamless pixel

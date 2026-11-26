@@ -298,10 +298,19 @@ def synthlead(midi, dur, vel, rng):
     return 0.22 * vel * out * env
 
 
+def prism(midi, dur, vel, rng):
+    """A crystal bar struck softly, like light catching an edge (Glintwold): a bright, pure tine with a
+    near-unison twin, so it shimmers slowly as it rings, and a high glassy overtone that dies first."""
+    f = hz(midi)
+    decay = 2.4 * (523.0 / f) ** 0.35
+    return 0.2 * _modal(f, [(1.0, 1.0, decay), (1.0035, 0.55, decay * 0.9), (3.0, 0.07, decay * 0.3),
+                            (5.97, 0.03, 0.25)], decay * 3.5, vel, 0.0, rng, attack=0.012)
+
+
 VOICES = {"pad": pad, "bass": bass, "kalimba": kalimba, "musicbox": musicbox, "chime": chime,
           "flute": flute, "reed": reed, "strings": strings, "glass": glass, "marimba": marimba,
           "toypiano": toypiano, "koto": koto, "harp": harp, "bowl": bowl, "drone": drone, "drum": drum,
-          "pulse": pulse, "synthbass": synthbass, "synthlead": synthlead}
+          "pulse": pulse, "synthbass": synthbass, "synthlead": synthlead, "prism": prism}
 
 
 # ---------------------------------------------------------------------------------------------- room
