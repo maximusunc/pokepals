@@ -593,7 +593,7 @@
 		}
 	},
 	"fountain": {"id": "wishing_fountain", "center": [0, 240], "radius": 72},
-	"doorway": {"arch": "late_arch", "at": [620, -900], "through": [0, -1830], "back_arch": "return_arch", "back_at": [0, -1790], "back_to": [620, -860]},
+	"doorway": {"arch": "late_arch", "at": [620, -900], "through": [14, -1834], "back_arch": "return_arch", "back_at": [100, -1812], "back_to": [620, -860], "beside": [-22, 14], "inside_at": [-7, -12], "inside_scale": 0.5, "ask_range": 380, "tap_radius": 48, "threshold": 18, "reach": 10, "go_speed": 92, "run_speed": 128, "run_distance": 240, "go_patience": 8, "pet_pause": 2.5, "sniff_low": 1.8, "sniff_high": 1.0, "step_seconds": 1.6, "vanish": 0.3, "hold_low": 7.0, "hold_high": 16.0, "out_seconds": 1.4, "cooldown": 1.2, "door_half_width": 20, "line": 4, "step_max": 48, "notice_range_low": 260, "notice_range_high": 560, "notice_cooldown_low": 16, "notice_cooldown_high": 7, "notice_hold": 2.4, "lines": {"notice": "Your companion keeps looking at the arch out in the pool. There's an evening in it.", "set_off": "Your companion sets off for the arch in the pool.", "busy": "Your companion is already on its way to the arch.", "sniff": "It sniffs at the doorway, ears up.", "inside": "Your companion steps into the picture and turns to look back at you. The door is open.", "came_out": "Your companion trots back out of the evening and finds you. Ask again whenever you like.", "called_out": "Your companion hops back out of the picture and comes to you.", "called_off": "Your companion leaves the arch for now and comes to you.", "lost_way": "Your companion can't find its way to the arch from here.", "plain_through": "You come out the other side, back in the pool. The evening stays in the picture.", "through": "You step through after it, into the evening.", "back": "You step back into the afternoon. It waited for you too."}},
 	"crowd": {"cell": 480, "full": 40, "lite": 80},
 	"seats": [
 		{"id": "fountain_bench_1_a", "at": [138, 244], "face": [-0.998, -0.067]},
@@ -628,8 +628,8 @@
 		{"id": "pool_edge_4", "at": [120, -456], "face": [0.0, -1.0]},
 		{"id": "pool_edge_5", "at": [560, -456], "face": [0.0, -1.0]},
 		{"id": "pool_edge_6", "at": [820, -456], "face": [0.0, -1.0]},
-		{"id": "terrace_chair", "at": [-40, -1902], "face": [1.0, 0.0]},
-		{"id": "terrace_cushion", "at": [40, -1898], "face": [-1.0, 0.0]}
+		{"id": "terrace_chair", "at": [-96, -1892], "face": [1.0, 0.0]},
+		{"id": "terrace_cushion", "at": [-16, -1888], "face": [-1.0, 0.0]}
 	],
 	"ponds": [],
 	"paths": [],
@@ -654,7 +654,7 @@
 		{"from": [454, -354], "to": [454, -328], "thickness": 18},
 		{"from": [916, -354], "to": [916, -328], "thickness": 18},
 		{"from": [984, -354], "to": [984, -328], "thickness": 18},
-		{"from": [-10, -1912], "to": [10, -1912], "thickness": 22}
+		{"from": [-66, -1902], "to": [-46, -1902], "thickness": 22}
 	],
 	"buildings": [
 		{"id": "promenade_arch", "view": "arch", "rect": [-48, 628, 96, 12], "h": 120, "solid_rects": [[-48, 628, 22, 12], [26, 628, 22, 12]]},
@@ -662,7 +662,7 @@
 		{"id": "gallery_arch", "view": "arch", "rect": [1092, -72, 96, 12], "h": 120, "solid_rects": [[1092, -72, 22, 12], [1166, -72, 22, 12]]},
 		{"id": "deck_arch", "view": "arch", "rect": [-748, -392, 96, 12], "h": 120, "solid_rects": [[-748, -392, 22, 12], [-674, -392, 22, 12]]},
 		{"id": "late_arch", "view": "arch", "rect": [572, -912, 96, 12], "h": 120, "solid_rects": [[572, -912, 22, 12], [646, -912, 22, 12]], "picture": "dusk"},
-		{"id": "return_arch", "view": "arch", "rect": [-48, -1802, 96, 12], "h": 120, "solid_rects": [[-48, -1802, 22, 12], [26, -1802, 22, 12]], "picture": "noon"}
+		{"id": "return_arch", "view": "arch", "rect": [52, -1824, 96, 12], "h": 120, "solid_rects": [[52, -1824, 22, 12], [126, -1824, 22, 12]], "picture": "noon"}
 	],
 	"landmarks": [
 		{"type": "ll_great_palm", "position": [-820, -220]},
@@ -735,9 +735,9 @@
 	"props": [
 		{"id": "terrace_fern_w", "type": "ll_fern_pot", "position": [-150, -1940], "color": [0.965, 0.937, 0.902], "label": "a fern in a pot", "solid": true, "collision_radius": 8},
 		{"id": "terrace_fern_e", "type": "ll_fern_pot", "position": [150, -1940], "color": [0.965, 0.937, 0.902], "label": "a fern in a pot", "solid": true, "collision_radius": 8},
-		{"id": "terrace_table", "type": "ll_table_set", "position": [0, -1900], "color": [0.965, 0.937, 0.902], "label": "a table for two", "tags": ["table", "evening"], "interactive": true, "lore": "A small round table laid for two, with a candle already lit. One place has a chair. The other has a cushion on the floor, just the right height for someone with four legs.", "solid": false},
-		{"id": "terrace_chair", "type": "ll_chair", "position": [-40, -1898], "color": [0.965, 0.937, 0.902], "label": "a chair", "solid": false},
-		{"id": "terrace_cushion", "type": "ll_cushion", "position": [40, -1894], "color": [0.949, 0.608, 0.71], "label": "a floor cushion", "solid": false},
+		{"id": "terrace_table", "type": "ll_table_set", "position": [-56, -1890], "color": [0.965, 0.937, 0.902], "label": "a table for two", "tags": ["table", "evening"], "interactive": true, "lore": "A small round table laid for two, with a candle already lit. One place has a chair. The other has a cushion on the floor, just the right height for someone with four legs.", "solid": false},
+		{"id": "terrace_chair", "type": "ll_chair", "position": [-96, -1888], "color": [0.965, 0.937, 0.902], "label": "a chair", "solid": false},
+		{"id": "terrace_cushion", "type": "ll_cushion", "position": [-16, -1884], "color": [0.949, 0.608, 0.71], "label": "a floor cushion", "solid": false},
 		{"id": "beach_ball", "type": "ll_ball", "position": [-300, -720], "color": [0.98, 0.62, 0.74], "label": "a beach ball", "tags": ["toy", "round"], "interactive": true, "lore": "A beach ball, drifting on the still water. Nobody remembers bringing it. It has never once drifted off the edge.", "solid": false},
 		{"id": "pool_rail_w", "type": "ll_pool_rail", "position": [-220, -466], "color": [0.86, 0.9, 0.96], "label": "a chrome rail", "interactive": true, "lore": "A shiny ladder rail into the pool. The pool is only ankle deep. The rail is here for the look of the thing.", "solid": false},
 		{"id": "pool_rail_e", "type": "ll_pool_rail", "position": [220, -466], "color": [0.86, 0.9, 0.96], "label": "a chrome rail", "solid": false},
@@ -792,8 +792,8 @@
 	"secret": {
 		"id": "lingerlong_place_card",
 		"position": [
-			8,
-			-1898
+			-48,
+			-1888
 		],
 		"radius": 120.0,
 		"prop": {
@@ -820,10 +820,9 @@
 		"found_line": "You tuck the place card away. The plaza saved you an evening, and now you have the proof.",
 		"home_line": "Something has changed at home.",
 		"qualities": [
-			"evening",
-			"kind",
-			"small",
-			"made"
+			"warm",
+			"quiet",
+			"crafted"
 		],
 		"keepsake": {
 			"id": "lingerlong_place_card_kept",

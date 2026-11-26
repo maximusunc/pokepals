@@ -126,7 +126,7 @@ ARCHES = [
     ("gallery_arch", (1140, -60), None),
     ("deck_arch", (-700, -380), None),
     ("late_arch", (620, -900), "dusk"),
-    ("return_arch", (0, -1790), "noon"),
+    ("return_arch", (100, -1812), "noon"),   # the terrace's way back: east of the table, clear of it (see the doorway)
 ]
 
 
@@ -141,8 +141,38 @@ def arch(id, pos, view):
 
 
 BUILDINGS = [arch(*a) for a in ARCHES]
-DOORWAY = {"arch": "late_arch", "at": [620, -900], "through": [0, -1830], "back_arch": "return_arch",
-           "back_at": [0, -1790], "back_to": [620, -860]}
+# ── the doorway: the Late Arch's secret way (DoorwayGate / DoorwayDirector) ─────────────────────────────
+# One arch in the pool shows the evening in its doorway. Walk through it yourself and you come out the other side;
+# send your companion (tap the arch, or Go look near it) and it trots to the threshold, sniffs, and steps into the
+# picture, and while it waits in there the doorway is open: step in from the front and you are both on the terrace
+# (`through`). The terrace's arch (`back_at`, showing the afternoon) takes you back (`back_to`) from either side,
+# always. Every number is the gate's; `lines` are what gets said.
+DOORWAY = {
+    "arch": "late_arch", "at": [620, -900], "through": [14, -1834], "back_arch": "return_arch",
+    "back_at": [100, -1812], "back_to": [620, -860],
+    "beside": [-22, 14],                     # where the companion lands, from you, on either crossing
+    "inside_at": [-7, -12], "inside_scale": 0.5,   # where it stands in the picture (arch space, from its foot), how small
+    "ask_range": 380, "tap_radius": 48, "threshold": 18, "reach": 10,
+    "go_speed": 92, "run_speed": 128, "run_distance": 240, "go_patience": 8, "pet_pause": 2.5,
+    "sniff_low": 1.8, "sniff_high": 1.0, "step_seconds": 1.6, "vanish": 0.3,
+    "hold_low": 7.0, "hold_high": 16.0, "out_seconds": 1.4, "cooldown": 1.2,
+    "door_half_width": 20, "line": 4, "step_max": 48,
+    "notice_range_low": 260, "notice_range_high": 560, "notice_cooldown_low": 16, "notice_cooldown_high": 7, "notice_hold": 2.4,
+    "lines": {
+        "notice": "Your companion keeps looking at the arch out in the pool. There's an evening in it.",
+        "set_off": "Your companion sets off for the arch in the pool.",
+        "busy": "Your companion is already on its way to the arch.",
+        "sniff": "It sniffs at the doorway, ears up.",
+        "inside": "Your companion steps into the picture and turns to look back at you. The door is open.",
+        "came_out": "Your companion trots back out of the evening and finds you. Ask again whenever you like.",
+        "called_out": "Your companion hops back out of the picture and comes to you.",
+        "called_off": "Your companion leaves the arch for now and comes to you.",
+        "lost_way": "Your companion can't find its way to the arch from here.",
+        "plain_through": "You come out the other side, back in the pool. The evening stays in the picture.",
+        "through": "You step through after it, into the evening.",
+        "back": "You step back into the afternoon. It waited for you too.",
+    },
+}
 
 # ── trees: [x, y, kind] (palms, columns, busts on plinths, lamps, parasols) ──────────────────────────
 TREES = []
@@ -323,15 +353,17 @@ prop("beach_ball", "ll_ball", (-300, -720), [0.98, 0.62, 0.74], "a beach ball",
      "A beach ball, drifting on the still water. Nobody remembers bringing it. It has never once drifted off the edge.",
      tags=["toy", "round"], solid=False)
 
-# The evening terrace: the table for two, a chair, a floor cushion for whoever doesn't want a chair, fern pots.
-prop("terrace_table", "ll_table_set", (0, -1900), MARBLE, "a table for two",
+# The evening terrace: the table for two, a chair, a floor cushion for whoever doesn't want a chair, fern pots. The
+# table stands west of the middle and the return arch east of it, nearer the front, so nothing hides the table.
+TABLE = (-56, -1890)
+prop("terrace_table", "ll_table_set", TABLE, MARBLE, "a table for two",
      "A small round table laid for two, with a candle already lit. One place has a chair. The other has a cushion on the "
      "floor, just the right height for someone with four legs.", tags=["table", "evening"], solid=False)
-FENCES.append({"from": [-10, -1912], "to": [10, -1912], "thickness": 22})
-prop("terrace_chair", "ll_chair", (-40, -1898), MARBLE, "a chair", solid=False)
-prop("terrace_cushion", "ll_cushion", (40, -1894), CUSHION, "a floor cushion", solid=False)
-seat("terrace_chair", (-40, -1902), (1, 0))
-seat("terrace_cushion", (40, -1898), (-1, 0))
+FENCES.append({"from": [TABLE[0] - 10, TABLE[1] - 12], "to": [TABLE[0] + 10, TABLE[1] - 12], "thickness": 22})
+prop("terrace_chair", "ll_chair", (TABLE[0] - 40, TABLE[1] + 2), MARBLE, "a chair", solid=False)
+prop("terrace_cushion", "ll_cushion", (TABLE[0] + 40, TABLE[1] + 6), CUSHION, "a floor cushion", solid=False)
+seat("terrace_chair", (TABLE[0] - 40, TABLE[1] - 2), (1, 0))
+seat("terrace_cushion", (TABLE[0] + 40, TABLE[1] + 2), (-1, 0))
 for x in (-150, 150):
     prop("terrace_fern_%s" % ("w" if x < 0 else "e"), "ll_fern_pot", (x, -1940), MARBLE, "a fern in a pot", solid=True, radius=8)
 
@@ -345,7 +377,7 @@ SECRET_COMMENT = ("This world's one SECRET (docs/home-world-and-secrets-design.m
                   "checks 'this world, standing at it'.")
 SECRET = {
     "id": "lingerlong_place_card",
-    "position": [8, -1898],
+    "position": [-48, -1888],
     "radius": 120.0,
     "prop": {"type": "ll_place_card", "color": [1.0, 0.97, 0.9], "label": "a place card", "tags": ["small", "made", "kind", "evening"]},
     "lore": "A little folded card on the table, propped against the candle. In neat handwriting it says: 'Saved for you. "
@@ -357,7 +389,7 @@ SECRET = {
     },
     "found_line": "You tuck the place card away. The plaza saved you an evening, and now you have the proof.",
     "home_line": "Something has changed at home.",
-    "qualities": ["evening", "kind", "small", "made"],
+    "qualities": ["warm", "quiet", "crafted"],   # three of the home's eight core qualities
     "keepsake": {
         "id": "lingerlong_place_card_kept", "type": "kept_place_card", "color": [1.0, 0.97, 0.9], "label": "a place card on a little stand",
         "line": "The place card from the terrace, on a little brass stand. Your companion likes to sit beside it, as if it is still being saved a seat.",
@@ -548,6 +580,23 @@ assert on_floor(*PLAYER_SPAWN) and on_floor(*COMPANION_SPAWN), "you arrive on th
 assert on_floor(*DOORWAY["through"]) and on_floor(*DOORWAY["back_to"]) is False and on_ground(*DOORWAY["back_to"]), \
     "the doorway sets you down on the terrace, and back in the pool"
 assert on_floor(*SECRET["position"]) and abs(SECRET["position"][1] - TERRACE[1]) < 200, "the place card is on the terrace"
+# the doorway names the arches where they stand, and the terrace's arch hides nothing on the table
+_arch_at = {b["id"]: (b["rect"][0] + b["rect"][2] / 2, b["rect"][1] + b["rect"][3]) for b in d["buildings"]}
+assert tuple(DOORWAY["at"]) == _arch_at[DOORWAY["arch"]] and tuple(DOORWAY["back_at"]) == _arch_at[DOORWAY["back_arch"]], \
+    "the doorway's arches stand where it says"
+bx, by = DOORWAY["back_at"]
+for p in d["props"]:
+    if p["id"] in ("terrace_table", "terrace_chair", "terrace_cushion"):
+        x, y = p["position"]
+        w = SIZES[p["type"]][0] / 2
+        assert x + w < bx - ARCH_W / 2 - 4 or y > by, "the return arch stands clear of %s" % p["id"]
+sx, sy = SECRET["position"]
+assert sx + 6 < bx - ARCH_W / 2 - 4, "the return arch stands clear of the place card"
+tx, ty = DOORWAY["through"]
+assert on_floor(tx, ty) and on_floor(tx + DOORWAY["beside"][0], ty + DOORWAY["beside"][1]), "you both land on the terrace"
+assert abs(tx - bx) > DOORWAY["door_half_width"] + 10 or ty > by + 20, "you don't land in the way back"
+assert on_ground(DOORWAY["back_to"][0] + DOORWAY["beside"][0], DOORWAY["back_to"][1] + DOORWAY["beside"][1]), "you both land in the pool"
+assert by + 30 <= TERRACE[3], "there's room to walk into the return arch from the front"
 # the middle of the court stays open: nothing stands either side of the promenade, or north of the bench ring
 OPEN = [(-580, -220, -240, 820), (240, -220, 580, 820), (-240, -240, 240, 60)]
 for t in d["trees"] + [p["position"] for p in d["props"]]:
