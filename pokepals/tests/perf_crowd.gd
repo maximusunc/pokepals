@@ -8,7 +8,7 @@ extends SceneTree
 ## a few hundred frames:
 ##   - script ms: the frame's own work on the main thread, from the first node's _process to the end of the
 ##     deferred calls that follow the last one (which is where every queued _draw runs), so it holds every
-##     node's _process, the Net handlers and the redraws, and nothing the engine sleeps or renders. Average
+##     node's _process, the Net handlers and the redraws, and nothing the engine sleeps or renders. Median
 ##     and 95th percentile. Two bracket nodes (process_priority at both extremes) take the times.
 ##   - frame ms: wall time between frames. Only meaningful with a renderer, where the run is uncapped (no
 ##     vsync, no fps cap) so a frame takes exactly as long as its work plus the rendering. Headless runs at a
@@ -209,8 +209,8 @@ func _finish_size() -> void:
 		drawn = pres.peer_count()
 	_rows.append({
 		"n": _sizes[_at],
-		"script": _avg("script"), "script_p95": _p95("script"),
-		"frame": _avg("frame"), "frame_p95": _p95("frame"),
+		"script": _pct("script", 0.5), "script_p95": _pct("script", 0.95),
+		"frame": _pct("frame", 0.5), "frame_p95": _pct("frame", 0.95),
 		"draws": _avg("draws"),
 		"inject": _avg("inject"),
 		"nodes": int(Performance.get_monitor(Performance.OBJECT_NODE_COUNT)),
@@ -229,19 +229,19 @@ func _avg(key: String) -> float:
 	return s / float(a.size())
 
 
-func _p95(key: String) -> float:
+func _pct(key: String, q: float) -> float:
 	var a: Array = (_samples.get(key, []) as Array).duplicate()
 	if a.is_empty():
 		return 0.0
 	a.sort()
-	return float(a[mini(a.size() - 1, int(a.size() * 0.95))])
+	return float(a[mini(a.size() - 1, int(a.size() * q))])
 
 
 func _report() -> void:
 	print("")
 	print("PERF CROWD (walk %d%%%s, %s)" % [int(_walk_share * 100.0), (", cell %d" % int(_cell)) if _cell > 0.0 else "",
 		RenderingServer.get_current_rendering_driver_name() if DisplayServer.get_name() != "headless" else "headless"])
-	print("| peers | script ms (avg / p95) | inject ms | frame ms (avg / p95) | draws | nodes | drawn / roster |")
+	print("| peers | script ms (median / p95) | inject ms | frame ms (median / p95) | draws | nodes | drawn / roster |")
 	print("|---|---|---|---|---|---|---|")
 	for r in _rows:
 		print("| %d | %.2f / %.2f | %.2f | %.2f / %.2f | %d | %d | %d / %d |" % [r["n"], r["script"], r["script_p95"],
