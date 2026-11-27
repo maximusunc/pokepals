@@ -51,7 +51,7 @@ func _init() -> void:
 	add_child(box)
 
 	var title := Label.new()
-	title.text = "KITHBOUND"
+	title.text = "GATES OF ELYRA"
 	title.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
 	var wordmark := UiFonts.pixel(false, 1)
 	if wordmark != null:

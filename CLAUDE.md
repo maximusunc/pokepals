@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-## Project: Kithbound (working title — rename freely)
+## Project: Gates of Elyra
 
 A cozy, 2D, companion-centered world game, built in **Godot 4** with **GDScript**,
 designed mobile-friendly from the start.
@@ -635,7 +635,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > See the design doc's "Second slice" section.
 
 > **Loading screen & welcome (2026-11):** the three things you see before the world appear as one
-> continuous screen: the KITHBOUND wordmark and a little fox (fox_0's sheet) on a deep warm-ink
+> continuous screen: the GATES OF ELYRA wordmark and a little fox (fox_0's sheet) on a deep warm-ink
 > background, at the same spots on the 640×360 canvas.
 > - **Web:** the download page is a custom HTML shell (`web/shell.html`, set in the Web export preset).
 >   The fox trots over a gold progress path.

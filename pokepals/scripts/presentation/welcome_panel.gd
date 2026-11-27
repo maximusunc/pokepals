@@ -1,6 +1,6 @@
 class_name WelcomePanel
 extends CozySheet
-## The newcomer's CARDS: a few short, warm pages that tell someone what Kithbound is and what to do
+## The newcomer's CARDS: a few short, warm pages that tell someone what Gates of Elyra is and what to do
 ## next. Each is one named card from data/welcome.json, and a panel plays any sequence of them:
 ##   * "welcome"  right after the connection gate, for a brand-new player, with a live portrait of
 ##                their starting look; its button leads into the wardrobe
@@ -40,7 +40,7 @@ func _build() -> void:
 		if all.has(id):
 			_cards.append(all[id])
 	if _cards.is_empty():
-		_cards.append({ "heading": "Welcome to Kithbound." })
+		_cards.append({ "heading": "Welcome to Gates of Elyra." })
 	_page = VBoxContainer.new()
 	_page.custom_minimum_size = Vector2(0, PAGE_MIN_HEIGHT)
 	_page.add_theme_constant_override("separation", 6)

@@ -1,4 +1,4 @@
-# Kithbound
+# Gates of Elyra
 
 A cozy, 2D, companion-centered world game built in **Godot 4.6** with **GDScript**,
 mobile-friendly from the start.
@@ -12,7 +12,7 @@ mobile-friendly from the start.
 
 The Godot project lives in the [`pokepals/`](pokepals/) subdirectory. (An earlier
 turn-based battle prototype still lives under `scripts/battle/` + `scripts/ui/` +
-`scenes/battle.tscn`; it predates the pivot to Kithbound and is kept for reference.)
+`scenes/battle.tscn`; it predates the pivot to Gates of Elyra and is kept for reference.)
 
 ## Architecture
 

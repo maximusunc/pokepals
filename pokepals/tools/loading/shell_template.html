@@ -1,6 +1,6 @@
 <!DOCTYPE html>
 <!--
-  Kithbound's web loading page: a Godot "custom HTML shell".
+  Gates of Elyra's web loading page: a Godot "custom HTML shell".
 
   THIS IS A TEMPLATE. tools/gen_loading.py fills the double-underscore placeholders (colours, the inlined wordmark
   and fox images, layout) and writes the real shell to web/shell.html, which the Web export preset
@@ -176,7 +176,7 @@ body {
 
 		<div id="status">
 			<div id="stage">
-				<img id="wordmark" src="__WORDMARK_SRC__" alt="Kithbound">
+				<img id="wordmark" src="__WORDMARK_SRC__" alt="Gates of Elyra">
 				<div id="fox-shadow"></div>
 				<div id="fox"><img src="__FOX_SRC__" alt=""></div>
 				<div id="path" class="waiting"><div id="path-fill"></div></div>
@@ -276,7 +276,7 @@ const engine = new Engine(GODOT_CONFIG);
 			});
 		} else {
 			// Display the message as usual
-			const missingMsg = 'Kithbound can\'t run in this browser.\nIt\'s missing:\n';
+			const missingMsg = 'Gates of Elyra can\'t run in this browser.\nIt\'s missing:\n';
 			displayFailureNotice(missingMsg + missing.join('\n'));
 		}
 	} else {

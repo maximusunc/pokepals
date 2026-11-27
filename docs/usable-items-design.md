@@ -27,7 +27,7 @@ on their own, because **what they pay out has nowhere to go**:
 The model is the Oasis from *Ready Player One*, without the fighting. People keep coming back
 because **items do things, and they work everywhere**: you earn something in one world, buy or trade
 for it, and it opens up something in another world. That is the missing connection between
-Kithbound's worlds. It is also the right foundation for the north star: when players eventually
+Gates of Elyra's worlds. It is also the right foundation for the north star: when players eventually
 build worlds, those worlds plug into the same item vocabulary, so what you carry stays meaningful
 anywhere.
 

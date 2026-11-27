@@ -1,4 +1,4 @@
-# Playing Kithbound in a browser
+# Playing Gates of Elyra in a browser
 
 The game's renderer and input are already web-ready (Compatibility/WebGL2 renderer,
 touch + keyboard both wired up), so getting into a browser is a **packaging + hosting**

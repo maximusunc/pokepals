@@ -334,12 +334,12 @@ def main():
     out_dir = Path(args.out).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    scratch = Path(tempfile.mkdtemp(prefix="kithbound-packs-"))
+    scratch = Path(tempfile.mkdtemp(prefix="elyra-packs-"))
     work = scratch / "project"
     try:
         log(f">> Scratch copy of the project in {scratch}")
         shutil.copytree(PROJECT, work, ignore=shutil.ignore_patterns(
-            ".godot", "previews", "__pycache__", "*.pck", "Kithbound*", "android", "MoltenVK*"))
+            ".godot", "previews", "__pycache__", "*.pck", "Kithbound*", "GatesOfElyra*", "android", "MoltenVK*"))
         log(">> Importing assets (scratch copy)")
         godot.run(["--path", work, "--import"], cwd=work)
 

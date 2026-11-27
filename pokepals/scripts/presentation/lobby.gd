@@ -65,7 +65,7 @@ func _ready() -> void:
 ## same pixel-caps treatment as the wardrobe's WARDROBE header), quiet paper status text,
 ## and the gold primary button for Retry.
 func _apply_style() -> void:
-	_title.text = "KITHBOUND"
+	_title.text = "GATES OF ELYRA"
 	var wordmark := UiFonts.pixel(false, 1)
 	if wordmark != null:
 		_title.add_theme_font_override("font", wordmark)

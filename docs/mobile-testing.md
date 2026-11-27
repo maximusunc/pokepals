@@ -1,4 +1,4 @@
-# Mobile testing — getting Kithbound onto a phone
+# Mobile testing — getting Gates of Elyra onto a phone
 
 The single-player slice is a test of **feel** on a touch device, so the fastest way to learn
 something is to hold the companion in your hand. This doc covers both targets.
