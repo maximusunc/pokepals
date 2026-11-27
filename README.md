@@ -10,7 +10,7 @@ mobile-friendly from the start.
 > Remaining Rung-4 step: proximity text chat. Still a test of FEEL, not features.
 > See [`CLAUDE.md`](CLAUDE.md) for the full vision and the staged roadmap.
 
-The Godot project lives in the [`pokepals/`](pokepals/) subdirectory. (An earlier
+The Godot project lives in the [`gates-of-elyra/`](gates-of-elyra/) subdirectory. (An earlier
 turn-based battle prototype still lives under `scripts/battle/` + `scripts/ui/` +
 `scenes/battle.tscn`; it predates the pivot to Gates of Elyra and is kept for reference.)
 
@@ -19,19 +19,19 @@ turn-based battle prototype still lives under `scripts/battle/` + `scripts/ui/` 
 Two disciplines held from day one:
 
 1. **Separate logic from presentation.** The companion's *mind* —
-   [`scripts/world/companion_brain.gd`](pokepals/scripts/world/companion_brain.gd) —
+   [`scripts/world/companion_brain.gd`](gates-of-elyra/scripts/world/companion_brain.gd) —
    is pure behavior logic: a `RefCounted` that takes positions and world events in
    and returns *intent* out (where it wants to go, what it's looking at, how it
    feels). It references no nodes, UI, or rendering.
 2. **Keep the world layer presentation-agnostic.** The brain works in abstract
    geometry (`Vector2`), so it isn't welded to 2D and could later run under a
    different presentation or on a server. The presentation layer
-   ([`scripts/presentation/`](pokepals/scripts/presentation)) reads that intent and
+   ([`scripts/presentation/`](gates-of-elyra/scripts/presentation)) reads that intent and
    makes it look alive — easing, eyes that turn toward what it's attending to, bobs
    and hops.
 
 ```
-pokepals/
+gates-of-elyra/
   scripts/world/         PURE world/companion logic (companion_brain, world_data) — no UI refs
   scripts/presentation/  player, companion view, world art, camera, joystick, world controller
   scenes/                world.tscn (main scene) + player.tscn + companion.tscn
@@ -48,7 +48,7 @@ The game is **online-only**: your companion lives on the server, so you connect 
    relay on `:4000` plus its PostgreSQL. (Other ways to run it — including no-Docker — are in
    [`server/DEPLOYMENT.md`](server/DEPLOYMENT.md).)
 2. Install [Godot 4.6](https://godotengine.org/download) (standard build, no C#).
-3. Open the project: `godot --path pokepals` (or open `pokepals/project.godot` in the editor) and
+3. Open the project: `godot --path gates-of-elyra` (or open `gates-of-elyra/project.godot` in the editor) and
    press **Play** (main scene `scenes/world.tscn`). At the gate, enter `ws://127.0.0.1:4000/ws`
    (or a friend's server IP) and press **Connect** — your companion loads from the server.
 4. Wander with **arrow keys / WASD** (or the on-screen thumbstick on touch). Your companion trails
@@ -59,7 +59,7 @@ The game is **online-only**: your companion lives on the server, so you connect 
 To play it on a phone (where the touch feel actually lives), see
 [`docs/mobile-testing.md`](docs/mobile-testing.md) — iOS (needs a Mac) and
 Android (no Mac, fastest) walkthroughs. Export presets for both ship in
-[`pokepals/export_presets.cfg`](pokepals/export_presets.cfg).
+[`gates-of-elyra/export_presets.cfg`](gates-of-elyra/export_presets.cfg).
 
 ## The server
 
@@ -76,41 +76,41 @@ real scenes end to end.
 
 ```sh
 # One-time per fresh checkout: import the project so class_name globals register.
-godot --headless --path pokepals --import
+godot --headless --path gates-of-elyra --import
 
 # Pure-logic tests (companion brain + the legacy battle core):
-godot --headless --path pokepals --script res://tests/run_tests.gd
+godot --headless --path gates-of-elyra --script res://tests/run_tests.gd
 
 # Scene smoke tests (drive the real scenes; verify wiring runs without errors):
-godot --headless --path pokepals --script res://tests/smoke_world.gd
-godot --headless --path pokepals --script res://tests/smoke_ui.gd
-godot --headless --path pokepals --script res://tests/smoke_gateway.gd
-godot --headless --path pokepals --script res://tests/smoke_bobbledown.gd
-godot --headless --path pokepals --script res://tests/smoke_drifthallow.gd
-godot --headless --path pokepals --script res://tests/smoke_dozewood.gd
-godot --headless --path pokepals --script res://tests/smoke_steamhollow.gd
-godot --headless --path pokepals --script res://tests/smoke_hollowsong.gd
-godot --headless --path pokepals --script res://tests/smoke_underroot.gd
-godot --headless --path pokepals --script res://tests/smoke_lanternfold.gd
-godot --headless --path pokepals --script res://tests/smoke_stillglass.gd
-godot --headless --path pokepals --script res://tests/smoke_ebbmere.gd
-godot --headless --path pokepals --script res://tests/smoke_loftreach.gd
-godot --headless --path pokepals --script res://tests/smoke_thimblewick.gd
-godot --headless --path pokepals --script res://tests/smoke_ohmstead.gd
-godot --headless --path pokepals --script res://tests/smoke_ohmstead_walk.gd   # the companion really walks the boards (~3.5 min)
-godot --headless --path pokepals --script res://tests/smoke_glyphfall.gd
-godot --headless --path pokepals --script res://tests/smoke_farmeadow.gd
-godot --headless --path pokepals --script res://tests/smoke_lingerlong.gd
-godot --headless --path pokepals --script res://tests/smoke_lingerlong_secret.gd   # the Late Arch and the place card
-godot --headless --path pokepals --script res://tests/smoke_hangout.gd             # the wishing fountain and sitting
-godot --headless --path pokepals --script res://tests/smoke_glintwold.gd
-godot --headless --path pokepals --script res://tests/smoke_packs.gd
-godot --headless --path pokepals --script res://tests/smoke_harvest.gd
-godot --headless --path pokepals --script res://tests/smoke_carpenter.gd
-godot --headless --path pokepals --script res://tests/smoke_house.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_world.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_ui.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_gateway.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_bobbledown.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_drifthallow.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_dozewood.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_steamhollow.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_hollowsong.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_underroot.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_lanternfold.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_stillglass.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_ebbmere.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_loftreach.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_thimblewick.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_ohmstead.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_ohmstead_walk.gd   # the companion really walks the boards (~3.5 min)
+godot --headless --path gates-of-elyra --script res://tests/smoke_glyphfall.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_farmeadow.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_lingerlong.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_lingerlong_secret.gd   # the Late Arch and the place card
+godot --headless --path gates-of-elyra --script res://tests/smoke_hangout.gd             # the wishing fountain and sitting
+godot --headless --path gates-of-elyra --script res://tests/smoke_glintwold.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_packs.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_harvest.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_carpenter.gd
+godot --headless --path gates-of-elyra --script res://tests/smoke_house.gd
 
 # The web build's world-pack planner (Python):
-python3 -m unittest discover -s pokepals/tools/packs
+python3 -m unittest discover -s gates-of-elyra/tools/packs
 ```
 
 Opening the project in the Godot editor once does the same import as the first
@@ -119,7 +119,7 @@ command. (CI-friendly: the test runner's exit code is the number of failures.)
 ## Tune the feel
 
 The companion's whole personality is data. Edit
-[`pokepals/data/companion.json`](pokepals/data/companion.json) — follow distances,
+[`gates-of-elyra/data/companion.json`](gates-of-elyra/data/companion.json) — follow distances,
 walk/run speed, idle rhythm, curiosity, clinginess — and replay to feel the
 difference, no code changes. Reshape the clearing in
-[`pokepals/data/world.json`](pokepals/data/world.json).
+[`gates-of-elyra/data/world.json`](gates-of-elyra/data/world.json).

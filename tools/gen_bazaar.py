@@ -502,6 +502,6 @@ assert sum(1 for i in d["props"] if i.get("builds") == "house") == 1, "exactly o
 for i in d["props"]:
     want = bool(i.get("lore")) or i["type"] == "shopkeeper"
     assert bool(i.get("interactive", False)) == want, "interactive flag mismatch on %s" % i["id"]
-for path in ["server/priv/world_seeds/bazaar.json", "pokepals/tests/world_fixtures/bazaar.json"]:
+for path in ["server/priv/world_seeds/bazaar.json", "gates-of-elyra/tests/world_fixtures/bazaar.json"]:
     open(path, "w").write(text)
 print("wrote both files")

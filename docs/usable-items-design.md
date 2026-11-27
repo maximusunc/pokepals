@@ -205,7 +205,7 @@ better rods, the second item (U-14).
   `rod_post` prop at its edge.
 - Tests: `test/fishing_test.exs`, `test/fishing_channel_test.exs`.
 
-**Client** (`pokepals/scripts/`):
+**Client** (`gates-of-elyra/scripts/`):
 - `world/fishing_ring.gd` (`FishingRing`, pure, tested): the timing ring. A ring closes on the bobber over
   1.4 s / speed, meets the target circle 70% of the way through, and a tap within the window lands it. Two
   passes, then the fish swims off. The first tap decides.
@@ -452,7 +452,7 @@ bite) and the server honours the chop only that long after you started on that v
   cleanly).
 - Tests: `test/harvest_test.exs`, `test/harvest_channel_test.exs`, `test/house_test.exs`, `test/home_house_test.exs`.
 
-**Client** (`pokepals/scripts/`):
+**Client** (`gates-of-elyra/scripts/`):
 - `presentation/mechanics/harvest_director.gd` (`HarvestDirector`, with its `PickupView`): the axe's use, the target
   tree, timed chops, the pickups as examinable things, and the shared state (each felled tree and taken pickup comes
   back on its own timer from the server's figure). `FishingDirector` (the hotbar's owner) hands it the axe.

@@ -5,9 +5,9 @@ something is to hold the companion in your hand. This doc covers both targets.
 **Android is dramatically easier** (no Mac, no signing) and tests the same
 touch feel — reach for it first unless you specifically need iOS.
 
-The project already ships an [`export_presets.cfg`](../pokepals/export_presets.cfg)
+The project already ships an [`export_presets.cfg`](../gates-of-elyra/export_presets.cfg)
 with an **iOS** and an **Android** preset. The bundle/package identifier is
-`com.maxwang.kithbound` — change it freely. The platform-specific signing
+`com.maxwang.gatesofelyra` — change it freely. The platform-specific signing
 fields are intentionally left blank; you fill them in on your build machine
 (they're per-developer and shouldn't be committed).
 
@@ -34,13 +34,13 @@ $99/yr account. Tradeoff: the app expires after 7 days and you re-deploy it.
    **Settings → Accounts**.
 
 ### Finish the iOS preset
-Open the project (`godot --path pokepals`) → **Project → Export → iOS**. The
+Open the project (`godot --path gates-of-elyra`) → **Project → Export → iOS**. The
 preset is already there.
 - **App Store Team ID** — Godot 4.6 **requires** this (it won't export with it
   blank). It's the 10-char ID of your signing team — see "Getting a Team ID"
   below, especially if you don't see a **Personal Team** in Xcode.
 - **Signing identity / provisioning** — leave blank; resolve in Xcode.
-- Adjust **Bundle Identifier** if you don't want `com.maxwang.kithbound`.
+- Adjust **Bundle Identifier** if you don't want `com.maxwang.gatesofelyra`.
 
 #### Getting a Team ID
 You sign with a **free Personal Team**. Apple auto-creates one for any Apple ID

@@ -487,7 +487,7 @@ following invisible tracks). **Everything finer was decided by the builder and i
 review.** Nothing below changes the pitch; if any of it is wrong, say so and it is data or a small edit.
 
 **What it is.** `server/priv/world_seeds/drifthallow.json` (and the test fixture) from
-`tools/gen_drifthallow_world.py`; art from `pokepals/tools/gen_drifthallow.py` over
+`tools/gen_drifthallow_world.py`; art from `gates-of-elyra/tools/gen_drifthallow.py` over
 `tools/pixelart/drifthallow.py`; catalog id `99999999-…`, slug `drifthallow`, listed and featured, with
 the standard small portal home beside the arrival spot.
 
@@ -566,7 +566,7 @@ session, and the feel (that is the playtest).
   because it stood the companion on the spot by hand.
 
 **Template checklist for the next world** (what this pilot touched): generator + art tool; seed JSON in
-`server/priv/world_seeds` and the same file in `pokepals/tests/world_fixtures`; one entry in
+`server/priv/world_seeds` and the same file in `gates-of-elyra/tests/world_fixtures`; one entry in
 `Server.Seeds`; the fixture name in `TestWorldPortals.FIXTURES`; a smoke test; a world-specific
 `WorldArt` arm only if the secret or keepsake has no sprite; a short note in CLAUDE.md.
 
@@ -578,7 +578,7 @@ day cycle). The pitch was agreed (a sleepy forest; a secret that is a place your
 only dozes where it feels safe, dreams of a landmark, and you walk there together). **Everything finer was
 decided by the builder and is listed here for review.** Catalog id `bbbbbbbb-...`, slug `dozewood`, listed
 and featured, with the standard small portal home beside the arrival spot. Layout and lore:
-`tools/gen_dozewood_world.py`; art: `pokepals/tools/gen_dozewood.py` over `tools/pixelart/dozewood.py`.
+`tools/gen_dozewood_world.py`; art: `gates-of-elyra/tools/gen_dozewood.py` over `tools/pixelart/dozewood.py`.
 
 **The secret: reveal type `dream`.** Code: pure `DreamGate` (`scripts/world`, 16 tests), presentation
 `DozeDirector` (`scripts/presentation/mechanics`) + `DreamBubble`, plus small hooks on `CompanionView`
@@ -653,7 +653,7 @@ companion's body language as the only compass, "calm and settled" as the conditi
 pitch; if any of it is wrong, say so and it is data or a small edit.
 
 **What it is.** `server/priv/world_seeds/steamhollow.json` (and the test fixture) from
-`tools/gen_steamhollow_world.py`; art from `pokepals/tools/gen_steamhollow.py` over
+`tools/gen_steamhollow_world.py`; art from `gates-of-elyra/tools/gen_steamhollow.py` over
 `tools/pixelart/steamhollow.py`; catalog id `aaaaaaaa-…`, slug `steamhollow`, listed and featured, with the
 standard small portal home beside the arrival spot.
 
@@ -766,7 +766,7 @@ below changes the pitch; if any of it is wrong, say so and it is data or a small
 `hollowsong`, listed and featured, with the standard small portal home beside the arrival spot.
 
 **What it is.** `server/priv/world_seeds/hollowsong.json` (and the test fixture) from `tools/gen_hollowsong_world.py`; art
-from `pokepals/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`.
+from `gates-of-elyra/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`.
 
 **The secret: reveal type `echo`.** Spec shape (`secret.reveal`): `walls` (the echoing wall segments, `[x1,y1,x2,y2]`),
 `cave {origin, mouth}`, every number of the howl and of the cave, and `lines` (the hints). Code: pure `EchoField` (geometry)
@@ -855,7 +855,7 @@ darkness built like the final MistVeil). **Everything finer was decided by the b
 review.** Nothing below changes the pitch; if any of it is wrong, say so and it is data or a small edit.
 
 **What it is.** `server/priv/world_seeds/underroot.json` (and the test fixture) from `tools/gen_underroot_world.py`;
-art from `pokepals/tools/gen_underroot.py` over `tools/pixelart/underroot.py`; catalog id `cccccccc-...`, slug
+art from `gates-of-elyra/tools/gen_underroot.py` over `tools/pixelart/underroot.py`; catalog id `cccccccc-...`, slug
 `underroot`, listed and featured, with the standard small portal home beside the arrival spot.
 
 **The secret: reveal type `follow`.** Spec shape (`secret.reveal`): every number (below) and `lines`. The heart is
@@ -952,7 +952,7 @@ the pitch; if any of it is wrong, say so and it is data or a small edit. Catalog
 listed and featured, with the standard small portal home beside the arrival spot.
 
 **What it is.** `server/priv/world_seeds/lanternfold.json` (and the test fixture) from `tools/gen_lanternfold_world.py`;
-art from `pokepals/tools/gen_lanternfold.py` over `tools/pixelart/lanternfold.py`.
+art from `gates-of-elyra/tools/gen_lanternfold.py` over `tools/pixelart/lanternfold.py`.
 
 **The secret: reveal type `shadow`.** Spec shape (`secret.reveal`): `face` (the screen's face: x0, x1, base_y, height),
 `lantern` (its ground point), `spot` (the ground point the missing bird's shadow would be thrown from), `species`
@@ -1066,7 +1066,7 @@ by the builder and is listed here for review.** Nothing below changes the pitch;
 data or a small edit.
 
 **What it is.** `server/priv/world_seeds/stillglass.json` (and the test fixture) from `tools/gen_stillglass_world.py`; art
-from `pokepals/tools/gen_stillglass.py` over `tools/pixelart/stillglass.py`; catalog id `ffffffff-ffff-ffff-ffff-ffffffffffff`,
+from `gates-of-elyra/tools/gen_stillglass.py` over `tools/pixelart/stillglass.py`; catalog id `ffffffff-ffff-ffff-ffff-ffffffffffff`,
 slug `stillglass`, listed and featured, with the standard small portal home beside the arrival spot.
 
 **The secret: reveal type `reflection`.** Spec shape (`secret.reveal`): `species_pool`, `start` (where the walk resumes, a point
@@ -1183,7 +1183,7 @@ decided by the builder and is listed here for review.** Nothing below changes th
 is data or a small edit.
 
 **What it is.** `server/priv/world_seeds/ebbmere.json` (and the test fixture) from `tools/gen_ebbmere_world.py`; art from
-`pokepals/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; catalog id `14141414-…`, slug `ebbmere`, listed and
+`gates-of-elyra/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; catalog id `14141414-…`, slug `ebbmere`, listed and
 featured, with the standard small portal home beside the arrival spot.
 
 **The tide clock.** `TideClock` (`scripts/world`, pure, tested) and its Elixir twin `Server.Tide`: integer unix
@@ -1301,7 +1301,7 @@ changes the pitch; if any of it is wrong, say so and it is data or a small edit.
 listed and featured, with the standard small portal home beside the arrival spot.
 
 **What it is.** `server/priv/world_seeds/loftreach.json` (and the test fixture) from `tools/gen_loftreach_world.py`; art from
-`pokepals/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`.
+`gates-of-elyra/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`.
 
 **The secret: reveal type `skyview`.** Spec shape (`secret.reveal`): `species` (bird), `bridge` (the hidden bridge's id), `vantage`
 (where the bird hangs), `targets` (what must be in view: the nest and the bridge's head), `head`, then every number and `lines`.
@@ -1414,7 +1414,7 @@ was decided by the builder and is listed here for review.** Nothing below change
 and it is data or a small edit.
 
 **What it is.** `server/priv/world_seeds/thimblewick.json` (and the test fixture) from `tools/gen_thimblewick_world.py`; art
-from `pokepals/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; catalog id
+from `gates-of-elyra/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; catalog id
 `13131313-1313-1313-1313-131313131313`, slug `thimblewick`, listed and featured, with the standard small portal home beside the
 arrival spot.
 
@@ -1536,11 +1536,11 @@ A throwaway spike (PR #161, closed unmerged) proved the trick first. **Everythin
 listed here for review.**
 
 **What it is.** `server/priv/world_seeds/farmeadow.json` (and the test fixture) from `tools/gen_farmeadow_world.py`; art from
-`pokepals/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; catalog id `15151515-1515-1515-1515-151515151515`, slug
+`gates-of-elyra/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; catalog id `15151515-1515-1515-1515-151515151515`, slug
 `farmeadow`, listed and featured, with the standard small portal home beside the arrival spot. Its secret is below.
 
 **How the view works.** A world opts in with a spec `view` block (`{"projection": "perspective", ...}`), deep-merged over
-`pokepals/data/view.json` (every camera number lives there). The world itself is untouched: positions, collision, the
+`gates-of-elyra/data/view.json` (every camera number lives there). The world itself is untouched: positions, collision, the
 companion's brain, the server and every director see a plain 2D world. Only the drawing changes:
 - the camera is pure logic: `ViewProjection` (`scripts/world`, tested: a pinhole camera with eye height, distance behind
   you, tilt, lens shift and draw distance; world -> screen and back) and `ViewRig` (tested: the swing and the lingering);
@@ -1601,7 +1601,7 @@ just the lark's silhouette and a ring for the sun painted across their fronts. F
 odd smudges of paint on them. Held, the painted lark lifts off and lands beside you as a carved wooden lark.
 
 How it works: every farmyard thing is drawn at the world's own scale and stands square to the spot (a card facing north).
-`pokepals/tools/gen_horizon.py` paints them: for each texel on a thing's front it works out where `data/view.json`'s camera
+`gates-of-elyra/tools/gen_horizon.py` paints them: for each texel on a thing's front it works out where `data/view.json`'s camera
 at the spot would show it, and paints it if that screen pixel is part of the picture and this thing is the nearest there
 (a depth buffer). It writes each thing's painted front, its plain back (a card's new `"back"` art key, shown from behind)
 and a version without the lark, plus `data/hz_skylark.json` (each thing's depth and screen place, and how much of the
@@ -1651,7 +1651,7 @@ and is listed here for review.** Nothing below changes the pitch; if any of it i
 edit.
 
 **What it is.** `server/priv/world_seeds/ohmstead.json` (and the test fixture) from `tools/gen_ohmstead_world.py`; art from
-`pokepals/tools/gen_ohmstead.py` over `tools/pixelart/ohmstead.py`; catalog id `16161616-1616-1616-1616-161616161616`, slug
+`gates-of-elyra/tools/gen_ohmstead.py` over `tools/pixelart/ohmstead.py`; catalog id `16161616-1616-1616-1616-161616161616`, slug
 `ohmstead`, listed and featured, with the standard small portal home beside the arrival spot. 3200 x 2432, seven regions: the
 Inlet (where you arrive, south-west), the Arcade, the Cache, the Bus, the Heap, Clock Court and the Dark Sector (north-east).
 
@@ -1849,7 +1849,7 @@ colours are **full colour on a dark page**; the **HUD stays normal**; the secret
 here for review.** If any of it is wrong, say so and it is data or a small edit.
 
 **What it is.** `server/priv/world_seeds/glyphfall.json` (and the test fixture) from `tools/gen_glyphfall_world.py`; the
-glyph atlas from `pokepals/tools/gen_glyphfall.py`; catalog id `19191919-1919-1919-1919-191919191919`, slug `glyphfall`,
+glyph atlas from `gates-of-elyra/tools/gen_glyphfall.py`; catalog id `19191919-1919-1919-1919-191919191919`, slug `glyphfall`,
 listed and featured, with the standard small portal home beside the arrival spot. 3200 x 2400, seven regions: the Margin
 (where you arrive), the Footnotes, the Inkwell, First Lines, Paragraph Wood, the Heading and the Unwritten.
 

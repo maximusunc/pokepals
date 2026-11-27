@@ -125,13 +125,13 @@ not a blocker** — pick it up if/when a shared world wants it.
 > - **Layout:** `tools/gen_home_house.py` writes the template's `house` block; `tools/gen_bazaar.py` makes the carpenter.
 
 > **Background music (2026-11):** each world can have one looping track, written as a text score
-> (`pokepals/tools/music/scores/<world>.score`) and rendered by `pokepals/tools/gen_music.py`. The synth is
+> (`gates-of-elyra/tools/music/scores/<world>.score`) and rendered by `gates-of-elyra/tools/gen_music.py`. The synth is
 > numpy only (no samples). The `.ogg` files are committed, like the pixel art. A world asks for its track with
 > a `music` block in its spec (`track`, `volume_db`), and the `Music` autoload (`music_player.gd`) crossfades
 > as you travel. A world with no block is quiet. Every file is rendered to -16 LUFS, and `volume_db: -22` plays it at
 > about -38 LUFS, quiet background. The gear menu's **Sound** sheet (`SoundPanel`) has a volume slider whose middle is
 > that level; it's saved in `user://settings.json`. Every world has its own track (and homes share one), each
-> with its own instruments; the scores say what each is for. See `pokepals/tools/music/README.md`.
+> with its own instruments; the scores say what each is for. See `gates-of-elyra/tools/music/README.md`.
 
 > **Ambient pals (2026-06):** the Vale now has **server-authoritative ambient pals** — set-dressing
 > creatures that wander as shared atmosphere so the world reads as alive at low population. This is the
@@ -145,7 +145,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > "finding" beat (bonding to one of them) remains out of scope.
 
 > **Pixel-art pipeline (2026-07):** player wardrobe art and ambient-pal sprites are now generated
-> from the hand-authored ASCII pixel maps in `pokepals/tools/pixelart/` (see its README — Pillow is a
+> from the hand-authored ASCII pixel maps in `gates-of-elyra/tools/pixelart/` (see its README — Pillow is a
 > tools-only dependency; PNGs stay committed). `tools/gen_wardrobe.py` exports per-layer 8-frame dye
 > sheets for the paper-doll wardrobe; `tools/gen_pals.py` bakes real animal species (cat/fox/rabbit/
 > bird/wolf) for ambient pals, rendered client-side by `PalView` when a seed pal names a `species`
@@ -218,7 +218,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >
 > Glow-plants marked `"flare": true` blaze up when touched, and the server relays the flare to
 > everyone in the world (`flare` → `flared`, a stateless relay). Footsteps leave fading prints of
-> light (`GlowTrail`). Art: `pokepals/tools/gen_nocthollow.py` over `tools/pixelart/nocthollow.py`.
+> light (`GlowTrail`). Art: `gates-of-elyra/tools/gen_nocthollow.py` over `tools/pixelart/nocthollow.py`.
 > Layout and lore: `tools/gen_nocthollow_world.py`. Any later world can re-skin itself the same way.
 
 > **Bobbledown (2026-11):** the one world that **breaks from the pixel art**. It's a soft, round,
@@ -226,7 +226,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > the Fizzwell, a lagoon that never stops fizzing, and every bubble it breathes out became a hill, a
 > tree or a creature. Nothing there has a corner; visitors stay pixel, the square ones, on purpose.
 > Reached through the Gateway (featured).
-> - **Smooth art:** `pokepals/tools/softart/bobbledown.py` (Pillow + numpy) shades spheres and
+> - **Smooth art:** `gates-of-elyra/tools/softart/bobbledown.py` (Pillow + numpy) shades spheres and
 >   supersamples them into `@2x` PNGs. The client draws any `@2x` image at half size with linear
 >   filtering: trees and growths (`TreeView.tex_scale`), props (base, tint, then an untinted
 >   **gloss** layer; they **wobble** like jelly when touched) and creatures (`"hd": true` in
@@ -240,7 +240,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > - **Secret (W-6):** ring all seven chime-bubbles in one visit and the Burbler's first breath
 >   rises. This is a new reveal type, `touch_all`, checked by the server from the flares it relays.
 >
-> Layout and lore: `tools/gen_bobbledown_world.py`. Art: `pokepals/tools/gen_bobbledown.py`.
+> Layout and lore: `tools/gen_bobbledown_world.py`. Art: `gates-of-elyra/tools/gen_bobbledown.py`.
 
 > **Clickton (2026-11):** the second world that doesn't reuse the shared art, and the first to use the
 > world packs for it: a small **city made entirely of small colourful bricks** (not called by the
@@ -267,7 +267,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   always`). It is a real wall brick (`inlay` row/col in the cottage's courses) with slow bands of every
 >   colour swirling through it. The building draws it (WorldArt would paint it under the building, so its
 >   type is `unseen`); taking it clears it. Its keepsake draws at home as a little striped brick.
-> - Art: `pokepals/tools/gen_clickton.py` over `tools/brickart/bricks.py` (an oblique voxel renderer; Pillow
+> - Art: `gates-of-elyra/tools/gen_clickton.py` over `tools/brickart/bricks.py` (an oblique voxel renderer; Pillow
 >   only). Layout and lore: `tools/gen_clickton_world.py`. Pack builds pick the world up with no wiring.
 
 > **Drifthallow (2026-11):** the pilot of the template for the next worlds: a **snowfield at blue hour**
@@ -281,7 +281,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > **leads** you along the trail (`GuideAction` on the command band, driven by the pure `TrailGuide` through
 > `TracksDirector`), laying bright paw-prints, waiting if you fall behind; in any other shape it just
 > plays in the snow. New reveal type `tracks` (server checks "this world, standing at it", like
-> `stillness`). Art: `pokepals/tools/gen_drifthallow.py`; layout, lore and the secret:
+> `stillness`). Art: `gates-of-elyra/tools/gen_drifthallow.py`; layout, lore and the secret:
 > `tools/gen_drifthallow_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Drifthallow (pilot)").
 
@@ -291,7 +291,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > still beside it, calm; bond makes it quicker), then dreams of the Crooked Arch in a thought bubble; walk
 > there together and a dream-lantern is waiting. New reveal type `dream` (server checks "this world, standing
 > at it"). Pure `DreamGate` (`scripts/world`, tested), `DozeDirector` + `DreamBubble` (presentation), and
-> `CompanionView.set_resting`. Art: `pokepals/tools/gen_dozewood.py`; layout, lore and the secret:
+> `CompanionView.set_resting`. Art: `gates-of-elyra/tools/gen_dozewood.py`; layout, lore and the secret:
 > `tools/gen_dozewood_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Dozewood").
 
@@ -307,7 +307,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > compass (no arrow, no marker). Bond shapes the hearing range, how fast it settles and how true its aim is; the
 > bell shows through the mist only up close. New reveal type `listen` (server checks "this world, standing at
 > it"). Pure `ListenGuide` (`scripts/world`, tested) over `ListenDirector` (`mechanics/`), and
-> `CompanionView.listen_toward` (a pose that never stops the body). Art: `pokepals/tools/gen_steamhollow.py`
+> `CompanionView.listen_toward` (a pose that never stops the body). Art: `gates-of-elyra/tools/gen_steamhollow.py`
 > over `tools/pixelart/steamhollow.py`; layout, lore and the secret: `tools/gen_steamhollow_world.py`. Every
 > finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Steamhollow").
 
@@ -325,7 +325,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > and the answering stone is claimed through the usual flow. The companion notices the cave and points at it as
 > you come near (by bond). Cliffs are `CliffView` (a `BuildingView`, spec `"view": "cliff"`, an `arch` opening
 > with `solid_rects` for its legs); the cliffs' edges ARE the echo walls. `EchoGuide` + `HowlDirector`
-> (`mechanics/`). Art: `pokepals/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`; layout, lore and
+> (`mechanics/`). Art: `gates-of-elyra/tools/gen_hollowsong.py` over `tools/pixelart/hollowsong.py`; layout, lore and
 > the secret: `tools/gen_hollowsong_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Hollowsong").
 
@@ -345,7 +345,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > behind; if you PUSH AHEAD of it along its route it holds back and in the end lets the lead go (never a
 > failure: ask again); a Call ends the lead, a Pet is enjoyed and the lead carries on. Bond shapes its pace,
 > patience and how far it leads per ask. Its light swells while it leads, so every state reads in the dark.
-> Art: `pokepals/tools/gen_underroot.py` over `tools/pixelart/underroot.py`; layout, lore and the secret:
+> Art: `gates-of-elyra/tools/gen_underroot.py` over `tools/pixelart/underroot.py`; layout, lore and the secret:
 > `tools/gen_underroot_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Underroot").
 
@@ -360,7 +360,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > settles onto the spot). The gap glows as a shadow nears it; then a door in the cliff opens on a paper bird. New reveal
 > type `shadow` (server: "this world, standing at it"). `ShadowDirector` (`mechanics/`) places the companion (a Call ends
 > it, a Pet is enjoyed, form drift held off), points at the gap by bond, and lifts the camera toward the mural;
-> `ShadowScreenView` is a `BuildingView` (`"view": "shadow_screen"`). Art: `pokepals/tools/gen_lanternfold.py` over
+> `ShadowScreenView` is a `BuildingView` (`"view": "shadow_screen"`). Art: `gates-of-elyra/tools/gen_lanternfold.py` over
 > `tools/pixelart/lanternfold.py`; layout, lore and the secret: `tools/gen_lanternfold_world.py`. Every finer choice is
 > listed, open for review, in `docs/home-world-and-secrets-design.md` ("Lanternfold").
 
@@ -376,7 +376,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > reflection goes back to mirroring, progress kept. New reveal type `reflection` (server checks "this world, standing at
 > it"). Pure `ReflectionWalker`, `MirrorGeometry`, `WaterMask` (`scripts/world`, tested) over `ReflectionDirector`
 > (`mechanics/`). The lake's real shoreline is walled with invisible posts (pond collision is off), so you stop at the water
-> you see. Art: `pokepals/tools/gen_stillglass.py` over `tools/pixelart/stillglass.py`; layout, lore and the secret:
+> you see. Art: `gates-of-elyra/tools/gen_stillglass.py` over `tools/pixelart/stillglass.py`; layout, lore and the secret:
 > `tools/gen_stillglass_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Stillglass").
 
@@ -393,7 +393,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > crab, and the far bar gives up the sand-dollar, but only in the low window. New reveal type `tide`: unlike the others the server
 > CAN check it honestly (the low window plus a grace period, `Server.SecretReveal` + `Server.Tide`), still "standing at it". The
 > tide pole (`TideGauge`) and the lighthouse lamp (`LampGlow`) always show where the tide is. `TideDirector` (`mechanics/`) ties it
-> together; art: `pokepals/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; layout, lore and the secret:
+> together; art: `gates-of-elyra/tools/gen_ebbmere.py` over `tools/pixelart/ebbmere.py`; layout, lore and the secret:
 > `tools/gen_ebbmere_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Ebbmere").
 
@@ -409,7 +409,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > the bridge unspools (`SkyLayer.set_bridge_reveal`) and the world rebuilds its barriers and routing with it open
 > (`reveal_sky_bridge`). A tap or a step brings it home; Go up again holds it; bond lengthens the stay, raises the view and
 > widens the companion's noticing. New reveal type `skyview` (server checks "this world, standing at it"). `SkyDirector`
-> (`mechanics/`), `SkyBird`, `CameraRig.hold_view`. Art: `pokepals/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`;
+> (`mechanics/`), `SkyBird`, `CameraRig.hold_view`. Art: `gates-of-elyra/tools/gen_loftreach.py` over `tools/pixelart/loftreach.py`;
 > layout, lore and the secret: `tools/gen_loftreach_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Loftreach").
 
@@ -427,7 +427,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > gap too small and says so; a Call ends the trip or brings it back early; a Pet is enjoyed and the trip carries on. New reveal
 > type `fetch` (server: "this world", the secret's radius covers it, since the thimble is set down wherever you stand). Pure
 > `FetchTrip` (`scripts/world`, tested) over `FetchDirector` (`mechanics/`), `FetchFx`, `FindDraw`, and
-> `CompanionView.warm_bond`. Art: `pokepals/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; layout, lore and the
+> `CompanionView.warm_bond`. Art: `gates-of-elyra/tools/gen_thimblewick.py` over `tools/pixelart/thimblewick.py`; layout, lore and the
 > secret: `tools/gen_thimblewick_world.py`. Every finer choice is listed, open for review, in
 > `docs/home-world-and-secrets-design.md` ("Thimblewick").
 
@@ -458,7 +458,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   fades. A tree entry may carry a 4th value: the bearing its front faces.
 > - **Off in perspective:** AmbientLife's flat life (butterflies come back as `FlutterView`s in the scenery), garlands, steam;
 >   fog, reflections, the tide and sky islands are top-down only.
-> - Art: `pokepals/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; layout and lore: `tools/gen_farmeadow_world.py`.
+> - Art: `gates-of-elyra/tools/gen_horizon.py` over `tools/pixelart/horizon.py`; layout and lore: `tools/gen_farmeadow_world.py`.
 >   Every finer choice is listed, open for review, in `docs/home-world-and-secrets-design.md` ("Farmeadow"). The other
 >   skin-world ideas are issues #157-#160.
 
@@ -472,7 +472,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   linework (`actor_look.wire`, `assets/wire_actor.gdshader`): a person in magenta, a companion in amber, what you
 >   wear and which animal it is kept as inner lines. The portal gets the same shader (the portal entity's `wire`).
 >   Faint scanlines ride the vignette's full-screen pass (`atmosphere.scanlines`). Trees, props and landmarks are
->   line art with a baked halo (no bloom pass): `pokepals/tools/gen_ohmstead.py` over `tools/pixelart/ohmstead.py`.
+>   line art with a baked halo (no bloom pass): `gates-of-elyra/tools/gen_ohmstead.py` over `tools/pixelart/ohmstead.py`.
 > - **Runners:** small mint creatures carrying light along the bright lines (the spec's `runners`: closed routes).
 >   Where each one is, is a pure function of the shared clock (`RunnerRoutes`, drawn by `GridRunners`), so everyone
 >   sees them in the same places with nothing simulated or sent. They lean off their line as you pass.
@@ -507,7 +507,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   (`FacetLight`, `scripts/world`, tested), one turn every 10 minutes, so everyone sees the same shading.
 > - **Visitors** are recut into small triangles by a shader (`actor_look.facet`, `assets/facet_actor.gdshader`, one shared
 >   material), in the colours underneath, shaded by the same light. Outfits and animals stay recognisable.
-> - **Art:** smooth `@2x`, from real small 3D meshes (`pokepals/tools/lowpoly/lowpoly.py`, baked by `tools/gen_glintwold.py`).
+> - **Art:** smooth `@2x`, from real small 3D meshes (`gates-of-elyra/tools/lowpoly/lowpoly.py`, baked by `tools/gen_glintwold.py`).
 >   Native creatures: glintbuck, cobblet, foldwing.
 > - **Secret:** the Unfinished, a stone hanging in nine shards over the Turning Floor. Some shards answer to where YOU stand
 >   and the rest to where your COMPANION stands; each half slides home only from its own unmarked mark. Tap the floor to
@@ -531,7 +531,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   companion's ground test, like Loftreach's `sky` block.
 > - **Things on it:** palms in planters, columns, lamps, five walk-through arches (`ArchView`, a `BuildingView`,
 >   `"view": "arch"`), four busts that hover and bob over their plinths (a tree kind's `float` block), the
->   `FountainView`. Art: `pokepals/tools/gen_lingerlong.py` over `tools/softart/lingerlong.py` (every standing sprite
+>   `FountainView`. Art: `gates-of-elyra/tools/gen_lingerlong.py` over `tools/softart/lingerlong.py` (every standing sprite
 >   has a short baked mirror image under it; sizes and foot lines in `data/ll_details.json`).
 > - **Secret:** one arch, out in the pool, shows an **evening** in its doorway. Walk through it and nothing happens.
 >   Send your companion (tap the arch, or **Go look**; any shape): it trots over, sniffs, steps INTO the picture and
@@ -582,7 +582,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 >   gold and can be examined; taking it corrects the page. New reveal type `misprint` (server: "this world,
 >   standing at it"). Pure `GlyphNotice` (`scripts/world`, tested) over `MisprintDirector` (`mechanics/`). The
 >   prop's type is `unseen`: the page draws it. Its keepsake at home is a brass "&" on a block.
-> - Atlas: `pokepals/tools/gen_glyphfall.py` (every character the world uses, DejaVu Sans Mono Bold read at
+> - Atlas: `gates-of-elyra/tools/gen_glyphfall.py` (every character the world uses, DejaVu Sans Mono Bold read at
 >   bake time; only the rendered characters are committed). Layout, lore, the stamps, the sentences and the
 >   secret: `tools/gen_glyphfall_world.py`. Tests: `test_glyph_map`, `test_glyph_notice`, `smoke_glyphfall`;
 >   look at it with `tests/shot_world.gd`. Design canvas: the "Glyphfall Legibility" artifact. Every finer
@@ -642,7 +642,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > - **Boot splash:** `assets/loading/boot_splash.png`, the engine's still image; the fox stands.
 > - **Connection gate:** `lobby.gd`; the fox trots (`TrottingFox`) while connecting.
 >
-> The shell and splash are baked by `pokepals/tools/gen_loading.py` from
+> The shell and splash are baked by `gates-of-elyra/tools/gen_loading.py` from
 > `tools/loading/shell_template.html`; edit the template, then re-run.
 >
 > **A newcomer's path** (the ONBOARDING section of `world_controller.gd`, cards by `WelcomePanel`,
@@ -661,7 +661,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > **World packs (2026-11):** the web build no longer ships every world's art in one download. The base
 > `.pck` holds the Vale, homes, wardrobe, companion animals, UI, fonts, shaders and portals; every other
 > world's own art is a separate pack, fetched the first time a player goes there (`AssetPacks`, behind a
-> short `PackLoading` moment, *before* joining the world's channel). `pokepals/tools/packs/build_packs.py`
+> short `PackLoading` moment, *before* joining the world's channel). `gates-of-elyra/tools/packs/build_packs.py`
 > (run by `server/build-web.sh`) builds each world headless to **measure** which art it loads, plans the
 > split (a world's exclusive art -> its pack, a few worlds' shared art -> a kit pack, anything unmeasured
 > stays in the base), writes content-hashed packs plus `packs/manifest.json`, then re-runs every world from

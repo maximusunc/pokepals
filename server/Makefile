@@ -17,11 +17,11 @@ test: ## Run the test suite
 release: ## Build a self-contained prod OTP release under _build/prod/rel/server
 	MIX_ENV=prod mix release
 
-docker-build: ## Build the Docker image (pokepals-relay:latest)
-	docker build -t pokepals-relay:latest .
+docker-build: ## Build the Docker image (gates-of-elyra-relay:latest)
+	docker build -t gates-of-elyra-relay:latest .
 
 docker-run: ## Run the Docker image, publishing :4000
-	docker run --rm -p 4000:4000 -e PORT=4000 pokepals-relay:latest
+	docker run --rm -p 4000:4000 -e PORT=4000 gates-of-elyra-relay:latest
 
 compose-up: ## Build + start via docker compose (detached)
 	docker compose up -d --build

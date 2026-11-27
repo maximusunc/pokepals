@@ -1,4 +1,4 @@
-# Deploying the pokepals relay
+# Deploying the Gates of Elyra relay
 
 The relay is the minimal authoritative server for Rung 4, step 1: it assigns ids, holds the
 roster, and relays presentation state between players. It is **very light** — a BEAM (Erlang VM)
@@ -77,8 +77,8 @@ To run a different port, set it in `docker-compose.yml` (both the `PORT` env and
 `"<host>:4000"` mapping), or run the image directly:
 
 ```sh
-docker build -t pokepals-relay .
-docker run -d --restart unless-stopped -p 5000:5000 -e PORT=5000 --name pokepals-relay pokepals-relay
+docker build -t gates-of-elyra-relay .
+docker run -d --restart unless-stopped -p 5000:5000 -e PORT=5000 --name gates-of-elyra-relay gates-of-elyra-relay
 ```
 
 (`make compose-up` / `make docker-build` / `make docker-run` wrap these.)
@@ -114,7 +114,7 @@ and a `bin/server` launcher.
 
 ```sh
 # create the destination + a service user on the host first (see the unit file header), then:
-rsync -a _build/prod/rel/server/ user@host:/opt/pokepals-relay/
+rsync -a _build/prod/rel/server/ user@host:/opt/gates-of-elyra-relay/
 ```
 
 > The release embeds the Erlang runtime, so the **build** host and the **target** host should have
@@ -123,49 +123,49 @@ rsync -a _build/prod/rel/server/ user@host:/opt/pokepals-relay/
 
 ### 3. Install the service
 
-On the host (the unit file is `deploy/pokepals-relay.service` in this repo — copy it over too):
+On the host (the unit file is `deploy/gates-of-elyra-relay.service` in this repo — copy it over too):
 
 ```sh
-sudo useradd --system --home /opt/pokepals-relay pokepals
-sudo chown -R pokepals:pokepals /opt/pokepals-relay
-sudo cp pokepals-relay.service /etc/systemd/system/
+sudo useradd --system --home /opt/gates-of-elyra-relay gates-of-elyra
+sudo chown -R gates-of-elyra:gates-of-elyra /opt/gates-of-elyra-relay
+sudo cp gates-of-elyra-relay.service /etc/systemd/system/
 sudo systemctl daemon-reload
-sudo systemctl enable --now pokepals-relay
+sudo systemctl enable --now gates-of-elyra-relay
 ```
 
 Verify:
 
 ```sh
-systemctl status pokepals-relay      # should be active (running)
+systemctl status gates-of-elyra-relay      # should be active (running)
 curl localhost:4000/health           # -> ok
-journalctl -u pokepals-relay -f      # follow logs
+journalctl -u gates-of-elyra-relay -f      # follow logs
 ```
 
-The unit (`deploy/pokepals-relay.service`) restarts on crash and starts on boot. To change the
+The unit (`deploy/gates-of-elyra-relay.service`) restarts on crash and starts on boot. To change the
 port, edit `Environment=PORT=...` in the unit and `systemctl daemon-reload && systemctl restart`.
 
 ### 4. Provision PostgreSQL (required)
 
 Install Postgres (`sudo apt install postgresql`), create a database and role, then tell the unit
-where it is. Add to `deploy/pokepals-relay.service` before installing it:
+where it is. Add to `deploy/gates-of-elyra-relay.service` before installing it:
 
 ```ini
-Environment=DATABASE_URL=ecto://pokepals:somepassword@localhost/pokepals
+Environment=DATABASE_URL=ecto://gates_of_elyra:somepassword@localhost/gates_of_elyra
 ```
 
 Apply migrations once (and after each upgrade) using the release's eval task — no Mix needed:
 
 ```sh
-sudo -u pokepals DATABASE_URL=ecto://pokepals:somepassword@localhost/pokepals \
-  /opt/pokepals-relay/bin/server eval "Server.Release.migrate()"
+sudo -u gates-of-elyra DATABASE_URL=ecto://gates_of_elyra:somepassword@localhost/gates_of_elyra \
+  /opt/gates-of-elyra-relay/bin/server eval "Server.Release.migrate()"
 ```
 
-The DB itself must already exist (`createdb pokepals`); the release runs `migrate`, not `ecto.create`.
+The DB itself must already exist (`createdb gates_of_elyra`); the release runs `migrate`, not `ecto.create`.
 
 ### 5. Upgrade later
 
 Rebuild the release, rsync it over the old tree, run the `migrate` eval above, and
-`sudo systemctl restart pokepals-relay`.
+`sudo systemctl restart gates-of-elyra-relay`.
 
 ---
 
@@ -201,6 +201,52 @@ systemd unit.
 
 ---
 
+## Moving a server over from the old name (once)
+
+Until 2026-11 the game was called "pokepals" (later "Kithbound"), and so was everything on the server:
+the database `pokepals`, the containers `pokepals-db` / `pokepals-relay`, the image
+`pokepals-relay:latest`, and for a systemd install the unit `pokepals-relay`, the folder
+`/opt/pokepals-relay` and the user `pokepals`. Everything is now named for Gates of Elyra. A server
+deployed before the rename needs these steps **once**, or the new relay finds no database and every
+player seems to start over. Nothing is deleted: the data stays where it is and only changes name.
+
+**Docker (Option A).** On the host, from the repo's `server/` directory, *before* pulling:
+
+```bash
+docker compose stop relay        # the database can't be renamed while the relay is connected to it
+docker compose exec db psql -U postgres -d postgres -c 'ALTER DATABASE pokepals RENAME TO gates_of_elyra;'
+cd .. && ./redeploy.sh           # pulls, builds, and recreates both containers under their new names
+docker image rm pokepals-relay:latest   # optional: the old image is no longer used
+```
+
+`up -d` sees the new container names and replaces the old `pokepals-db` / `pokepals-relay` containers
+itself (the database restarts once). The `pgdata` volume is named after the compose folder
+(`server_pgdata`), not the game, so it is unchanged. If the redeploy fails before the new relay is up,
+either fix it and run `./redeploy.sh` again, or undo the rename (`ALTER DATABASE gates_of_elyra RENAME
+TO pokepals;`) and `docker compose start relay` to bring the old one back.
+
+The first web export after the move re-imports every asset, because the Godot project folder moved
+from `pokepals/` to `gates-of-elyra/`, so it is slower than usual. Files git doesn't track (Godot's
+`.godot/` cache, a `server_config.json`) are left behind in the old `pokepals/` folder: copy
+`server_config.json` across if you have one, then delete the old folder.
+
+**systemd (Option B).**
+
+```bash
+sudo systemctl disable --now pokepals-relay
+sudo -u postgres psql -c 'ALTER DATABASE pokepals RENAME TO gates_of_elyra;'
+sudo rm /etc/systemd/system/pokepals-relay.service
+sudo mv /opt/pokepals-relay /opt/gates-of-elyra-relay
+sudo usermod -l gates-of-elyra -d /opt/gates-of-elyra-relay pokepals
+sudo groupmod -n gates-of-elyra pokepals
+```
+
+Then install `deploy/gates-of-elyra-relay.service` as in step 3 above. In its `DATABASE_URL`, change
+only the database name at the end to `gates_of_elyra`; the Postgres user and password can stay as they
+were.
+
+---
+
 ## Configuration
 
 | Variable | Default | Meaning |
@@ -225,8 +271,8 @@ Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills
 - **Health:** `GET /health` returns `200 ok`. The Docker image and `docker-compose.yml` both wire
   this into a container `HEALTHCHECK`; use it for any external monitor too.
 - **Logs:**
-  - Docker: `docker compose logs -f relay` (or `docker logs -f pokepals-relay`).
-  - systemd: `journalctl -u pokepals-relay -f`.
+  - Docker: `docker compose logs -f relay` (or `docker logs -f gates-of-elyra-relay`).
+  - systemd: `journalctl -u gates-of-elyra-relay -f`.
   - Foreground dev (`mix run --no-halt`): straight to your terminal.
 
   At the default `:info` level you'll see the startup listen line and not much else — state frames
@@ -243,4 +289,4 @@ Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills
 - **Accounts:** identity is a bearer token today (whoever holds it owns that save). Real accounts /
   auth are a later step; until then, keep the deployment on a trusted network.
 - **Backups:** the companion lives only in Postgres now, so it's worth a periodic `pg_dump` of the
-  `pokepals` DB (or a volume snapshot) once people have companions they'd miss.
+  `gates_of_elyra` DB (or a volume snapshot) once people have companions they'd miss.

@@ -1,4 +1,4 @@
-# pokepals relay — Rung 4 / MMO foundation (P1)
+# Gates of Elyra relay — Rung 4 / MMO foundation (P1)
 
 The **authoritative server** for the shared world. It authenticates each connection by its identity
 token (resolving it to an internal `user_id`, which is also the peer id), tracks the roster with
@@ -21,7 +21,7 @@ appearance are **client-owned opaque jsonb blobs** the server stores but never i
 ## Run it (development)
 
 Requires [Elixir](https://elixir-lang.org/install.html) (1.15+), Erlang/OTP, and a reachable
-**PostgreSQL** (the dev default is `ecto://postgres:postgres@localhost/pokepals_dev`; override with
+**PostgreSQL** (the dev default is `ecto://postgres:postgres@localhost/gates_of_elyra_dev`; override with
 `DATABASE_URL`).
 
 ```sh
@@ -67,7 +67,7 @@ presence and state — same world sees each other, different worlds don't); plus
 roll-back on insufficient funds, re-verify prevents a double-spend), and `TradeSession`
 (offer/confirm → execute); plus the UGC sandbox (`World.Sandbox`: KV round-trips, optimistic-version
 conflict, atomic increment, schema validation, per-value/byte/key quotas, list pagination, and the
-§10 cross-world isolation invariant). The `test` alias creates + migrates a `pokepals_test` DB first.
+§10 cross-world isolation invariant). The `test` alias creates + migrates a `gates_of_elyra_test` DB first.
 End-to-end behaviour is verified by running Godot clients against the server (see the repo `CLAUDE.md`).
 
 ## Shape

@@ -22,7 +22,7 @@ set -euo pipefail
 # Resolve paths relative to this script so it works from any CWD.
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SERVER_DIR="$SCRIPT_DIR"
-PROJECT_DIR="$(cd "$SERVER_DIR/.." && pwd)/pokepals"
+PROJECT_DIR="$(cd "$SERVER_DIR/.." && pwd)/gates-of-elyra"
 EXPORT_DIR="$SERVER_DIR/priv/static"
 
 GODOT="${GODOT:-godot}"

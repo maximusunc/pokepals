@@ -141,7 +141,7 @@ The paper-doll seam is now a working, playable loop:
   The exporter bridges composite art to stacked layers with mannequin-based outline ownership
   and a side-view arm carve (the same registration trick as the old face carve). The previous
   `gen_cosmetics.py` procedural art is retired.
-  Run `godot --headless --path pokepals --import` after regenerating so Godot imports the new PNGs.
+  Run `godot --headless --path gates-of-elyra --import` after regenerating so Godot imports the new PNGs.
 - **Catalog** — `data/cosmetics.json` ships one body, a new required `legwear` slot (the pixelart
   body map is head+arms only, so legwear/outfit/footwear are required), tee/tank tops, pants, shoes,
   three hairs, headband, glasses — with color slots for skin, hair, top, legwear, footwear and

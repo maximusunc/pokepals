@@ -166,7 +166,7 @@ not as a plan to act on.
     right one — diegetic tutorialization (P-5) falling out for free. The two new props reuse existing
     baked art (`rubble_pile`, `broken_pillar`) and are non-solid, so navigation and the server's pal
     avoidance are untouched. Authored in **both** copies of the spec — `server/priv/world_seeds/vale.json`
-    (what the live game serves) and `pokepals/tests/world_fixtures/vale.json` (what tests build from);
+    (what the live game serves) and `gates-of-elyra/tests/world_fixtures/vale.json` (what tests build from);
     the server stores specs as opaque jsonb, so no server code changed.
     - **Verified:** headless suite green (21 new `TestFormEffect` assertions; the 9 pre-existing
       failures unchanged), plus a runtime harness that drove all five verbs over the real Vale spec and
@@ -277,8 +277,8 @@ tests in `tests/` (like `test_companion_form.gd`, `test_companion_command.gd`), 
 > ⚠️ **Sandbox caveat (now partly lifted).** Earlier items here were reasoned but **not executed** —
 > the dev sandbox had no Godot binary. As of C-3 the engine **does** download in the sandbox: fetch
 > `Godot_v4.6-stable_linux.x86_64` (matching `project.godot`'s `config/features`), import once with
-> `godot --headless --editor --quit-after 200 --path pokepals` to build the `class_name` cache, then
-> run `godot --headless --path pokepals --script res://tests/run_tests.gd`. Two caveats: the import
+> `godot --headless --editor --quit-after 200 --path gates-of-elyra` to build the `class_name` cache, then
+> run `godot --headless --path gates-of-elyra --script res://tests/run_tests.gd`. Two caveats: the import
 > rewrites every `assets/**/*.png.import` file (revert that churn before committing). The
 > `smoke_*.gd` SceneTree scripts run too (`--script res://tests/smoke_maze.gd`, etc.). They used to
 > hang because `net.gd` named the `PlayerIdentity` autoload directly, which doesn't compile under

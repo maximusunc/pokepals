@@ -1,0 +1,197 @@
+[gd_scene load_steps=15 format=3 uid="uid://gatesofelyraworld"]
+
+[ext_resource type="Script" path="res://scripts/presentation/world_controller.gd" id="1"]
+[ext_resource type="Script" path="res://scripts/presentation/world_art.gd" id="2"]
+[ext_resource type="PackedScene" path="res://scenes/companion.tscn" id="3"]
+[ext_resource type="PackedScene" path="res://scenes/player.tscn" id="4"]
+[ext_resource type="Script" path="res://scripts/presentation/camera_rig.gd" id="5"]
+[ext_resource type="Script" path="res://scripts/presentation/virtual_joystick.gd" id="6"]
+[ext_resource type="Script" path="res://scripts/presentation/debug_overlay.gd" id="7"]
+[ext_resource type="Shader" path="res://assets/vignette.gdshader" id="8"]
+[ext_resource type="Script" path="res://scripts/presentation/scenery.gd" id="9"]
+[ext_resource type="Script" path="res://scripts/presentation/lobby.gd" id="10"]
+[ext_resource type="PackedScene" path="res://scenes/shop_panel.tscn" id="11"]
+[ext_resource type="Script" path="res://scripts/presentation/examine_prompt.gd" id="12"]
+[ext_resource type="Script" path="res://scripts/presentation/companion_radial.gd" id="13"]
+[ext_resource type="Script" path="res://scripts/presentation/gear_menu.gd" id="14"]
+
+[sub_resource type="ShaderMaterial" id="ShaderMaterial_vignette"]
+shader = ExtResource("8")
+shader_parameter/strength = 0.34
+shader_parameter/tint = Color(0.06, 0.05, 0.1, 1)
+
+[node name="World" type="Node2D"]
+script = ExtResource("1")
+
+[node name="DayTint" type="CanvasModulate" parent="."]
+color = Color(1.04, 0.99, 0.9, 1)
+
+[node name="WorldArt" type="Node2D" parent="."]
+script = ExtResource("2")
+
+[node name="Scenery" type="Node2D" parent="."]
+y_sort_enabled = true
+script = ExtResource("9")
+
+[node name="Companion" parent="Scenery" instance=ExtResource("3")]
+
+[node name="Player" parent="Scenery" instance=ExtResource("4")]
+joystick_path = NodePath("../../UI/Joystick")
+
+[node name="Camera2D" type="Camera2D" parent="."]
+script = ExtResource("5")
+player_path = NodePath("../Scenery/Player")
+companion_path = NodePath("../Scenery/Companion")
+
+[node name="Pollen" type="CPUParticles2D" parent="Camera2D"]
+amount = 34
+lifetime = 7.0
+preprocess = 4.0
+randomness = 0.5
+emission_shape = 3
+emission_rect_extents = Vector2(400, 240)
+direction = Vector2(0, -1)
+spread = 70.0
+gravity = Vector2(6, -4)
+initial_velocity_min = 3.0
+initial_velocity_max = 11.0
+scale_amount_min = 1.0
+scale_amount_max = 2.0
+color = Color(1, 0.96, 0.74, 0.45)
+
+[node name="Vignette" type="CanvasLayer" parent="."]
+
+[node name="Rect" type="ColorRect" parent="Vignette"]
+material = SubResource("ShaderMaterial_vignette")
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(1, 1, 1, 1)
+
+[node name="UI" type="CanvasLayer" parent="."]
+
+[node name="HintLabel" type="Label" parent="UI"]
+offset_left = 12.0
+offset_top = 10.0
+offset_right = 620.0
+offset_bottom = 86.0
+theme_override_colors/font_color = Color(0.97, 0.97, 0.93, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0.12, 0.1, 0.8)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 12
+text = ""
+autowrap_mode = 3
+
+[node name="GoalLabel" type="Label" parent="UI"]
+visible = false
+anchor_left = 0.5
+anchor_right = 0.5
+offset_left = -100.0
+offset_top = 40.0
+offset_right = 100.0
+offset_bottom = 66.0
+pivot_offset = Vector2(100, 13)
+theme_override_colors/font_color = Color(1, 0.97, 0.85, 1)
+theme_override_colors/font_outline_color = Color(0.1, 0.12, 0.1, 0.85)
+theme_override_constants/outline_size = 3
+theme_override_font_sizes/font_size = 11
+horizontal_alignment = 1
+text = ""
+
+[node name="Joystick" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("6")
+
+[node name="ExaminePrompt" type="Control" parent="UI"]
+mouse_filter = 2
+script = ExtResource("12")
+
+[node name="CompanionRadial" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("13")
+
+[node name="GearMenu" type="Control" parent="UI"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+script = ExtResource("14")
+
+[node name="Lobby" type="Control" parent="UI"]
+process_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+script = ExtResource("10")
+
+[node name="Backdrop" type="ColorRect" parent="UI/Lobby"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+color = Color(0.04, 0.05, 0.08, 0.72)
+
+[node name="Box" type="VBoxContainer" parent="UI/Lobby"]
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -170.0
+offset_top = -78.0
+offset_right = 170.0
+offset_bottom = 78.0
+theme_override_constants/separation = 10
+
+[node name="Title" type="Label" parent="UI/Lobby/Box"]
+theme_override_colors/font_color = Color(0.97, 0.97, 0.93, 1)
+theme_override_font_sizes/font_size = 22
+horizontal_alignment = 1
+text = "Wander Together"
+
+[node name="Status" type="Label" parent="UI/Lobby/Box"]
+custom_minimum_size = Vector2(0, 48)
+theme_override_colors/font_color = Color(0.86, 0.9, 0.84, 1)
+theme_override_font_sizes/font_size = 14
+horizontal_alignment = 1
+autowrap_mode = 2
+text = ""
+
+[node name="RetryButton" type="Button" parent="UI/Lobby/Box"]
+theme_override_font_sizes/font_size = 20
+text = "Retry"
+visible = false
+
+[node name="ShopPanel" parent="UI" instance=ExtResource("11")]
+visible = false
+
+[node name="Fade" type="CanvasLayer" parent="."]
+layer = 100
+
+[node name="Rect" type="ColorRect" parent="Fade"]
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+mouse_filter = 2
+color = Color(0, 0, 0, 0)
+
+[node name="DebugOverlay" type="CanvasLayer" parent="."]
+visible = false
+script = ExtResource("7")
+
+[node name="Readout" type="Label" parent="DebugOverlay"]
+offset_left = 12.0
+offset_top = 84.0
+offset_right = 420.0
+offset_bottom = 320.0
+theme_override_colors/font_color = Color(0.85, 0.95, 0.75, 1)
+theme_override_colors/font_outline_color = Color(0.05, 0.07, 0.05, 0.9)
+theme_override_constants/line_spacing = 1
+theme_override_constants/outline_size = 2
+theme_override_font_sizes/font_size = 10
+text = ""

@@ -1,0 +1,117 @@
+{
+	"_comment": "The COSMETIC CATALOG — every appearance piece the player could wear, defined as data (no code changes to add one). This is the 'inventory' half of player customization: which items exist, what SLOT each fills, and which WORLD granted it. The player's owned set + equipped loadout live separately (server-canonical PlayerAppearance); this file is the shared dictionary both the wardrobe UI and the renderer look items up in. Presentation-only: nothing here touches game logic. A 'sheet' that doesn't exist degrades silently (the layer is skipped), matching SpriteSlot's discipline, so new items can be declared before their art is drawn. Art is authored as ASCII pixel maps in tools/pixelart and exported per layer by tools/gen_wardrobe.py — remember to run 'godot --headless --path gates-of-elyra --import' after regenerating so new PNGs get imported.",
+	"_slots_comment": "SLOTS are the paper-doll layers, drawn back-to-front by ascending 'z'. Exactly one item occupies a slot at a time. 'required':true means the slot must always resolve to something — PlayerAppearance falls back to the slot's base default so the avatar can never render empty. The pixelart body map is head+arms only (legs/torso come from the garments), so legwear/outfit/footwear are required too — going shirtless isn't drawable. Leave room between z values so new layers can slot between without renumbering. 'body' is the bare (skin-dyed) figure; 'accessory' (glasses) sits over the outfit but under hair.",
+	"slots": [
+		{ "id": "body", "z": 0, "required": true },
+		{ "id": "legwear", "z": 15, "required": true },
+		{ "id": "outfit", "z": 20, "required": true },
+		{ "id": "footwear", "z": 25, "required": true },
+		{ "id": "accessory", "z": 45 },
+		{ "id": "hair", "z": 50 },
+		{ "id": "headwear", "z": 60 },
+		{ "id": "held", "z": 70 }
+	],
+	"_color_slots_comment": "COLOR slots are the 'palette' half of paper-doll + palette: cheap personalization that recolors a GRAYSCALE layer without new art. 'applies_to' names the paper-doll slot the recolor targets; 'ramps' are the named choices; 'default' is what a fresh player gets; 'swatches' gives each ramp a base [r,g,b] (0..1) that AvatarCompositor maps the layer's luminance onto (dark outline preserved, mid/light -> shadow/highlight of the swatch). Every layer except glasses is dyeable now — the swatch bases come from tools/pixelart's hand-tuned SKIN/HAIR/CLOTH ramps (their middle 'base' shade). Adding a color is a data edit — no new art. 'shop_ramps' are extra choices SOLD by the dye-maker in the bazaar: every client knows them (so a friend's bought dye renders for you), but the wardrobe only lets you pick one you own. Ownership is server-side (a category 'color' item def whose base_attributes name this color_slot + ramp, Server.Seeds), so a shop ramp's id here must match its def's 'ramp' and its swatch should match the def's 'swatch' (what the shop shows is what you get). 'dyes_from' names the color slot whose bought dyes also unlock here: the clothing slots take theirs from hair_color, so one dye bought for your hair can colour any garment too (skin tones stay skin-only).",
+	"color_slots": [
+		{
+			"id": "skin_tone", "applies_to": "body", "default": "golden",
+			"ramps": ["golden", "umber", "rose", "fair"],
+			"shop_ramps": ["blush", "slate"],
+			"swatches": { "golden": [0.776, 0.525, 0.259], "umber": [0.553, 0.333, 0.141], "rose": [0.898, 0.698, 0.565], "fair": [0.980, 0.804, 0.659], "blush": [0.96, 0.74, 0.74], "slate": [0.55, 0.60, 0.66] }
+		},
+		{
+			"id": "hair_color", "applies_to": "hair", "default": "bark",
+			"ramps": ["bark", "chestnut", "wheat", "slate", "ember"],
+			"shop_ramps": ["teal", "marigold", "plum"],
+			"swatches": { "bark": [0.235, 0.188, 0.141], "chestnut": [0.667, 0.431, 0.157], "wheat": [0.843, 0.706, 0.314], "slate": [0.275, 0.275, 0.373], "ember": [0.706, 0.196, 0.196], "teal": [0.30, 0.66, 0.66], "marigold": [0.91, 0.55, 0.13], "plum": [0.55, 0.35, 0.62] }
+		},
+		{
+			"id": "top_color", "applies_to": "outfit", "default": "river",
+			"ramps": ["river", "clay", "moss", "violet", "stone", "gold"],
+			"shop_ramps": ["teal", "marigold", "plum"], "dyes_from": "hair_color",
+			"swatches": { "river": [0.196, 0.373, 0.627], "clay": [0.647, 0.216, 0.216], "moss": [0.216, 0.510, 0.294], "violet": [0.490, 0.314, 0.627], "stone": [0.373, 0.373, 0.392], "gold": [0.784, 0.608, 0.196], "teal": [0.30, 0.66, 0.66], "marigold": [0.91, 0.55, 0.13], "plum": [0.55, 0.35, 0.62] }
+		},
+		{
+			"id": "legwear_color", "applies_to": "legwear", "default": "stone",
+			"ramps": ["river", "clay", "moss", "violet", "stone", "gold"],
+			"shop_ramps": ["teal", "marigold", "plum"], "dyes_from": "hair_color",
+			"swatches": { "river": [0.196, 0.373, 0.627], "clay": [0.647, 0.216, 0.216], "moss": [0.216, 0.510, 0.294], "violet": [0.490, 0.314, 0.627], "stone": [0.373, 0.373, 0.392], "gold": [0.784, 0.608, 0.196], "teal": [0.30, 0.66, 0.66], "marigold": [0.91, 0.55, 0.13], "plum": [0.55, 0.35, 0.62] }
+		},
+		{
+			"id": "footwear_color", "applies_to": "footwear", "default": "clay",
+			"ramps": ["river", "clay", "moss", "violet", "stone", "gold"],
+			"shop_ramps": ["teal", "marigold", "plum"], "dyes_from": "hair_color",
+			"swatches": { "river": [0.196, 0.373, 0.627], "clay": [0.647, 0.216, 0.216], "moss": [0.216, 0.510, 0.294], "violet": [0.490, 0.314, 0.627], "stone": [0.373, 0.373, 0.392], "gold": [0.784, 0.608, 0.196], "teal": [0.30, 0.66, 0.66], "marigold": [0.91, 0.55, 0.13], "plum": [0.55, 0.35, 0.62] }
+		},
+		{
+			"id": "headwear_color", "applies_to": "headwear", "default": "moss",
+			"ramps": ["river", "clay", "moss", "violet", "stone", "gold"],
+			"shop_ramps": ["teal", "marigold", "plum"], "dyes_from": "hair_color",
+			"swatches": { "river": [0.196, 0.373, 0.627], "clay": [0.647, 0.216, 0.216], "moss": [0.216, 0.510, 0.294], "violet": [0.490, 0.314, 0.627], "stone": [0.373, 0.373, 0.392], "gold": [0.784, 0.608, 0.196], "teal": [0.30, 0.66, 0.66], "marigold": [0.91, 0.55, 0.13], "plum": [0.55, 0.35, 0.62] }
+		}
+	],
+	"_items_comment": "ITEMS keyed by a WORLD-NAMESPACED id ('origin:name'), mirroring the companion's area ids ('world:region') — so a world's drops are self-contained and a later authoritative server can grant them by id without collision. 'origin':'base' items are owned by every player from the start; exactly one per default-able slot is tagged 'default_for' (the fresh-player loadout: tee + pants + shoes + short hair and the default dye colors — a clothed starter). 'rarity' (common | uncommon | rare | legendary) is a wardrobe-UI hint — base items are common, world drops rank up — it grants nothing mechanically. The render fields (sheet/frame/fps/walk_frames/idle_frame/dirs/z) follow the SAME sheet convention as the player/companion art (rows=facing down/side/up, cols=walk cycle, left=side flipped); see SpriteActor. The walk is now the pixelart package's 8-frame cycle at 10 fps (cols 0-7); the wardrobe sheets carry the standing pose in a 9th column, so their idle_frame is 8. All sheets are GRAYSCALE dye layers recolored by their color slot, except glasses (baked near-black ink).",
+	"items": {
+		"base:body": {
+			"slot": "body", "name": "Body", "origin": "base", "default_for": "body", "rarity": "common",
+			"sheet": "res://assets/cosmetics/body/body.png",
+			"z": 0, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+
+		"base:pants": {
+			"slot": "legwear", "name": "Pants", "origin": "base", "default_for": "legwear", "rarity": "common",
+			"sheet": "res://assets/cosmetics/legwear/pants.png",
+			"z": 15, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+
+		"base:tee": {
+			"slot": "outfit", "name": "Tee", "origin": "base", "default_for": "outfit", "rarity": "common",
+			"sheet": "res://assets/cosmetics/outfit/tee.png",
+			"z": 20, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+		"base:tank": {
+			"slot": "outfit", "name": "Tank", "origin": "base", "rarity": "common",
+			"sheet": "res://assets/cosmetics/outfit/tank.png",
+			"z": 20, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+
+		"base:shoes": {
+			"slot": "footwear", "name": "Shoes", "origin": "base", "default_for": "footwear", "rarity": "common",
+			"sheet": "res://assets/cosmetics/footwear/shoes.png",
+			"z": 25, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+
+		"base:glasses": {
+			"slot": "accessory", "name": "Glasses", "origin": "base", "rarity": "uncommon",
+			"sheet": "res://assets/cosmetics/accessory/glasses.png",
+			"z": 45, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+
+		"base:hair_short": {
+			"slot": "hair", "name": "Short Hair", "origin": "base", "default_for": "hair", "rarity": "common",
+			"sheet": "res://assets/cosmetics/hair/short.png",
+			"z": 50, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+		"base:hair_long": {
+			"slot": "hair", "name": "Long Hair", "origin": "base", "rarity": "common",
+			"sheet": "res://assets/cosmetics/hair/long.png",
+			"z": 50, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+		"base:hair_spiky": {
+			"slot": "hair", "name": "Spiky Hair", "origin": "base", "rarity": "uncommon",
+			"sheet": "res://assets/cosmetics/hair/spiky.png",
+			"z": 50, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+
+		"base:headband": {
+			"slot": "headwear", "name": "Headband", "origin": "base", "rarity": "common",
+			"sheet": "res://assets/cosmetics/headwear/headband.png",
+			"z": 60, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 8, "dirs": { "down": 0, "side": 1, "up": 2 }
+		},
+		"riverbank:reed_hat": {
+			"slot": "headwear", "name": "Woven Reed Hat", "origin": "riverbank", "rarity": "rare",
+			"sheet": "res://assets/cosmetics/reed_hat.png",
+			"z": 60, "frame": [32, 32], "fps": 10, "walk_frames": 8, "idle_frame": 0, "dirs": { "down": 0, "side": 1, "up": 2 }
+		}
+	}
+}

@@ -3,11 +3,11 @@
 services:
   db:
     image: postgres:16-alpine
-    container_name: pokepals-db
+    container_name: gates-of-elyra-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: pokepals
+      POSTGRES_DB: gates_of_elyra
     volumes:
       - pgdata:/var/lib/postgresql/data
     healthcheck:
@@ -19,8 +19,8 @@ services:
 
   relay:
     build: .
-    image: pokepals-relay:latest
-    container_name: pokepals-relay
+    image: gates-of-elyra-relay:latest
+    container_name: gates-of-elyra-relay
     depends_on:
       db:
         condition: service_healthy
@@ -30,9 +30,9 @@ services:
       PORT: "4000"
       # Host `db` is the compose service name (Docker's internal DNS). The relay runs migrations on
       # boot (see the Dockerfile CMD), then serves.
-      DATABASE_URL: "ecto://postgres:postgres@db/pokepals"
+      DATABASE_URL: "ecto://postgres:postgres@db/gates_of_elyra"
       # Phoenix endpoint signing key. REQUIRED in prod — generate your own and replace this:
-      #   docker run --rm pokepals-relay:latest bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) |> Base.encode64())"
+      #   docker run --rm gates-of-elyra-relay:latest bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) |> Base.encode64())"
       # (or `mix phx.gen.secret` in a dev checkout). It only needs to be a long, stable secret.
       SECRET_KEY_BASE: "REPLACE_ME_with_a_64_byte_secret_generated_as_described_above_xxxxxxxx"
     restart: unless-stopped
