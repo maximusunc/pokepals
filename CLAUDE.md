@@ -105,7 +105,7 @@ not a blocker** — pick it up if/when a shared world wants it.
 > the Use button alone, with what a tap does beside it ("Cast", "Find water") (`UseButton`). **Bottom-left:** the
 > joystick, a faint ring that comes to your thumb (`VirtualJoystick`). Messages show in a dark pill above the item
 > bar. No bond readout anywhere: the bond is felt, not shown. Built from `HudTile` + `HudIcons` (line icons).
-> `tests/shot_hud.gd` screenshots it. Design canvas: the "Kithbound HUD Redesign" artifact.
+> `tests/shot_hud.gd` screenshots it. Design canvas: the "Gates of Elyra HUD Redesign" artifact.
 
 > **Home building (2026-11):** chop wood, then have a house built at home (docs/usable-items-design.md, "Home
 > building"; issue #141). **Pick up** river stones and driftwood on the Riverbank (the spec's `pickups`; examine one).
