@@ -31,6 +31,8 @@ defmodule Server.Application do
       Server.Circuit,
       # Lingerlong's wishing fountain: every world's wish count, cached and written out (Server.Wishes).
       Server.Wishes,
+      # Counts wrong "Link a device" codes, per IP and overall (Server.LinkThrottle).
+      Server.LinkThrottle,
       # The HTTP/WebSocket listener (Phoenix Channels over Bandit). Bind/port come from config.
       Server.Endpoint
     ]

@@ -253,13 +253,17 @@ were.
 |----------|---------|---------|
 | `PORT`   | `4000`  | TCP port the server listens on (WebSocket endpoint mounted at `/ws`). |
 | `DATABASE_URL` | — (required in prod) | Postgres connection, `ecto://USER:PASS@HOST:PORT/DB`. Compose sets it for you; a bare/systemd deploy must provide it. Dev/test fall back to localhost defaults. |
-| `SECRET_KEY_BASE` | — (required in prod) | Phoenix endpoint signing key — a long, stable secret. Generate with `mix phx.gen.secret` (or `bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) \|> Base.encode64())"`). Compose ships a placeholder you must replace; dev/test use a built-in default. |
+| `SECRET_KEY_BASE` | — (required in prod) | Phoenix endpoint signing key — a long, stable secret. It also signs the 60-second socket tickets (`POST /session`), so every node behind one address needs the same value; changing it only costs a client one retry. Generate with `mix phx.gen.secret` (or `bin/server eval "IO.puts(:crypto.strong_rand_bytes(48) \|> Base.encode64())"`). Compose ships a placeholder you must replace; dev/test use a built-in default. |
 | `POOL_SIZE` | `10` | DB connection pool size. |
 
 The relay **binds all interfaces** (`0.0.0.0`) so it's reachable across your LAN and from outside a
-container. Players are keyed by a client-generated token (no accounts); their companion + wardrobe
-are stored in Postgres. The token is a bearer credential sent over plaintext `ws://` on the LAN —
-fine for a handful of friends; front it with TLS (`wss://`) before exposing it wider (see below).
+container. Each device holds a client-generated token (the server stores only its hash), trades it
+for a 60-second ticket at `POST /session`, and opens the socket with that; one account can be signed
+in on several devices ("Link a device"). Their companion + wardrobe are stored in Postgres. The token
+is still a bearer credential, sent over plain `http://` on the LAN — fine for a handful of friends;
+front it with TLS (`https://` / `wss://`) before exposing it wider (see below). Wrong "Link a device"
+codes are rate limited per client IP; behind a reverse proxy every client shares the proxy's IP, so
+the per-IP limit then acts server-wide (a separate server-wide backstop applies either way).
 
 Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills is
 `ws://127.0.0.1:4000/ws`; change the host to your relay's LAN IP for a friend on another machine.
@@ -286,7 +290,8 @@ Clients connect to `ws://<host>:<PORT>/ws`. The default the Godot gate pre-fills
   trusted network, **don't** open the BEAM port to the internet directly — put a reverse proxy
   (Caddy or Traefik, which do automatic TLS) in front and terminate `wss://` there, forwarding to
   the relay's `:4000`. With Compose, that's an added `caddy`/`traefik` service alongside `relay`.
-- **Accounts:** identity is a bearer token today (whoever holds it owns that save). Real accounts /
-  auth are a later step; until then, keep the deployment on a trusted network.
+- **Accounts:** identity is a device token today (whoever holds one of an account's device tokens
+  owns that save, until it is signed out from another device). Passwords / email are a later step;
+  until then, keep the deployment on a trusted network or behind TLS.
 - **Backups:** the companion lives only in Postgres now, so it's worth a periodic `pg_dump` of the
   `gates_of_elyra` DB (or a volume snapshot) once people have companions they'd miss.

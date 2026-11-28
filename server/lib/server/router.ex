@@ -8,6 +8,10 @@ defmodule Server.Router do
     * `GET /worlds/:id/packs` — the downloadable art packs that world needs beyond the base web client
       (`Server.Packs`). The client asks this BEFORE joining the world, fetches what it is missing, and
       only then joins, so a world is never built (or its first messages handled) half-dressed.
+    * `POST /session`      — trade a device token (`Authorization: Bearer ...`) for a 60-second socket
+      ticket (issue 175). The socket only takes tickets, so the long-lived token never rides in a URL.
+    * `POST /link/redeem`  — a NEW device offers a "Link a device" code and its own fresh token, and
+      polls until the owner answers (Server.Links).
 
   The world endpoints are read-only and CDN-friendly (cache by the spec's `version`) — DEFERRED SEAM:
   front them with a CDN / move spec bodies to object storage when the catalog grows. The Godot client
@@ -17,6 +21,14 @@ defmodule Server.Router do
   use Plug.Router
 
   plug :match
+
+  # JSON bodies for the two POSTs. Small: nothing we accept is more than a code, a token and a name.
+  plug Plug.Parsers,
+    parsers: [:json],
+    pass: ["*/*"],
+    json_decoder: Jason,
+    length: 4_096
+
   plug :dispatch
 
   # The web client's entry point. `Plug.Static` (in the endpoint) serves the export's named assets,
@@ -72,11 +84,54 @@ defmodule Server.Router do
     end
   end
 
+  post "/session" do
+    # Named on first sight; renamed whenever the device sends a name again.
+    name = Server.Devices.clean_name(conn.body_params["device_name"])
+
+    with {:ok, token} <- bearer_token(conn),
+         {:ok, _account, device} <- Server.Accounts.resolve_device(token, name) do
+      device = Server.Devices.touch(device, name)
+
+      json(conn, 200, %{
+        ticket: Server.UserSocket.mint_ticket(device.device_id),
+        expires_in: Server.UserSocket.ticket_max_age()
+      })
+    else
+      :bad_request -> json(conn, 400, %{error: "bad_request"})
+      {:error, :revoked} -> json(conn, 401, %{error: "revoked"})
+      {:error, _} -> json(conn, 503, %{error: "unavailable"})
+    end
+  end
+
+  post "/link/redeem" do
+    p = conn.body_params
+
+    case Server.Links.redeem(p["code"], p["token"], p["device_name"], conn.remote_ip) do
+      :pending -> json(conn, 202, %{status: "pending"})
+      :linked -> json(conn, 200, %{status: "linked"})
+      :denied -> json(conn, 403, %{error: "denied"})
+      :invalid -> json(conn, 404, %{error: "invalid"})
+      :slow_down -> json(conn, 429, %{error: "slow_down"})
+    end
+  end
+
   match _ do
     send_resp(conn, 404, "not found")
   end
 
   # --- helpers ---
+
+  # The device token from `Authorization: Bearer <token>`; anything missing or blank is a bad request.
+  defp bearer_token(conn) do
+    with [header | _] <- get_req_header(conn, "authorization"),
+         [scheme, token] <- String.split(header, " ", parts: 2),
+         "bearer" <- String.downcase(scheme),
+         token when token != "" <- String.trim(token) do
+      {:ok, token}
+    else
+      _ -> :bad_request
+    end
+  end
 
   # A world by UUID or by slug. (Only a well-formed UUID may go to `Repo.get`, which raises on anything
   # else; a slug like "nocthollow" is looked up by slug instead.)

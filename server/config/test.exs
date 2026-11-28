@@ -13,3 +13,7 @@ config :logger, level: :warning
 
 # Fishing bites at once under test, so a channel test can cast and reel without sleeping.
 config :server, Server.Fishing, wait_range: {0, 0}
+
+# Channel tests connect with a device token directly (`connect(UserSocket, %{"token" => ...})`), skipping
+# the POST /session ticket round trip. Compile-time, and only here: dev and prod accept tickets only.
+config :server, Server.UserSocket, allow_token_param: true

@@ -1,7 +1,7 @@
 # Gates of Elyra relay — Rung 4 / MMO foundation (P1)
 
-The **authoritative server** for the shared world. It authenticates each connection by its identity
-token (resolving it to an internal `user_id`, which is also the peer id), tracks the roster with
+The **authoritative server** for the shared world. It authenticates each connection by a short-lived
+ticket traded for a device token (resolving it to an internal `user_id`, which is also the peer id), tracks the roster with
 **Phoenix.Presence**, relays presentation state (avatar + companion transforms and identity) between
 clients, and is the **sole store** of each player's companion + wardrobe (**PostgreSQL** via Ecto),
 keyed by `user_id`. The game is online-only: there is no local game save.
@@ -10,13 +10,55 @@ Runtime stack: **Phoenix Channels** (over **Bandit**, via `Bandit.PhoenixAdapter
 + **Phoenix.Presence** + **Ecto** — a socket-only Phoenix endpoint (no HTML). Clients are Phoenix
 Channel clients on a single `"world"` topic; Presence and the DB are internal details they never see.
 
-## Identity model (P1)
+## Identity model
 
-The client still holds an anonymous 128-bit bearer **token**, but it's now just a lookup: at connect
-the token resolves to (or mints) an **`accounts`** row whose **`user_id` UUID** is the internal anchor
-every other table is keyed by. `email` / `username` / `password_hash` are nullable upgrade-path
-columns — a player can claim an account later without `user_id` ever changing. The companion and
-appearance are **client-owned opaque jsonb blobs** the server stores but never interprets.
+An **`accounts`** row's **`user_id` UUID** is the internal anchor every other table is keyed by.
+`email` / `username` / `password_hash` are nullable upgrade-path columns: a player can claim an
+account later without `user_id` ever changing. The companion and appearance are **client-owned opaque
+jsonb blobs** the server stores but never interprets.
+
+A player is signed in on one or more **devices** (`devices`, issue 175). Each device holds its own
+anonymous 128-bit bearer **token**; the server keeps only its SHA-256. An unseen token mints a new
+account with that token as its first device (a new player just plays, no signup). A device that has
+been **signed out** is refused for good and never mints a new account. An account holds at most 10
+devices. (`accounts.token` is the old one-token-per-player column: kept, nullable and unread for one
+release so the code can be rolled back, then to be dropped.)
+
+How a client gets in:
+
+1. `POST /session` with `Authorization: Bearer <device token>` and an optional JSON body
+   `{"device_name": "Sam's phone"}` (trimmed, at most 40 characters; stored on first sight, renamed
+   whenever it is sent again). Answers:
+   - `200 {"ticket": "...", "expires_in": 60}`, and the device's `last_seen` is bumped;
+   - `401 {"error": "revoked"}` for a signed-out device;
+   - `400 {"error": "bad_request"}` for a missing or blank token.
+2. Open the socket with `?ticket=<ticket>`. A ticket is a `Phoenix.Token` (signed with
+   `SECRET_KEY_BASE`) carrying the device id, good for 60 seconds. The long-lived token is never put
+   in a socket URL, and the socket does not accept one (tests only turn that back on, in
+   `config/test.exs`). Tokens and tickets are filtered out of the logs.
+
+**One live session per player: the newest connection wins.** When a socket connects, the player's
+older sockets get a `superseded` push (empty payload) on their world channel and are then closed. A
+client should not reconnect by itself after `superseded`. (`Server.Sessions` explains how the push
+is made to arrive before the close, and how a socket caught between worlds is still told.)
+
+**Link a device** (no passwords): on a device that is signed in, ask for a code; type it into the new
+device, which sends it with a fresh token of its own; say yes on the first device. Codes are 8
+characters from an alphabet with nothing to misread, shown as `ABCD-EFGH`, good for 10 minutes and
+for one device, kept hashed in Postgres (`link_codes`). Asking for another voids the last.
+
+- `POST /link/redeem` (no auth), body `{"code": "...", "token": "<the new device's fresh token>",
+  "device_name": "..."}`. The code is read case-insensitively, ignoring dashes and spaces. The new
+  device re-sends the same body every ~2 s until it hears:
+  - `202 {"status": "pending"}`: the code is good and the owner has been asked (the same code and
+    token keep getting this until the owner answers);
+  - `200 {"status": "linked"}`: allowed; the token is now one of the owner's devices (repeated for
+    5 minutes, in case a response is lost);
+  - `403 {"error": "denied"}`: the owner said no (or was already at 10 devices);
+  - `404 {"error": "invalid"}`: unknown, expired, used, already pending for another token, or the
+    token already belongs to a device;
+  - `429 {"error": "slow_down"}`: too many wrong codes lately (about 10 per 10 minutes from one IP,
+    plus a server-wide backstop). Polling your own pending request never counts.
 
 ## Run it (development)
 
@@ -36,8 +78,8 @@ iex -S mix
 
 It listens on `:4000` (override with `PORT=...`). Clients connect to `ws://<this-machine-ip>:4000/ws`
 — use `127.0.0.1` if Godot runs on the same machine, or the LAN IP for a friend on the same network.
-(The Godot client rewrites that into the full Phoenix socket URL — `…/ws/websocket?vsn=2.0.0&token=…`
-— so you only ever type the host.) `GET /health` returns `ok` for a quick liveness check.
+(The Godot client first trades its device token for a ticket at `POST /session`, then opens the full
+Phoenix socket URL — `…/ws/websocket?vsn=2.0.0&ticket=…` — so you only ever type the host.) `GET /health` returns `ok` for a quick liveness check.
 
 ## Deploy it somewhere
 
@@ -57,7 +99,8 @@ Common actions are also wrapped in the `Makefile` (`make release`, `make compose
 mix test
 ```
 
-Covers token→user_id resolution (`Accounts`), the `Saves` store/load round-trip keyed by user_id,
+Covers token→device→user_id resolution (`Accounts`, `Devices`), sessions and linking (`/session`,
+`/link/redeem`, socket tickets, newest-connection-wins on a real WebSocket, `Links`), the `Saves` store/load round-trip keyed by user_id,
 the Presence diff→frame adapter (`PresenceFrames`), the world catalog (`Worlds`: upsert/get/list +
 display-type filter), the per-world process (`World`: store/snapshot/forget/fan-out, one per world_id,
 isolated), and the full channel flow (`WorldChannel` via `Phoenix.ChannelTest`: per-world join with
@@ -76,16 +119,21 @@ End-to-end behaviour is verified by running Godot clients against the server (se
 lib/server/
   application.ex     supervision tree: Repo + PubSub + Presence + World{Registry,Supervisor} + Endpoint
   endpoint.ex        Phoenix endpoint: UserSocket at /ws (over Bandit) + /health + /worlds router
-  user_socket.ex     connect/3 — resolves the token → user_id; channel "world:*" (one per world)
+  user_socket.ex     connect/3 — verifies a ticket → device → user_id; channel "world:*" (one per world)
   world_channel.ex   per-world channel "world:"<>id: spec delivery, welcome/load, identity/state/save
   world.ex           ONE live process per world_id (registry-addressed): live transforms + snapshot
   worlds.ex          the world CATALOG boundary: get/list/upsert world definitions (specs)
   world_definition.ex schema for world_definitions (world_id PK, slug, display_types, version, spec)
   presence_frames.ex pure presence-diff → wire-frame translation (unit-tested)
-  router.ex          Plug router: /health + the world catalog (GET /worlds, /worlds/:id) + 404
+  router.ex          Plug router: /health + the world catalog (GET /worlds, /worlds/:id) + POST /session
+                     + POST /link/redeem + 404
   presence.ex        the roster, as a Phoenix.Presence (CRDT over PubSub), per-world topic, keyed by user_id
-  accounts.ex        resolve a token → account (the token → user_id indirection)
-  account.ex         schema for accounts (user_id PK, token UNIQUE, nullable claim cols)
+  accounts.ex        resolve a device token → account (minting one on first sight)
+  account.ex         schema for accounts (user_id PK, nullable claim cols, session_gen)
+  devices.ex / device.ex   a player's signed-in devices (token hashes), list, add, sign out
+  sessions.ex        one live session per player: superseded / signed_out, then close
+  links.ex / link_code.ex  "Link a device" codes: new, redeem, answer
+  link_throttle.ex   counts wrong link codes per IP and overall (ETS)
   companion.ex       schema for companions (companion_id PK, user_id UNIQUE, opaque data jsonb)
   appearance.ex      schema for player_appearances (user_id PK, opaque data jsonb)
   saves.ex           load/store a player's blobs by user_id (the persistence boundary)
@@ -175,7 +223,7 @@ when richer schemas are required. Neither is built now; both are flagged at thei
 ## Wire protocol (Phoenix Channels, v2 serializer)
 
 Every frame is a JSON array `[join_ref, ref, topic, event, payload]`. There's ONE socket per client
-(auth once via the `token` connect param — no `hello` round-trip), but the player joins ONE WORLD
+(auth once via the `ticket` connect param from `POST /session` — no `hello` round-trip), but the player joins ONE WORLD
 channel at a time: `topic = "world:" <> world_id`. Travelling = leave the old world channel, join the
 new one. The server stamps the sender id (the player's `user_id`, a UUID string, stable across
 reconnects) onto every relayed frame — clients never send their own id.
@@ -193,7 +241,19 @@ Presentation (relayed to peers IN THE SAME WORLD), `event` + `payload`:
 - server→client `welcome` `{"id":"<our user_id>","peers":[{"id":"<user_id>","identity":{..}}, ...]}`
 - server→client `join` `{"id":"<user_id>"}` · `identity` `{"id":"<user_id>",..}` · `state` `{"id":"<user_id>",..}` · `leave` `{"id":"<user_id>"}`
 
-Persistence (point-to-point with the server; per-USER, same in every world; token is a bearer credential):
+Persistence (point-to-point with the server; per-USER, same in every world):
 
 - server→client `load` `{"companion":{..}|null,"appearance":{..}|null}` — the canonical save on join (nulls = new player)
 - client→server `save` `{"companion":{..},"appearance":{..}}` — periodic + on exit (the canonical write)
+
+Devices and sessions (point-to-point with the owner, on whatever world channel they're in; see
+"Identity model" above):
+
+- server→client `superseded` `{}` — a newer connection of ours took over; the socket closes next. Don't reconnect.
+- server→client `signed_out` `{}` — this device was signed out from another; the socket closes next. Its token now gets `401 revoked`.
+- client→server `link_code` `{}` → server→client `link_code` `{"code":"ABCD-EFGH","expires_in":600}` — asking again voids the last code
+- server→client `link_request` `{"device_name":".."}` — a new device typed in our code and is waiting
+- client→server `link_answer` `{"allow":true|false}` — on allow the device is added and every one of our clients gets a fresh `devices`
+- server→client `link_failed` `{"reason":"too_many"|"expired"}` — our allow couldn't be carried out: at 10 devices (the new device is told `denied`), or nothing was waiting any more
+- client→server `devices` `{}` → server→client `devices` `{"devices":[{"id":"<device_id>","name":"..","last_seen_ms":<unix ms>|null,"current":true|false}]}` — signed-in devices only, this one first, then the most recently seen; also pushed whenever the list changes
+- client→server `device_revoke` `{"id":"<device_id>"}` — sign out ANOTHER of our devices (this device, or anyone else's, is refused and we just get `devices` back)

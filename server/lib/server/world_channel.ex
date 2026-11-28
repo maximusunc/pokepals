@@ -51,8 +51,28 @@ defmodule Server.WorldChannel do
   # owner (Server.HomeWorld). The owner may always enter; anyone else only while it's open, with no
   # block between them, as a friend or with a one-off pass from an accepted invite (Server.Homes). A
   # pass is used up on the way in. Everything after the join is the same as any world.
+  # Every join first asks whether this socket may still play (Server.Sessions): a newer connection
+  # of the same player, or this device being signed out, ends it. The join is accepted so the event
+  # reaches the client on a channel it is listening to, and the socket then closes.
+  #
+  # We listen on our own user topic (Server.Friends.user_topic/1) BEFORE that check, so no newer
+  # connection can slip between the two: one that connected before we listened shows up in the
+  # check, one after reaches us as a message.
   @impl true
-  def join("world:home:" <> owner_id, payload, socket) do
+  def join(topic, payload, socket) do
+    Phoenix.PubSub.subscribe(Server.PubSub, Friends.user_topic(socket.assigns.user_id))
+
+    case Server.Sessions.check(socket.assigns) do
+      :ok ->
+        join_world(topic, payload, socket)
+
+      ended ->
+        send(self(), {:end_session, ended})
+        {:ok, socket}
+    end
+  end
+
+  defp join_world("world:home:" <> owner_id, payload, socket) do
     user_id = socket.assigns.user_id
 
     with {:ok, resume_p} <- resume(payload, user_id, HomeWorld.world_id(owner_id)) do
@@ -77,7 +97,7 @@ defmodule Server.WorldChannel do
     end
   end
 
-  def join("world:" <> world_id, payload, socket) when world_id != "" do
+  defp join_world("world:" <> world_id, payload, socket) when world_id != "" do
     case Worlds.get(world_id) do
       nil ->
         Logger.warning("rejected join for unknown world #{inspect(world_id)} — is the catalog seeded? (mix run priv/repo/seeds.exs)")
@@ -101,7 +121,7 @@ defmodule Server.WorldChannel do
     end
   end
 
-  def join(_topic, _payload, _socket), do: {:error, %{reason: "bad_topic"}}
+  defp join_world(_topic, _payload, _socket), do: {:error, %{reason: "bad_topic"}}
 
   @impl true
   def handle_info(:after_join, socket) do
@@ -138,9 +158,8 @@ defmodule Server.WorldChannel do
 
     topic = "world:" <> world_id
     Phoenix.PubSub.subscribe(Server.PubSub, World.state_topic(world_id))
-    # Our own social topic (friend requests, invites, list changes, being sent home) and the "online"
-    # roster friends read our status from. Both follow us from world to world.
-    Phoenix.PubSub.subscribe(Server.PubSub, Friends.user_topic(user_id))
+    # Our own social topic (friend requests, invites, list changes, being sent home) was joined in
+    # join/3; the "online" roster friends read our status from follows us from world to world too.
     Social.track_online(self(), user_id)
     profile = Profiles.ensure(user_id)
     socket = assign(socket, :name, profile.name)
@@ -253,6 +272,42 @@ defmodule Server.WorldChannel do
 
   def handle_info({:invite_answer, guest, name, accepted}, socket) do
     push(socket, "invite_answer", %{guest: guest, name: name, accepted: accepted})
+    {:noreply, socket}
+  end
+
+  # ── Devices and sessions (issue 175), from our own user topic ──
+
+  # A newer connection of ours took over (Server.Sessions.begin/1); one at least as new is ourselves.
+  def handle_info({:superseded, gen}, socket) do
+    if gen > Map.get(socket.assigns, :session_gen, gen), do: Server.Sessions.end_socket(socket, "superseded")
+    {:noreply, socket}
+  end
+
+  # One of our devices was signed out from another; if it's this one, we're done.
+  def handle_info({:signed_out, device_id}, socket) do
+    if socket.assigns[:device_id] == device_id, do: Server.Sessions.end_socket(socket, "signed_out")
+    {:noreply, socket}
+  end
+
+  # The join found this socket already replaced or signed out.
+  def handle_info({:end_session, :superseded}, socket) do
+    Server.Sessions.end_socket(socket, "superseded")
+    {:noreply, socket}
+  end
+
+  def handle_info({:end_session, :signed_out}, socket) do
+    Server.Sessions.end_socket(socket, "signed_out")
+    {:noreply, socket}
+  end
+
+  # A new device typed in our link code and is waiting for our yes or no.
+  def handle_info({:link_request, name}, socket) do
+    push(socket, "link_request", %{device_name: name})
+    {:noreply, socket}
+  end
+
+  def handle_info({:devices_changed}, socket) do
+    push_devices(socket)
     {:noreply, socket}
   end
 
@@ -1111,7 +1166,48 @@ defmodule Server.WorldChannel do
     {:noreply, socket}
   end
 
+  # ── Devices (issue 175): link a new one, list them, sign one out ──
+
+  # A fresh "Link a device" code to type into the new device. Asking again voids the last one.
+  def handle_in("link_code", _payload, socket) do
+    code = Server.Links.new_code(socket.assigns.user_id)
+    push(socket, "link_code", %{code: code, expires_in: Server.Links.ttl_s()})
+    {:noreply, socket}
+  end
+
+  # Our yes or no to the device waiting on our code. A yes adds it (Server.Links.answer/2 tells all our
+  # clients the list changed); if it can't be let in, we say why.
+  def handle_in("link_answer", %{"allow" => allow}, socket) when is_boolean(allow) do
+    case Server.Links.answer(socket.assigns.user_id, allow) do
+      :ok -> :ok
+      {:error, reason} -> push(socket, "link_failed", %{reason: to_string(reason)})
+    end
+
+    {:noreply, socket}
+  end
+
+  def handle_in("devices", _payload, socket) do
+    push_devices(socket)
+    {:noreply, socket}
+  end
+
+  # Sign out ANOTHER of our devices. Refused for this device or anyone else's; either way we answer
+  # with the list as it now stands (a success also reaches every one of our clients).
+  def handle_in("device_revoke", %{"id" => id}, socket) do
+    case Server.Devices.revoke(socket.assigns.user_id, socket.assigns[:device_id], id) do
+      :ok -> :ok
+      {:error, _} -> push_devices(socket)
+    end
+
+    {:noreply, socket}
+  end
+
   def handle_in(_event, _payload, socket), do: {:noreply, socket}
+
+  defp push_devices(socket) do
+    devices = Server.Devices.list_view(socket.assigns.user_id, socket.assigns[:device_id])
+    push(socket, "devices", %{devices: devices})
+  end
 
   # A cold boot asks to RESUME where it left off (`"resume": true`). `{:ok, [x, y]}` = it was last in
   # `world_id` itself, set it down there; `{:ok, nil}` = nothing to resume here (or not asked); and an

@@ -23,6 +23,10 @@ config :logger, level: :info
 # Phoenix uses Jason for JSON (channel payloads, etc.).
 config :phoenix, :json_library, Jason
 
+# Never write credentials to the log: Phoenix logs socket connect params, and a device token or a
+# socket ticket is a login.
+config :phoenix, :filter_parameters, ["password", "token", "ticket"]
+
 # MIME types for the served Godot web export. `.wasm` MUST be `application/wasm` or the browser
 # refuses to streaming-compile it (Godot's loader uses `WebAssembly.instantiateStreaming`); `.pck`
 # is Godot's opaque pack file. Modern `mime` already knows `wasm`, but we pin both to be safe.
