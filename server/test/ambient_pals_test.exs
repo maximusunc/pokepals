@@ -147,7 +147,7 @@ defmodule Server.AmbientPalsTest do
   end
 
   # The pond at (300, 200), radius 100: its drawn bank bulges to ~119 px at angle ~2.076 and dips to
-  # ~85 px at ~5.379. The same vectors pin the client's PondShape (pokepals/tests/test_solids.gd).
+  # ~85 px at ~5.379. The same vectors pin the client's PondShape (gates-of-elyra/tests/test_solids.gd).
   test "the pond bank twin matches the client's PondShape" do
     seed = 300 * 0.013 + 200 * 0.021 - 2 * :math.pi()
     assert_in_delta AmbientPals.bank_radius(1.0, 100.0, seed), 93.3920, 0.01

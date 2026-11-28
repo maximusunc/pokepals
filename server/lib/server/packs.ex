@@ -4,7 +4,7 @@ defmodule Server.Packs do
 
   The browser build ships a small base (everything the Vale and every player's home need) and keeps
   each other world's own art in a separate pack, fetched the first time the player goes there. The
-  build (`pokepals/tools/packs/build_packs.py`, run by `build-web.sh`) writes the packs and a manifest
+  build (`gates-of-elyra/tools/packs/build_packs.py`, run by `build-web.sh`) writes the packs and a manifest
   into `priv/static/packs/`:
 
       {"format": 1,

@@ -1,4 +1,4 @@
-# Writes the client's house test fixtures (pokepals/tests/world_fixtures/home_house_*.json) with the real
+# Writes the client's house test fixtures (gates-of-elyra/tests/world_fixtures/home_house_*.json) with the real
 # Server.HomeWorld, for a home that has found EVERY world's secret and whose companion has chosen 7 keepsakes:
 # so the house's display plinths are all taken and its curio shelves are full, the way a long-time player's is.
 #   cd server && mix run --no-start test/fixtures/gen_home_house_fixtures.exs
@@ -27,6 +27,6 @@ for {name, started} <- [{"home_house_building", now - 60_000}, {"home_house_buil
       now: now
     })
 
-  File.write!("../pokepals/tests/world_fixtures/#{name}.json", Jason.encode!(core, pretty: true))
+  File.write!("../gates-of-elyra/tests/world_fixtures/#{name}.json", Jason.encode!(core, pretty: true))
   IO.puts("#{name}: #{length(cards)} finds, #{length(keepsakes)} keepsakes")
 end

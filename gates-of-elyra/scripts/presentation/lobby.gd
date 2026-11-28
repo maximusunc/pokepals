@@ -1,0 +1,174 @@
+extends Control
+## The connection gate. The game is ONLINE-ONLY: there is no solo/offline mode and no local save —
+## your companion lives on the server — so entering the world REQUIRES connecting. There's no address
+## to type: the server URL is resolved automatically (the page origin on web; a build-time config on
+## native — see Net.default_server_url). This overlay auto-connects, reflects status, and steps aside
+## once the server has handed back your companion (save_loaded). If the link can't be made it offers a
+## Retry. Pure presentation.
+##
+## It's also the LAST of the three loading stages: the web download page (web/shell.html) and the boot
+## splash (assets/loading/boot_splash.png) show the same wordmark and the same fox on the same
+## background, at the same spots, so the hand-off from one to the next is seamless. Those two are baked
+## by tools/gen_loading.py; the LOADING LAYOUT numbers below mirror its layout constants.
+
+# LOADING LAYOUT, on the 640x360 canvas (mirrors tools/gen_loading.py):
+const BG := Color("1b1510")       # gen_loading.BG, also the boot splash's bg_color
+const BG_OVER_WORLD := Color(0.106, 0.082, 0.063, 0.82)  # after a disconnect: the world dims beneath
+const WORDMARK_SIZE := 16         # gen_loading.WORDMARK_SIZE
+const BOX_TOP := 99.0 - 180.0     # the wordmark's ink starts 7px into its Label, at y=106
+const GAP := 12.0                 # puts the fox's 64px box at y=132 (gen_loading.FOX_TOP)
+
+@onready var _backdrop: ColorRect = $Backdrop
+@onready var _box: VBoxContainer = $Box
+@onready var _title: Label = $Box/Title
+@onready var _status: Label = $Box/Status
+@onready var _retry_button: Button = $Box/RetryButton
+var _fox: TrottingFox
+
+
+func _ready() -> void:
+	_apply_style()
+	_retry_button.pressed.connect(_begin_connect)
+	Net.connected.connect(_on_connected)
+	Net.connection_failed.connect(_on_connection_failed)
+	Net.disconnected.connect(_on_disconnected)
+	Net.save_loaded.connect(_on_save_loaded)
+	Net.world_join_failed.connect(_on_world_join_failed)
+	# The lobby is the world-ENTRY gate, and it owns the one switch that decides whether the world is
+	# playable: get_tree().paused. While the gate is up the whole world tree is frozen (Net is the lone
+	# exception — PROCESS_MODE_ALWAYS — so the socket keeps pumping), so nothing can move, no portal can
+	# fire, and a not-yet-joined client never walks around or broadcasts.
+	#
+	# _ready only decides the INITIAL state for this freshly-(re)loaded scene. The "officially joined"
+	# guarantee lives elsewhere: the world only ever UNFREEZES in _on_save_loaded, so the window between
+	# socket-open and the companion arriving stays frozen no matter what. So here we only tell two fresh
+	# loads apart:
+	#   • a connected world hop (WorldRouter.go_to reloads this scene without dropping the socket): the
+	#     socket is already open → we're mid-session, stay out of the way and leave the world live.
+	#   • a cold boot or a post-disconnect reload (socket not open): show the opaque gate, freeze the
+	#     world, and auto-connect.
+	# We key off Net.is_active() (socket open), NOT the contents of the save — a brand-new player's first
+	# load is empty (no companion blob yet), so a save-contents check would wrongly bounce them to the gate
+	# on their first portal hop.
+	if Net.is_active():
+		visible = false
+		get_tree().paused = false
+		return
+	# A cold boot: nothing is drawn behind us yet (just the engine's grey clear colour), so the gate is
+	# fully opaque here, continuing the boot splash.
+	_backdrop.color = BG
+	get_tree().paused = true
+	_begin_connect()
+
+
+## The gate in the shared UiStyle voice: a Silkscreen wordmark over the dark backdrop (the
+## same pixel-caps treatment as the wardrobe's WARDROBE header), quiet paper status text,
+## and the gold primary button for Retry.
+func _apply_style() -> void:
+	_title.text = "GATES OF ELYRA"
+	var wordmark := UiFonts.pixel(false, 1)
+	if wordmark != null:
+		_title.add_theme_font_override("font", wordmark)
+	_title.add_theme_font_size_override("font_size", WORDMARK_SIZE)
+	_box.offset_top = BOX_TOP
+	_box.add_theme_constant_override("separation", int(GAP))
+	# The fox, between the wordmark and the status line. It trots while we're connecting and stands
+	# still while we wait on a Retry.
+	_fox = TrottingFox.new(2)
+	_fox.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	_box.add_child(_fox)
+	_box.move_child(_fox, _title.get_index() + 1)
+	_title.add_theme_color_override("font_shadow_color", Color(20.0 / 255.0, 14.0 / 255.0, 8.0 / 255.0, 0.55))
+	_title.add_theme_constant_override("shadow_offset_x", 0)
+	_title.add_theme_constant_override("shadow_offset_y", 1)
+	UiStyle.set_font(_status, 500, 10)
+	_status.add_theme_color_override("font_color", UiStyle.PAPER)
+	UiStyle.gold_button(_retry_button, 11)
+
+
+## Start (or retry) connecting to the resolved server. No address is typed — web derives it from the
+## page origin, native reads the baked-in config (see Net.default_server_url).
+func _begin_connect() -> void:
+	_retry_button.visible = false
+	_fox.trotting = true
+	var err := Net.connect_to(Net.default_server_url())
+	if err != OK:
+		_status.text = "Couldn't start connecting (error %d)." % err
+		_retry_button.visible = true
+		_fox.trotting = false
+		return
+	_status.text = "Connecting…"
+
+
+## The server accepted us; our companion is on its way. Hold the gate until it actually arrives
+## (save_loaded), so the world doesn't flash a placeholder before the real companion loads.
+func _on_connected() -> void:
+	if _is_stale():
+		return
+	_status.text = "Connected! Loading your companion…"
+
+
+## Our companion + wardrobe are here (or we're a brand-new player). Fade the gate away and let the
+## player be in the world — connected-and-alone is the normal way to play.
+func _on_save_loaded(_companion, _appearance) -> void:
+	if _is_stale():
+		return
+	# Officially in the world now — this is the ONE place the world becomes playable. Unfreeze before the
+	# fade so the player can move the instant the gate clears. (The fade itself animates while we're
+	# transitioning out of pause because this Control is PROCESS_MODE_ALWAYS.)
+	get_tree().paused = false
+	var tw := create_tween()
+	tw.tween_property(self, "modulate:a", 0.0, 0.4)
+	tw.tween_callback(func() -> void: visible = false)
+
+
+func _on_connection_failed() -> void:
+	if _is_stale():
+		return
+	_status.text = "Couldn't reach the server. Check that it's running, then retry."
+	_retry_button.visible = true
+	_fox.trotting = false
+
+
+## We reached the server but it refused to let us into the world — almost always because the server's
+## world catalog is empty (run its seeds). Surface it instead of hanging on "loading".
+func _on_world_join_failed(reason: String) -> void:
+	if _is_stale():
+		return
+	if reason == "unknown_world":
+		_status.text = "The server has no world to enter yet. Seed it: mix run priv/repo/seeds.exs"
+	else:
+		_status.text = "The server refused entry to the world (%s)." % reason
+	_retry_button.visible = true
+	_fox.trotting = false
+
+
+## The link dropped. With no offline mode, the player returns to the gate to reconnect.
+func _on_disconnected() -> void:
+	if _is_stale():
+		return
+	_status.text = "Disconnected from the server. Reconnect to keep playing."
+	_reshow()
+
+
+func _reshow() -> void:
+	# Re-freeze the world under the opaque gate: no movement, and no portal can fire to sneak us back
+	# into a disconnected world. Offer Retry — there's nothing else to configure.
+	get_tree().paused = true
+	_backdrop.color = BG_OVER_WORLD
+	visible = true
+	modulate.a = 1.0
+	_retry_button.visible = true
+	_fox.trotting = false
+
+
+## True if this lobby is detached from the scene tree — it's a torn-down husk that should NOT react.
+##
+## We subscribe to the Net AUTOLOAD's signals, and Net outlives any single world scene. When a world
+## reloads mid-connect — e.g. the server ships a freshly-changed spec and world_controller rebuilds via
+## get_tree().reload_current_scene() — this old lobby leaves the tree a frame (or more) before it's
+## actually freed. If a Net signal fires in that window our handler runs on a husk whose get_tree() is
+## null, and `get_tree().paused = …` crashes. The fresh scene's lobby owns the gate now, so a stale one
+## simply bows out. (A normal, single-lobby connect never trips this — it's always in the tree.)
+func _is_stale() -> bool:
+	return not is_inside_tree()

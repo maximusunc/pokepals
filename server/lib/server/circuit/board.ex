@@ -2,7 +2,7 @@ defmodule Server.Circuit.Board do
   @moduledoc """
   One RIBBON BOARD (Ohmstead): a lattice of nodes, some missing, and one ribbon of light that has to be laid
   through every node that is there, from the `source` (where a live line comes in) to the `sink` (the outlet).
-  The twin of the client's `CircuitBoard` (pokepals/scripts/world/circuit_board.gd), held to the same test
+  The twin of the client's `CircuitBoard` (gates-of-elyra/scripts/world/circuit_board.gd), held to the same test
   vectors (test/fixtures/circuit_vectors.json).
 
   The rules:

@@ -37,7 +37,7 @@ PAD = 22.0               # thin margin between the perimeter hedge and the world
 WORLD_ID = "maze"
 VALE_ID = "11111111-1111-1111-1111-111111111111"
 OUT = os.path.join(os.path.dirname(__file__), "..", "server", "priv", "world_seeds", "maze.json")
-FIXTURE = os.path.join(os.path.dirname(__file__), "..", "pokepals", "tests", "world_fixtures", "maze.json")
+FIXTURE = os.path.join(os.path.dirname(__file__), "..", "gates-of-elyra", "tests", "world_fixtures", "maze.json")
 
 # Doubled-grid size: corridor cells at odd indices, walls at even indices.
 G = 2 * CELLS + 1

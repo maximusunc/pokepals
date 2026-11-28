@@ -2,7 +2,7 @@ defmodule Server.TideTest do
   use ExUnit.Case, async: true
   alias Server.Tide
 
-  # The SAME vectors the client's TideClock is held to (pokepals/tests/world_fixtures/tide_vectors.json): if
+  # The SAME vectors the client's TideClock is held to (gates-of-elyra/tests/world_fixtures/tide_vectors.json): if
   # these ever disagree, the server and the clients no longer share a tide.
   @vectors Path.join([__DIR__, "fixtures", "tide_vectors.json"]) |> File.read!() |> Jason.decode!()
 

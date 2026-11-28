@@ -1,4 +1,4 @@
-# Playing Kithbound in a browser
+# Playing Gates of Elyra in a browser
 
 The game's renderer and input are already web-ready (Compatibility/WebGL2 renderer,
 touch + keyboard both wired up), so getting into a browser is a **packaging + hosting**
@@ -18,7 +18,7 @@ mixed-content, no second host to run.
 ### 1. Godot Web export template
 
 The project ships a **Web** preset (`preset.2`) in
-[`export_presets.cfg`](../pokepals/export_presets.cfg). It exports straight into
+[`export_presets.cfg`](../gates-of-elyra/export_presets.cfg). It exports straight into
 `server/priv/static/` (where the server serves from) and is configured **threads-off**
 (`variant/thread_support=false`).
 
@@ -51,7 +51,7 @@ Export the Web preset (editor: *Project → Export → Web → Export Project*, 
 `index.html`), or headless from the client dir:
 
 ```bash
-cd pokepals
+cd gates-of-elyra
 godot --headless --export-release "Web" ../server/priv/static/index.html
 ```
 
@@ -90,7 +90,7 @@ Funnel → 4000 covers everything). One ordering rule, because Docker differs fr
 > `docker compose up -d --build` to bake the new export; a plain restart won't pick it up.
 
 ```bash
-cd pokepals
+cd gates-of-elyra
 godot --headless --export-release "Web" ../server/priv/static/index.html   # 1. export first
 cd ../server
 docker compose up -d --build                                               # 2. then build+serve
@@ -114,14 +114,14 @@ The browser build is split so the first download stays small however many worlds
 ```
 
 **Building it.** `server/build-web.sh` does everything (it now needs `python3` as well as Godot). The work
-is in [`pokepals/tools/packs/build_packs.py`](../pokepals/tools/packs/build_packs.py), on a scratch copy of
+is in [`gates-of-elyra/tools/packs/build_packs.py`](../gates-of-elyra/tools/packs/build_packs.py), on a scratch copy of
 the project (so your checkout gets no `.import` churn):
 
 1. **Audit.** Every world is built headless with `godot --verbose` and the `res://assets/` files it
    loads are read off the log. Measured, not guessed. (The home is audited with *every* quality switched
    on, since a real home only shows some of them.)
 2. **Plan.** The Vale's and the homes' art, plus the shared things pinned in
-   [`tools/packs/packs.json`](../pokepals/tools/packs/packs.json) (fonts, loading screen, wardrobe, the
+   [`tools/packs/packs.json`](../gates-of-elyra/tools/packs/packs.json) (fonts, loading screen, wardrobe, the
    player and companion, portals, and every animal the companion can shift into), is the base. What only
    one other world loads is **that world's pack**. What 2–3 other worlds share is one **kit** pack they
    all depend on. Art loaded by more worlds than that is general-purpose, so it joins the base. Anything
@@ -134,7 +134,7 @@ the project (so your checkout gets no `.import` churn):
    If it doesn't, the build fails and says which file went missing.
 
 `./build-web.sh --monolithic` skips all of it (one big pck, no packs); `--skip-verify` skips step 4.
-Unit tests for the planner: `python3 -m unittest discover -s pokepals/tools/packs`.
+Unit tests for the planner: `python3 -m unittest discover -s gates-of-elyra/tools/packs`.
 
 **Today's numbers.** The base pck is 1.6 MB (3.5 MB before the split); Bobbledown's pack is 1.8 MB and
 Nocthollow's 0.12 MB. Riverbank, the Ruin, the Maze and the Bazaar use nothing the Vale doesn't, so they
@@ -142,7 +142,7 @@ have no pack (and nothing to download). The real saving is the future one: each 
 own adds a pack that only its visitors ever download, and nothing to the base.
 
 **At runtime.** Before the client *joins* a world it calls `AssetPacks.prepare(world_id)`
-([`scripts/net/asset_packs.gd`](../pokepals/scripts/net/asset_packs.gd)):
+([`scripts/net/asset_packs.gd`](../gates-of-elyra/scripts/net/asset_packs.gd)):
 
 1. `GET /worlds/<id>/packs` asks the server which packs the world needs (`Server.Packs` reads
    `packs/manifest.json`; one tiny request per world per session).
@@ -182,7 +182,7 @@ Confirm: the node has Funnel enabled in your tailnet ACLs (`nodeAttrs` → `"fun
 companion to load — a quick sanity check before assuming).
 
 The client's web build **derives its server URL from the page origin** (see
-`Net.default_server_url` in [`net.gd`](../pokepals/scripts/net/net.gd)): reached over
+`Net.default_server_url` in [`net.gd`](../gates-of-elyra/scripts/net/net.gd)): reached over
 `https://…ts.net`, it offers `wss://…ts.net/ws` automatically. Nothing is hardcoded.
 
 ---
@@ -193,15 +193,15 @@ There is **no address-entry screen** — the connection gate auto-connects to a 
 platform, and only shows a **Retry** button if the connection can't be made:
 
 - **Web:** derived from the page origin (above). Served over `https://…ts.net` → `wss://…ts.net/ws`.
-- **Native (iOS / Android / desktop):** read at startup from **`pokepals/server_config.json`** —
+- **Native (iOS / Android / desktop):** read at startup from **`gates-of-elyra/server_config.json`** —
   a file that is **gitignored but baked into the exported package** (it lives under `res://`), so
   the real address ships in the installable without ever living in the repo. Copy the committed
-  [`server_config.example.json`](../pokepals/server_config.example.json) to `server_config.json`
+  [`server_config.example.json`](../gates-of-elyra/server_config.example.json) to `server_config.json`
   and set `server_url`, then export. If the file is absent, native falls back to
   `Net.DEFAULT_SERVER_URL` (a harmless LAN default).
 
 ```jsonc
-// pokepals/server_config.json  (gitignored; create from server_config.example.json)
+// gates-of-elyra/server_config.json  (gitignored; create from server_config.example.json)
 { "server_url": "wss://your-host.ts.net/ws" }
 ```
 
@@ -211,7 +211,7 @@ platform, and only shows a **Retry** button if the connection can't be made:
 
 The game is designed for a wide 640×360 viewport and doesn't read well in a tall
 portrait phone window, so the Web preset's `html/head_include` (in
-[`export_presets.cfg`](../pokepals/export_presets.cfg)) injects a small CSS+JS
+[`export_presets.cfg`](../gates-of-elyra/export_presets.cfg)) injects a small CSS+JS
 snippet into the exported `index.html` that enforces landscape on **mobile
 browsers only**:
 

@@ -9,7 +9,7 @@ defmodule Server.CircuitTest do
   alias Server.Circuit
   alias Server.Circuit.Board
 
-  # The SAME vectors the client's CircuitBoard is held to (pokepals/tests/world_fixtures/circuit_vectors.json):
+  # The SAME vectors the client's CircuitBoard is held to (gates-of-elyra/tests/world_fixtures/circuit_vectors.json):
   # if these ever disagree, the client and the server no longer play the same game.
   @vectors Path.join([__DIR__, "fixtures", "circuit_vectors.json"]) |> File.read!() |> Jason.decode!()
 

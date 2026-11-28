@@ -1,7 +1,7 @@
 defmodule Server.Tide do
   @moduledoc """
   Ebbmere's tide: a pure function of shared wall-clock time. The Elixir twin of the client's `TideClock`
-  (pokepals/scripts/world/tide_clock.gd); both are held to the same vectors
+  (gates-of-elyra/scripts/world/tide_clock.gd); both are held to the same vectors
   (test/fixtures/tide_vectors.json), so the server and every client agree on the water without the server
   simulating or broadcasting anything.
 
