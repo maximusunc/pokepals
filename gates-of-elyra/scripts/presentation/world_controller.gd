@@ -1276,6 +1276,7 @@ func _gather_gear_items() -> Array:
 		items.append({ "id": "return", "label": _return_item_label() })
 	if Net.is_active():
 		items.append({ "id": "friends", "label": "Friends" })
+		items.append({ "id": "devices", "label": "Devices" })
 		items.append({ "id": "journal", "label": "Journal" })
 		items.append({ "id": "bag", "label": "Bag" })
 		items.append({ "id": "wardrobe", "label": "Wardrobe" })
@@ -1388,6 +1389,7 @@ func _on_gear_item(id: String) -> void:
 		"return": _on_return_pressed()
 		"wardrobe": _open_wardrobe()
 		"friends": _social_dir.open_friends()
+		"devices": _social_dir.open_devices(_companion.is_met())
 		"journal": _social_dir.open_journal()
 		"bag": open_sheet(BagPanel.new())
 		"welcome": _open_cards([], false)
@@ -1418,14 +1420,18 @@ func _on_gear_item(id: String) -> void:
 ## is let go (see _open_customizer).
 func _open_creation() -> void:
 	_encounter_dir.held = true
-	_open_cards(["welcome"], true, func() -> void: _open_customizer("create"))
+	_open_cards(["welcome"], true, func() -> void: _open_customizer("create"), true)
 
 
 ## Show some of the newcomer's cards (data/welcome.json "cards"), then call `then`. An onboarding
 ## card is modal: it's read through to its button, never waved away by a stray tap. An empty `ids`
 ## is the gear menu's reread: every card in order, closeable any time.
-func _open_cards(ids: Array, onboarding: bool, then := Callable()) -> void:
+## `offer_link` shows the welcome card's small "Already have a companion? Enter a code" (issue 175), for a
+## newcomer who already plays on another device: it opens the enter-a-code card over the welcome.
+func _open_cards(ids: Array, onboarding: bool, then := Callable(), offer_link := false) -> void:
 	var panel := WelcomePanel.new()
+	panel.offer_link = offer_link
+	panel.link_pressed.connect(func() -> void: open_sheet(LinkJoinPanel.new()))
 	if ids.is_empty():
 		var data := WelcomePanel.load_data()
 		panel.card_ids = data.get("reread_order", ["welcome", "find", "explore"])

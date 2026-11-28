@@ -8,7 +8,9 @@ extends Node
 ##   * a friend request arriving is a soft line, not a popup; you answer it in Friends;
 ##   * an invite home IS a question (Go / Not now), since it's about right now. If you go, you travel
 ##     to their home, and they're brought home to meet you;
-##   * being sent out of a home (or finding it closed) walks you gently back to the Vale's Gateway.
+##   * being sent out of a home (or finding it closed) walks you gently back to the Vale's Gateway;
+##   * a new device asking to join you (it typed your code, issue 175) IS a question too, wherever you
+##     are: "Let it in?", with Not now as the easy answer. Only Let it in means anything.
 ##
 ## Presentation only: every decision (who may visit, what a request does) is the server's. Reports back
 ## to the host (the World) through its small seam: show_hint, open_sheet, travel_to.
@@ -16,6 +18,7 @@ extends Node
 var _host: Node
 var _presence: PresenceDirector
 var _card: ChoiceCard
+var _link_card: ChoiceCard
 
 
 func setup(host: Node, presence: PresenceDirector) -> void:
@@ -27,6 +30,8 @@ func setup(host: Node, presence: PresenceDirector) -> void:
 	Net.invite_result.connect(_on_invite_result)
 	Net.sent_home.connect(_on_sent_home)
 	Net.world_join_failed.connect(_on_join_failed)
+	Net.link_requested.connect(_on_link_requested)
+	Net.link_failed.connect(_on_link_failed)
 
 
 ## The player tapped another player: open their card.
@@ -60,6 +65,14 @@ static func relation_text(relation: String) -> String:
 		"requested": return "You've asked to be friends."
 		"blocked": return "You've blocked them."
 		_: return "Someone you've met here."
+
+
+## The Devices sheet. `companion_met`: this device has a companion of its own (joining another player
+## here would leave it behind, so the sheet asks first).
+func open_devices(companion_met: bool) -> void:
+	var panel := DevicesPanel.new()
+	panel.companion_met = companion_met
+	_host.open_sheet(panel)
 
 
 func open_friends() -> void:
@@ -111,6 +124,25 @@ func _on_home_invite(from_id: String, from_name: String) -> void:
 	_card.choices = [{ "id": "go", "label": "Go", "gold": true }, { "id": "no", "label": "Not now" }]
 	_card.chosen.connect(func(id: String) -> void: Net.answer_invite(from_id, id == "go"))
 	_host.open_sheet(_card)
+
+
+## A new device typed our code and wants to play as us. One question at a time: a second ask while the
+## first is still up waits for the server to ask again.
+func _on_link_requested(device_name: String) -> void:
+	if is_instance_valid(_link_card):
+		return
+	_link_card = ChoiceCard.new()
+	_link_card.modal = true
+	_link_card.title = "%s wants to join you. Let it in?" % (device_name if device_name != "" else "A device")
+	_link_card.text = "It will play as you, with your companion. Only say yes if it's yours."
+	_link_card.choices = [{ "id": "allow", "label": "Let it in" }, { "id": "no", "label": "Not now", "gold": true }]
+	_link_card.default_choice = "no"
+	_link_card.chosen.connect(func(id: String) -> void: Net.answer_link(id == "allow"))
+	_host.open_sheet(_link_card)
+
+
+func _on_link_failed(reason: String) -> void:
+	_host.show_hint(DevicesPanel.link_failed_text(reason))
 
 
 ## They answered our invite. If they're coming, go home to meet them.

@@ -43,6 +43,7 @@ func _process(_delta: float) -> bool:
 		_world._gear.set_profile("Mossy Wren", "K7Q-2MX")
 		_world._gear.set_items([
 			{ "id": "new_companion", "label": "New Companion" }, { "id": "friends", "label": "Friends" },
+			{ "id": "devices", "label": "Devices" },
 			{ "id": "journal", "label": "Journal" }, { "id": "bag", "label": "Bag" },
 			{ "id": "wardrobe", "label": "Wardrobe" }, { "id": "welcome", "label": "Welcome" },
 			{ "id": "sound", "label": "Sound" }, { "id": "leave", "label": "Leave game" },

@@ -10,6 +10,9 @@ var title := ""
 var text := ""
 ## [{ id, label, gold?: bool, disabled?: bool }]
 var choices: Array = []
+## The id of the choice Enter picks (it gets the keyboard focus), for a question whose safe answer
+## should be the easy one. Null = none.
+var default_choice: Variant = null
 var _answered := false
 
 
@@ -30,6 +33,9 @@ func _build() -> void:
 		var b := CozySheet.pill(String(c["label"]), _choose.bind(id), bool(c.get("gold", false)), 10)
 		b.disabled = bool(c.get("disabled", false))
 		buttons.add_child(b)
+		if default_choice != null and id == String(default_choice):
+			b.focus_mode = Control.FOCUS_ALL
+			b.grab_focus.call_deferred()
 
 
 func _choose(id: String) -> void:

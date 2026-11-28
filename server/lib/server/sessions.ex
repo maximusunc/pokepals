@@ -75,12 +75,17 @@ defmodule Server.Sessions do
   def end_socket(socket, event) do
     Phoenix.Channel.push(socket, event, %{})
 
-    send(socket.transport_pid, %Phoenix.Socket.Broadcast{
-      topic: socket.id,
-      event: "disconnect",
-      payload: %{}
-    })
+    # The close waits a moment. Erlang's ordering already puts the push on the wire first, but a
+    # client that reads the push and the close in one poll (Godot's WebSocketPeer) drops the unread
+    # frame when it sees the close, so the two must not arrive together.
+    Process.send_after(
+      socket.transport_pid,
+      %Phoenix.Socket.Broadcast{topic: socket.id, event: "disconnect", payload: %{}},
+      close_delay_ms()
+    )
 
     :ok
   end
+
+  defp close_delay_ms, do: Application.get_env(:server, __MODULE__, [])[:close_delay_ms] || 1_000
 end

@@ -3,7 +3,7 @@ extends Control
 ## The top-left corner and the MENU SHEET. The corner holds a round Menu button and, beside it, a little
 ## chip naming where you are ("The Vale · 2 here"). The Menu button slides a cream sheet in from the right
 ## edge with everything that isn't about the pet or the world: your name and friend code up top; the
-## everyday things as big tiles (Bag, Wardrobe, Journal), then Friends, Sound and the Guide; Return to
+## everyday things as big tiles (Bag, Wardrobe, Journal), then Friends, Devices, Sound and the Guide; Return to
 ## the Vale where a world offers it; and at the foot Leave, set apart in rust, beside a folded-away
 ## Developer row (New Companion, the inside view, the debug readout).
 ##
@@ -22,12 +22,12 @@ const PAD := 12.0
 const TILE_H := 58.0
 const ROW_H := 34.0
 
-## The six tiles, in order; the first three are the everyday ones and stand out.
-const GRID_ORDER := ["bag", "wardrobe", "journal", "friends", "sound", "welcome"]
+## The tiles, in order; the first three are the everyday ones and stand out.
+const GRID_ORDER := ["bag", "wardrobe", "journal", "friends", "devices", "sound", "welcome"]
 const PRIMARY := ["bag", "wardrobe", "journal"]
 const DEV := ["new_companion", "perspective", "dbg"]
 const ICONS := {
-	"bag": "bag", "wardrobe": "wardrobe", "journal": "journal", "friends": "friends", "sound": "sound",
+	"bag": "bag", "wardrobe": "wardrobe", "journal": "journal", "friends": "friends", "devices": "devices", "sound": "sound",
 	"welcome": "guide", "leave": "leave", "return": "return",
 }
 const NAMES := { "welcome": "Guide", "leave": "Leave" }

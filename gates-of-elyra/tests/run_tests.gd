@@ -63,6 +63,7 @@ func _init() -> void:
 	failures += TestFacetLight.run_all()
 	failures += TestGlyphNotice.run_all()
 	failures += TestGlyphMap.run_all()
+	failures += TestDeviceLink.run_all()
 
 	print("")
 	if failures == 0:

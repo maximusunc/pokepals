@@ -12,6 +12,8 @@ extends CozySheet
 
 ## The reader pressed the last card's button (not emitted when a reread is waved away early).
 signal finished()
+## The reader tapped a card's small "link" line (the welcome's "Already have a companion? Enter a code").
+signal link_pressed()
 
 const DATA_PATH := "res://data/welcome.json"
 const PAGE_MIN_HEIGHT := 190.0  # keeps the card from jumping in size between pages
@@ -23,6 +25,8 @@ var final_button := ""
 ## For a card with show_avatar: the player's look, and the catalog it resolves against.
 var avatar: PlayerAppearance = null
 var catalog: CosmeticsCatalog = null
+## Show a card's "link" line, if it has one (only on a newcomer's first welcome, not a reread).
+var offer_link := false
 
 var _cards: Array = []
 var _index := 0
@@ -103,7 +107,24 @@ func _show_page(i: int) -> void:
 		l.add_theme_font_size_override("font_size", 10)
 	if String(card.get("tip", "")) != "":
 		note(String(card["tip"]), _page)
+	if offer_link and String(card.get("link", "")) != "":
+		_page.add_child(_link_button(String(card["link"])))
 	_refresh_controls()
+
+
+## A quiet, underlined line of text that's a button: small, so it never competes with the card's own.
+func _link_button(text: String) -> LinkButton:
+	var b := LinkButton.new()
+	b.text = text
+	b.focus_mode = Control.FOCUS_NONE
+	b.underline = LinkButton.UNDERLINE_MODE_ALWAYS
+	b.size_flags_horizontal = Control.SIZE_SHRINK_CENTER
+	UiStyle.set_font(b, 600, 9)
+	b.add_theme_color_override("font_color", UiStyle.LABEL_BROWN)
+	b.add_theme_color_override("font_hover_color", UiStyle.INK_STRONG)
+	b.add_theme_color_override("font_pressed_color", UiStyle.INK_STRONG)
+	b.pressed.connect(func() -> void: link_pressed.emit())
+	return b
 
 
 func _refresh_controls() -> void:

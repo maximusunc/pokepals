@@ -6,8 +6,8 @@ extends Node
 ## beyond an opaque string. The TRANSPORT is a WebSocket to an AUTHORITATIVE Elixir/Phoenix server,
 ## over **Phoenix Channels** (the Phoenix v2 serializer).
 ##
-## MULTI-WORLD: there is ONE socket per client (authenticated once, at connect, by the identity
-## token), but the player is in ONE WORLD AT A TIME, and each world is its own Phoenix channel topic
+## MULTI-WORLD: there is ONE socket per client (authenticated once, at connect, by a short-lived
+## ticket: see DEVICES below), but the player is in ONE WORLD AT A TIME, and each world is its own Phoenix channel topic
 ## "world:<world_id>". Net joins the world the player is in and re-joins (leave + join) when they
 ## travel. Presence (who's here) and live transforms are scoped to that world's channel by the
 ## server, so players in different worlds don't see each other.
@@ -32,8 +32,19 @@ extends Node
 ##
 ## TRUST MODEL: the SERVER stamps the sender id (the player's user_id) onto every relayed frame —
 ## clients never send their own id, so a peer can't impersonate another. Incoming presentation
-## payloads are untrusted input the world clamps/validates. The token is a bearer credential, sent
-## only to the server (in the connect URL) and never relayed.
+## payloads are untrusted input the world clamps/validates. The device token is a bearer credential,
+## sent only to the server, in a header over plain HTTP, and never relayed.
+##
+## DEVICES (issue 175). One player can play on several devices, each with its own secret token
+## (PlayerIdentity). Before every (re)connect Net trades the token for a ticket (POST /session, the
+## token in an Authorization header) and opens the socket with the TICKET, so the token never sits in
+## a socket URL. The same plain HTTP (same host as the socket, worked out by DeviceLink.http_base)
+## carries a new device's REDEEM of a transfer code (POST /link/redeem, asked again every 2 s while the
+## other device decides; LinkRedeem keeps the count). The rest rides the world channel: asking for a
+## code, a new device asking to join (answered allow / not now), the device list, signing one out.
+## Newest device wins: when this player connects somewhere else, the server says "superseded" and closes
+## this socket; when this device is signed out from another, "signed_out". Neither reconnects by
+## itself: Net HOLDS (held()) until the gate's "Play here" (or a code, or a fresh start) asks again.
 
 ## A peer connected / disconnected (within our current world). The peer id is the player's stable
 ## user_id (a string). The world spawns or frees that peer's puppet pair.
@@ -181,6 +192,27 @@ signal circuit_reward(info: Dictionary)
 signal house_status_received(status: Dictionary)
 signal house_commissioned(status: Dictionary, balance: int)
 signal house_refused(reason: String)
+# Devices (issue 175; see DEVICES above). A code to give a new device, and how long it lasts (seconds); a new
+# device typed our code and wants to join us (answer_link); a link couldn't happen ("too_many": ten devices
+# already); our devices ([{ id, name, last_seen_ms (unix ms or null), current }], pushed whenever they change;
+# also kept, devices()).
+signal link_code_received(code: String, expires_in: int)
+signal link_requested(device_name: String)
+signal link_failed(reason: String)
+signal devices_received(devices: Array)
+## This player just connected on another device (newest wins): the server closes this socket next, and
+## nothing reconnects until the player asks (connect_to again, from the gate's "Play here").
+signal superseded()
+## This device was signed out, from another device (the server then closes the socket), or the server
+## turned our token away at connect time. Nothing reconnects; the gate offers a code or a fresh start.
+signal signed_out()
+## A code redeem on THIS device moved on: LinkRedeem's state ("waiting", "linked", "denied", "invalid",
+## "slow_down", "expired", "failed", "cancelled"). Words for each: LinkRedeem.message(state).
+signal redeem_changed(state: String)
+## This device is someone else now: a redeem linked it to another player, or the player started fresh.
+## The socket has been dropped quietly and everything Net kept about the old player forgotten; the
+## world should be rebuilt from scratch, which reconnects as the new player.
+signal identity_changed()
 
 ## Last-resort NATIVE fallback — the channel mount point Net rewrites into the full Phoenix socket
 ## URL (…/websocket?vsn=2.0.0&token=…) in connect_to(). Used only if neither the web page origin nor
@@ -269,6 +301,22 @@ var _resume_pending: bool = true
 # Where the server says to set us down on resuming: { "world": world_id, "pos": Vector2 }, or {} if
 # none. Arrives just before the spec and is consumed by the world's first placement (take_resume_position).
 var _resume: Dictionary = {}
+# DEVICES: the server address the last connect_to was given (the HTTP base comes from it), the two plain
+# HTTP requests (a ticket before each connect; a code redeem), whether a ticket is on its way, why we're
+# HELD off the server ("superseded" / "signed_out" / ""), our device list, and the redeem in progress with
+# the fresh token it offers.
+var _base_url := ""
+var _ticket_http: HTTPRequest
+var _redeem_http: HTTPRequest
+var _ticket_pending := false
+var _held := ""
+var _devices: Array = []
+var _redeem := LinkRedeem.new()
+var _redeem_token := ""
+var _redeem_shown := ""
+## The PlayerIdentity this Net speaks for. Null = the autoload; only a test sets another (two devices
+## in one process).
+var identity: Node = null
 
 
 func _ready() -> void:
@@ -280,9 +328,21 @@ func _ready() -> void:
 	# Warm the in-memory cache from disk so a returning player's worlds paint instantly (and we can send
 	# their etags on join to skip the download). A changed world still re-ships — the etag won't match.
 	_load_disk_cache()
+	# Godot's HTTPRequest is a node that makes one HTTP call at a time and answers with request_completed.
+	# Children inherit PROCESS_MODE_ALWAYS, so they keep working under the paused gate. On the web build
+	# they go through the browser's fetch.
+	_ticket_http = HTTPRequest.new()
+	_ticket_http.timeout = 15.0
+	_ticket_http.request_completed.connect(_on_ticket_answer)
+	add_child(_ticket_http)
+	_redeem_http = HTTPRequest.new()
+	_redeem_http.timeout = 15.0
+	_redeem_http.request_completed.connect(_on_redeem_answer)
+	add_child(_redeem_http)
 
 
 func _process(delta: float) -> void:
+	_pump_redeem()
 	if _socket == null:
 		return
 	_socket.poll()
@@ -296,8 +356,24 @@ func _process(delta: float) -> void:
 			_pump_heartbeat(delta)
 			while _socket.get_available_packet_count() > 0:
 				_handle_frame(_socket.get_packet().get_string_from_utf8())
+		WebSocketPeer.STATE_CLOSING:
+			# The server is closing: read what it said just before. It says "superseded" / "signed_out" and
+			# then closes, and those words must not be lost. (Godot lets go of unread frames once the socket
+			# is CLOSED, and when the close lands in the same read as the words, they're gone before we can
+			# look; so the close's own reason is read too, see _on_socket_closed.)
+			_drain()
 		WebSocketPeer.STATE_CLOSED:
-			_on_socket_closed()
+			_drain()
+			if _socket != null and _socket.get_ready_state() == WebSocketPeer.STATE_CLOSED:
+				_on_socket_closed()
+
+
+func _drain() -> void:
+	var closing := _socket
+	if not _was_open:
+		return
+	while _socket == closing and closing.get_available_packet_count() > 0:
+		_handle_frame(closing.get_packet().get_string_from_utf8())
 
 
 ## True while the socket is open. Sends no-op when false.
@@ -320,27 +396,71 @@ func take_resume_position(world_id: String) -> Variant:
 	return pos
 
 
-## CONNECT to the server at `base_url` (host:port, optionally with the "/ws" mount). Net rewrites it
-## into the full Phoenix socket URL with the v2 serializer and our identity token. Returns OK or a
-## Godot error code; handshake result arrives via connected()/connection_failed().
+## CONNECT to the server at `base_url` (host:port, optionally with the "/ws" mount). First a ticket is
+## fetched over plain HTTP with this device's token (POST /session), then the socket is opened with it
+## (the full Phoenix socket URL, v2 serializer). Every connect, Retry and "Play here" comes through here,
+## so each gets a fresh ticket (they last a minute). Returns OK or a Godot error code; the outcome arrives
+## as connected() / connection_failed() / signed_out().
 func connect_to(base_url: String = DEFAULT_SERVER_URL) -> int:
 	_reset_socket()
+	_held = ""
+	_base_url = base_url
+	var http := DeviceLink.http_base(base_url)
+	if http == "" or _ticket_http == null:
+		return ERR_INVALID_PARAMETER
+	_ticket_http.cancel_request()
+	var headers := PackedStringArray([
+		"Content-Type: application/json",
+		"Authorization: Bearer " + String(_identity().id()),
+	])
+	var body := JSON.stringify({ "device_name": String(_identity().device_name()) })
+	var err := _ticket_http.request(http + "/session", headers, HTTPClient.METHOD_POST, body)
+	if err != OK:
+		return err
+	_ticket_pending = true
+	return OK
+
+
+## The ticket answer: open the socket with it, or say we were signed out, or that we couldn't connect.
+func _on_ticket_answer(result: int, status: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	if not _ticket_pending:
+		return   # dropped (leave(), a newer connect, a new identity) while it was on its way
+	_ticket_pending = false
+	var out := DeviceLink.ticket_outcome(status if result == HTTPRequest.RESULT_SUCCESS else 0, _parse_body(body))
+	match String(out["kind"]):
+		"ticket":
+			_open_socket(String(out["ticket"]))
+		"revoked":
+			_held = "signed_out"
+			signed_out.emit()
+		_:
+			connection_failed.emit()
+
+
+func _open_socket(ticket: String) -> void:
 	_socket = WebSocketPeer.new()
 	# Raise the inbound buffer above the default 64 KiB so a large world's spec (one Phoenix message —
 	# the Ruin's is ~68 KB) can be received whole; otherwise the socket closes mid-join and reconnects
 	# loop on the same world. Must be set BEFORE connect_to_url.
 	_socket.inbound_buffer_size = SOCKET_BUFFER_SIZE
 	_socket.outbound_buffer_size = SOCKET_BUFFER_SIZE
-	var err := _socket.connect_to_url(_phoenix_url(base_url))
-	if err != OK:
+	if _socket.connect_to_url(_socket_url(_base_url, ticket)) != OK:
 		_socket = null
-		return err
-	return OK
+		connection_failed.emit()
+
+
+## Why we're off the server and staying off until the player asks: "superseded" (playing on another
+## device now), "signed_out" (this device was signed out), or "" (not held).
+func held() -> String:
+	return _held
 
 
 ## Tear the whole link down (e.g. "Leave"). Graceful close if open, so a final queued frame flushes
 ## and the drop surfaces through disconnected() exactly like a server-side drop.
 func leave() -> void:
+	if _ticket_pending:
+		_ticket_pending = false
+		_ticket_http.cancel_request()
 	if _socket == null:
 		return
 	if _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
@@ -783,6 +903,130 @@ func commission_house() -> void:
 	_push_event("commission_house", {})
 
 
+# --- devices (issue 175; see DEVICES at the top) ------------------------------------------
+
+## Ask for a code to give a new device (answer: link_code_received).
+func request_link_code() -> void:
+	_push_social("link_code", {})
+
+
+## Answer a new device that typed our code (link_requested): let it in, or not now.
+func answer_link(allow: bool) -> void:
+	_push_social("link_answer", { "allow": allow })
+
+
+## Ask for our device list (answer: devices_received; the server also sends it whenever it changes).
+func request_devices() -> void:
+	_push_social("devices", {})
+
+
+## Sign one of our OTHER devices out (its id from the list).
+func revoke_device(id: Variant) -> void:
+	_push_social("device_revoke", { "id": id })
+
+
+## Our devices as the server last listed them (see devices_received); [] before it has.
+func devices() -> Array:
+	return _devices
+
+
+## Bring a player here with a code typed on THIS device: offer the server a fresh token, and ask again
+## every couple of seconds until the other device answers. Works with or without a socket (a signed-out
+## gate has none). Progress arrives as redeem_changed; once linked, this device becomes that player
+## (identity_changed).
+func start_redeem(typed_code: String) -> void:
+	_redeem_http.cancel_request()
+	_redeem_token = String(_identity().fresh_token())
+	_redeem.start(typed_code, Time.get_ticks_msec())
+	_redeem_shown = ""
+	_note_redeem()
+
+
+## Stop waiting (the Cancel button). An answer still on its way is ignored.
+func cancel_redeem() -> void:
+	_redeem.cancel()
+	_redeem_http.cancel_request()
+	_note_redeem()
+
+
+## Where a redeem stands (LinkRedeem's state; "idle" before any).
+func redeem_state() -> String:
+	return _redeem.state
+
+
+func is_redeeming() -> bool:
+	return _redeem.is_active()
+
+
+## Begin again as a brand-new player on this device (the signed-out gate's "Start fresh"). The old token
+## stays in the identity file (PlayerIdentity.adopt keeps it).
+func start_fresh() -> void:
+	_become(String(_identity().fresh_token()))
+
+
+func _pump_redeem() -> void:
+	if not _redeem.is_active():
+		return
+	var now := Time.get_ticks_msec()
+	if _redeem.should_ask(now):
+		var http := DeviceLink.http_base(_base_url if _base_url != "" else default_server_url())
+		var body := JSON.stringify({ "code": _redeem.code, "token": _redeem_token, "device_name": String(_identity().device_name()) })
+		var err := ERR_INVALID_PARAMETER
+		if http != "":
+			err = _redeem_http.request(http + "/link/redeem", PackedStringArray(["Content-Type: application/json"]), HTTPClient.METHOD_POST, body)
+		if err != OK:
+			_redeem.on_answer(0, null, now)
+	_note_redeem()
+
+
+func _on_redeem_answer(result: int, status: int, _headers: PackedStringArray, body: PackedByteArray) -> void:
+	var code := status if result == HTTPRequest.RESULT_SUCCESS else 0
+	_redeem.on_answer(code, _parse_body(body), Time.get_ticks_msec())
+	_note_redeem()
+	if _redeem.state == LinkRedeem.LINKED:
+		_become(_redeem_token)
+
+
+## Tell the panels when the redeem moves on. Asking and waiting between asks read the same ("waiting").
+func _note_redeem() -> void:
+	var shown := "waiting" if _redeem.is_active() else _redeem.state
+	if shown == _redeem_shown:
+		return
+	_redeem_shown = shown
+	redeem_changed.emit(shown)
+
+
+## This device becomes the player `token` belongs to: keep the token, drop the socket quietly (no
+## "disconnected": nothing went wrong), forget everything we knew about the old player, and say so.
+func _become(token: String) -> void:
+	_identity().adopt(token)
+	_ticket_pending = false
+	_ticket_http.cancel_request()
+	if _socket != null and _socket.get_ready_state() == WebSocketPeer.STATE_OPEN:
+		_socket.close()
+	_reset_socket()
+	_held = ""
+	_desired_world = ""
+	_desired_known_etag = ""
+	_local_identity = {}
+	_discoveries = []
+	_inventory = []
+	_hotbar = []
+	_has_inventory = false
+	_recipes = []
+	_harvest_down = []
+	_circuit_boards = []
+	_house_status = {}
+	_my_name = ""
+	_friend_code = ""
+	_friends = {}
+	_devices = []
+	_resume_pending = true
+	_resume = {}
+	hotbar_selected = 0
+	identity_changed.emit()
+
+
 ## The world secret ids we've found so far (empty before our first join).
 func discoveries() -> Array:
 	return _discoveries
@@ -857,16 +1101,27 @@ func _configured_server_url() -> String:
 
 # --- internals -------------------------------------------------------------------------
 
-func _phoenix_url(base_url: String) -> String:
+## The full Phoenix socket URL for `base_url` and a session `ticket` (never the device token). Pure.
+static func _socket_url(base_url: String, ticket: String) -> String:
 	var url := base_url.strip_edges()
 	while url.ends_with("/"):
 		url = url.substr(0, url.length() - 1)
 	if not url.ends_with("/websocket"):
 		url += "/websocket"
-	# Reached through the tree rather than by its global name, so this script still compiles where the
-	# autoloads aren't registered (the headless test runner preloads it for its static codec helpers).
-	var token := String(get_node("/root/PlayerIdentity").id()).uri_encode()
-	return "%s?vsn=2.0.0&token=%s" % [url, token]
+	return "%s?vsn=2.0.0&ticket=%s" % [url, ticket.uri_encode()]
+
+
+## The PlayerIdentity we speak for. Reached through the tree rather than by its global name, so this
+## script still compiles where the autoloads aren't registered (the headless test runner preloads it
+## for its static codec helpers).
+func _identity() -> Node:
+	return identity if identity != null else get_node("/root/PlayerIdentity")
+
+
+static func _parse_body(body: PackedByteArray) -> Variant:
+	if body.is_empty():
+		return null
+	return JSON.parse_string(body.get_string_from_utf8())
 
 
 func _world_topic(world_id: String) -> String:
@@ -935,7 +1190,16 @@ func _reset_socket() -> void:
 
 func _on_socket_closed() -> void:
 	var was_up := _was_open
+	# The server may say why in the close itself ("superseded" / "signed_out" as the reason), which
+	# survives where a frame sent just before the close may not.
+	var why := _held_from_close(_socket.get_close_code(), _socket.get_close_reason()) if _socket != null else ""
 	_reset_socket()
+	if was_up and why != "" and _held == "":
+		_held = why
+		if why == "superseded":
+			superseded.emit()
+		else:
+			signed_out.emit()
 	if was_up:
 		disconnected.emit()
 	else:
@@ -1219,6 +1483,23 @@ func _dispatch(event: String, payload: Dictionary) -> void:
 			journal_received.emit(String(payload.get("owner", "")), String(payload.get("name", "")), entries if entries is Array else [])
 		"keepsakes_saved":
 			keepsakes_saved.emit(bool(payload.get("ok", false)))
+		# DEVICES
+		"link_code":
+			link_code_received.emit(String(payload.get("code", "")), int(payload.get("expires_in", 600)))
+		"link_request":
+			link_requested.emit(String(payload.get("device_name", "")))
+		"link_failed":
+			link_failed.emit(String(payload.get("reason", "")))
+		"devices":
+			var ds: Variant = payload.get("devices", [])
+			_devices = (ds as Array).duplicate(true) if ds is Array else []
+			devices_received.emit(_devices)
+		"superseded":
+			_held = "superseded"
+			superseded.emit()
+		"signed_out":
+			_held = "signed_out"
+			signed_out.emit()
 		"world_list":
 			var worlds: Variant = payload.get("worlds", [])
 			world_list_received.emit(
@@ -1334,6 +1615,17 @@ static func _decode_state(payload: Dictionary) -> Dictionary:
 		else:
 			out[k] = v
 	return out
+
+
+## Why the server closed us, read off the close: "superseded" or "signed_out" when its reason says so
+## (or its private code does: 4001 / 4002), else "". Pure + static.
+static func _held_from_close(code: int, reason: String) -> String:
+	var r := reason.strip_edges().to_lower()
+	if r == "superseded" or code == 4001:
+		return "superseded"
+	if r == "signed_out" or code == 4002:
+		return "signed_out"
+	return ""
 
 
 static func _is_number(v: Variant) -> bool:

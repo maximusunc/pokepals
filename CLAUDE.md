@@ -669,6 +669,27 @@ not a blocker** — pick it up if/when a shared world wants it.
 > (`Server.Packs`) and answers `GET /worlds/:id/packs`. A new world needs no wiring: add the seed, build.
 > Editor runs and native exports still bundle everything. See `docs/web-export.md` ("World packs").
 
+> **Devices and transfer codes (2026-11, issue #175, steps 1 and 2):** a player can be signed in on several
+> devices and carry their companion to a new one, with no login wall and no personal data.
+> - **Device credentials:** each device keeps its own secret token in `user://player_id.json`; the server
+>   stores only its hash (`Server.Devices`, the `devices` table; `accounts.token` is kept, unused, for one
+>   release). Before every connect the client trades the token for a 60-second **ticket** (`POST /session`)
+>   and opens the socket with that, so the long-lived token is never in a URL.
+> - **Link a device:** Menu, **Devices** (`DevicesPanel`). One device shows a code (`link_code`, 8 characters,
+>   10 minutes, one use); the new one types it in (`POST /link/redeem` with a fresh token, asked again every
+>   2 s). The first device is asked "Let it in?" (`link_request` / `link_answer`) and on yes the new device
+>   becomes that player (`PlayerIdentity.adopt`, the old token kept under `previous`). Wrong codes are rate
+>   limited (`Server.LinkThrottle`). Also offered on the welcome card and on the signed-out gate.
+> - **The device list** shows where you are signed in and signs another device out (`devices`, `device_revoke`).
+> - **Newest wins:** connecting on one device closes the other, which is told `superseded` and waits on the
+>   gate with "Play here" (`Server.Sessions`, `accounts.session_gen`). A signed-out device is told
+>   `signed_out` and offered "Enter a code" or "Start fresh". The server sends the notice, then closes the
+>   socket a second later, because Godot's `WebSocketPeer` drops a frame that arrives with the close.
+> - Pure logic: `DeviceLink`, `LinkRedeem` (`scripts/world`, tested). Tests: `test_device_link`,
+>   `smoke_devices`, `shot_devices`, and `e2e_devices` (the whole flow against a real server).
+> - **Not built:** a recovery phrase (decided against for now), so a player with ONE device still loses
+>   their companion if its storage is wiped; and email, passkey or social logins.
+
 > **Pivot note (2026-06):** Rungs 1–2 were offline-first single-player. We have since chosen to make
 > the companion a *server-resident* identity you carry across sessions/devices, which means dropping
 > solo/offline. Treat the "offline single-player core" and "solo stays first-class" language below as
@@ -692,7 +713,9 @@ not a blocker** — pick it up if/when a shared world wants it.
 
 - **Proximity text chat** — deferred (was the last-named Rung-4 step, never built); pick up when a
   shared world wants it.
-- Accounts / real **authentication** beyond the local identity token.
+- **Email, passkey or social logins** (and anything that collects personal data). Devices and
+  transfer codes are built (see "Devices and transfer codes"); real accounts wait on the audience,
+  privacy and account-deletion decisions in issue #175.
 - **World-building / UGC tools** — authoring the mini-worlds ourselves is in scope; giving *players*
   tools to build worlds is the Rung-5 north star, not now.
 - 3D or VR anything.

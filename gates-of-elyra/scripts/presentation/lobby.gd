@@ -6,6 +6,14 @@ extends Control
 ## once the server has handed back your companion (save_loaded). If the link can't be made it offers a
 ## Retry. Pure presentation.
 ##
+## DEVICES (issue 175). Every way in (cold boot, Retry, "Play here") goes through Net.connect_to, which
+## fetches a fresh ticket first. Two more ways to be out, both HELD (nothing reconnects by itself):
+##   * playing on another device now (newest wins): "Play here" takes it back;
+##   * this device was signed out: "Enter a code" (bring your companion back with a code from another
+##     device) or "Start fresh" (after a confirm, this device begins again as a new player).
+## When this device becomes someone else (a code linked it, or Start fresh), Net says identity_changed and
+## the gate rebuilds the whole world from scratch, which connects as the new player.
+##
 ## It's also the LAST of the three loading stages: the web download page (web/shell.html) and the boot
 ## splash (assets/loading/boot_splash.png) show the same wordmark and the same fox on the same
 ## background, at the same spots, so the hand-off from one to the next is seamless. Those two are baked
@@ -24,11 +32,19 @@ const GAP := 12.0                 # puts the fox's 64px box at y=132 (gen_loadin
 @onready var _status: Label = $Box/Status
 @onready var _retry_button: Button = $Box/RetryButton
 var _fox: TrottingFox
+# The signed-out state's second button ("Start fresh", or "Back" while it asks to be sure), beside Retry.
+var _buttons: HBoxContainer
+var _second_button: Button
+# What the main button does right now: "retry" (also "Play here"), "code" or "fresh" (confirmed).
+var _main_action := "retry"
 
 
 func _ready() -> void:
 	_apply_style()
-	_retry_button.pressed.connect(_begin_connect)
+	_retry_button.pressed.connect(_on_main_pressed)
+	Net.superseded.connect(_on_held)
+	Net.signed_out.connect(_on_held)
+	Net.identity_changed.connect(_on_identity_changed)
 	Net.connected.connect(_on_connected)
 	Net.connection_failed.connect(_on_connection_failed)
 	Net.disconnected.connect(_on_disconnected)
@@ -84,20 +100,100 @@ func _apply_style() -> void:
 	UiStyle.set_font(_status, 500, 10)
 	_status.add_theme_color_override("font_color", UiStyle.PAPER)
 	UiStyle.gold_button(_retry_button, 11)
+	# Retry sits in a row with room for a second, quieter button (the signed-out state's).
+	_buttons = HBoxContainer.new()
+	_buttons.alignment = BoxContainer.ALIGNMENT_CENTER
+	_buttons.add_theme_constant_override("separation", 8)
+	_box.add_child(_buttons)
+	_retry_button.reparent(_buttons)
+	_second_button = Button.new()
+	_second_button.visible = false
+	UiStyle.pill_button(_second_button, 11)
+	_second_button.pressed.connect(_on_second_pressed)
+	_buttons.add_child(_second_button)
 
 
 ## Start (or retry) connecting to the resolved server. No address is typed — web derives it from the
 ## page origin, native reads the baked-in config (see Net.default_server_url).
 func _begin_connect() -> void:
 	_retry_button.visible = false
+	_second_button.visible = false
 	_fox.trotting = true
 	var err := Net.connect_to(Net.default_server_url())
 	if err != OK:
 		_status.text = "Couldn't start connecting (error %d)." % err
-		_retry_button.visible = true
+		_offer("Retry", "retry")
 		_fox.trotting = false
 		return
 	_status.text = "Connecting…"
+
+
+## Show the main button as `text`, doing `action`, and (optionally) the quieter second one.
+func _offer(text: String, action: String, second := "") -> void:
+	_main_action = action
+	_retry_button.text = text
+	_retry_button.visible = true
+	_second_button.text = second
+	_second_button.visible = second != ""
+
+
+func _on_main_pressed() -> void:
+	match _main_action:
+		"code": _open_code_entry()
+		"fresh": Net.start_fresh()
+		_: _begin_connect()
+
+
+func _on_second_pressed() -> void:
+	if _main_action == "fresh":
+		_show_held()   # "Back": not starting fresh after all
+	else:
+		_ask_start_fresh()
+
+
+## Off the server and staying off until the player says (see DEVICES above). Called on the word itself
+## and again when the socket then closes: it only ever shows the state, so twice is harmless.
+func _on_held() -> void:
+	if _is_stale():
+		return
+	_show_held()
+
+
+func _show_held() -> void:
+	var why := Net.held()
+	if why == "":
+		return
+	if not visible or not get_tree().paused:
+		_reshow()   # we were in the world: freeze it under the gate again
+	if why == "superseded":
+		_status.text = "You're playing on another device now."
+		_offer("Play here", "retry")
+	else:
+		_status.text = "This device was signed out."
+		_offer("Enter a code", "code", "Start fresh")
+	_fox.trotting = false
+
+
+## Start fresh, but only once they're sure: their companion isn't lost, it lives on with their other
+## devices, but this device won't be it any more.
+func _ask_start_fresh() -> void:
+	_status.text = "Start fresh on this device? You'll begin again as someone new. Your companion stays with your other devices."
+	_offer("Start fresh", "fresh", "Back")
+
+
+func _open_code_entry() -> void:
+	add_child(LinkJoinPanel.new())
+
+
+## This device is someone else now (a code linked it, or Start fresh): rebuild the world from nothing, the
+## way a fresh boot does, so nothing of the old player lingers. The new scene's gate connects as the new
+## player, and the server sets them down where they last stood.
+func _on_identity_changed() -> void:
+	if _is_stale():
+		return
+	_status.text = "Bringing your companion here…"
+	WorldRouter.gateway_departure = {}
+	WorldRouter.go_to(WorldRouter.VALE_ID, "")
 
 
 ## The server accepted us; our companion is on its way. Hold the gate until it actually arrives
@@ -126,7 +222,7 @@ func _on_connection_failed() -> void:
 	if _is_stale():
 		return
 	_status.text = "Couldn't reach the server. Check that it's running, then retry."
-	_retry_button.visible = true
+	_offer("Retry", "retry")
 	_fox.trotting = false
 
 
@@ -139,13 +235,16 @@ func _on_world_join_failed(reason: String) -> void:
 		_status.text = "The server has no world to enter yet. Seed it: mix run priv/repo/seeds.exs"
 	else:
 		_status.text = "The server refused entry to the world (%s)." % reason
-	_retry_button.visible = true
+	_offer("Retry", "retry")
 	_fox.trotting = false
 
 
 ## The link dropped. With no offline mode, the player returns to the gate to reconnect.
 func _on_disconnected() -> void:
 	if _is_stale():
+		return
+	if Net.held() != "":
+		_show_held()
 		return
 	_status.text = "Disconnected from the server. Reconnect to keep playing."
 	_reshow()
@@ -158,7 +257,7 @@ func _reshow() -> void:
 	_backdrop.color = BG_OVER_WORLD
 	visible = true
 	modulate.a = 1.0
-	_retry_button.visible = true
+	_offer("Retry", "retry")
 	_fox.trotting = false
 
 

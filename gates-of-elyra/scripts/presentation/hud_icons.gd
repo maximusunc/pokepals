@@ -63,6 +63,11 @@ static func draw(ci: CanvasItem, id: String, c: Vector2, size: float, color: Col
 			ci.draw_arc(P.call(12, 9.5), 2.6 * k, PI, TAU + 0.9, 14, color, w, true)
 			ci.draw_line(P.call(13.6, 11.6), P.call(12, 13.6), color, w, true)
 			ci.draw_circle(P.call(12, 17), w * 0.75, color)
+		"devices":
+			# Two phones, one standing behind the other: the same companion on more than one device.
+			_poly(ci, [P.call(13, 13), P.call(13, 4), P.call(14, 3), P.call(19, 3), P.call(20, 4), P.call(20, 16), P.call(19, 17), P.call(15, 17)], color, w)
+			_poly(ci, [P.call(5, 8), P.call(12, 8), P.call(13, 9), P.call(13, 20), P.call(12, 21), P.call(5, 21), P.call(4, 20), P.call(4, 9), P.call(5, 8)], color, w)
+			ci.draw_circle(P.call(8.5, 18), w * 0.7, color)
 		"leave":
 			_poly(ci, [P.call(13, 4), P.call(6, 4), P.call(6, 20), P.call(13, 20)], color, w)
 			ci.draw_line(P.call(11, 12), P.call(20, 12), color, w, true)
