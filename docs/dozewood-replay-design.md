@@ -98,7 +98,86 @@ Same patterns as shipped worlds; no new engine ideas.
 never per frame; night-flower props are a short static list; the night sky is a single colour/uniform
 change. No new per-frame cost in the web build.
 
+## Second pass: less drowsy (owner feedback: "maybe too cozy")
+
+The owner asked for **opt-in challenge**, **surprise and mystery**, and **more to actually do**. The
+layers above stay as the calm base. This pass adds a deeper, stranger side you can choose to go down.
+The pillar still holds ("cozy by default, challenge by choice"): the only "fail" is *waking up*, which
+costs nothing, and the surface of Dozewood stays as sleepy as ever. All of it is ⬜ Open.
+
+### 4. Depths: follow the dream down (opt-in challenge, something to do)
+
+Every dream-lantern now has three depths. The surface is what layer 1 already is; the others are chosen.
+
+- **Surface:** walk to the landmark, take the lantern (as above).
+- **Deep:** instead of taking the lantern, **Follow it down.** The screen softens and you and your
+  companion step into a small **dream room**: a pocket scene for that landmark, set off in an unreachable corner
+  of the world (the way Lingerlong's evening terrace is, entered through the doorway with the companion
+  leading). It holds one puzzle where **your companion's form matters** (the directed-and-delegated system, used
+  for real: you tap to direct it, or say **Go look** and let it work out the rest).
+- **Lucid:** the same room, deeper: a three-step chain, and the dream *thins* as you go (the room slowly
+  fades at the edges over a minute or so).
+- **Waking is never a loss.** If the dream thins out, or a Call ends it, you simply wake at the landmark.
+  Nothing is lost; the lantern is still there; ask again. No timers that punish, no health, no fail screen.
+
+One idea per landmark, for the owner to react to (all open, none designed in detail):
+
+| Landmark | Deep dream | What it asks of you |
+|---|---|---|
+| Pond with three stones | Stepping stones that sink when stood on twice | Remember a route; a **rabbit** can hop the gaps you can't |
+| Lantern log | A row of lamps that hum a short phrase | Echo the phrase back by tapping the lamps (a gentle pattern game, with the world's music score) |
+| Ring of toadstools | A ring that turns when something stands in it | You and your companion on opposite caps at once (two bodies, like Glintwold's facets) |
+| Sleeping boulder | A boulder dreaming over a hidden door | A **bird** sees over it, a **fox** digs under it: pick the form |
+| Crooked Arch | An arch whose path folds back on itself | Send your companion through first (**Go look**) and follow its light |
+
+**Pay for depth:** Deep gives two motes; Lucid gives a rare keepsake for that landmark (a **dream-glass**, on
+display at home, with a journal line). Small numbers, no ranking. A player who never goes below the surface
+loses nothing.
+
+**Honesty about the server:** as with most worlds here, the server can only check "this world, standing at the
+lantern" and a per-day claim; whether you solved the puzzle runs on your screen. So payouts stay small and
+capped per day, and a cheat gains a few motes at most. If a co-op depth is wanted (below), its state would go
+server-side, the way the Ohmstead boards do.
+
+### 5. Odd Nights (surprise and mystery)
+
+About one night in six (chosen by the same UTC date seed, so everyone shares it) is an **Odd Night**. It is
+never announced. You notice it, or a friend says "did you see that?". That is the point.
+
+- **The Sleepwalker:** a vast, slow, gentle creature crosses the wood, drifting along a route set by the shared clock
+  (the way Ohmstead's runners are, so everyone sees it in the same place with nothing sent). Follow it to where it stops;
+  something has been left there.
+- **Upside-down night:** the lamps hang from the ground, the sky pools below, and every dream picture is inverted.
+  Landmarks are the same places, wrong-way-up.
+- **The Wrong Dream:** your companion dreams of a place that is not there. Walk to where it points and nothing is
+  there, until the next Odd Night, when something is.
+- **A dream that stays:** finish a **shared** dream (layer 2) and the forest keeps a trace for about ten minutes for
+  *everyone in the world*: a drifting whale of lanterns, a path of glowing steps. A reason to look up.
+- **A quiet thread:** each Odd Night adds one line to the Dream-book about whose dream the wood is. Twelve lines
+  in all, no deadline, and the answer lands softly (the owner decides what it is).
+
+**Tone guard:** strange, never frightening. No jump scares, no chasing, nothing that hurts. The wood is dreaming, it
+is not haunted. (Also matters if this ever has a young audience, per CLAUDE.md.)
+
+### 6. A shared deep dream (optional, the "stakes between players" idea)
+
+Not chosen by the owner this round, parked here: a Lucid dream that needs **two people's companions at once**
+(the toadstool ring is the natural one), with shared server-side state. It is the biggest piece, so it waits.
+
+### Build order, revised
+
+1. Nightly Dream (layer 1): small, and makes the existing quiet toy pay.
+2. **One Deep dream** as a pilot (the Crooked Arch or the boulder: the most form-driven), to find out whether a
+   dream room *feels* right before making five.
+3. Odd Nights, one event at a time, starting with the Sleepwalker (pure function of the clock, cheap, memorable).
+4. Deep Night / Dream-book (layer 3), then Shared Dreams (layer 2), then the rest of the Deep dreams.
+
 ## Open questions for the owner
+
+0. **Second-pass questions:** Is "the only fail is waking" far enough from cozy, or do you want real
+   (still opt-in) difficulty, such as scored Lucid runs? Is the Sleepwalker the right first surprise? Is a quiet
+   mystery thread (12 lines) welcome, or should Odd Nights stay purely in the moment? Which landmark should pilot a
+   Deep dream?
 
 1. **Which layers?** All three, or start with the Nightly Dream alone (smallest, and it makes the existing quiet
    toy pay)? Recommended order: 1, then 3, then 2 (the shared dream is the biggest and wants friends to
@@ -116,4 +195,5 @@ change. No new per-frame cost in the web build.
 
 ## Not proposed
 
-Streaks, daily-login bonuses, leaderboards, or anything that punishes a skipped day. Dozewood stays slow.
+Streaks, daily-login bonuses, leaderboards, or anything that punishes a skipped day. The surface of Dozewood
+stays slow; the strangeness and the challenge are things you go down into, not things that happen to you.
